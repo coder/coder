@@ -293,6 +293,12 @@ CREATE TYPE workspace_app_open_in AS ENUM (
     'slim-window'
 );
 
+CREATE TYPE workspace_app_status_state AS ENUM (
+    'working',
+    'complete',
+    'failure'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -1898,6 +1904,19 @@ CREATE SEQUENCE workspace_app_stats_id_seq
 
 ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
+CREATE TABLE workspace_app_statuses (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    agent_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    state workspace_app_status_state NOT NULL,
+    needs_user_attention boolean NOT NULL,
+    message text NOT NULL,
+    uri text,
+    icon text
+);
+
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -2425,6 +2444,9 @@ ALTER TABLE ONLY workspace_app_stats
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
 
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
@@ -2518,6 +2540,8 @@ CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btr
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
+
+CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
@@ -2869,6 +2893,15 @@ ALTER TABLE ONLY workspace_app_stats
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_app_id_fkey FOREIGN KEY (app_id) REFERENCES workspace_apps(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

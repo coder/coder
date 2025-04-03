@@ -154,4 +154,4 @@ more information.
 ## Up Next
 
 - [Setup and manage templates](../templates/index.md)
-- [Setup external provisioners](../provisioners.md)
+- [Setup external provisioners](../provisioners/index.md)

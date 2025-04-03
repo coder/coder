@@ -1846,6 +1846,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			db, ps := dbtestutil.NewDB(t)
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
+
 			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				Type:           database.ProvisionerJobTypeWorkspaceBuild,
 				OrganizationID: org.ID,
@@ -1872,7 +1873,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			require.Len(t, gotPresets, len(c.givenPresets))
 
 			for _, givenPreset := range c.givenPresets {
-				var foundPreset *database.TemplateVersionPreset = nil
+				var foundPreset *database.TemplateVersionPreset
 				for _, gotPreset := range gotPresets {
 					if givenPreset.Name == gotPreset.Name {
 						foundPreset = &gotPreset
@@ -1881,10 +1882,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 				}
 				require.NotNil(t, foundPreset, "preset %s not found in parameters", givenPreset.Name)
 
-				gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, database.GetPresetParametersByTemplateVersionIDParams{
-					TemplateVersionID: templateVersion.ID,
-					PresetID:          uuid.NullUUID{UUID: foundPreset.ID, Valid: true},
-				})
+				gotPresetParameters, err := db.GetPresetParametersByPresetID(ctx, foundPreset.ID)
 				require.NoError(t, err)
 				require.Len(t, gotPresetParameters, len(givenPreset.Parameters))
 

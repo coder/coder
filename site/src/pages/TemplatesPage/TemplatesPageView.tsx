@@ -113,6 +113,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 					subtitle={template.description}
 					avatar={
 						<Avatar
+							size="lg"
 							variant="icon"
 							src={template.icon}
 							fallback={template.display_name || template.name}

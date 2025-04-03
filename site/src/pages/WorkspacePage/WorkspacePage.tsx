@@ -5,6 +5,7 @@ import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -82,20 +83,26 @@ export const WorkspacePage: FC = () => {
 			return;
 		}
 
-		const eventSource = watchWorkspace(workspaceId);
+		const socket = watchWorkspace(workspaceId);
+		socket.addEventListener("message", (event) => {
+			if (event.parseError) {
+				displayError(
+					"Unable to process latest data from the server. Please try refreshing the page.",
+				);
+				return;
+			}
 
-		eventSource.addEventListener("data", async (event) => {
-			const newWorkspaceData = JSON.parse(event.data) as Workspace;
-			await updateWorkspaceData(newWorkspaceData);
+			if (event.parsedMessage.type === "data") {
+				updateWorkspaceData(event.parsedMessage.data as Workspace);
+			}
+		});
+		socket.addEventListener("error", () => {
+			displayError(
+				"Unable to get workspace changes. Connection has been closed.",
+			);
 		});
 
-		eventSource.addEventListener("error", (event) => {
-			console.error("Error on getting workspace changes.", event);
-		});
-
-		return () => {
-			eventSource.close();
-		};
+		return () => socket.close();
 	}, [updateWorkspaceData, workspaceId]);
 
 	// Page statuses

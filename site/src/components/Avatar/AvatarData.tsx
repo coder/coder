@@ -37,31 +37,17 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	}
 
 	return (
-		<Stack spacing={1} direction="row" className="w-full">
+		<div className="flex items-center w-full gap-3">
 			{avatar}
 
-			<Stack spacing={0} className="w-full">
-				<span
-					css={{
-						color: theme.palette.text.primary,
-						fontWeight: 600,
-					}}
-				>
-					{title}
-				</span>
+			<div className="flex flex-col w-full">
+				<span className="text-sm font-semibold">{title}</span>
 				{subtitle && (
-					<span
-						css={{
-							fontSize: 13,
-							color: theme.palette.text.secondary,
-							lineHeight: 1.5,
-							maxWidth: 540,
-						}}
-					>
+					<span className="text-content-secondary text-xs font-medium">
 						{subtitle}
 					</span>
 				)}
-			</Stack>
-		</Stack>
+			</div>
+		</div>
 	);
 };

@@ -10,6 +10,13 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE"
+	InboxNotificationFallbackIconAccount   = "DEFAULT_ICON_ACCOUNT"
+	InboxNotificationFallbackIconTemplate  = "DEFAULT_ICON_TEMPLATE"
+	InboxNotificationFallbackIconOther     = "DEFAULT_ICON_OTHER"
+)
+
 type InboxNotification struct {
 	ID         uuid.UUID                 `json:"id" format:"uuid"`
 	UserID     uuid.UUID                 `json:"user_id" format:"uuid"`
