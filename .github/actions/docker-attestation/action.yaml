@@ -5,10 +5,6 @@ inputs:
   image-name:
     description: 'Full image name including registry and tag (e.g., ghcr.io/coder/coder-preview:main)'
     required: true
-  push-to-registry:
-    description: 'Whether to push the attestation to the registry'
-    required: false
-    default: 'true'
 
 runs:
   using: "composite"
@@ -62,4 +58,4 @@ runs:
               }
             }
           }
-        push-to-registry: ${{ inputs.push-to-registry }}
+        push-to-registry: true
