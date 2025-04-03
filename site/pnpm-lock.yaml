@@ -9,7 +9,7 @@ overrides:
   semver: 7.6.2
   '@babel/runtime': 7.26.10
   '@babel/helpers': 7.26.10
-  esbuild: 0.25.0
+  esbuild: ^0.25.0
 
 importers:
 
@@ -3575,7 +3575,7 @@ packages:
   esbuild-register@3.6.0:
     resolution: {integrity: sha512-H2/S7Pm8a9CL1uhp9OvjwrBh5Pvx0H8qVOxNu8Wed9Y7qv56MPtq+GGM8RJpq6glYJn9Wspr8uw7l55uyinNeg==, tarball: https://registry.npmjs.org/esbuild-register/-/esbuild-register-3.6.0.tgz}
     peerDependencies:
-      esbuild: 0.25.0
+      esbuild: ^0.25.0
 
   esbuild@0.25.0:
     resolution: {integrity: sha512-BXq5mqc8ltbaN34cDqWuYKyNhX8D/Z0J1xdtdQ8UcIIIyJyz+ZMKUt58tF3SrZ85jcfN/PZYhjR5uDQAYNVbuw==, tarball: https://registry.npmjs.org/esbuild/-/esbuild-0.25.0.tgz}
