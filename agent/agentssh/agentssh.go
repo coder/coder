@@ -1109,7 +1109,8 @@ func (s *Server) Close() error {
 
 // Shutdown stops accepting new connections. The current implementation
 // calls Close() for simplicity instead of waiting for existing
-// connections to close.
+// connections to close. If the context times out, Shutdown will return
+// but Close() may not have completed.
 func (s *Server) Shutdown(ctx context.Context) error {
 	ch := make(chan error, 1)
 	go func() {
