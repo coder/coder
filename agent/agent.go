@@ -1773,10 +1773,12 @@ func (a *agent) Close() error {
 	a.setLifecycle(codersdk.WorkspaceAgentLifecycleShuttingDown)
 
 	// Attempt to gracefully shut down all active SSH connections and
-	// stop accepting new ones. If all processes have not exited after
-	// 10 seconds, we just log it and move on as it's more important
-	// to run the shutdown scripts.
-	sshShutdownCtx, sshShutdownCancel := context.WithTimeout(a.hardCtx, 10*time.Second)
+	// stop accepting new ones. If all processes have not exited after 5
+	// seconds, we just log it and move on as it's more important to run
+	// the shutdown scripts. A typical shutdown time for containers is
+	// 10 seconds, so this still leaves a bit of time to run the
+	// shutdown scripts in the worst-case.
+	sshShutdownCtx, sshShutdownCancel := context.WithTimeout(a.hardCtx, 5*time.Second)
 	defer sshShutdownCancel()
 	err := a.sshServer.Shutdown(sshShutdownCtx)
 	if err != nil {
