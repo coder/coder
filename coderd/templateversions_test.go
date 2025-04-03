@@ -2275,10 +2275,7 @@ func TestTemplateVersionDynamicParameters(t *testing.T) {
 		},
 	}}
 
-	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files, func(req *codersdk.CreateTemplateVersionRequest) {
-		req.Name = "bloob"
-		req.Message = "🫐🫐🫐🫐🫐"
-	})
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 

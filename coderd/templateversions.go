@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"os"
 
@@ -274,7 +273,6 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Summary Open dynamic parameters WebSocket by template version
 // @ID open-dynamic-parameters-websocket-by-template-version
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
@@ -313,7 +311,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		ParameterValues: map[string]string{},
 		// TODO: fill this out
 		Owner: previewtypes.WorkspaceOwner{
-			Groups: []string{"Everyone", "Bloob"},
+			Groups: []string{"Everyone"},
 		},
 	}
 
@@ -351,9 +349,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	// Send an initial form state, computed without any user input.
 	result, diagnostics := preview.Preview(ctx, input, fs)
 	response := codersdk.DynamicParametersResponse{
-		// or maybe it could be -1 or something? it just has to be unique from
-		// anything a client could reasonably send.
-		ID:          math.MaxInt32,
+		ID:          -1,
 		Diagnostics: previewtypes.Diagnostics(diagnostics),
 	}
 	if result != nil {
