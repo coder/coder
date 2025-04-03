@@ -49,21 +49,11 @@ func TestCoderTools(t *testing.T) {
 		}
 		return agents
 	}).Do()
-
-	// Note: we want to test the list_workspaces tool before starting the
-	// workspace agent. Starting the workspace agent will modify the workspace
-	// state, which will affect the results of the list_workspaces tool.
-	listWorkspacesDone := make(chan struct{})
-	agentStarted := make(chan struct{})
-	go func() {
-		defer close(agentStarted)
-		<-listWorkspacesDone
-		agt := agenttest.New(t, client.URL, r.AgentToken)
-		t.Cleanup(func() {
-			_ = agt.Close()
-		})
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-	}()
+	agt := agenttest.New(t, client.URL, r.AgentToken)
+	t.Cleanup(func() {
+		_ = agt.Close()
+	})
+	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 
 	// Given: a MCP server listening on a pty.
 	pty := ptytest.New(t)
@@ -80,21 +70,6 @@ func TestCoderTools(t *testing.T) {
 		Logger:        &logger,
 		AppStatusSlug: "some-agent-app",
 		AgentClient:   agentClient,
-	})
-
-	t.Run("coder_list_templates", func(t *testing.T) {
-		// When: the coder_list_templates tool is called
-		ctr := makeJSONRPCRequest(t, "tools/call", "coder_list_templates", map[string]any{})
-
-		pty.WriteLine(ctr)
-		_ = pty.ReadLine(ctx) // skip the echo
-
-		// Then: the response is a list of expected visible to the user.
-		expected, err := memberClient.Templates(ctx, codersdk.TemplateFilter{})
-		require.NoError(t, err)
-		actual := unmarshalFromCallToolResult[[]codersdk.Template](t, pty.ReadLine(ctx))
-		require.Len(t, actual, 1)
-		require.Equal(t, expected[0].ID, actual[0].ID)
 	})
 
 	t.Run("coder_report_task", func(t *testing.T) {
@@ -138,62 +113,8 @@ func TestCoderTools(t *testing.T) {
 		require.True(t, st.NeedsUserAttention, "workspace app status should need user attention")
 	})
 
-	t.Run("coder_whoami", func(t *testing.T) {
-		// When: the coder_whoami tool is called
-		ctr := makeJSONRPCRequest(t, "tools/call", "coder_whoami", map[string]any{})
-
-		pty.WriteLine(ctr)
-		_ = pty.ReadLine(ctx) // skip the echo
-
-		// Then: the response is a valid JSON respresentation of the calling user.
-		expected, err := memberClient.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-		actual := unmarshalFromCallToolResult[codersdk.User](t, pty.ReadLine(ctx))
-		require.Equal(t, expected.ID, actual.ID)
-	})
-
-	t.Run("coder_list_workspaces", func(t *testing.T) {
-		defer close(listWorkspacesDone)
-		// When: the coder_list_workspaces tool is called
-		ctr := makeJSONRPCRequest(t, "tools/call", "coder_list_workspaces", map[string]any{
-			"coder_url":           client.URL.String(),
-			"coder_session_token": client.SessionToken(),
-		})
-
-		pty.WriteLine(ctr)
-		_ = pty.ReadLine(ctx) // skip the echo
-
-		// Then: the response is a valid JSON respresentation of the calling user's workspaces.
-		actual := unmarshalFromCallToolResult[codersdk.WorkspacesResponse](t, pty.ReadLine(ctx))
-		require.Len(t, actual.Workspaces, 1, "expected 1 workspace")
-		require.Equal(t, r.Workspace.ID, actual.Workspaces[0].ID, "expected the workspace to be the one we created in setup")
-	})
-
-	t.Run("coder_get_workspace", func(t *testing.T) {
-		// Given: the workspace agent is connected.
-		// The act of starting the agent will modify the workspace state.
-		<-agentStarted
-		// When: the coder_get_workspace tool is called
-		ctr := makeJSONRPCRequest(t, "tools/call", "coder_get_workspace", map[string]any{
-			"workspace": r.Workspace.ID.String(),
-		})
-
-		pty.WriteLine(ctr)
-		_ = pty.ReadLine(ctx) // skip the echo
-
-		expected, err := memberClient.Workspace(ctx, r.Workspace.ID)
-		require.NoError(t, err)
-
-		// Then: the response is a valid JSON respresentation of the workspace.
-		actual := unmarshalFromCallToolResult[codersdk.Workspace](t, pty.ReadLine(ctx))
-		require.Equal(t, expected.ID, actual.ID)
-	})
-
 	// NOTE: this test runs after the list_workspaces tool is called.
 	t.Run("coder_workspace_exec", func(t *testing.T) {
-		// Given: the workspace agent is connected
-		<-agentStarted
-
 		// When: the coder_workspace_exec tools is called with a command
 		randString := testutil.GetRandomName(t)
 		ctr := makeJSONRPCRequest(t, "tools/call", "coder_workspace_exec", map[string]any{
@@ -213,9 +134,6 @@ func TestCoderTools(t *testing.T) {
 
 	// NOTE: this test runs after the list_workspaces tool is called.
 	t.Run("tool_restrictions", func(t *testing.T) {
-		// Given: the workspace agent is connected
-		<-agentStarted
-
 		// Given: a restricted MCP server with only allowed tools and commands
 		restrictedPty := ptytest.New(t)
 		allowedTools := []string{"coder_workspace_exec"}
@@ -337,25 +255,6 @@ func makeJSONRPCTextResponse(t *testing.T, text string) string {
 	bs, err := json.Marshal(resp)
 	require.NoError(t, err, "failed to marshal JSON RPC response")
 	return string(bs)
-}
-
-func unmarshalFromCallToolResult[T any](t *testing.T, raw string) T {
-	t.Helper()
-
-	var resp map[string]any
-	require.NoError(t, json.Unmarshal([]byte(raw), &resp), "failed to unmarshal JSON RPC response")
-	res, ok := resp["result"].(map[string]any)
-	require.True(t, ok, "expected a result field in the response")
-	ct, ok := res["content"].([]any)
-	require.True(t, ok, "expected a content field in the result")
-	require.Len(t, ct, 1, "expected a single content item in the result")
-	ct0, ok := ct[0].(map[string]any)
-	require.True(t, ok, "expected a content item in the result")
-	txt, ok := ct0["text"].(string)
-	require.True(t, ok, "expected a text field in the content item")
-	var actual T
-	require.NoError(t, json.Unmarshal([]byte(txt), &actual), "failed to unmarshal content")
-	return actual
 }
 
 // startTestMCPServer is a helper function that starts a MCP server listening on

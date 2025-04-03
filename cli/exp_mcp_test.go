@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +38,7 @@ func TestExpMcpServer(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// Given: we run the exp mcp command with allowed tools set
-		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_whoami,coder_list_templates")
+		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_report_task")
 		inv = inv.WithContext(cancelCtx)
 
 		pty := ptytest.New(t)
@@ -73,13 +72,14 @@ func TestExpMcpServer(t *testing.T) {
 		}
 		err := json.Unmarshal([]byte(output), &toolsResponse)
 		require.NoError(t, err)
-		require.Len(t, toolsResponse.Result.Tools, 2, "should have exactly 2 tools")
-		foundTools := make([]string, 0, 2)
+		require.Len(t, toolsResponse.Result.Tools, 1, "should have exactly 1 tool")
+		var found bool
 		for _, tool := range toolsResponse.Result.Tools {
-			foundTools = append(foundTools, tool.Name)
+			if tool.Name == "coder_report_task" {
+				found = true
+			}
 		}
-		slices.Sort(foundTools)
-		require.Equal(t, []string{"coder_list_templates", "coder_whoami"}, foundTools)
+		require.True(t, found, "should have found coder_report_task tool")
 	})
 
 	t.Run("OK", func(t *testing.T) {
