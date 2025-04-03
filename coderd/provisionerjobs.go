@@ -554,7 +554,7 @@ func (f *logFollower) follow() {
 		return
 	}
 
-	// log the initial connection
+	// Log the request immediately instead of after it completes.
 	httpmw.FromContext(f.ctx).WriteLog(f.ctx, http.StatusAccepted)
 
 	// no need to wait if the job is done

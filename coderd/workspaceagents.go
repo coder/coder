@@ -555,7 +555,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	t := time.NewTicker(recheckInterval)
 	defer t.Stop()
 
-	// log the initial connection
+	// Log the request immediately instead of after it completes.
 	httpmw.FromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	go func() {
@@ -931,7 +931,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	encoder := wsjson.NewEncoder[*tailcfg.DERPMap](ws, websocket.MessageBinary)
 	defer encoder.Close(websocket.StatusGoingAway)
 
-	// log the initial connection
+	// Log the request immediately instead of after it completes.
 	httpmw.FromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	go func(ctx context.Context) {
@@ -1321,7 +1321,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 	sendTicker := time.NewTicker(sendInterval)
 	defer sendTicker.Stop()
 
-	// log the initial connection
+	// Log the request immediately instead of after it completes.
 	httpmw.FromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	// Send initial metadata.
