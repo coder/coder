@@ -419,7 +419,7 @@ jobs:
         id: get_digest_base
         if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
         run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ steps.image-base-tag.outputs.tag }} | cut -d'@' -f2)
+          DIGEST=$(docker manifest inspect ${{ steps.image-base-tag.outputs.tag }} | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: GitHub Attestation for Base Docker image
@@ -508,7 +508,7 @@ jobs:
         id: get_digest_main
         if: ${{ !inputs.dry_run }}
         run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ steps.build_docker.outputs.multiarch_image }} | cut -d'@' -f2)
+          DIGEST=$(docker manifest inspect ${{ steps.build_docker.outputs.multiarch_image }} | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: GitHub Attestation for Docker image
@@ -560,7 +560,7 @@ jobs:
         id: get_digest_latest
         if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
         run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ steps.latest_tag.outputs.tag }} | cut -d'@' -f2)
+          DIGEST=$(docker manifest inspect ${{ steps.latest_tag.outputs.tag }} | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: GitHub Attestation for "latest" Docker image

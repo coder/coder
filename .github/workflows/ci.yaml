@@ -1191,7 +1191,7 @@ jobs:
         id: get_digest_main
         if: github.ref == 'refs/heads/main'
         run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/coder/coder-preview:main | cut -d'@' -f2)
+          DIGEST=$(docker manifest inspect ghcr.io/coder/coder-preview:main | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: GitHub Attestation for Docker image
@@ -1236,7 +1236,7 @@ jobs:
         id: get_digest_latest
         if: github.ref == 'refs/heads/main'
         run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/coder/coder-preview:latest | cut -d'@' -f2)
+          DIGEST=$(docker manifest inspect ghcr.io/coder/coder-preview:latest | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: GitHub Attestation for Docker image (latest tag)
@@ -1281,7 +1281,7 @@ jobs:
         id: get_digest_version
         if: github.ref == 'refs/heads/main'
         run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }} | cut -d'@' -f2)
+          DIGEST=$(docker manifest inspect ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }} | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: GitHub Attestation for version-specific Docker image
