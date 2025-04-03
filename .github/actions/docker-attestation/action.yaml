@@ -1,24 +1,9 @@
 name: 'Multi-arch Docker Image Attestation'
-description: 'Create GitHub attestation for a multi-arch Docker image'
+description: 'Create GitHub attestation for a multi-arch Docker image using SLSA provenance'
 
 inputs:
   image-name:
     description: 'Full image name including registry and tag (e.g., ghcr.io/coder/coder-preview:main)'
-    required: true
-  workflow:
-    description: 'Name of the GitHub workflow'
-    required: true
-  workflow-ref:
-    description: 'Git ref that triggered the workflow'
-    required: true
-  workflow-sha:
-    description: 'Git SHA of the workflow run'
-    required: true
-  workflow-run-id:
-    description: 'GitHub Actions run ID'
-    required: true
-  repository:
-    description: 'GitHub repository name (e.g., owner/repo)'
     required: true
   push-to-registry:
     description: 'Whether to push the attestation to the registry'
@@ -35,7 +20,6 @@ runs:
         set -euo pipefail
         
         # Get the manifest list digest for our multi-arch image
-        # We use --raw to get the full manifest and extract the digest
         manifests=$(docker buildx imagetools inspect --raw ${{ inputs.image-name }})
         
         # Extract the manifest list digest which represents all architectures
@@ -55,23 +39,23 @@ runs:
           {
             "buildType": "https://github.com/actions/runner-images/",
             "builder": {
-              "id": "https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.workflow-run-id }}"
+              "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             },
             "invocation": {
               "configSource": {
-                "uri": "git+https://github.com/${{ inputs.repository }}@${{ inputs.workflow-ref }}",
+                "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
                 "digest": {
-                  "sha1": "${{ inputs.workflow-sha }}"
+                  "sha1": "${{ github.sha }}"
                 },
-                "entryPoint": ".github/workflows/${{ inputs.workflow }}.yaml"
+                "entryPoint": ".github/workflows/${{ github.workflow }}"
               },
               "environment": {
-                "github_workflow": "${{ inputs.workflow }}",
-                "github_run_id": "${{ inputs.workflow-run-id }}"
+                "github_workflow": "${{ github.workflow }}",
+                "github_run_id": "${{ github.run_id }}"
               }
             },
             "metadata": {
-              "buildInvocationID": "${{ inputs.workflow-run-id }}",
+              "buildInvocationID": "${{ github.run_id }}",
               "completeness": {
                 "environment": true,
                 "materials": true

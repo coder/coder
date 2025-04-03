@@ -408,9 +408,7 @@ jobs:
           echo "$manifests" | grep -q linux/arm64
           echo "$manifests" | grep -q linux/arm/v7
 
-      # GitHub attestation provides SLSA provenance for Docker images, establishing a verifiable
-      # record that these images were built in GitHub Actions with specific inputs and environment.
-      #
+      # GitHub attestation provides SLSA provenance for Docker images
       # We attest each tag separately to ensure all tags have proper provenance records.
       - name: GitHub Attestation for Base Docker image
         id: attest_base
@@ -419,11 +417,6 @@ jobs:
         uses: ./.github/actions/docker-attestation
         with:
           image-name: ${{ steps.image-base-tag.outputs.tag }}
-          workflow: release
-          workflow-ref: ${{ github.ref }}
-          workflow-sha: ${{ github.sha }}
-          workflow-run-id: ${{ github.run_id }}
-          repository: ${{ github.repository }}
 
       - name: GitHub Attestation for Docker image
         id: attest_main
@@ -432,11 +425,6 @@ jobs:
         uses: ./.github/actions/docker-attestation
         with:
           image-name: ${{ steps.build_docker.outputs.multiarch_image }}
-          workflow: release
-          workflow-ref: ${{ github.ref }}
-          workflow-sha: ${{ github.sha }}
-          workflow-run-id: ${{ github.run_id }}
-          repository: ${{ github.repository }}
 
       - name: GitHub Attestation for "latest" Docker image
         id: attest_latest
@@ -445,11 +433,6 @@ jobs:
         uses: ./.github/actions/docker-attestation
         with:
           image-name: ${{ steps.latest_tag.outputs.tag }}
-          workflow: release
-          workflow-ref: ${{ github.ref }}
-          workflow-sha: ${{ github.sha }}
-          workflow-run-id: ${{ github.run_id }}
-          repository: ${{ github.repository }}
 
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
