@@ -15,15 +15,31 @@ runs:
       run: |
         set -euo pipefail
         
-        # Get the manifest list digest for our multi-arch image
-        manifests=$(docker buildx imagetools inspect --raw ${{ inputs.image-name }})
+        # Get the manifest list (index) for our multi-arch image
+        manifest_list=$(docker buildx imagetools inspect --raw ${{ inputs.image-name }})
         
-        # Extract the manifest list digest which represents all architectures
-        DIGEST=$(echo "$manifests" | sha256sum | cut -d' ' -f1)
+        # Verify that we have all three architectures
+        echo "Checking architectures in manifest..."
+        if ! echo "$manifest_list" | jq -e '.manifests | any(.platform.architecture == "amd64" and .platform.os == "linux")' > /dev/null; then
+          echo "Error: Missing linux/amd64 manifest" >&2
+          exit 1
+        fi
+        if ! echo "$manifest_list" | jq -e '.manifests | any(.platform.architecture == "arm64" and .platform.os == "linux")' > /dev/null; then
+          echo "Error: Missing linux/arm64 manifest" >&2
+          exit 1
+        fi
+        if ! echo "$manifest_list" | jq -e '.manifests | any(.platform.architecture == "arm" and .platform.os == "linux" and .platform.variant == "v7")' > /dev/null; then
+          echo "Error: Missing linux/arm/v7 manifest" >&2
+          exit 1
+        fi
+        
+        # Get the manifest list digest - this represents the multi-arch image
+        # The digest is calculated from the canonicalized JSON
+        DIGEST=$(echo "$manifest_list" | jq -Sc '.' | sha256sum | cut -d' ' -f1)
         DIGEST="sha256:$DIGEST"
         
         echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-        echo "Found multi-arch digest: $DIGEST"
+        echo "Found multi-arch manifest list digest: $DIGEST"
     
     - name: GitHub Attestation
       uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
