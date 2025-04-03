@@ -215,7 +215,7 @@ There are three main types of latency metrics for your Coder deployment:
 
   This metric is displayed in milliseconds on the workspace dashboard and specifically shows the agent-to-relay latency, not direct P2P connections.
 
-  Total end-to-end latency experienced by a user is a combination of dashboard-to-server latency plus this agent-to-relay latency.
+  To estimate the total end-to-end latency experienced by a user, add the dashboard-to-server latency to this agent-to-relay latency.
 
 - Database latency:
 
