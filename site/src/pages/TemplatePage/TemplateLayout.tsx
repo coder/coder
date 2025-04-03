@@ -6,7 +6,6 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { workspacePermissionChecks } from "modules/permissions/workspaces";
 import {
 	type FC,
@@ -78,18 +77,15 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	const { user: me } = useAuthenticated();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
-	const { organizations } = useDashboard();
-	const organization = organizations.find((o) => o.name === organizationName);
 	const { data, error, isLoading } = useQuery({
 		queryKey: ["template", templateName],
 		queryFn: () => fetchTemplate(organizationName, templateName),
 	});
-	const workspacePermissionsQuery = useQuery({
-		...checkAuthorization({
-			checks: workspacePermissionChecks(organization?.id ?? "", me.id),
+	const workspacePermissionsQuery = useQuery(
+		checkAuthorization({
+			checks: workspacePermissionChecks(organizationName, me.id),
 		}),
-		enabled: organization !== undefined,
-	});
+	);
 
 	const location = useLocation();
 	const paths = location.pathname.split("/");
