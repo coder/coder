@@ -160,7 +160,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{template.deprecated ? (
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
-						?.createWorkspaceForUser ? (
+						?.createWorkspace ? (
 					<MuiButton
 						size="small"
 						css={styles.actionButton}

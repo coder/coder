@@ -180,7 +180,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 				actions={
 					<>
 						{!template.deprecated &&
-							workspacePermissions.createWorkspaceForUser && (
+							workspacePermissions.createWorkspace && (
 								<Button
 									variant="contained"
 									startIcon={<AddIcon />}
