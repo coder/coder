@@ -17,10 +17,6 @@ import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import {
-	type WorkspacePermissions,
-	workspacePermissionChecks,
-} from "modules/permissions/workspaces";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -32,6 +28,7 @@ import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+import { type CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
@@ -66,10 +63,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const permissionsQuery = useQuery(
 		templateQuery.data
 			? checkAuthorization({
-					checks: workspacePermissionChecks(
-						templateQuery.data.organization_id,
-						me.id,
-					),
+					checks: createWorkspaceChecks(templateQuery.data.organization_id),
 				})
 			: { enabled: false },
 	);
@@ -211,7 +205,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
-					permissions={permissionsQuery.data as WorkspacePermissions}
+					permissions={permissionsQuery.data as CreateWSPermissions}
 					parameters={realizedParameters as TemplateVersionParameter[]}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isLoading}
