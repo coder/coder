@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import FormHelperText from "@mui/material/FormHelperText";
-import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -8,7 +6,6 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SelectFilter } from "components/Filter/SelectFilter";
-import { FormFields } from "components/Form/Form";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Pill } from "components/Pill/Pill";
@@ -18,6 +15,7 @@ import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -44,7 +42,6 @@ import type {
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
-import type { CreateWSPermissions } from "./permissions";
 
 export const Language = {
 	duplicationWarning:
@@ -67,7 +64,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
-	permissions: CreateWSPermissions;
+	permissions: WorkspacePermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
 	onSubmit: (
@@ -211,13 +208,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 	return (
 		<>
 			<div className="absolute sticky top-5 ml-10">
-				<Link
-					to="/organizations"
-					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary translate-y-12"
+				<button
+					onClick={onCancel}
+					type="button"
+					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
 				>
 					<ArrowLeft size={20} />
-					Go Back
-				</Link>
+					Go back
+				</button>
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-sm mx-auto">
 				<header className="flex flex-col gap-2 mt-10">
@@ -271,11 +269,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<Label className="text-sm" htmlFor={`${id}-version-id`}>
 										Version ID
 									</Label>
-									<Input
-										id={`${id}-version-id`}
-										value={versionId}
-										disabled
-									/>
+									<Input id={`${id}-version-id`} value={versionId} disabled />
 									<span className="text-xs text-content-secondary">
 										This parameter has been preset, and cannot be modified.
 									</span>
