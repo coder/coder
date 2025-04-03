@@ -2263,7 +2263,6 @@ func TestTemplateVersionDynamicParameters(t *testing.T) {
 	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
-	// member, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	files := echo.WithExtraFiles(map[string][]byte{
 		"main.tf": []byte(dynamicParametersTerraformSource),
@@ -2298,36 +2297,38 @@ func TestTemplateVersionDynamicParameters(t *testing.T) {
 	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
 
 	// Send a new value, and see it reflected
-	// stream.Send(codersdk.DynamicParametersRequest{
-	// 	ID:     1,
-	// 	Inputs: map[string]string{"group": "Bloob"},
-	// })
-	// preview = testutil.RequireRecvCtx(ctx, t, previews)
-	// require.Equal(t, 1, preview.ID)
-	// require.Empty(t, preview.Diagnostics)
-	// fmt.Println(preview)
-	// require.Equal(t, "group", preview.Parameters[0].Name)
-	// require.True(t, preview.Parameters[0].Value.Valid())
-	// require.Equal(t, "Bloob", preview.Parameters[0].Value.Value.AsString())
+	stream.Send(codersdk.DynamicParametersRequest{
+		ID:     1,
+		Inputs: map[string]string{"group": "Bloob"},
+	})
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 1, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Bloob", preview.Parameters[0].Value.Value.AsString())
 
 	// Send an invalid value, expect a diagnostic
-	// stream.Send(codersdk.DynamicParametersRequest{
-	// 	ID:     2,
-	// 	Inputs: map[string]string{"group": "Invalid"},
-	// })
-	// preview = testutil.RequireRecvCtx(ctx, t, previews)
-	// require.Equal(t, 2, preview.ID)
+	stream.Send(codersdk.DynamicParametersRequest{
+		ID:     2,
+		Inputs: map[string]string{"group": "Invalid"},
+	})
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 2, preview.ID)
 	// require.NotEmpty(t, preview.Diagnostics)
-	// require.Equal(t, "group", preview.Parameters[0].Name)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Invalid", preview.Parameters[0].Value.Value.AsString())
 
 	// Back to default
-	// stream.Send(codersdk.DynamicParametersRequest{
-	// 	ID:     3,
-	// 	Inputs: map[string]string{},
-	// })
-	// preview = testutil.RequireRecvCtx(ctx, t, previews)
-	// require.Equal(t, 3, preview.ID)
-	// require.Equal(t, "group", preview.Parameters[0].Name)
-	// require.True(t, preview.Parameters[0].Value.Valid())
-	// require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
+	stream.Send(codersdk.DynamicParametersRequest{
+		ID:     3,
+		Inputs: map[string]string{},
+	})
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 3, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
 }

@@ -68,6 +68,10 @@ replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-
 // be upstreamed eventually.
 replace github.com/aquasecurity/trivy => github.com/emyrk/trivy v0.0.0-20250320190949-47caa1ac2d53
 
+// afero/tarfs has a bug that breaks our usage. A PR has been submitted upstream.
+// https://github.com/spf13/afero/pull/487
+replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.6.0
@@ -279,7 +283,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
-	github.com/coder/preview v0.0.0-20250328000809-7e74ec57ba5d
+	github.com/coder/preview v0.0.0-20250403155814-3d8e9262e6dd
 	github.com/containerd/continuity v0.4.5 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect

@@ -11,7 +11,6 @@ import (
 
 func FromTarReader(r io.Reader) fs.FS {
 	tr := tar.NewReader(r)
-	tfs := tarfs.New(tr)
-	rofs := afero.NewReadOnlyFs(tfs)
-	return afero.NewIOFS(rofs)
+	tfs := afero.Afero{Fs: tarfs.New(tr)}
+	return afero.NewIOFS(tfs)
 }
