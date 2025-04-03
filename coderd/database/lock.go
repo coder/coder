@@ -12,6 +12,8 @@ const (
 	LockIDDBPurge
 	LockIDNotificationsReportGenerator
 	LockIDCryptoKeyRotation
+	LockIDReconcileTemplatePrebuilds
+	LockIDDeterminePrebuildsState
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.

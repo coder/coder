@@ -354,10 +354,10 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 			at := now.Add(-time.Duration(i) * time.Hour)
 
 			pj1 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: at, Valid: true}})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i), TemplateVersionID: t1v1.ID, JobID: pj1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i), TemplateVersionID: t1v1.ID, JobID: pj1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}) // nolint:gosec
 
 			pj2 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: at, Valid: true}})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, JobID: pj2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, JobID: pj2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}) // nolint:gosec
 		}
 
 		// When

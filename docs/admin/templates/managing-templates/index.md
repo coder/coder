@@ -62,7 +62,7 @@ infrastructure, software, or security patches. Learn more about
 ### Template update policies
 
 > [!NOTE]
-> Template update policies are an Enterprise and Premium feature.
+> Template update policies are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may want workspaces to always remain on the latest

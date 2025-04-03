@@ -2,9 +2,9 @@
 
 > [!NOTE]
 >
-> This functionality is in early access and subject to change. Do not run in
-> production as it is unstable. Instead, deploy these changes into a demo or
-> staging environment.
+> This functionality is in early access and still evolving.
+> For now, we recommend testing it in a demo or staging environment,
+> rather than deploying to production.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
 > [contact us](https://coder.com/contact) to get help or share feedback.
@@ -41,10 +41,8 @@ Follow the instructions in the Coder Registry to install the module. Be sure to
 enable the `experiment_use_screen` and `experiment_report_tasks` variables to
 report status back to the Coder control plane.
 
-> Alternatively, you can report status from a custom agent back to the Coder
-> control plane via our MCP server. For more information,
-> [join our Discord](https://discord.gg/coder) or
-> [contact us](https://coder.com/contact).
+> Alternatively, you can [use a custom agent](./custom-agents.md) that is
+> not in our registry via MCP.
 
 ## 3. Confirm tasks are streaming in the Coder UI
 

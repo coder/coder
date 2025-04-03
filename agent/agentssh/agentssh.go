@@ -582,6 +582,12 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
 	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "no").Add(1)
 
+	// Create a process group and send SIGHUP to child processes,
+	// otherwise context cancellation will not propagate properly
+	// and SSH server close may be delayed.
+	cmd.SysProcAttr = cmdSysProcAttr()
+	cmd.Cancel = cmdCancel(session.Context(), logger, cmd)
+
 	cmd.Stdout = session
 	cmd.Stderr = session.Stderr()
 	// This blocks forever until stdin is received if we don't
@@ -926,7 +932,12 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 // Serve starts the server to handle incoming connections on the provided listener.
 // It returns an error if no host keys are set or if there is an issue accepting connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
-	if len(s.srv.HostSigners) == 0 {
+	// Ensure we're not mutating HostSigners as we're reading it.
+	s.mu.RLock()
+	noHostKeys := len(s.srv.HostSigners) == 0
+	s.mu.RUnlock()
+
+	if noHostKeys {
 		return xerrors.New("no host keys set")
 	}
 
@@ -1054,27 +1065,36 @@ func (s *Server) Close() error {
 	}
 	s.closing = make(chan struct{})
 
+	ctx := context.Background()
+
+	s.logger.Debug(ctx, "closing server")
+
+	// Stop accepting new connections.
+	s.logger.Debug(ctx, "closing all active listeners", slog.F("count", len(s.listeners)))
+	for l := range s.listeners {
+		_ = l.Close()
+	}
+
 	// Close all active sessions to gracefully
 	// terminate client connections.
+	s.logger.Debug(ctx, "closing all active sessions", slog.F("count", len(s.sessions)))
 	for ss := range s.sessions {
 		// We call Close on the underlying channel here because we don't
 		// want to send an exit status to the client (via Exit()).
 		// Typically OpenSSH clients will return 255 as the exit status.
 		_ = ss.Close()
 	}
-
-	// Close all active listeners and connections.
-	for l := range s.listeners {
-		_ = l.Close()
-	}
+	s.logger.Debug(ctx, "closing all active connections", slog.F("count", len(s.conns)))
 	for c := range s.conns {
 		_ = c.Close()
 	}
 
-	// Close the underlying SSH server.
+	s.logger.Debug(ctx, "closing SSH server")
 	err := s.srv.Close()
 
 	s.mu.Unlock()
+
+	s.logger.Debug(ctx, "waiting for all goroutines to exit")
 	s.wg.Wait() // Wait for all goroutines to exit.
 
 	s.mu.Lock()
@@ -1082,15 +1102,35 @@ func (s *Server) Close() error {
 	s.closing = nil
 	s.mu.Unlock()
 
+	s.logger.Debug(ctx, "closing server done")
+
 	return err
 }
 
-// Shutdown gracefully closes all active SSH connections and stops
-// accepting new connections.
-//
-// Shutdown is not implemented.
-func (*Server) Shutdown(_ context.Context) error {
-	// TODO(mafredri): Implement shutdown, SIGHUP running commands, etc.
+// Shutdown stops accepting new connections. The current implementation
+// calls Close() for simplicity instead of waiting for existing
+// connections to close. If the context times out, Shutdown will return
+// but Close() may not have completed.
+func (s *Server) Shutdown(ctx context.Context) error {
+	ch := make(chan error, 1)
+	go func() {
+		// TODO(mafredri): Implement shutdown, SIGHUP running commands, etc.
+		// For now we just close the server.
+		ch <- s.Close()
+	}()
+	var err error
+	select {
+	case <-ctx.Done():
+		err = ctx.Err()
+	case err = <-ch:
+	}
+	// Re-check for context cancellation precedence.
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	if err != nil {
+		return xerrors.Errorf("close server: %w", err)
+	}
 	return nil
 }
 

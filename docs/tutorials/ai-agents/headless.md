@@ -1,8 +1,8 @@
 > [!NOTE]
 >
-> This functionality is in early access and subject to change. Do not run in
-> production as it is unstable. Instead, deploy these changes into a demo or
-> staging environment.
+> This functionality is in early access and still evolving.
+> For now, we recommend testing it in a demo or staging environment,
+> rather than deploying to production.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
 > [contact us](https://coder.com/contact) to get help or share feedback.
@@ -35,9 +35,11 @@ The Coder CLI has options to automatically configure MCP servers for you. On
 your local machine, run the following command:
 
 ```sh
-coder mcp claude-desktop # Configure Claude Desktop to interact with Coder
-coder mcp cursor # Configure Cursor to interact with Coder
+coder exp mcp configure claude-desktop # Configure Claude Desktop to interact with Coder
+coder exp mcp configure cursor # Configure Cursor to interact with Coder
 ```
+
+> MCP is also used for various agents to report activity back to Coder. Learn more about this in [custom agents](./custom-agents.md).
 
 ## Coder CLI
 
