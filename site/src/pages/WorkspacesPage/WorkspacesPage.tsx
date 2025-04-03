@@ -40,7 +40,7 @@ const WorkspacesPage: FC = () => {
 	// each hook.
 	const searchParamsResult = useSafeSearchParams();
 	const pagination = usePagination({ searchParamsResult });
-	const { permissions } = useAuthenticated();
+	const { permissions, user: me } = useAuthenticated();
 	const { entitlements } = useDashboard();
 
 	const templatesQuery = useQuery(templates());
@@ -48,6 +48,7 @@ const WorkspacesPage: FC = () => {
 	const orgPermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
 			templatesQuery.data?.map((template) => template.organization_id),
+			me.id,
 		),
 	);
 
@@ -59,7 +60,7 @@ const WorkspacesPage: FC = () => {
 
 		return templatesQuery.data.filter((template) => {
 			const orgPermission = orgPermissionsQuery.data[template.organization_id];
-			return orgPermission?.createWorkspaceForUser;
+			return orgPermission?.createWorkspace;
 		});
 	}, [templatesQuery.data, orgPermissionsQuery.data]);
 

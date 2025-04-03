@@ -11,7 +11,7 @@ import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 export const TemplatesPage: FC = () => {
-	const { permissions } = useAuthenticated();
+	const { permissions, user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
 
 	const searchParamsResult = useSearchParams();
@@ -30,6 +30,7 @@ export const TemplatesPage: FC = () => {
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
 			templatesQuery.data?.map((template) => template.organization_id),
+			me.id,
 		),
 	);
 

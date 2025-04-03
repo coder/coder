@@ -28,7 +28,6 @@ import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -47,7 +46,7 @@ import type {
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
-
+import type { CreateWSPermissions } from "./permissions";
 export const Language = {
 	duplicationWarning:
 		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
@@ -69,7 +68,7 @@ export interface CreateWorkspacePageViewProps {
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
-	permissions: WorkspacePermissions;
+	permissions: CreateWSPermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
 	onSubmit: (

@@ -5,6 +5,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { workspacePermissionChecks } from "modules/permissions/workspaces";
 import {
 	type FC,
@@ -73,6 +74,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	children = <Outlet />,
 }) => {
 	const navigate = useNavigate();
+	const { user: me } = useAuthenticated();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { data, error, isLoading } = useQuery({
@@ -81,7 +83,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	});
 	const workspacePermissionsQuery = useQuery(
 		checkAuthorization({
-			checks: workspacePermissionChecks(organizationName),
+			checks: workspacePermissionChecks(organizationName, me.id),
 		}),
 	);
 

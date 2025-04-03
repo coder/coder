@@ -76,7 +76,7 @@ export const WithTemplates: Story = {
 		examples: [],
 		workspacePermissions: {
 			[MockTemplate.organization_id]: {
-				createWorkspaceForUser: true,
+				createWorkspace: true,
 			},
 		},
 	},
@@ -94,7 +94,7 @@ export const CannotCreateWorkspaces: Story = {
 		...WithTemplates.args,
 		workspacePermissions: {
 			[MockTemplate.organization_id]: {
-				createWorkspaceForUser: false,
+				createWorkspace: false,
 			},
 		},
 	},
