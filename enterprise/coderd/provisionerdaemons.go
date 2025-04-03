@@ -378,7 +378,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	})
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	requestLogger := httpmw.RequestLoggerFromContext(ctx)
+	if requestLogger != nil {
+		requestLogger.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	err = server.Serve(ctx, session)
 	srvCancel()

@@ -220,7 +220,10 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	defer encoder.Close(websocket.StatusNormalClosure)
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	requestLogger := httpmw.RequestLoggerFromContext(ctx)
+	if requestLogger != nil {
+		requestLogger.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	for {
 		select {
