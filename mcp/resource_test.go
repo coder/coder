@@ -117,9 +117,27 @@ func TestCoderResources(t *testing.T) {
 	})
 
 	t.Run("resources_read_user", func(t *testing.T) {
-		t.Run("OK", func(t *testing.T) {
+		t.Run("me", func(t *testing.T) {
 			// When: the resources/read endpoint is called for user
 			rReadReq := makeResourceJSONRPCRequest(t, "resources/read", "coder://user/me")
+			pty.WriteLine(rReadReq)
+			_ = pty.ReadLine(ctx) // skip the echo
+
+			// Then: the response contains the user data
+			response := pty.ReadLine(ctx)
+			actual := unmarshalFromResourceReadResult[codersdk.User](t, response)
+
+			// Check user data
+			expected, err := memberClient.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+			if diff := cmp.Diff(expected, actual); diff != "" {
+				t.Errorf("user mismatch (-want +got):\n%s", diff)
+			}
+		})
+
+		t.Run("id", func(t *testing.T) {
+			// When: the resources/read endpoint is called for user
+			rReadReq := makeResourceJSONRPCRequest(t, "resources/read", "coder://user/"+member.ID.String())
 			pty.WriteLine(rReadReq)
 			_ = pty.ReadLine(ctx) // skip the echo
 
