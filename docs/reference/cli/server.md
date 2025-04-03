@@ -683,17 +683,7 @@ The custom text to show on the error page informing about disabled OIDC signups.
 
 OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
 
-### --logout-endpoint
-
-|             |                                          |
-|-------------|------------------------------------------|
-| Type        | <code>string</code>                      |
-| Environment | <code>$CODER_OIDC_LOGOUT_ENDPOINT</code> |
-| YAML        | <code>oidc.logoutEndpoint</code>         |
-
-OIDC endpoint for logout.
-
-### --logout-redirect-uri
+### --oidc-logout-redirect-uri
 
 |             |                                     |
 |-------------|-------------------------------------|
