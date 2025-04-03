@@ -1,0 +1,57 @@
+name: 'Multi-arch Docker Image Attestation'
+description: 'Create GitHub attestation for a multi-arch Docker image using SLSA provenance v1'
+
+inputs:
+  image-name:
+    description: 'Full image name including registry and tag (e.g., ghcr.io/coder/coder-preview:main)'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get manifest digest
+      id: get_digest
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        # Get the manifest list digest directly from the multi-arch image
+        # For multi-arch images, this will be the manifest list digest which is what we want
+        DIGEST="sha256:$(docker buildx imagetools inspect --raw ${{ inputs.image-name }} | sha256sum | cut -d' ' -f1)"
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        echo "Found manifest digest: $DIGEST"
+    
+    - name: GitHub Attestation
+      uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+      with:
+        subject-name: ${{ inputs.image-name }}
+        subject-digest: ${{ steps.get_digest.outputs.digest }}
+        predicate-type: "https://slsa.dev/provenance/v1"
+        predicate: |
+          {
+            "buildType": "https://github.com/actions/runner-images/",
+            "builder": {
+              "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                },
+                "entryPoint": ".github/workflows/${{ github.workflow }}"
+              },
+              "environment": {
+                "github_workflow": "${{ github.workflow }}",
+                "github_run_id": "${{ github.run_id }}"
+              }
+            },
+            "metadata": {
+              "buildInvocationID": "${{ github.run_id }}",
+              "completeness": {
+                "environment": true,
+                "materials": true
+              }
+            }
+          }
+        push-to-registry: true
