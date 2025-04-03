@@ -123,23 +123,25 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				var foundContainer bool
 
 				for _, container := range containers.Containers {
-					if container.FriendlyName == containerName {
-						foundContainer = true
+					if container.FriendlyName != containerName {
+						continue
+					}
 
-						if directory == "" {
-							localFolder, ok := container.Labels["devcontainer.local_folder"]
-							if !ok {
-								return xerrors.New("container missing `devcontainer.local_folder` label")
-							}
+					foundContainer = true
 
-							directory, ok = container.Volumes[localFolder]
-							if !ok {
-								return xerrors.New("container missing volume for `devcontainer.local_folder`")
-							}
+					if directory == "" {
+						localFolder, ok := container.Labels["devcontainer.local_folder"]
+						if !ok {
+							return xerrors.New("container missing `devcontainer.local_folder` label")
 						}
 
-						break
+						directory, ok = container.Volumes[localFolder]
+						if !ok {
+							return xerrors.New("container missing volume for `devcontainer.local_folder`")
+						}
 					}
+
+					break
 				}
 
 				if !foundContainer {
@@ -250,6 +252,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			FlagShorthand: "c",
 			Description:   "Container name to connect to in the workspace.",
 			Value:         serpent.StringOf(&containerName),
+			Hidden:        true, // Hidden until this features is at least in beta.
 		},
 		{
 			Flag:        "test.open-error",

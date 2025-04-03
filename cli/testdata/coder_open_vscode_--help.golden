@@ -6,9 +6,6 @@ USAGE:
   Open a workspace in VS Code Desktop
 
 OPTIONS:
-  -c, --container string
-          Container name to connect to in the workspace.
-
       --generate-token bool, $CODER_OPEN_VSCODE_GENERATE_TOKEN
           Generate an auth token and include it in the vscode:// URI. This is
           for automagical configuration of VS Code Desktop and not needed if
