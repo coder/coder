@@ -112,7 +112,7 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
 
 type logContextKey struct{}
 
-func FromContext(ctx context.Context) *RequestLoggerContext {
+func RequestLoggerFromContext(ctx context.Context) *RequestLoggerContext {
 	val := ctx.Value(logContextKey{})
 	if logCtx, ok := val.(*RequestLoggerContext); ok {
 		return logCtx
