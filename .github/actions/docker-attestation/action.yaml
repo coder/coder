@@ -1,0 +1,90 @@
+name: 'Docker Image Attestation'
+description: 'Create GitHub attestation for a Docker image, handling multi-arch images correctly'
+
+inputs:
+  image-name:
+    description: 'Full image name including registry and tag (e.g., ghcr.io/coder/coder-preview:main)'
+    required: true
+  predicate-type:
+    description: 'Type of predicate to use in the attestation'
+    required: false
+    default: 'https://slsa.dev/provenance/v1'
+  workflow:
+    description: 'Name of the GitHub workflow'
+    required: true
+  workflow-ref:
+    description: 'Git ref that triggered the workflow'
+    required: true
+  workflow-sha:
+    description: 'Git SHA of the workflow run'
+    required: true
+  workflow-run-id:
+    description: 'GitHub Actions run ID'
+    required: true
+  repository:
+    description: 'GitHub repository name (e.g., owner/repo)'
+    required: true
+  push-to-registry:
+    description: 'Whether to push the attestation to the registry'
+    required: false
+    default: 'true'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get manifest digest
+      id: get_digest
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        # Get individual platform digests
+        manifests=$(docker buildx imagetools inspect --raw ${{ inputs.image-name }})
+        
+        # For multi-arch images, the digest will be in the manifest list
+        # For single arch, it will be in the config
+        if echo "$manifests" | jq -e '.manifests' > /dev/null; then
+          # Multi-arch image, get the manifest list digest
+          DIGEST=$(echo "$manifests" | jq -r '.mediaType + ":" + .config.digest')
+        else
+          # Single arch image, get the config digest
+          DIGEST=$(echo "$manifests" | jq -r '.config.digest')
+        fi
+        
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        echo "Found digest: $DIGEST"
+    
+    - name: GitHub Attestation
+      uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+      with:
+        subject-name: ${{ inputs.image-name }}
+        subject-digest: ${{ steps.get_digest.outputs.digest }}
+        predicate-type: ${{ inputs.predicate-type }}
+        predicate: |
+          {
+            "buildType": "https://github.com/actions/runner-images/",
+            "builder": {
+              "id": "https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.workflow-run-id }}"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "git+https://github.com/${{ inputs.repository }}@${{ inputs.workflow-ref }}",
+                "digest": {
+                  "sha1": "${{ inputs.workflow-sha }}"
+                },
+                "entryPoint": ".github/workflows/${{ inputs.workflow }}.yaml"
+              },
+              "environment": {
+                "github_workflow": "${{ inputs.workflow }}",
+                "github_run_id": "${{ inputs.workflow-run-id }}"
+              }
+            },
+            "metadata": {
+              "buildInvocationID": "${{ inputs.workflow-run-id }}",
+              "completeness": {
+                "environment": true,
+                "materials": true
+              }
+            }
+          }
+        push-to-registry: ${{ inputs.push-to-registry }}

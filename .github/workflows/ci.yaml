@@ -1185,142 +1185,44 @@ jobs:
       # This complements our existing cosign attestations which focus on SBOMs.
       #
       # We attest each tag separately to ensure all tags have proper provenance records.
-      # TODO: Consider refactoring these steps to use a matrix strategy or composite action to reduce duplication
-      # while maintaining the required functionality for each tag.
-      - name: Get Docker image digest
-        id: get_digest_main
-        if: github.ref == 'refs/heads/main'
-        run: |
-          DIGEST=$(docker manifest inspect ghcr.io/coder/coder-preview:main | jq -r '.config.digest')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
-      - name: GitHub Attestation for Docker image
+      - name: GitHub Attestation for main Docker image
         id: attest_main
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        uses: ./.github/actions/docker-attestation
         with:
-          subject-name: "ghcr.io/coder/coder-preview:main"
-          subject-digest: ${{ steps.get_digest_main.outputs.digest }}
-          predicate-type: "https://slsa.dev/provenance/v1"
-          predicate: |
-            {
-              "buildType": "https://github.com/actions/runner-images/",
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/ci.yaml"
-                },
-                "environment": {
-                  "github_workflow": "${{ github.workflow }}",
-                  "github_run_id": "${{ github.run_id }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationID": "${{ github.run_id }}",
-                "completeness": {
-                  "environment": true,
-                  "materials": true
-                }
-              }
-            }
-          push-to-registry: true
+          image-name: ghcr.io/coder/coder-preview:main
+          workflow: ci
+          workflow-ref: ${{ github.ref }}
+          workflow-sha: ${{ github.sha }}
+          workflow-run-id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
 
-      - name: Get Docker image digest (latest)
-        id: get_digest_latest
-        if: github.ref == 'refs/heads/main'
-        run: |
-          DIGEST=$(docker manifest inspect ghcr.io/coder/coder-preview:latest | jq -r '.config.digest')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
-      - name: GitHub Attestation for Docker image (latest tag)
+      - name: GitHub Attestation for latest Docker image
         id: attest_latest
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        uses: ./.github/actions/docker-attestation
         with:
-          subject-name: "ghcr.io/coder/coder-preview:latest"
-          subject-digest: ${{ steps.get_digest_latest.outputs.digest }}
-          predicate-type: "https://slsa.dev/provenance/v1"
-          predicate: |
-            {
-              "buildType": "https://github.com/actions/runner-images/",
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/ci.yaml"
-                },
-                "environment": {
-                  "github_workflow": "${{ github.workflow }}",
-                  "github_run_id": "${{ github.run_id }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationID": "${{ github.run_id }}",
-                "completeness": {
-                  "environment": true,
-                  "materials": true
-                }
-              }
-            }
-          push-to-registry: true
-
-      - name: Get Docker image digest (version)
-        id: get_digest_version
-        if: github.ref == 'refs/heads/main'
-        run: |
-          DIGEST=$(docker manifest inspect ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }} | jq -r '.config.digest')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          image-name: ghcr.io/coder/coder-preview:latest
+          workflow: ci
+          workflow-ref: ${{ github.ref }}
+          workflow-sha: ${{ github.sha }}
+          workflow-run-id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
 
       - name: GitHub Attestation for version-specific Docker image
         id: attest_version
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        uses: ./.github/actions/docker-attestation
         with:
-          subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
-          subject-digest: ${{ steps.get_digest_version.outputs.digest }}
-          predicate-type: "https://slsa.dev/provenance/v1"
-          predicate: |
-            {
-              "buildType": "https://github.com/actions/runner-images/",
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/ci.yaml"
-                },
-                "environment": {
-                  "github_workflow": "${{ github.workflow }}",
-                  "github_run_id": "${{ github.run_id }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationID": "${{ github.run_id }}",
-                "completeness": {
-                  "environment": true,
-                  "materials": true
-                }
-              }
-            }
-          push-to-registry: true
+          image-name: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
+          workflow: ci
+          workflow-ref: ${{ github.ref }}
+          workflow-sha: ${{ github.sha }}
+          workflow-run-id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
 
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
