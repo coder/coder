@@ -1932,7 +1932,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name:        "OIDC logout redirect URI",
 			Description: "OIDC redirect URI after logout.",
-			Flag:        "logout-redirect-uri",
+			Flag:        "oidc-logout-redirect-uri",
 			Env:         "CODER_OIDC_LOGOUT_URI",
 			Default:     "",
 			Value:       &c.OIDC.LogoutRedirectURI,
