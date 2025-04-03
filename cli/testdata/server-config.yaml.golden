@@ -401,9 +401,6 @@ oidc:
   # an insecure OIDC configuration. It is not recommended to use this flag.
   # (default: <unset>, type: bool)
   dangerousSkipIssuerChecks: false
-  # OIDC endpoint for logout.
-  # (default: <unset>, type: string)
-  logoutEndpoint: ""
   # OIDC redirect URI after logout.
   # (default: <unset>, type: string)
   logoutRedirectURI: ""
