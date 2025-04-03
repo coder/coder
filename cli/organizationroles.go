@@ -160,7 +160,6 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 
 			var customRole codersdk.Role
 			if jsonInput {
-				// JSON Upload mode
 				bytes, err := io.ReadAll(inv.Stdin)
 				if err != nil {
 					return xerrors.Errorf("reading stdin: %w", err)
@@ -284,7 +283,6 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 
 			var customRole codersdk.Role
 			if jsonInput {
-				// JSON Upload mode
 				bytes, err := io.ReadAll(inv.Stdin)
 				if err != nil {
 					return xerrors.Errorf("reading stdin: %w", err)
@@ -299,13 +297,13 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 					arr := make([]json.RawMessage, 0)
 					err = json.Unmarshal(bytes, &arr)
 					if err == nil && len(arr) > 0 {
-						return xerrors.Errorf("the input appears to be an array, only 1 role can be sent at a time")
+						return xerrors.Errorf("only 1 role can be sent at a time")
 					}
 					return xerrors.Errorf("json input does not appear to be a valid role")
 				}
 
 				if role := existingRole(customRole.Name, existingRoles); role == nil {
-					return xerrors.Errorf("The role %s does not exist exists. If you'd like to create this role use the create command instead", customRole.Name)
+					return xerrors.Errorf("The role %s does not exist. If you'd like to create this role use the create command instead", customRole.Name)
 				}
 			} else {
 				if len(inv.Args) == 0 {
@@ -314,7 +312,7 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 
 				role := existingRole(inv.Args[0], existingRoles)
 				if role == nil {
-					return xerrors.Errorf("The role %s does not exist exists. If you'd like to create this role use the create command instead", inv.Args[0])
+					return xerrors.Errorf("The role %s does not exist. If you'd like to create this role use the create command instead", inv.Args[0])
 				}
 
 				interactiveRole, err := interactiveOrgRoleEdit(inv, org.ID, &role.Role)
