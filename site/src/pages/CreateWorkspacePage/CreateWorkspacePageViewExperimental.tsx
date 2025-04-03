@@ -25,12 +25,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { Link } from "react-router-dom";
-import {
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
+import { getFormHelpers, nameValidator } from "utils/formUtils";
 import {
 	type AutofillBuildParameter,
 	getInitialRichParameterValues,
@@ -258,7 +253,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 						<hgroup>
 							<h2 className="text-xl font-semibold m-0">General</h2>
 							<p className="text-sm text-content-secondary mt-0">
-								{permissions.createWorkspaceForUser
+								{permissions.createWorkspace
 									? "Only admins can create workspaces for other users."
 									: "The name of your new workspace."}
 							</p>
@@ -305,7 +300,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										</div>
 									</div>
 								</div>
-								{permissions.createWorkspaceForUser && (
+								{permissions.createWorkspace && (
 									<div className="flex flex-col gap-2 flex-1">
 										<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 											Owner
