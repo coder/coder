@@ -13,6 +13,11 @@ import {
 	type OrganizationPermissions,
 	organizationPermissionChecks,
 } from "modules/permissions/organizations";
+import {
+	type WorkspacePermissionName,
+	type WorkspacePermissions,
+	workspacePermissionChecks,
+} from "modules/permissions/workspaces";
 import type { QueryClient } from "react-query";
 import { meKey } from "./users";
 
@@ -295,6 +300,44 @@ export const organizationsPermissions = (
 				},
 				{} as Record<string, Partial<OrganizationPermissions>>,
 			) as Record<string, OrganizationPermissions>;
+		},
+	};
+};
+
+export const workspacePermissionsByOrganization = (
+	organizationIds: string[] | undefined,
+) => {
+	if (!organizationIds) {
+		return { enabled: false };
+	}
+
+	return {
+		queryKey: ["workspaces", organizationIds.sort(), "permissions"],
+		queryFn: async () => {
+			const prefixedChecks = organizationIds.flatMap((orgId) =>
+				Object.entries(workspacePermissionChecks(orgId)).map(([key, val]) => [
+					`${orgId}.${key}`,
+					val,
+				]),
+			);
+
+			const response = await API.checkAuthorization({
+				checks: Object.fromEntries(prefixedChecks),
+			});
+
+			return Object.entries(response).reduce(
+				(acc, [key, value]) => {
+					const index = key.indexOf(".");
+					const orgId = key.substring(0, index);
+					const perm = key.substring(index + 1);
+					if (!acc[orgId]) {
+						acc[orgId] = {};
+					}
+					acc[orgId][perm as WorkspacePermissionName] = value;
+					return acc;
+				},
+				{} as Record<string, Partial<WorkspacePermissions>>,
+			) as Record<string, WorkspacePermissions>;
 		},
 	};
 };

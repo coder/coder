@@ -1,3 +1,4 @@
+import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
@@ -7,7 +8,7 @@ import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
@@ -43,6 +44,24 @@ const WorkspacesPage: FC = () => {
 	const { entitlements } = useDashboard();
 
 	const templatesQuery = useQuery(templates());
+
+	const orgPermissionsQuery = useQuery(
+		workspacePermissionsByOrganization(
+			templatesQuery.data?.map((template) => template.organization_id),
+		),
+	);
+
+	// Filter templates based on workspace creation permission
+	const filteredTemplates = useMemo(() => {
+		if (!templatesQuery.data || !orgPermissionsQuery.data) {
+			return templatesQuery.data;
+		}
+
+		return templatesQuery.data.filter((template) => {
+			const orgPermission = orgPermissionsQuery.data[template.organization_id];
+			return orgPermission?.createWorkspaceForUser;
+		});
+	}, [templatesQuery.data, orgPermissionsQuery.data]);
 
 	const filterProps = useWorkspacesFilter({
 		searchParamsResult,
@@ -90,7 +109,7 @@ const WorkspacesPage: FC = () => {
 				checkedWorkspaces={checkedWorkspaces}
 				onCheckChange={setCheckedWorkspaces}
 				canCheckWorkspaces={canCheckWorkspaces}
-				templates={templatesQuery.data}
+				templates={filteredTemplates}
 				templatesFetchStatus={templatesQuery.status}
 				workspaces={data?.workspaces}
 				error={error}
