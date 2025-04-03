@@ -67,6 +67,39 @@ type Workspace struct {
 	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
 }
 
+func (w Workspace) Reduced() ReducedWorkspace {
+	return ReducedWorkspace{
+		Favorite:          w.Favorite,
+		Health:            w.Health,
+		ID:                w.ID,
+		LastBuiltAt:       w.LatestBuild.UpdatedAt,
+		LatestBuildStatus: string(w.LatestBuild.Status),
+		Outdated:          w.Outdated,
+		OwnerID:           w.OwnerID,
+		OwnerName:         w.OwnerName,
+		TemplateID:        w.TemplateID,
+		TemplateName:      w.TemplateName,
+		AutostartSchedule: w.AutostartSchedule,
+		TTLMillis:         w.TTLMillis,
+	}
+}
+
+// ReducedWorkspace is a subset of fields of a codersdk.Workspace.
+type ReducedWorkspace struct {
+	Favorite          bool            `json:"favorite"`
+	Health            WorkspaceHealth `json:"health"`
+	ID                uuid.UUID       `json:"id" format:"uuid"`
+	LastBuiltAt       time.Time       `json:"last_built_at" format:"date-time"`
+	LatestBuildStatus string          `json:"latest_build_status"`
+	Outdated          bool            `json:"outdated"`
+	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
+	OwnerName         string          `json:"owner_name"`
+	TemplateID        uuid.UUID       `json:"template_id" format:"uuid"`
+	TemplateName      string          `json:"template_name"`
+	AutostartSchedule *string         `json:"autostart_schedule"`
+	TTLMillis         *int64          `json:"ttl_ms,omitempty"`
+}
+
 func (w Workspace) FullName() string {
 	return fmt.Sprintf("%s/%s", w.OwnerName, w.Name)
 }

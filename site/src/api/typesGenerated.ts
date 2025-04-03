@@ -2057,6 +2057,22 @@ export interface ReducedUser extends MinimalUser {
 	readonly theme_preference?: string;
 }
 
+// From codersdk/workspaces.go
+export interface ReducedWorkspace {
+	readonly favorite: boolean;
+	readonly health: WorkspaceHealth;
+	readonly id: string;
+	readonly last_built_at: string;
+	readonly latest_build_status: string;
+	readonly outdated: boolean;
+	readonly owner_id: string;
+	readonly owner_name: string;
+	readonly template_id: string;
+	readonly template_name: string;
+	readonly autostart_schedule: string | null;
+	readonly ttl_ms?: number;
+}
+
 // From codersdk/workspaceproxy.go
 export interface Region {
 	readonly id: string;
