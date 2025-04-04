@@ -1,18 +1,23 @@
 import type { ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
+import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
+import {
+	ProvisionerTag,
+	ProvisionerTags,
+	ProvisionerTruncateTags,
+} from "modules/provisioners/ProvisionerTags";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
-import { JobStatusIndicator } from "./JobStatusIndicator";
-import { Tag, Tags, TruncateTags } from "./Tags";
 
 type JobRowProps = {
 	job: ProvisionerJob;
@@ -21,32 +26,32 @@ type JobRowProps = {
 export const JobRow: FC<JobRowProps> = ({ job }) => {
 	const metadata = job.metadata;
 	const [isOpen, setIsOpen] = useState(false);
+	const queue = {
+		size: job.queue_size,
+		position: job.queue_position,
+	};
 
 	return (
 		<>
 			<TableRow key={job.id}>
 				<TableCell>
-					<button
+					<Button
+						variant="subtle"
+						size="sm"
 						className={cn([
-							"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-xs cursor-pointer",
-							"transition-colors hover:text-content-primary font-medium whitespace-nowrap",
 							isOpen && "text-content-primary",
+							"p-0 h-auto min-w-0 align-middle",
 						])}
-						type="button"
 						onClick={() => {
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? (
-							<ChevronDownIcon className="size-icon-sm p-0.5" />
-						) : (
-							<ChevronRightIcon className="size-icon-sm p-0.5" />
-						)}
+						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
-						<span className="[&:first-letter]:uppercase">
+						<span className="block first-letter:uppercase">
 							{relativeTime(new Date(job.created_at))}
 						</span>
-					</button>
+					</Button>
 				</TableCell>
 				<TableCell>
 					<Badge size="sm">{job.type}</Badge>
@@ -68,10 +73,10 @@ export const JobRow: FC<JobRowProps> = ({ job }) => {
 					)}
 				</TableCell>
 				<TableCell>
-					<TruncateTags tags={job.tags} />
+					<ProvisionerTruncateTags tags={job.tags} />
 				</TableCell>
 				<TableCell>
-					<JobStatusIndicator job={job} />
+					<JobStatusIndicator status={job.status} queue={queue} />
 				</TableCell>
 				<TableCell className="text-right">
 					<CancelJobButton job={job} />
@@ -125,11 +130,11 @@ export const JobRow: FC<JobRowProps> = ({ job }) => {
 
 							<dt>Tags:</dt>
 							<dd>
-								<Tags>
+								<ProvisionerTags>
 									{Object.entries(job.tags).map(([key, value]) => (
-										<Tag key={key} label={key} value={value} />
+										<ProvisionerTag key={key} label={key} value={value} />
 									))}
-								</Tags>
+								</ProvisionerTags>
 							</dd>
 						</dl>
 					</TableCell>

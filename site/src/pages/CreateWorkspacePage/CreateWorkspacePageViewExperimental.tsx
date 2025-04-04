@@ -15,7 +15,6 @@ import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
-import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -37,7 +36,7 @@ import type {
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
-
+import type { CreateWorkspacePermissions } from "./permissions";
 export const Language = {
 	duplicationWarning:
 		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
@@ -59,7 +58,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
-	permissions: WorkspacePermissions;
+	permissions: CreateWorkspacePermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
 	onSubmit: (
@@ -253,7 +252,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 						<hgroup>
 							<h2 className="text-xl font-semibold m-0">General</h2>
 							<p className="text-sm text-content-secondary mt-0">
-								{permissions.createWorkspace
+								{permissions.createWorkspaceForAny
 									? "Only admins can create workspaces for other users."
 									: "The name of your new workspace."}
 							</p>
@@ -300,7 +299,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										</div>
 									</div>
 								</div>
-								{permissions.createWorkspace && (
+								{permissions.createWorkspaceForAny && (
 									<div className="flex flex-col gap-2 flex-1">
 										<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 											Owner

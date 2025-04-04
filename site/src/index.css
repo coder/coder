@@ -31,6 +31,7 @@
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
 		--border-destructive: 0 84% 60%;
+		--border-hover: 240, 5%, 34%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
 		--highlight-purple: 262 83% 58%;
@@ -67,6 +68,7 @@
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
 		--border-destructive: 0 91% 71%;
+		--border-hover: 240, 5%, 34%;
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 252 95% 85%;
 		--highlight-green: 141 79% 85%;
