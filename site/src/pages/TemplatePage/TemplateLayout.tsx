@@ -6,7 +6,7 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { workspacePermissionChecks } from "modules/permissions/workspaces";
+import { workspacePermissionChecks, type WorkspacePermissions } from "modules/permissions/workspaces";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -113,7 +113,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				template={data.template}
 				activeVersion={data.activeVersion}
 				permissions={data.permissions}
-				workspacePermissions={workspacePermissionsQuery.data}
+				workspacePermissions={workspacePermissionsQuery.data as WorkspacePermissions}
 				onDeleteTemplate={() => {
 					navigate("/templates");
 				}}

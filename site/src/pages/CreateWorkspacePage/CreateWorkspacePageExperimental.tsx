@@ -28,7 +28,7 @@ import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import { type CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import { type CreateWorkspacePermissions, createWorkspaceChecks } from "./permissions";
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
@@ -205,7 +205,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
-					permissions={permissionsQuery.data as CreateWSPermissions}
+					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={realizedParameters as TemplateVersionParameter[]}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isLoading}

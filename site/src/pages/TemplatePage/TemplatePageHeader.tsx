@@ -35,6 +35,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useDeletionDialogState } from "./useDeletionDialogState";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
 
 type TemplateMenuProps = {
 	organizationName: string;
@@ -158,7 +159,7 @@ export type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
-	workspacePermissions: AuthorizationResponse;
+	workspacePermissions: WorkspacePermissions;
 	onDeleteTemplate: () => void;
 };
 
@@ -179,7 +180,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated && workspacePermissions.createWorkspace && (
+						{!template.deprecated && workspacePermissions.createWorkspaceForUserID && (
 							<Button
 								variant="contained"
 								startIcon={<AddIcon />}
