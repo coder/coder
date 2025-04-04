@@ -12019,6 +12019,9 @@ const docTemplate = `{
                 "wildcard_access_url": {
                     "type": "string"
                 },
+                "workspace_hostname_suffix": {
+                    "type": "string"
+                },
                 "write_config": {
                     "type": "boolean"
                 }
