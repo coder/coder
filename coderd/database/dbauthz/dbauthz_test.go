@@ -342,6 +342,15 @@ func (s *MethodTestSuite) TestFile() {
 		f := dbgen.File(s.T(), db, database.File{})
 		check.Args(f.ID).Asserts(f, policy.ActionRead).Returns(f)
 	}))
+	s.Run("GetFileIDByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		f := dbgen.File(s.T(), db, database.File{CreatedBy: u.ID})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{StorageMethod: database.ProvisionerStorageMethodFile, FileID: f.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{OrganizationID: o.ID, JobID: j.ID, CreatedBy: u.ID})
+		check.Args(tv.ID).Asserts(rbac.ResourceFile.WithID(f.ID), policy.ActionRead).Returns(f.ID)
+	}))
 	s.Run("InsertFile", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertFileParams{
@@ -1195,6 +1204,23 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionParameter{})
+	}))
+	s.Run("GetTemplateVersionTerraformValues", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+			JobID:          job.ID,
+			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
+		})
+		dbgen.TemplateVersionTerraformValues(s.T(), db, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID: job.ID,
+		})
+		check.Args(tv.ID).Asserts(t, policy.ActionRead)
 	}))
 	s.Run("GetTemplateVersionVariables", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -3706,6 +3732,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LoginType: database.LoginTypeGithub,
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
+	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceAppStatusesByAppIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -4133,6 +4165,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertTemplateVersionParameterParams{
 			TemplateVersionID: v.ID,
 			Options:           json.RawMessage("{}"),
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertWorkspaceAppStatus", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		check.Args(database.InsertWorkspaceAppStatusParams{
+			ID:    uuid.New(),
+			State: "working",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Subtest(func(db database.Store, check *expects) {
@@ -4801,36 +4840,91 @@ func (s *MethodTestSuite) TestNotifications() {
 
 func (s *MethodTestSuite) TestPrebuilds() {
 	s.Run("ClaimPrebuiltWorkspace", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.ClaimPrebuiltWorkspaceParams{}).
-			Asserts(rbac.ResourceWorkspace, policy.ActionUpdate).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
+			TemplateVersionID: templateVersion.ID,
+		})
+		check.Args(database.ClaimPrebuiltWorkspaceParams{
+			NewUserID: user.ID,
+			NewName:   "",
+			PresetID:  preset.ID,
+		}).Asserts(
+			rbac.ResourceWorkspace.WithOwner(user.ID.String()).InOrg(org.ID), policy.ActionCreate,
+			template, policy.ActionRead,
+			template, policy.ActionUse,
+		).ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			ErrorsWithPG(sql.ErrNoRows)
 	}))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(time.Time{}).
-			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetTemplatePresetsWithPrebuilds", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		check.Args(uuid.NullUUID{UUID: user.ID, Valid: true}).
-			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetPresetByID", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
+			TemplateVersionID: templateVersion.ID,
+		})
+		check.Args(preset.ID).
+			Asserts(template, policy.ActionRead).
+			Returns(database.GetPresetByIDRow{
+				ID:                preset.ID,
+				TemplateVersionID: preset.TemplateVersionID,
+				Name:              preset.Name,
+				CreatedAt:         preset.CreatedAt,
+				TemplateID: uuid.NullUUID{
+					UUID:  template.ID,
+					Valid: true,
+				},
+				OrganizationID: org.ID,
+			})
 	}))
 }
 

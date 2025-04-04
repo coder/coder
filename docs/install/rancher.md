@@ -136,7 +136,7 @@ kubectl create secret generic coder-db-url -n coder \
    - **Mainline**: `2.20.x`
    - **Stable**: `2.19.x`
 
-   Learn more about release channels in the [Releases documentation](./releases.md).
+   Learn more about release channels in the [Releases documentation](./releases/index.md).
 
 1. Select **Next** when your configuration is complete.
 

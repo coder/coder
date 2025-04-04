@@ -1,9 +1,12 @@
 import { API } from "api/api";
+import { checkAuthorization } from "api/queries/authCheck";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { workspacePermissionChecks } from "modules/permissions/workspaces";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -71,12 +74,19 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	children = <Outlet />,
 }) => {
 	const navigate = useNavigate();
+	const { user: me } = useAuthenticated();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { data, error, isLoading } = useQuery({
 		queryKey: ["template", templateName],
 		queryFn: () => fetchTemplate(organizationName, templateName),
 	});
+	const workspacePermissionsQuery = useQuery(
+		checkAuthorization({
+			checks: workspacePermissionChecks(organizationName, me.id),
+		}),
+	);
+
 	const location = useLocation();
 	const paths = location.pathname.split("/");
 	const activeTab = paths.at(-1) === templateName ? "summary" : paths.at(-1)!;
@@ -85,7 +95,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	const shouldShowInsights =
 		data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
 
-	if (error) {
+	if (error || workspacePermissionsQuery.error) {
 		return (
 			<div css={{ margin: 16 }}>
 				<ErrorAlert error={error} />
@@ -93,7 +103,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 		);
 	}
 
-	if (isLoading || !data) {
+	if (isLoading || !data || !workspacePermissionsQuery.data) {
 		return <Loader />;
 	}
 
@@ -103,6 +113,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				template={data.template}
 				activeVersion={data.activeVersion}
 				permissions={data.permissions}
+				workspacePermissions={workspacePermissionsQuery.data}
 				onDeleteTemplate={() => {
 					navigate("/templates");
 				}}

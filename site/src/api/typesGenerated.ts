@@ -1114,6 +1114,18 @@ export interface InboxNotificationAction {
 	readonly url: string;
 }
 
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconAccount = "DEFAULT_ICON_ACCOUNT";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconOther = "DEFAULT_ICON_OTHER";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -3050,6 +3062,7 @@ export interface Workspace {
 	readonly template_active_version_id: string;
 	readonly template_require_active_version: boolean;
 	readonly latest_build: WorkspaceBuild;
+	readonly latest_app_status: WorkspaceAppStatus | null;
 	readonly outdated: boolean;
 	readonly name: string;
 	readonly autostart_schedule?: string;
@@ -3297,6 +3310,7 @@ export interface WorkspaceApp {
 	readonly health: WorkspaceAppHealth;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
+	readonly statuses: readonly WorkspaceAppStatus[];
 }
 
 // From codersdk/workspaceapps.go
@@ -3325,6 +3339,29 @@ export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
 	"authenticated",
 	"owner",
 	"public",
+];
+
+// From codersdk/workspaceapps.go
+export interface WorkspaceAppStatus {
+	readonly id: string;
+	readonly created_at: string;
+	readonly workspace_id: string;
+	readonly agent_id: string;
+	readonly app_id: string;
+	readonly state: WorkspaceAppStatusState;
+	readonly needs_user_attention: boolean;
+	readonly message: string;
+	readonly uri: string;
+	readonly icon: string;
+}
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppStatusState = "complete" | "failure" | "working";
+
+export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
+	"complete",
+	"failure",
+	"working",
 ];
 
 // From codersdk/workspacebuilds.go

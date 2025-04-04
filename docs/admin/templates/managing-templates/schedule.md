@@ -28,7 +28,7 @@ manage infrastructure costs.
 ## Failure cleanup
 
 > [!NOTE]
-> Failure cleanup is an Enterprise and Premium feature.
+> Failure cleanup is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Failure cleanup defines how long a workspace is permitted to remain in the
@@ -38,7 +38,7 @@ available for licensed customers.
 ## Dormancy threshold
 
 > [!NOTE]
-> Dormancy threshold is an Enterprise and Premium feature.
+> Dormancy threshold is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy Threshold defines how long Coder allows a workspace to remain inactive
@@ -52,7 +52,7 @@ only available for licensed customers.
 ## Dormancy auto-deletion
 
 > [!NOTE]
-> Dormancy auto-deletion is an Enterprise and Premium feature.
+> Dormancy auto-deletion is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy Auto-Deletion allows a template admin to dictate how long a workspace
@@ -62,7 +62,7 @@ Auto-Deletion is only available for licensed customers.
 ## Autostop requirement
 
 > [!NOTE]
-> Autostop requirement is an Enterprise and Premium feature.
+> Autostop requirement is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Autostop requirement is a template setting that determines how often workspaces
@@ -96,7 +96,7 @@ requirement during the deprecation period, but only one can be used at a time.
 ## User quiet hours
 
 > [!NOTE]
-> User quiet hours are an Enterprise and Premium feature.
+> User quiet hours are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 User quiet hours can be configured in the user's schedule settings page.
