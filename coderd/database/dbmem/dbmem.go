@@ -1379,6 +1379,47 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(
 	return jobs, nil
 }
 
+func (q *FakeQuerier) GetUserThemePreference(_ context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "theme_preference" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserThemePreference(_ context.Context, arg database.UpdateUserThemePreferenceParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
+			continue
+		}
+		uc.Value = arg.ThemePreference
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "theme_preference",
+		Value:  arg.ThemePreference,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -6434,20 +6475,6 @@ func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.Ge
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetUserAppearanceSettings(_ context.Context, userID uuid.UUID) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, uc := range q.userConfigs {
-		if uc.UserID != userID || uc.Key != "theme_preference" {
-			continue
-		}
-		return uc.Value, nil
-	}
-
-	return "", sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -10994,33 +11021,6 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	}
 
 	return nil
-}
-
-func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.UserConfig{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, uc := range q.userConfigs {
-		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
-			continue
-		}
-		uc.Value = arg.ThemePreference
-		q.userConfigs[i] = uc
-		return uc, nil
-	}
-
-	uc := database.UserConfig{
-		UserID: arg.UserID,
-		Key:    "theme_preference",
-		Value:  arg.ThemePreference,
-	}
-	q.userConfigs = append(q.userConfigs, uc)
-	return uc, nil
 }
 
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {

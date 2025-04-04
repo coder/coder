@@ -102,7 +102,7 @@ SET
 WHERE
 	id = $1;
 
--- name: GetUserAppearanceSettings :one
+-- name: GetUserThemePreference :one
 SELECT
 	value as theme_preference
 FROM
@@ -111,7 +111,7 @@ WHERE
 	user_id = @user_id
 	AND key = 'theme_preference';
 
--- name: UpdateUserAppearanceSettings :one
+-- name: UpdateUserThemePreference :one
 INSERT INTO
 	user_configs (user_id, key, value)
 VALUES

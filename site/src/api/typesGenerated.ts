@@ -2655,6 +2655,15 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 	readonly include_archived: boolean;
 }
 
+// From codersdk/users.go
+export type TerminalFontName = "fira-code" | "ibm-mono-plex" | "";
+
+export const TerminalFontNames: TerminalFontName[] = [
+	"fira-code",
+	"ibm-mono-plex",
+	"",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -2788,6 +2797,7 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/notifications.go
@@ -2904,6 +2914,7 @@ export interface UserActivityInsightsResponse {
 // From codersdk/users.go
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/insights.go

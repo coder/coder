@@ -976,7 +976,7 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	themePreference, err := api.Database.GetUserAppearanceSettings(ctx, user.ID)
+	themePreference, err := api.Database.GetUserThemePreference(ctx, user.ID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1015,7 +1015,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedSettings, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+	updatedSettings, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
 		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
 	})

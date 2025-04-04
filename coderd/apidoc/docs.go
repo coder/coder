@@ -15595,6 +15595,19 @@ const docTemplate = `{
                 "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
+        "codersdk.TerminalFontName": {
+            "type": "string",
+            "enum": [
+                "",
+                "ibm-mono-plex",
+                "fira-code"
+            ],
+            "x-enum-varnames": [
+                "TerminalFontUnknown",
+                "TerminalFontIbmMonoPlex",
+                "TerminalFontFiraCode"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -15768,9 +15781,21 @@ const docTemplate = `{
         "codersdk.UpdateUserAppearanceSettingsRequest": {
             "type": "object",
             "required": [
+                "terminal_font",
                 "theme_preference"
             ],
             "properties": {
+                "terminal_font": {
+                    "enum": [
+                        "ibm-mono-plex",
+                        "fira-code"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TerminalFontName"
+                        }
+                    ]
+                },
                 "theme_preference": {
                     "type": "string"
                 }
@@ -16062,6 +16087,17 @@ const docTemplate = `{
         "codersdk.UserAppearanceSettings": {
             "type": "object",
             "properties": {
+                "terminal_font": {
+                    "enum": [
+                        "ibm-mono-plex",
+                        "fira-code"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TerminalFontName"
+                        }
+                    ]
+                },
                 "theme_preference": {
                     "type": "string"
                 }

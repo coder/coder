@@ -189,12 +189,23 @@ type ValidateUserPasswordResponse struct {
 	Details string `json:"details"`
 }
 
+// TerminalFontName is the name of supported terminal font
+type TerminalFontName string
+
+const (
+	TerminalFontUnknown     TerminalFontName = ""
+	TerminalFontIbmMonoPlex TerminalFontName = "ibm-mono-plex"
+	TerminalFontFiraCode    TerminalFontName = "fira-code"
+)
+
 type UserAppearanceSettings struct {
-	ThemePreference string `json:"theme_preference"`
+	ThemePreference string           `json:"theme_preference"`
+	TerminalFont    TerminalFontName `json:"terminal_font" enums:"ibm-mono-plex,fira-code"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
-	ThemePreference string `json:"theme_preference" validate:"required"`
+	ThemePreference string           `json:"theme_preference" validate:"required"`
+	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required" enums:"ibm-mono-plex,fira-code"`
 }
 
 type UpdateUserPasswordRequest struct {
