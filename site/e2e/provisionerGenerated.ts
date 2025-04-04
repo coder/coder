@@ -302,6 +302,7 @@ export interface Metadata {
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
   workspaceOwnerRbacRoles: Role[];
+  prebuild: boolean;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1007,6 +1008,9 @@ export const Metadata = {
     }
     for (const v of message.workspaceOwnerRbacRoles) {
       Role.encode(v!, writer.uint32(154).fork()).ldelim();
+    }
+    if (message.prebuild === true) {
+      writer.uint32(160).bool(message.prebuild);
     }
     return writer;
   },
