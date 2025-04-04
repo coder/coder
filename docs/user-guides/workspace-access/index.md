@@ -105,10 +105,10 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains.md#jetbrains-fleet)
+- [JetBrains Fleet](./jetbrains/index.md#jetbrains-fleet)
 
-Read our [docs on JetBrains Gateway](./jetbrains.md) for more information on
-connecting your JetBrains IDEs.
+Read our [docs on JetBrains Gateway](./jetbrains/index.md) for more information
+on connecting your JetBrains IDEs.
 
 ## code-server
 
