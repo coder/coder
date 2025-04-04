@@ -907,7 +907,7 @@ func (a *agent) run() (retErr error) {
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()
 		if cErr != nil {
-			a.logger.Debug(a.hardCtx, "error closing drpc connection", slog.Error(err))
+			a.logger.Debug(a.hardCtx, "error closing drpc connection", slog.Error(cErr))
 		}
 	}()
 
