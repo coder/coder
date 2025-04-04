@@ -766,6 +766,12 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	ReconciliationInterval        serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -1464,7 +1470,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
 			YAML:  "blockDirect", Annotations: serpent.Annotations{}.
-				Mark(annotationExternalProxies, "true"),
+			Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Force WebSockets",
