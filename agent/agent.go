@@ -1518,14 +1518,11 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 	a.logger.Info(ctx, "connected to coordination RPC")
 
 	// This allows the Close() routine to wait for the coordinator to gracefully disconnect.
-	a.closeMutex.Lock()
-	if a.isClosed() {
-		return nil
+	disconnected := a.setCoordDisconnected()
+	if disconnected == nil {
+		return nil // already closed by something else
 	}
-	disconnected := make(chan struct{})
-	a.coordDisconnected = disconnected
 	defer close(disconnected)
-	a.closeMutex.Unlock()
 
 	ctrl := tailnet.NewAgentCoordinationController(a.logger, network)
 	coordination := ctrl.New(coordinate)
@@ -1545,6 +1542,17 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 		}
 	}()
 	return <-errCh
+}
+
+func (a *agent) setCoordDisconnected() chan struct{} {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.isClosed() {
+		return nil
+	}
+	disconnected := make(chan struct{})
+	a.coordDisconnected = disconnected
+	return disconnected
 }
 
 // runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
