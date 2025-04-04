@@ -2,7 +2,8 @@
 
 > [!NOTE]
 >
-> This functionality is in early access and still evolving.
+> This functionality is in early access and is evolving rapidly.
+>
 > For now, we recommend testing it in a demo or staging environment,
 > rather than deploying to production.
 >
@@ -27,7 +28,7 @@ template that has all of the tools and dependencies installed.
 
 This can be done in the Coder UI:
 
-![Duplicate template](../../images/guides/ai-agents/duplicate.png)
+![Duplicate template](../images/guides/ai-agents/duplicate.png)
 
 ## 2. Add a module for supported agents
 
@@ -48,7 +49,7 @@ report status back to the Coder control plane.
 
 The Coder dashboard should now show tasks being reported by the agent.
 
-![AI Agents in Coder](../../images/guides//ai-agents/landing.png)
+![AI Agents in Coder](../images/guides/ai-agents/landing.png)
 
 ## Next Steps
 

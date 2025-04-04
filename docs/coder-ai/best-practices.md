@@ -1,8 +1,9 @@
-# Best Practices & Adding Tools via MCP
+# Model Context Protocols (MCP) and adding AI tools
 
 > [!NOTE]
 >
-> This functionality is in early access and still evolving.
+> This functionality is in early access and is evolving rapidly.
+>
 > For now, we recommend testing it in a demo or staging environment,
 > rather than deploying to production.
 >
@@ -21,8 +22,8 @@ for development. With AI Agents, this is no exception.
 
 ## Best Practices
 
-- Since agents are still early, it is best to use the most capable ML models you
-  have access to in order to evaluate their performance.
+- Use the most capable ML models you have access to in order to evaluate Agent
+  performance.
 - Set a system prompt with the `AI_SYSTEM_PROMPT` environment in your template
 - Within your repositories, write a `.cursorrules`, `CLAUDE.md` or similar file
   to guide the agent's behavior.
@@ -30,9 +31,11 @@ for development. With AI Agents, this is no exception.
   (e.g. `gh`) in your image/template.
 - Ensure your [template](./create-template.md) is truly pre-configured for
   development without manual intervention (e.g. repos are cloned, dependencies
-  are built, secrets are added/mocked, etc.)
-  > Note: [External authentication](../../admin/external-auth.md) can be helpful
+  are built, secrets are added/mocked, etc.).
+
+  > Note: [External authentication](../admin/external-auth.md) can be helpful
   > to authenticate with third-party services such as GitHub or JFrog.
+
 - Give your agent the proper tools via MCP to interact with your codebase and
   related services.
 - Read our recommendations on [securing agents](./securing.md) to avoid
