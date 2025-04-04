@@ -11,6 +11,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -32,6 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { TriangleAlert } from "lucide-react";
@@ -39,8 +41,6 @@ import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Loader } from "components/Loader/Loader";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
