@@ -428,6 +428,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var eg errgroup.Group
 	var user database.User
 	var themePreference string
+	var terminalFont string
 	orgIDs := []uuid.UUID{}
 	eg.Go(func() error {
 		var err error
@@ -436,9 +437,18 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	})
 	eg.Go(func() error {
 		var err error
-		themePreference, err = h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		themePreference, err = h.opts.Database.GetUserThemePreference(ctx, apiKey.UserID)
 		if errors.Is(err, sql.ErrNoRows) {
 			themePreference = ""
+			return nil
+		}
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		terminalFont, err = h.opts.Database.GetUserTerminalFont(ctx, apiKey.UserID)
+		if errors.Is(err, sql.ErrNoRows) {
+			terminalFont = ""
 			return nil
 		}
 		return err
@@ -471,6 +481,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 			defer wg.Done()
 			userAppearance, err := json.Marshal(codersdk.UserAppearanceSettings{
 				ThemePreference: themePreference,
+				TerminalFont:    codersdk.TerminalFontName(terminalFont),
 			})
 			if err == nil {
 				state.UserAppearance = html.EscapeString(string(userAppearance))

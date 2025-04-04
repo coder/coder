@@ -251,6 +251,7 @@ export const updateAppearanceSettings = (
 			// more responsive.
 			queryClient.setQueryData(myAppearanceKey, {
 				theme_preference: patch.theme_preference,
+				terminal_font: patch.terminal_font,
 			});
 		},
 		onSuccess: async () =>

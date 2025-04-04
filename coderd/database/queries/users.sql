@@ -102,7 +102,7 @@ SET
 WHERE
 	id = $1;
 
--- name: GetUserAppearanceSettings :one
+-- name: GetUserThemePreference :one
 SELECT
 	value as theme_preference
 FROM
@@ -111,7 +111,7 @@ WHERE
 	user_id = @user_id
 	AND key = 'theme_preference';
 
--- name: UpdateUserAppearanceSettings :one
+-- name: UpdateUserThemePreference :one
 INSERT INTO
 	user_configs (user_id, key, value)
 VALUES
@@ -123,6 +123,29 @@ SET
 	value = @theme_preference
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_preference'
+RETURNING *;
+
+-- name: GetUserTerminalFont :one
+SELECT
+	value as terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'terminal_font';
+
+-- name: UpdateUserTerminalFont :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'terminal_font', @terminal_font)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @terminal_font
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
 -- name: UpdateUserRoles :one
