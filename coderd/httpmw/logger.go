@@ -90,7 +90,7 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
 	c.written = true
 	end := time.Now()
 
-	c.WithFields(
+	logger := c.log.With(
 		slog.F("took", end.Sub(c.start)),
 		slog.F("status_code", status),
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
@@ -99,9 +99,9 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
 	// includes proxy errors etc. It also causes slogtest to fail
 	// instantly without an error message by default.
 	if status >= http.StatusInternalServerError {
-		c.log.Warn(ctx, c.message)
+		logger.Warn(ctx, c.message)
 	} else {
-		c.log.Debug(ctx, c.message)
+		logger.Debug(ctx, c.message)
 	}
 }
 
