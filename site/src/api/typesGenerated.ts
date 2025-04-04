@@ -2219,6 +2219,7 @@ export interface SSHConfig {
 // From codersdk/deployment.go
 export interface SSHConfigResponse {
 	readonly hostname_prefix: string;
+	readonly hostname_suffix: string;
 	readonly ssh_config_options: Record<string, string>;
 }
 

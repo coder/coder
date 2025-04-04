@@ -582,6 +582,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
 ```json
 {
   "hostname_prefix": "string",
+  "hostname_suffix": "string",
   "ssh_config_options": {
     "property1": "string",
     "property2": "string"

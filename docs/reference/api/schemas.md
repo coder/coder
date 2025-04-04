@@ -5748,6 +5748,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "hostname_prefix": "string",
+  "hostname_suffix": "string",
   "ssh_config_options": {
     "property1": "string",
     "property2": "string"
@@ -5757,11 +5758,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-|----------------------|--------|----------|--------------|-------------|
-| `hostname_prefix`    | string | false    |              |             |
-| `ssh_config_options` | object | false    |              |             |
-| » `[any property]`   | string | false    |              |             |
+| Name                 | Type   | Required | Restrictions | Description                                                                                                           |
+|----------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `hostname_prefix`    | string | false    |              | Hostname prefix is the prefix we append to workspace names for SSH hostnames. Deprecated: use HostnameSuffix instead. |
+| `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
+| `ssh_config_options` | object | false    |              |                                                                                                                       |
+| » `[any property]`   | string | false    |              |                                                                                                                       |
 
 ## codersdk.ServerSentEvent
 

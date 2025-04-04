@@ -3393,7 +3393,12 @@ type DeploymentStats struct {
 }
 
 type SSHConfigResponse struct {
-	HostnamePrefix   string            `json:"hostname_prefix"`
+	// HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
+	// Deprecated: use HostnameSuffix instead.
+	HostnamePrefix string `json:"hostname_prefix"`
+
+	// HostnameSuffix is the suffix to append to workspace names for SSH hostnames.
+	HostnameSuffix   string            `json:"hostname_suffix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 
