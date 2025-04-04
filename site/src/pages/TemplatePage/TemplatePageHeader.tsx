@@ -158,6 +158,7 @@ export type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
+	workspacePermissions: AuthorizationResponse;
 	onDeleteTemplate: () => void;
 };
 
@@ -165,6 +166,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 	template,
 	activeVersion,
 	permissions,
+	workspacePermissions,
 	onDeleteTemplate,
 }) => {
 	const getLink = useLinks();
@@ -177,7 +179,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated && (
+						{!template.deprecated && workspacePermissions.createWorkspace && (
 							<Button
 								variant="contained"
 								startIcon={<AddIcon />}

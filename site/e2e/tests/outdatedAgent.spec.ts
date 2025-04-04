@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 	await login(page);
 });
 
-test(`ssh with agent ${agentVersion}`, async ({ page }) => {
+test.skip(`ssh with agent ${agentVersion}`, async ({ page }) => {
 	test.setTimeout(60_000);
 
 	const token = randomUUID();

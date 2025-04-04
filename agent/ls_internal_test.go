@@ -137,15 +137,16 @@ func TestListFilesSuccess(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tmpDir, resp.AbsolutePathString)
-			require.ElementsMatch(t, []LSFile{
-				{
-					Name:               "repos",
-					AbsolutePathString: reposDir,
-					IsDir:              true,
-				},
+			// Output is sorted
+			require.Equal(t, []LSFile{
 				{
 					Name:               "Downloads",
 					AbsolutePathString: downloadsDir,
+					IsDir:              true,
+				},
+				{
+					Name:               "repos",
+					AbsolutePathString: reposDir,
 					IsDir:              true,
 				},
 				{

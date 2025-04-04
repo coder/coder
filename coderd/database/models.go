@@ -3170,10 +3170,12 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                uuid.UUID `db:"id" json:"id"`
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	Name              string    `db:"name" json:"name"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Name                string        `db:"name" json:"name"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3636,6 +3638,17 @@ type WorkspaceBuildTable struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 }
 
+type WorkspaceLatestBuild struct {
+	ID                      uuid.UUID            `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID            `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	JobID                   uuid.UUID            `db:"job_id" json:"job_id"`
+	TemplateVersionPresetID uuid.NullUUID        `db:"template_version_preset_id" json:"template_version_preset_id"`
+	Transition              WorkspaceTransition  `db:"transition" json:"transition"`
+	CreatedAt               time.Time            `db:"created_at" json:"created_at"`
+	JobStatus               ProvisionerJobStatus `db:"job_status" json:"job_status"`
+}
+
 type WorkspaceModule struct {
 	ID         uuid.UUID           `db:"id" json:"id"`
 	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
@@ -3644,6 +3657,25 @@ type WorkspaceModule struct {
 	Version    string              `db:"version" json:"version"`
 	Key        string              `db:"key" json:"key"`
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
+type WorkspacePrebuild struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	Name            string        `db:"name" json:"name"`
+	TemplateID      uuid.UUID     `db:"template_id" json:"template_id"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	Ready           bool          `db:"ready" json:"ready"`
+	CurrentPresetID uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
+}
+
+type WorkspacePrebuildBuild struct {
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
 }
 
 type WorkspaceProxy struct {
