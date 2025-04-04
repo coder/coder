@@ -7,6 +7,10 @@ By the end of this guide, you'll have a remote development environment that you
 can connect to from any device anywhere, so you can work on the same files in a
 persistent environment from your main device, a tablet, or your phone.
 
+Want to get started even faster?
+Try the [quickstart script](#quickstart-script) at the end.
+It does all these steps for you.
+
 ## Install and start Coder
 
 <div class="tabs">
@@ -168,6 +172,16 @@ After that, you can try to:
 - [Customize templates](../admin/templates/extending-templates/index.md)
 - [Enable Prometheus metrics](../admin/integrations/prometheus.md)
 - [Deploy to Google Cloud Platform (GCP)](../install/cloud/compute-engine.md)
+
+## Quickstart script
+
+This shell script combines all the steps along with a few helpful checks.
+
+```shell
+curl -fsSL https://coder.com/docs/tutorials/quickstart-script.sh | sh
+```
+
+View the [script contents on GitHub](https://github.com/coder/coder/tree/main/docs/tutorials).
 
 ## Troubleshooting
 
