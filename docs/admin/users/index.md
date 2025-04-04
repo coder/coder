@@ -190,6 +190,8 @@ to use the Coder's filter query:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
 - To find users who were created between January 1 and January 18, 2023:
   `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
+- To find users who have login type as github and is a member:
+    `login_type:github role:member`
 
 The following filters are supported:
 
@@ -203,3 +205,4 @@ The following filters are supported:
   the RFC3339Nano format.
 - `created_before` and `created_after` - The time a user was created. Uses the
   RFC3339Nano format.
+- `login_type` - Represents the login type of the user. Refer here for all the roles [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType)
