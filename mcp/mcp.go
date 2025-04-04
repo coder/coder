@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +31,7 @@ Use this tool to keep the user informed about your progress with their request.
 For long-running operations, call this periodically to provide status updates.
 This is especially useful when performing multi-step operations like workspace creation or deployment.`),
 			mcp.WithString("summary", mcp.Description(`A concise summary of your current progress on the task.
-		
+
 Good Summaries:
 - "Taking a look at the login page..."
 - "Found a bug! Fixing it now..."
@@ -61,80 +60,6 @@ Set to true if the task is in a failed state or if the user needs to take action
 		MakeHandler: handleCoderReportTask,
 	},
 	{
-		Tool: mcp.NewTool("coder_whoami",
-			mcp.WithDescription(`Get information about the currently logged-in Coder user.
-Returns JSON with the user's profile including fields: id, username, email, created_at, status, roles, etc.
-Use this to identify the current user context before performing workspace operations.
-This tool is useful for verifying permissions and checking the user's identity.
-
-Common errors:
-- Authentication failure: The session may have expired
-- Server unavailable: The Coder deployment may be unreachable`),
-		),
-		MakeHandler: handleCoderWhoami,
-	},
-	{
-		Tool: mcp.NewTool("coder_list_templates",
-			mcp.WithDescription(`List all templates available on the Coder deployment.
-Returns JSON with detailed information about each template, including:
-- Template name, ID, and description
-- Creation/modification timestamps
-- Version information
-- Associated organization
-
-Use this tool to discover available templates before creating workspaces.
-Templates define the infrastructure and configuration for workspaces.
-
-Common errors:
-- Authentication failure: Check user permissions
-- No templates available: The deployment may not have any templates configured`),
-		),
-		MakeHandler: handleCoderListTemplates,
-	},
-	{
-		Tool: mcp.NewTool("coder_list_workspaces",
-			mcp.WithDescription(`List workspaces available on the Coder deployment.
-Returns JSON with workspace metadata including status, resources, and configurations.
-Use this before other workspace operations to find valid workspace names/IDs.
-Results are paginated - use offset and limit parameters for large deployments.
-
-Common errors:
-- Authentication failure: Check user permissions
-- Invalid owner parameter: Ensure the owner exists`),
-			mcp.WithString(`owner`, mcp.Description(`The username of the workspace owner to filter by.
-Defaults to "me" which represents the currently authenticated user.
-Use this to view workspaces belonging to other users (requires appropriate permissions).
-Special value: "me" - List workspaces owned by the authenticated user.`), mcp.DefaultString(codersdk.Me)),
-			mcp.WithNumber(`offset`, mcp.Description(`Pagination offset - the starting index for listing workspaces.
-Used with the 'limit' parameter to implement pagination.
-For example, to get the second page of results with 10 items per page, use offset=10.
-Defaults to 0 (first page).`), mcp.DefaultNumber(0)),
-			mcp.WithNumber(`limit`, mcp.Description(`Maximum number of workspaces to return in a single request.
-Used with the 'offset' parameter to implement pagination.
-Higher values return more results but may increase response time.
-Valid range: 1-100. Defaults to 10.`), mcp.DefaultNumber(10)),
-		),
-		MakeHandler: handleCoderListWorkspaces,
-	},
-	{
-		Tool: mcp.NewTool("coder_get_workspace",
-			mcp.WithDescription(`Get detailed information about a specific Coder workspace.
-Returns comprehensive JSON with the workspace's configuration, status, and resources.
-Use this to check workspace status before performing operations like exec or start/stop.
-The response includes the latest build status, agent connectivity, and resource details.
-
-Common errors:
-- Workspace not found: Check the workspace name or ID
-- Permission denied: The user may not have access to this workspace`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to retrieve.
-Can be specified as either:
-- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
-- Workspace name: e.g., "dev", "python-project"
-Use coder_list_workspaces first if you're not sure about available workspace names.`), mcp.Required()),
-		),
-		MakeHandler: handleCoderGetWorkspace,
-	},
-	{
 		Tool: mcp.NewTool("coder_workspace_exec",
 			mcp.WithDescription(`Execute a shell command in a remote Coder workspace.
 Runs the specified command and returns the complete output (stdout/stderr).
@@ -151,7 +76,7 @@ Common errors:
 - Agent not connected: The workspace may still be starting up`),
 			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name where the command will execute.
 Can be specified as either:
-- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d" 
+- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
 - Workspace name: e.g., "dev", "python-project"
 The workspace must be running with a connected agent.
 Use coder_get_workspace first to check the workspace status.`), mcp.Required()),
@@ -314,106 +239,6 @@ func handleCoderReportTask(deps ToolDeps) server.ToolHandlerFunc {
 	}
 }
 
-// Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_whoami", "arguments": {}}}
-func handleCoderWhoami(deps ToolDeps) server.ToolHandlerFunc {
-	return func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if deps.Client == nil {
-			return nil, xerrors.New("developer error: client is required")
-		}
-		me, err := deps.Client.User(ctx, codersdk.Me)
-		if err != nil {
-			return nil, xerrors.Errorf("Failed to fetch the current user: %s", err.Error())
-		}
-
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(me); err != nil {
-			return nil, xerrors.Errorf("Failed to encode the current user: %s", err.Error())
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.NewTextContent(strings.TrimSpace(buf.String())),
-			},
-		}, nil
-	}
-}
-
-type handleCoderListWorkspacesArgs struct {
-	Owner  string `json:"owner"`
-	Offset int    `json:"offset"`
-	Limit  int    `json:"limit"`
-}
-
-// Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_list_workspaces", "arguments": {"owner": "me", "offset": 0, "limit": 10}}}
-func handleCoderListWorkspaces(deps ToolDeps) server.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if deps.Client == nil {
-			return nil, xerrors.New("developer error: client is required")
-		}
-		args, err := unmarshalArgs[handleCoderListWorkspacesArgs](request.Params.Arguments)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
-		}
-
-		workspaces, err := deps.Client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner:  args.Owner,
-			Offset: args.Offset,
-			Limit:  args.Limit,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("failed to fetch workspaces: %w", err)
-		}
-
-		// Encode it as JSON. TODO: It might be nicer for the agent to have a tabulated response.
-		data, err := json.Marshal(workspaces)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to encode workspaces: %s", err.Error())
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.NewTextContent(string(data)),
-			},
-		}, nil
-	}
-}
-
-type handleCoderGetWorkspaceArgs struct {
-	Workspace string `json:"workspace"`
-}
-
-// Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_get_workspace", "arguments": {"workspace": "dev"}}}
-func handleCoderGetWorkspace(deps ToolDeps) server.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if deps.Client == nil {
-			return nil, xerrors.New("developer error: client is required")
-		}
-		args, err := unmarshalArgs[handleCoderGetWorkspaceArgs](request.Params.Arguments)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
-		}
-
-		workspace, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, args.Workspace)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to fetch workspace: %w", err)
-		}
-
-		workspaceJSON, err := json.Marshal(workspace)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to encode workspace: %w", err)
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.NewTextContent(string(workspaceJSON)),
-			},
-		}, nil
-	}
-}
-
 type handleCoderWorkspaceExecArgs struct {
 	Workspace string `json:"workspace"`
 	Command   string `json:"command"`
@@ -494,31 +319,6 @@ func handleCoderWorkspaceExec(deps ToolDeps) server.ToolHandlerFunc {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				mcp.NewTextContent(string(respJSON)),
-			},
-		}, nil
-	}
-}
-
-// Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_list_templates", "arguments": {}}}
-func handleCoderListTemplates(deps ToolDeps) server.ToolHandlerFunc {
-	return func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if deps.Client == nil {
-			return nil, xerrors.New("developer error: client is required")
-		}
-		templates, err := deps.Client.Templates(ctx, codersdk.TemplateFilter{})
-		if err != nil {
-			return nil, xerrors.Errorf("failed to fetch templates: %w", err)
-		}
-
-		templateJSON, err := json.Marshal(templates)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to encode templates: %w", err)
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.NewTextContent(string(templateJSON)),
 			},
 		}, nil
 	}

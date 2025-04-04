@@ -418,6 +418,9 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
 	}
 
+	// Register all resources with the MCP server.
+	codermcp.RegisterResources(mcpSrv, toolDeps)
+
 	// Register tools based on the allowlist (if specified)
 	reg := codermcp.AllTools()
 	if len(allowedTools) > 0 {
