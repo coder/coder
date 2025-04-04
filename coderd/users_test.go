@@ -2020,7 +2020,7 @@ func TestUserTerminalFont(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("empty font is ok", func(t *testing.T) {
+	t.Run("undefined font is not ok", func(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2033,14 +2033,13 @@ func TestUserTerminalFont(t *testing.T) {
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "",
 		})
 
 		// then
-		require.NoError(t, err)
-		require.Equal(t, codersdk.TerminalFontName(""), updated.TerminalFont)
+		require.Error(t, err)
 	})
 }
 
