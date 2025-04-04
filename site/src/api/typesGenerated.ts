@@ -705,6 +705,22 @@ export const DisplayApps: DisplayApp[] = [
 	"web_terminal",
 ];
 
+// From codersdk/templateversions.go
+export interface DynamicParametersRequest {
+	readonly id: number;
+	readonly inputs: Record<string, string>;
+}
+
+// From codersdk/templateversions.go
+export interface DynamicParametersResponse {
+	readonly id: number;
+	// external type "github.com/hashicorp/hcl/v2.Diagnostic", to include this type the package must be explicitly included in the parsing
+	// this is likely an enum in an external package "github.com/coder/preview/types.Diagnostics"
+	readonly diagnostics: readonly (unknown | null)[];
+	// external type "github.com/coder/preview/types.Parameter", to include this type the package must be explicitly included in the parsing
+	readonly parameters: readonly unknown[];
+}
+
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
 	| "azure-devops"

@@ -9,9 +9,8 @@ import (
 	"github.com/spf13/afero/tarfs"
 )
 
+// FromTarReader creates a read-only in-memory FS
 func FromTarReader(r io.Reader) fs.FS {
 	tr := tar.NewReader(r)
-	tfs := tarfs.New(tr)
-	rofs := afero.NewReadOnlyFs(tfs)
-	return afero.NewIOFS(rofs)
+	return afero.NewIOFS(tarfs.New(tr))
 }
