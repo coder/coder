@@ -1,8 +1,25 @@
-import type { Organization, ProvisionerJob } from "api/typesGenerated";
+import type {
+	Organization,
+	ProvisionerJob,
+	ProvisionerJobStatus,
+} from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -17,16 +34,45 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
 
+const variantByStatus: Record<
+	ProvisionerJobStatus,
+	StatusIndicatorProps["variant"]
+> = {
+	succeeded: "success",
+	failed: "failed",
+	pending: "pending",
+	running: "pending",
+	canceling: "pending",
+	canceled: "inactive",
+	unknown: "inactive",
+};
+
+const StatusFilters: ProvisionerJobStatus[] = [
+	"succeeded",
+	"pending",
+	"running",
+	"canceling",
+	"canceled",
+	"failed",
+	"unknown",
+];
+
+type JobProvisionersFilter = {
+	status: string;
+};
+
 type OrganizationProvisionerJobsPageViewProps = {
 	jobs: ProvisionerJob[] | undefined;
 	organization: Organization | undefined;
 	error: unknown;
+	filter: JobProvisionersFilter;
 	onRetry: () => void;
+	onFilterChange: (filter: JobProvisionersFilter) => void;
 };
 
 const OrganizationProvisionerJobsPageView: FC<
 	OrganizationProvisionerJobsPageViewProps
-> = ({ jobs, organization, error, onRetry }) => {
+> = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
 	if (!organization) {
 		return (
 			<>
@@ -60,6 +106,33 @@ const OrganizationProvisionerJobsPageView: FC<
 						</p>
 					</div>
 				</header>
+
+				<div>
+					<Select
+						value={filter.status}
+						onValueChange={(status) => {
+							onFilterChange({ status: status as ProvisionerJobStatus });
+						}}
+					>
+						<SelectTrigger className="w-[180px]" data-testid="status-filter">
+							<SelectValue placeholder="All statuses" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectGroup>
+								{StatusFilters.map((status) => (
+									<SelectItem key={status} value={status}>
+										<StatusIndicator variant={variantByStatus[status]}>
+											<StatusIndicatorDot />
+											<span className="block first-letter:uppercase">
+												{status}
+											</span>
+										</StatusIndicator>
+									</SelectItem>
+								))}
+							</SelectGroup>
+						</SelectContent>
+					</Select>
+				</div>
 
 				<Table>
 					<TableHeader>
