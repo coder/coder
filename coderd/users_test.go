@@ -1976,6 +1976,8 @@ func TestUserTerminalFont(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid font", func(t *testing.T) {
+		t.Parallel()
+
 		adminClient := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -1985,6 +1987,7 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// given
 		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
@@ -1999,6 +2002,8 @@ func TestUserTerminalFont(t *testing.T) {
 	})
 
 	t.Run("unsupported font", func(t *testing.T) {
+		t.Parallel()
+
 		adminClient := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2022,6 +2027,8 @@ func TestUserTerminalFont(t *testing.T) {
 	})
 
 	t.Run("undefined font is not ok", func(t *testing.T) {
+		t.Parallel()
+
 		adminClient := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
