@@ -2008,6 +2008,7 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// given
 		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
@@ -2030,6 +2031,7 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// given
 		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
