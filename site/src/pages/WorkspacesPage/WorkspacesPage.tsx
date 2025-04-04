@@ -45,7 +45,7 @@ const WorkspacesPage: FC = () => {
 
 	const templatesQuery = useQuery(templates());
 
-	const orgPermissionsQuery = useQuery(
+	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
 			templatesQuery.data?.map((template) => template.organization_id),
 			me.id,
@@ -54,15 +54,16 @@ const WorkspacesPage: FC = () => {
 
 	// Filter templates based on workspace creation permission
 	const filteredTemplates = useMemo(() => {
-		if (!templatesQuery.data || !orgPermissionsQuery.data) {
+		if (!templatesQuery.data || !workspacePermissionsQuery.data) {
 			return templatesQuery.data;
 		}
 
 		return templatesQuery.data.filter((template) => {
-			const orgPermission = orgPermissionsQuery.data[template.organization_id];
-			return orgPermission?.createWorkspace;
+			const workspacePermission =
+				workspacePermissionsQuery.data[template.organization_id];
+			return workspacePermission?.createWorkspaceForUserID;
 		});
-	}, [templatesQuery.data, orgPermissionsQuery.data]);
+	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
 	const filterProps = useWorkspacesFilter({
 		searchParamsResult,
