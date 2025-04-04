@@ -43,8 +43,10 @@ export const OpenOnClick: Story = {
 
 		await userEvent.click(showMoreButton);
 
-		const provisionerId = canvas.getByText(args.provisioner.id);
-		expect(provisionerId).toBeInTheDocument();
+		const provisionerCreationTime = canvas.queryByText(
+			args.provisioner.created_at,
+		);
+		expect(provisionerCreationTime).toBeInTheDocument();
 	},
 };
 
@@ -58,7 +60,9 @@ export const HideOnClick: Story = {
 		const hideButton = canvas.getByRole("button", { name: /hide/i });
 		await userEvent.click(hideButton);
 
-		const provisionerId = canvas.queryByText(args.provisioner.id);
-		expect(provisionerId).not.toBeInTheDocument();
+		const provisionerCreationTime = canvas.queryByText(
+			args.provisioner.created_at,
+		);
+		expect(provisionerCreationTime).not.toBeInTheDocument();
 	},
 };
