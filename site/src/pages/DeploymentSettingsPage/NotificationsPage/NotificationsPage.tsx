@@ -56,9 +56,7 @@ export const NotificationsPage: FC = () => {
 					/>
 				}
 			>
-				<SettingsHeaderTitle>
-					Notifications
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Control delivery methods for notifications on this deployment.
 				</SettingsHeaderDescription>
