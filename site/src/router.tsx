@@ -95,8 +95,8 @@ const TemplatePermissionsPage = lazy(
 const TemplateSummaryPage = lazy(
 	() => import("./pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"),
 );
-const CreateWorkspacePage = lazy(
-	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
+const CreateWorkspaceExperimentRouter = lazy(
+	() => import("./pages/CreateWorkspacePage/CreateWorkspaceExperimentRouter"),
 );
 const OverviewPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"),
@@ -337,7 +337,7 @@ const templateRouter = () => {
 					<Route path="insights" element={<TemplateInsightsPage />} />
 				</Route>
 
-				<Route path="workspace" element={<CreateWorkspacePage />} />
+				<Route path="workspace" element={<CreateWorkspaceExperimentRouter />} />
 
 				<Route path="settings" element={<TemplateSettingsLayout />}>
 					<Route index element={<TemplateSettingsPage />} />

@@ -1186,9 +1186,9 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		network := a.network
 		a.closeMutex.Unlock()
 		if network == nil {
-			keySeed, err := WorkspaceKeySeed(manifest.WorkspaceID, manifest.AgentName)
+			keySeed, err := SSHKeySeed(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName)
 			if err != nil {
-				return xerrors.Errorf("generate seed from workspace id: %w", err)
+				return xerrors.Errorf("generate SSH key seed: %w", err)
 			}
 			// use the graceful context here, because creating the tailnet is not itself tied to the
 			// agent API.
@@ -1518,14 +1518,11 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 	a.logger.Info(ctx, "connected to coordination RPC")
 
 	// This allows the Close() routine to wait for the coordinator to gracefully disconnect.
-	a.closeMutex.Lock()
-	if a.isClosed() {
-		return nil
+	disconnected := a.setCoordDisconnected()
+	if disconnected == nil {
+		return nil // already closed by something else
 	}
-	disconnected := make(chan struct{})
-	a.coordDisconnected = disconnected
 	defer close(disconnected)
-	a.closeMutex.Unlock()
 
 	ctrl := tailnet.NewAgentCoordinationController(a.logger, network)
 	coordination := ctrl.New(coordinate)
@@ -1545,6 +1542,17 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 		}
 	}()
 	return <-errCh
+}
+
+func (a *agent) setCoordDisconnected() chan struct{} {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.isClosed() {
+		return nil
+	}
+	disconnected := make(chan struct{})
+	a.coordDisconnected = disconnected
+	return disconnected
 }
 
 // runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
@@ -1773,15 +1781,22 @@ func (a *agent) Close() error {
 	a.setLifecycle(codersdk.WorkspaceAgentLifecycleShuttingDown)
 
 	// Attempt to gracefully shut down all active SSH connections and
-	// stop accepting new ones.
-	err := a.sshServer.Shutdown(a.hardCtx)
+	// stop accepting new ones. If all processes have not exited after 5
+	// seconds, we just log it and move on as it's more important to run
+	// the shutdown scripts. A typical shutdown time for containers is
+	// 10 seconds, so this still leaves a bit of time to run the
+	// shutdown scripts in the worst-case.
+	sshShutdownCtx, sshShutdownCancel := context.WithTimeout(a.hardCtx, 5*time.Second)
+	defer sshShutdownCancel()
+	err := a.sshServer.Shutdown(sshShutdownCtx)
 	if err != nil {
-		a.logger.Error(a.hardCtx, "ssh server shutdown", slog.Error(err))
+		if errors.Is(err, context.DeadlineExceeded) {
+			a.logger.Warn(sshShutdownCtx, "ssh server shutdown timeout", slog.Error(err))
+		} else {
+			a.logger.Error(sshShutdownCtx, "ssh server shutdown", slog.Error(err))
+		}
 	}
-	err = a.sshServer.Close()
-	if err != nil {
-		a.logger.Error(a.hardCtx, "ssh server close", slog.Error(err))
-	}
+
 	// wait for SSH to shut down before the general graceful cancel, because
 	// this triggers a disconnect in the tailnet layer, telling all clients to
 	// shut down their wireguard tunnels to us. If SSH sessions are still up,
@@ -2061,12 +2076,31 @@ func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 	})
 }
 
-// WorkspaceKeySeed converts a WorkspaceID UUID and agent name to an int64 hash.
+// SSHKeySeed converts an owner userName, workspaceName and agentName to an int64 hash.
 // This uses the FNV-1a hash algorithm which provides decent distribution and collision
 // resistance for string inputs.
-func WorkspaceKeySeed(workspaceID uuid.UUID, agentName string) (int64, error) {
+//
+// Why owner username, workspace name, and agent name? These are the components that are used in hostnames for the
+// workspace over SSH, and so we want the workspace to have a stable key with respect to these.  We don't use the
+// respective UUIDs.  The workspace UUID would be different if you delete and recreate a workspace with the same name.
+// The agent UUID is regenerated on each build. Since Coder's Tailnet networking is handling the authentication, we
+// should not be showing users warnings about host SSH keys.
+func SSHKeySeed(userName, workspaceName, agentName string) (int64, error) {
 	h := fnv.New64a()
-	_, err := h.Write(workspaceID[:])
+	_, err := h.Write([]byte(userName))
+	if err != nil {
+		return 42, err
+	}
+	// null separators between strings so that (dog, foodstuff) is distinct from (dogfood, stuff)
+	_, err = h.Write([]byte{0})
+	if err != nil {
+		return 42, err
+	}
+	_, err = h.Write([]byte(workspaceName))
+	if err != nil {
+		return 42, err
+	}
+	_, err = h.Write([]byte{0})
 	if err != nil {
 		return 42, err
 	}
