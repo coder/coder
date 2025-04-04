@@ -632,7 +632,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
-				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),

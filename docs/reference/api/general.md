@@ -260,6 +260,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "threshold_database": 0
     },
     "http_address": "string",
+    "http_cookies": {
+      "same_site": "string",
+      "secure_auth_cookie": true
+    },
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
@@ -433,7 +437,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "redirect_to_access_url": true,
     "scim_api_key": "string",
-    "secure_auth_cookie": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,

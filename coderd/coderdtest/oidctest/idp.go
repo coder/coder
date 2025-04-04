@@ -1320,7 +1320,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 // requests will fail.
 func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 	if f.serve {
-		if rest == nil || rest.Transport == nil {
+		if rest == nil {
 			return &http.Client{}
 		}
 		return rest
