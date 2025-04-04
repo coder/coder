@@ -1,3 +1,4 @@
+import type { GetProvisionerJobsParams } from "api/api";
 import { provisionerJobs } from "api/queries/organizations";
 import type { ProvisionerJobStatus } from "api/typesGenerated";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
@@ -5,7 +6,6 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
-import type { GetProvisionerJobsParams } from "api/api";
 
 const OrganizationProvisionerJobsPage: FC = () => {
 	const { organization } = useOrganizationSettings();
