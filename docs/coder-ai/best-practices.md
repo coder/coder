@@ -2,7 +2,7 @@
 
 > [!NOTE]
 >
-> This functionality is in early access and is rapidly evolving.
+> This functionality is in early access and is evolving rapidly.
 >
 > For now, we recommend testing it in a demo or staging environment,
 > rather than deploying to production.
