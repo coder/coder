@@ -1029,6 +1029,13 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if !isValidFontName(params.TerminalFont) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported font family.",
+		})
+		return
+	}
+
 	updatedThemePreference, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
 		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
@@ -1057,6 +1064,15 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		ThemePreference: updatedThemePreference.Value,
 		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
 	})
+}
+
+func isValidFontName(font codersdk.TerminalFontName) bool {
+	switch font {
+	case codersdk.TerminalFontIbmPlexMono, codersdk.TerminalFontFiraCode, "":
+		return true
+	default:
+		return false
+	}
 }
 
 // @Summary Update user password

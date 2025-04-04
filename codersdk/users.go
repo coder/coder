@@ -477,17 +477,31 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateUserAppearanceSettings updates the appearance settings for a user.
-func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (User, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+// GetUserAppearanceSettings fetches the appearance settings for a user.
+func (c *Client) GetUserAppearanceSettings(ctx context.Context, user string) (UserAppearanceSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/appearance", user), nil)
 	if err != nil {
-		return User{}, err
+		return UserAppearanceSettings{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, ReadBodyAsError(res)
+		return UserAppearanceSettings{}, ReadBodyAsError(res)
 	}
-	var resp User
+	var resp UserAppearanceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserAppearanceSettings updates the appearance settings for a user.
+func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (UserAppearanceSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+	if err != nil {
+		return UserAppearanceSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAppearanceSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserAppearanceSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

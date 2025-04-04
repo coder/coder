@@ -1664,7 +1664,7 @@ func (s *MethodTestSuite) TestUser() {
 		u := dbgen.User(s.T(), db, database.User{})
 		uc := database.UserConfig{
 			UserID: u.ID,
-			Key:    "terminal-font",
+			Key:    "terminal_font",
 			Value:  "ibm-plex-mono",
 		}
 		check.Args(database.UpdateUserTerminalFontParams{

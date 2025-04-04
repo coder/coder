@@ -1972,6 +1972,78 @@ func TestPostTokens(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestUserTerminalFont(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid font", func(t *testing.T) {
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// given
+		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
+
+		// when
+		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light",
+			TerminalFont:    "fira-code",
+		})
+		require.NoError(t, err)
+
+		// then
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+	})
+
+	t.Run("unsupported font", func(t *testing.T) {
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// given
+		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
+
+		// when
+		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light",
+			TerminalFont:    "foobar",
+		})
+
+		// then
+		require.Error(t, err)
+	})
+
+	t.Run("empty font is ok", func(t *testing.T) {
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// given
+		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
+
+		// when
+		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light",
+			TerminalFont:    "",
+		})
+
+		// then
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TerminalFontName(""), updated.TerminalFont)
+	})
+}
+
 func TestWorkspacesByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
