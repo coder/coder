@@ -1,9 +1,10 @@
-import { API } from "api/api";
+import { API, type GetProvisionerJobsParams } from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
+	ProvisionerJobStatus,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -241,16 +242,18 @@ export const patchRoleSyncSettings = (
 	};
 };
 
-export const provisionerJobQueryKey = (orgId: string) => [
-	"organization",
-	orgId,
-	"provisionerjobs",
-];
+export const provisionerJobsQueryKey = (
+	orgId: string,
+	params: GetProvisionerJobsParams = {},
+) => ["organization", orgId, "provisionerjobs", params];
 
-export const provisionerJobs = (orgId: string) => {
+export const provisionerJobs = (
+	orgId: string,
+	params: GetProvisionerJobsParams = {},
+) => {
 	return {
-		queryKey: provisionerJobQueryKey(orgId),
-		queryFn: () => API.getProvisionerJobs(orgId),
+		queryKey: provisionerJobsQueryKey(orgId, params),
+		queryFn: () => API.getProvisionerJobs(orgId, params),
 	};
 };
 

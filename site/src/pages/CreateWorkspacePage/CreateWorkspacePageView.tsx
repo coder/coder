@@ -46,7 +46,7 @@ import type {
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
-import type { CreateWSPermissions } from "./permissions";
+import type { CreateWorkspacePermissions } from "./permissions";
 export const Language = {
 	duplicationWarning:
 		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
@@ -68,7 +68,7 @@ export interface CreateWorkspacePageViewProps {
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
-	permissions: CreateWSPermissions;
+	permissions: CreateWorkspacePermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
 	onSubmit: (
@@ -255,7 +255,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<FormSection
 					title="General"
 					description={
-						permissions.createWorkspaceForUser
+						permissions.createWorkspaceForAny
 							? "The name of the workspace and its owner. Only admins can create workspaces for other users."
 							: "The name of your new workspace."
 					}
@@ -300,7 +300,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							</FormHelperText>
 						</div>
 
-						{permissions.createWorkspaceForUser && (
+						{permissions.createWorkspaceForAny && (
 							<UserAutocomplete
 								value={owner}
 								onChange={(user) => {
