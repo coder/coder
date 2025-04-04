@@ -27,7 +27,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
 		permissions: {
-			createWorkspaceForUser: true,
+			createWorkspaceForAny: true,
 		},
 		onCancel: action("onCancel"),
 	},

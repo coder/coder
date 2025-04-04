@@ -51,6 +51,7 @@
 		"@mui/utils": "5.16.14",
 		"@mui/x-tree-view": "7.25.0",
 		"@radix-ui/react-avatar": "1.1.2",
+		"@radix-ui/react-checkbox": "1.1.4",
 		"@radix-ui/react-collapsible": "1.1.2",
 		"@radix-ui/react-dialog": "1.1.4",
 		"@radix-ui/react-dropdown-menu": "2.1.4",
@@ -204,6 +205,7 @@
 		"overrides": {
 			"@babel/runtime": "7.26.10",
 			"@babel/helpers": "7.26.10",
+			"esbuild": "^0.25.0",
 			"prismjs": "1.30.0"
 		}
 	}

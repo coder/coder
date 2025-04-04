@@ -14,7 +14,7 @@ const meta: Meta<typeof TemplatePageHeader> = {
 			canUpdateTemplate: true,
 		},
 		workspacePermissions: {
-			createWorkspace: true,
+			createWorkspaceForUserID: true,
 		},
 	},
 };
@@ -35,7 +35,7 @@ export const CanNotUpdate: Story = {
 export const CannotCreateWorkspace: Story = {
 	args: {
 		workspacePermissions: {
-			createWorkspace: false,
+			createWorkspaceForUserID: false,
 		},
 	},
 };

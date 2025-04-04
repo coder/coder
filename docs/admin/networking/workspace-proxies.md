@@ -208,6 +208,15 @@ up to 60 seconds.
 
 ![Workspace proxy picker](../../images/admin/networking/workspace-proxies/ws-proxy-picker.png)
 
+## Multiple workspace proxies
+
+When multiple workspace proxies are deployed:
+
+- The browser measures latency to each available proxy independently.
+- Users can select their preferred proxy from the dashboard.
+- The system can automatically select the lowest-latency proxy.
+- The dashboard latency indicator shows latency to the currently selected proxy.
+
 ## Observability
 
 Coder workspace proxy exports metrics via the HTTP endpoint, which can be

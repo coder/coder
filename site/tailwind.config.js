@@ -53,6 +53,8 @@ module.exports = {
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
 					destructive: "hsl(var(--border-destructive))",
+					success: "hsl(var(--border-success))",
+					hover: "hsl(var(--border-hover))",
 				},
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",

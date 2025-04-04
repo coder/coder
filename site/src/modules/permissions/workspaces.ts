@@ -3,7 +3,7 @@ export const workspacePermissionChecks = (
 	userId: string,
 ) =>
 	({
-		createWorkspace: {
+		createWorkspaceForUserID: {
 			object: {
 				resource_type: "workspace",
 				organization_id: organizationId,

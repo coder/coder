@@ -479,6 +479,9 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
 		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		inv.Stdin = clientOutput
@@ -490,7 +493,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		keySeed, err := agent.WorkspaceKeySeed(workspace.ID, "dev")
+		keySeed, err := agent.SSHKeySeed(user.Username, workspace.Name, "dev")
 		assert.NoError(t, err)
 
 		signer, err := agentssh.CoderSigner(keySeed)
