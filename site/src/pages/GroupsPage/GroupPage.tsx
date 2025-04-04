@@ -310,7 +310,13 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 		<TableRow key={member.id}>
 			<TableCell width="59%">
 				<AvatarData
-					avatar={<Avatar fallback={member.username} src={member.avatar_url} />}
+					avatar={
+						<Avatar
+							size="lg"
+							fallback={member.username}
+							src={member.avatar_url}
+						/>
+					}
 					title={member.username}
 					subtitle={member.email}
 				/>
