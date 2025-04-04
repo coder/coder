@@ -1,7 +1,6 @@
 module github.com/coder/coder/v2
 
 go 1.24.1
-
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
 // should be fine...
@@ -119,7 +118,7 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/go-logr/logr v1.4.2
-	github.com/go-playground/validator/v10 v10.25.0
+	github.com/go-playground/validator/v10 v10.26.0
 	github.com/gofrs/flock v0.12.0
 	github.com/gohugoio/hugo v0.143.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
