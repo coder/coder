@@ -1,12 +1,26 @@
 import type { Interpolation } from "@emotion/react";
+import CircularProgress from "@mui/material/CircularProgress";
+import FormControl from "@mui/material/FormControl";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
 import { visuallyHidden } from "@mui/utils";
-import type { UpdateUserAppearanceSettingsRequest } from "api/typesGenerated";
+import {
+	type TerminalFontName,
+	TerminalFontNames,
+	type UpdateUserAppearanceSettingsRequest,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { PreviewBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC } from "react";
-import themes, { DEFAULT_TERMINAL_FONT, DEFAULT_THEME, type Theme } from "theme";
+import themes, {
+	DEFAULT_TERMINAL_FONT,
+	DEFAULT_THEME,
+	type Theme,
+} from "theme";
+import { Section } from "../Section";
 
 export interface AppearanceFormProps {
 	isUpdating?: boolean;
@@ -22,43 +36,106 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	initialValues,
 }) => {
 	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
-	const currentTerminalFont = initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
+	const currentTerminalFont =
+		initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
 
 	const onChangeTheme = async (theme: string) => {
 		if (isUpdating) {
 			return;
 		}
+		await onSubmit({
+			theme_preference: theme,
+			terminal_font: currentTerminalFont,
+		});
+	};
 
-		await onSubmit({ theme_preference: theme, terminal_font: currentTerminalFont });
+	const onChangeTerminalFont = async (terminalFont: TerminalFontName) => {
+		if (isUpdating) {
+			return;
+		}
+		await onSubmit({
+			theme_preference: currentTheme,
+			terminal_font: terminalFont,
+		});
 	};
 
 	return (
 		<form>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			<Stack direction="row" wrap="wrap">
-				<AutoThemePreviewButton
-					displayName="Auto"
-					active={currentTheme === "auto"}
-					themes={[themes.dark, themes.light]}
-					onSelect={() => onChangeTheme("auto")}
-				/>
-				<ThemePreviewButton
-					displayName="Dark"
-					active={currentTheme === "dark"}
-					theme={themes.dark}
-					onSelect={() => onChangeTheme("dark")}
-				/>
-				<ThemePreviewButton
-					displayName="Light"
-					active={currentTheme === "light"}
-					theme={themes.light}
-					onSelect={() => onChangeTheme("light")}
-				/>
-			</Stack>
+			<Section
+				title={
+					<Stack direction="row" alignItems="center">
+						<span>Theme</span>
+						{isUpdating && <CircularProgress size={16} />}
+					</Stack>
+				}
+				layout="fluid"
+			>
+				<Stack direction="row" wrap="wrap">
+					<AutoThemePreviewButton
+						displayName="Auto"
+						active={currentTheme === "auto"}
+						themes={[themes.dark, themes.light]}
+						onSelect={() => onChangeTheme("auto")}
+					/>
+					<ThemePreviewButton
+						displayName="Dark"
+						active={currentTheme === "dark"}
+						theme={themes.dark}
+						onSelect={() => onChangeTheme("dark")}
+					/>
+					<ThemePreviewButton
+						displayName="Light"
+						active={currentTheme === "light"}
+						theme={themes.light}
+						onSelect={() => onChangeTheme("light")}
+					/>
+				</Stack>
+			</Section>
+			<div css={{ marginBottom: 48 }}></div>
+			<Section
+				title={
+					<Stack direction="row" alignItems="center">
+						<span>Terminal Font</span>
+						{isUpdating && <CircularProgress size={16} />}
+					</Stack>
+				}
+				layout="fluid"
+			>
+				<FormControl>
+					<RadioGroup
+						aria-labelledby="demo-radio-buttons-group-label"
+						defaultValue={currentTerminalFont}
+						name="radio-buttons-group"
+						onChange={(_, value) =>
+							onChangeTerminalFont(toTerminalFontName(value))
+						}
+					>
+						<FormControlLabel
+							value="ibm-plex-mono"
+							control={<Radio />}
+							label={
+								<div css={{ fontFamily: "IBM Plex Mono" }}>IBM Plex Mono</div>
+							}
+						/>
+						<FormControlLabel
+							value="fira-code"
+							control={<Radio />}
+							label={<div css={{ fontFamily: "Fira Code" }}>Fira Code</div>}
+						/>
+					</RadioGroup>
+				</FormControl>
+			</Section>
 		</form>
 	);
 };
+
+export function toTerminalFontName(value: string): TerminalFontName {
+	return TerminalFontNames.includes(value as TerminalFontName)
+		? (value as TerminalFontName)
+		: "";
+}
 
 interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
 	themes: [Theme, Theme];

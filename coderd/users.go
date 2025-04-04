@@ -1043,7 +1043,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 
 	updatedTerminalFont, err := api.Database.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
 		UserID:       user.ID,
-		TerminalFont: string(params.ThemePreference),
+		TerminalFont: string(params.TerminalFont),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
