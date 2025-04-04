@@ -1035,7 +1035,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user theme prefence.",
+			Message: "Internal error updating user theme preference.",
 			Detail:  err.Error(),
 		})
 		return
