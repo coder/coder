@@ -1,23 +1,23 @@
 import type { ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
-import { CancelJobButton } from "./CancelJobButton";
 import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
 import {
 	ProvisionerTag,
 	ProvisionerTags,
 	ProvisionerTruncateTags,
 } from "modules/provisioners/ProvisionerTags";
-import { Button } from "components/Button/Button";
+import { type FC, useState } from "react";
+import { cn } from "utils/cn";
+import { relativeTime } from "utils/time";
+import { CancelJobButton } from "./CancelJobButton";
 
 type JobRowProps = {
 	job: ProvisionerJob;

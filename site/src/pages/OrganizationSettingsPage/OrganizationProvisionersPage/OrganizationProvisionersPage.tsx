@@ -1,5 +1,7 @@
+import { buildInfo } from "api/queries/buildInfo";
 import { provisionerDaemons } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -9,8 +11,6 @@ import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { buildInfo } from "api/queries/buildInfo";
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {

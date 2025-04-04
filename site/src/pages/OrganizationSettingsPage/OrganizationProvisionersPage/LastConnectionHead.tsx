@@ -1,11 +1,11 @@
-import type { FC } from "react";
 import {
 	Tooltip,
+	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-	TooltipContent,
 } from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
+import type { FC } from "react";
 
 export const LastConnectionHead: FC = () => {
 	return (

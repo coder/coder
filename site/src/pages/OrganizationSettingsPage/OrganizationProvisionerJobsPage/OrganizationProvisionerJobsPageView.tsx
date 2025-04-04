@@ -4,6 +4,11 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -16,11 +21,6 @@ import { Helmet } from "react-helmet-async";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
-import {
-	SettingsHeader,
-	SettingsHeaderTitle,
-	SettingsHeaderDescription,
-} from "components/SettingsHeader/SettingsHeader";
 
 type OrganizationProvisionerJobsPageViewProps = {
 	jobs: ProvisionerJob[] | undefined;

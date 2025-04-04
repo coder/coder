@@ -5,6 +5,11 @@ import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -15,13 +20,8 @@ import {
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
-import { ProvisionerRow } from "./ProvisionerRow";
 import { LastConnectionHead } from "./LastConnectionHead";
-import {
-	SettingsHeader,
-	SettingsHeaderTitle,
-	SettingsHeaderDescription,
-} from "components/SettingsHeader/SettingsHeader";
+import { ProvisionerRow } from "./ProvisionerRow";
 
 interface OrganizationProvisionersPageViewProps {
 	showPaywall: boolean | undefined;

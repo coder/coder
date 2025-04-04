@@ -2,6 +2,7 @@ import type {
 	ProvisionerDaemon,
 	ProvisionerDaemonStatus,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -15,12 +16,11 @@ import {
 	ProvisionerTags,
 	ProvisionerTruncateTags,
 } from "modules/provisioners/ProvisionerTags";
-import { useState, type FC } from "react";
+import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
+import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";
-import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
-import { Button } from "components/Button/Button";
 
 const variantByStatus: Record<
 	ProvisionerDaemonStatus,
