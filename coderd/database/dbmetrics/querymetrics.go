@@ -1110,6 +1110,13 @@ func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, work
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetParametersByPresetID(ctx, presetID)
+	m.queryLatencies.WithLabelValues("GetPresetParametersByPresetID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)

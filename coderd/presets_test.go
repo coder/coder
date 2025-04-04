@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -86,16 +87,12 @@ func TestTemplateVersionPresets(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
-			// nolint:gocritic // This is a test
-			provisionerCtx := dbauthz.AsProvisionerd(ctx)
-
 			// Insert all presets for this test case
 			for _, givenPreset := range tc.presets {
-				dbPreset, err := db.InsertPreset(provisionerCtx, database.InsertPresetParams{
+				dbPreset := dbgen.Preset(t, db, database.InsertPresetParams{
 					Name:              givenPreset.Name,
 					TemplateVersionID: version.ID,
 				})
-				require.NoError(t, err)
 
 				if len(givenPreset.Parameters) > 0 {
 					var presetParameterNames []string
@@ -104,12 +101,11 @@ func TestTemplateVersionPresets(t *testing.T) {
 						presetParameterNames = append(presetParameterNames, presetParameter.Name)
 						presetParameterValues = append(presetParameterValues, presetParameter.Value)
 					}
-					_, err = db.InsertPresetParameters(provisionerCtx, database.InsertPresetParametersParams{
+					dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 						TemplateVersionPresetID: dbPreset.ID,
 						Names:                   presetParameterNames,
 						Values:                  presetParameterValues,
 					})
-					require.NoError(t, err)
 				}
 			}
 

@@ -57,10 +57,15 @@ message RichParameterValue {
     string value = 2;
 }
 
+message Prebuild {
+    int32 instances = 1;
+}
+
 // Preset represents a set of preset parameters for a template version.
 message Preset {
     string name = 1;
     repeated PresetParameter parameters = 2;
+    Prebuild prebuild = 3;
 }
 
 message PresetParameter {
@@ -287,7 +292,9 @@ message Metadata {
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
-    repeated Role workspace_owner_rbac_roles =  19;
+    repeated Role workspace_owner_rbac_roles = 19;
+    bool is_prebuild = 20;
+    string running_workspace_agent_token = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
