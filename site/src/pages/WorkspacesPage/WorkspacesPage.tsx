@@ -59,7 +59,8 @@ const WorkspacesPage: FC = () => {
 		}
 
 		return templatesQuery.data.filter((template) => {
-			const workspacePermission = workspacePermissionsQuery.data[template.organization_id];
+			const workspacePermission =
+				workspacePermissionsQuery.data[template.organization_id];
 			return workspacePermission?.createWorkspaceForUserID;
 		});
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
