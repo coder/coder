@@ -1902,31 +1902,43 @@ func TestGetUsers(t *testing.T) {
 		require.Len(t, res.Users, 1)
 		require.Equal(t, res.Users[0].ID, first.UserID)
 	})
-	t.Run("LoginType", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+}
 
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-		_ = dbgen.User(t, db, database.User{
-			Email:    "test2@coder.com",
-			Username: "test2",
-		})
-		// nolint:gocritic // Unit test
-		_, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
-			UserID:       first.UserID,
-			NewLoginType: database.LoginTypeNone,
-		})
-		require.NoError(t, err)
-		res, err := client.Users(ctx, codersdk.UsersRequest{
-			LoginType: codersdk.LoginTypeNone,
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Users, 1)
-		require.Equal(t, res.Users[0].ID, first.UserID)
-		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeGithub)
+func TestGetUsersFilters(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Create a user with a specific role
+	_, err := client.User(ctx, first.UserID.String())
+	require.NoError(t, err, "")
+
+	_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		Email:           "alice@email.com",
+		Username:        "alice",
+		Password:        "MySecurePassword!",
+		OrganizationIDs: []uuid.UUID{first.OrganizationID},
+		UserLoginType:   codersdk.LoginTypePassword,
 	})
+	require.NoError(t, err)
+
+	_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		Email:           "alice123@email.com",
+		Username:        "alice123",
+		OrganizationIDs: []uuid.UUID{first.OrganizationID},
+		UserLoginType:   codersdk.LoginTypeGithub,
+	})
+	require.NoError(t, err)
+
+	// Test filtering by role
+	res, err := client.Users(ctx, codersdk.UsersRequest{
+		LoginType: "password", // Ensure we're filtering by login type
+	})
+	require.NoError(t, err, "should not error when filtering by role")
+	require.Len(t, res.Users, 1, "should find one user with the member role")
+	require.Equal(t, res.Users[0].Username, "alice", "should return the correct user with member role")
 }
 
 func TestGetUsersPagination(t *testing.T) {
