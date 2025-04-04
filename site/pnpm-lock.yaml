@@ -40,6 +40,9 @@ importers:
       '@fontsource-variable/inter':
         specifier: 5.1.1
         version: 5.1.1
+      '@fontsource/fira-code':
+        specifier: 5.2.5
+        version: 5.2.5
       '@fontsource/ibm-plex-mono':
         specifier: 5.1.1
         version: 5.1.1
@@ -1033,6 +1036,9 @@ packages:
 
   '@fontsource-variable/inter@5.1.1':
     resolution: {integrity: sha512-OpXFTmiH6tHkYijMvQTycFKBLK4X+SRV6tet1m4YOUH7SzIIlMqDja+ocDtiCA72UthBH/vF+3ZtlMr2rN/wIw==, tarball: https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.1.1.tgz}
+
+  '@fontsource/fira-code@5.2.5':
+    resolution: {integrity: sha512-Rn9PJoyfRr5D6ukEhZpzhpD+rbX2rtoz9QjkOuGxqFxrL69fQvhadMUBxQIOuTF4sTTkPRSKlAEpPjTKaI12QA==, tarball: https://registry.npmjs.org/@fontsource/fira-code/-/fira-code-5.2.5.tgz}
 
   '@fontsource/ibm-plex-mono@5.1.1':
     resolution: {integrity: sha512-1aayqPe/ZkD3MlvqpmOHecfA3f2B8g+fAEkgvcCd3lkPP0pS1T0xG5Zmn2EsJQqr1JURtugPUH+5NqvKyfFZMQ==, tarball: https://registry.npmjs.org/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.1.1.tgz}
@@ -6953,6 +6959,8 @@ snapshots:
   '@floating-ui/utils@0.2.9': {}
 
   '@fontsource-variable/inter@5.1.1': {}
+
+  '@fontsource/fira-code@5.2.5': {}
 
   '@fontsource/ibm-plex-mono@5.1.1': {}
 

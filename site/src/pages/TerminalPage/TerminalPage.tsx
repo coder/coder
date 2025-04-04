@@ -18,7 +18,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import themes from "theme";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { MONOSPACE_FONT_FAMILY, TERMINAL_FONT_FAMILY_2 } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
@@ -110,7 +110,7 @@ const TerminalPage: FC = () => {
 			allowProposedApi: true,
 			allowTransparency: true,
 			disableStdin: false,
-			fontFamily: MONOSPACE_FONT_FAMILY,
+			fontFamily: TERMINAL_FONT_FAMILY_2,
 			fontSize: 16,
 			theme: {
 				background: theme.palette.background.default,
