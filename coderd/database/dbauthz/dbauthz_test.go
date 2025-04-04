@@ -1651,6 +1651,27 @@ func (s *MethodTestSuite) TestUser() {
 			ThemePreference: uc.Value,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
+	s.Run("GetUserTerminalFont", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		u := dbgen.User(s.T(), db, database.User{})
+		db.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+			UserID:       u.ID,
+			TerminalFont: "ibm-plex-mono",
+		})
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("ibm-plex-mono")
+	}))
+	s.Run("UpdateUserTerminalFont", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		uc := database.UserConfig{
+			UserID: u.ID,
+			Key:    "terminal-font",
+			Value:  "ibm-plex-mono",
+		}
+		check.Args(database.UpdateUserTerminalFontParams{
+			UserID:       u.ID,
+			TerminalFont: uc.Value,
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserStatusParams{
