@@ -5,7 +5,7 @@ import type { FC } from "react";
 export const AvatarDataSkeleton: FC = () => {
 	return (
 		<div className="flex items-center gap-3 w-full">
-			<Skeleton variant="rectangular" className="size-10 rounded-sm" />
+			<Skeleton variant="rectangular" className="size-10 rounded-sm shrink-0" />
 
 			<div className="flex flex-col w-full">
 				<Skeleton variant="text" width={100} />
