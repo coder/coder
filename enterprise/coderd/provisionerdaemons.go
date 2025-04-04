@@ -376,6 +376,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
+
+	// Log the request immediately instead of after it completes.
+	requestLogger := httpmw.RequestLoggerFromContext(ctx)
+	if requestLogger != nil {
+		requestLogger.WriteLog(ctx, http.StatusAccepted)
+	}
+
 	err = server.Serve(ctx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
