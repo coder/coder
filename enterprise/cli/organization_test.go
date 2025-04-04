@@ -286,6 +286,6 @@ func TestUpdateOrganizationRoles(t *testing.T) {
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
-		require.ErrorContains(t, err, "The role test-role does not exist exists.")
+		require.ErrorContains(t, err, "The role test-role does not exist.")
 	})
 }
