@@ -8,11 +8,6 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import {
 	Select,
 	SelectContent,
 	SelectGroup,
@@ -20,6 +15,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
