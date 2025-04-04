@@ -52,16 +52,20 @@ export const JobRow: FC<JobRowProps> = ({ job }) => {
 					<Badge size="sm">{job.type}</Badge>
 				</TableCell>
 				<TableCell>
-					<div className="flex items-center gap-1 whitespace-nowrap">
-						<Avatar
-							variant="icon"
-							src={metadata.template_icon}
-							fallback={
-								metadata.template_display_name || metadata.template_name
-							}
-						/>
-						{metadata.template_display_name || metadata.template_name}
-					</div>
+					{job.metadata.template_name !== "" ? (
+						<div className="flex items-center gap-1 whitespace-nowrap">
+							<Avatar
+								variant="icon"
+								src={metadata.template_icon}
+								fallback={
+									metadata.template_display_name || metadata.template_name
+								}
+							/>
+							{metadata.template_display_name || metadata.template_name}
+						</div>
+					) : (
+						<span>-</span>
+					)}
 				</TableCell>
 				<TableCell>
 					<TruncateTags tags={job.tags} />
