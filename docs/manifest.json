@@ -698,8 +698,8 @@
 					"state": ["early access"]
 				},
 				{
-					"title": "Best practices \u0026 adding tools via MCP",
-					"description": "Improve results by adding tools to your agents",
+					"title": "Model Context Protocols (MCP) and adding AI tools",
+					"description": "Improve results by adding tools to your AI agents",
 					"path": "./coder-ai/best-practices.md",
 					"state": ["early access"]
 				},

@@ -15,7 +15,7 @@ AI Coding Agents such as [Claude Code](https://docs.anthropic.com/en/docs/agents
 - Protyping web applications or landing pages
 - Researching / onboarding to a codebase
 - Assisting with lightweight refactors
-- Writing tests and documentation
+- Writing tests and draft documentation
 - Small, well-defined chores
 
 With Coder, you can self-host AI agents in isolated development environments with proper context and tooling around your existing developer workflows. Whether you are a regulated enterprise or an individual developer, running AI agents at scale with Coder is much more productive and secure than running them locally.
