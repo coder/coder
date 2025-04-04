@@ -16,6 +16,11 @@ import { Helmet } from "react-helmet-async";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+	SettingsHeaderDescription,
+} from "components/SettingsHeader/SettingsHeader";
 
 type OrganizationProvisionerJobsPageViewProps = {
 	jobs: ProvisionerJob[] | undefined;
@@ -49,17 +54,15 @@ const OrganizationProvisionerJobsPageView: FC<
 				</title>
 			</Helmet>
 
-			<section className="flex flex-col gap-8">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Provisioner Jobs</h1>
-						<p className="text-sm text-content-secondary m-0">
-							Provisioner Jobs are the individual tasks assigned to Provisioners
-							when the workspaces are being built.{" "}
-							<Link href={docs("/admin/provisioners")}>View docs</Link>
-						</p>
-					</div>
-				</header>
+			<section>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Provisioner Jobs</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Provisioner Jobs are the individual tasks assigned to Provisioners
+						when the workspaces are being built.{" "}
+						<Link href={docs("/admin/provisioners")}>View docs</Link>
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
 				<Table>
 					<TableHeader>

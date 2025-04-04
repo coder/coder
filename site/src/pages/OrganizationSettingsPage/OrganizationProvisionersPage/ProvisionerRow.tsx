@@ -20,6 +20,7 @@ import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
+import { Button } from "components/Button/Button";
 
 const variantByStatus: Record<
 	ProvisionerDaemonStatus,
@@ -45,25 +46,21 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 		<>
 			<TableRow>
 				<TableCell>
-					<button
+					<Button
+						variant="subtle"
+						size="sm"
 						className={cn([
-							"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-xs cursor-pointer",
-							"transition-colors hover:text-content-primary font-medium whitespace-nowrap",
 							isOpen && "text-content-primary",
+							"p-0 h-auto min-w-0 align-middle",
 						])}
-						type="button"
 						onClick={() => {
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? (
-							<ChevronDownIcon className="size-icon-sm p-0.5" />
-						) : (
-							<ChevronRightIcon className="size-icon-sm p-0.5" />
-						)}
+						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{provisioner.name}
-					</button>
+					</Button>
 				</TableCell>
 				<TableCell>
 					{provisioner.key_name && (

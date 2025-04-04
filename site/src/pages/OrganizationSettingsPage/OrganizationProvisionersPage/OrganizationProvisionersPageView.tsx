@@ -17,6 +17,11 @@ import type { FC } from "react";
 import { docs } from "utils/docs";
 import { ProvisionerRow } from "./ProvisionerRow";
 import { LastConnectionHead } from "./LastConnectionHead";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+	SettingsHeaderDescription,
+} from "components/SettingsHeader/SettingsHeader";
 
 interface OrganizationProvisionersPageViewProps {
 	showPaywall: boolean | undefined;
@@ -30,17 +35,15 @@ export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
 > = ({ showPaywall, error, provisioners, buildVersion, onRetry }) => {
 	return (
-		<section className="flex flex-col gap-8">
-			<header className="flex flex-row items-baseline justify-between">
-				<div className="flex flex-col gap-2">
-					<h1 className="text-3xl m-0">Provisioners</h1>
-					<p className="text-sm text-content-secondary m-0">
-						Coder server runs provisioner daemons which execute terraform during
-						workspace and template builds.{" "}
-						<Link href={docs("/admin/provisioners")}>View docs</Link>
-					</p>
-				</div>
-			</header>
+		<section>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Coder server runs provisioner daemons which execute terraform during
+					workspace and template builds.{" "}
+					<Link href={docs("/admin/provisioners")}>View docs</Link>
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{showPaywall ? (
 				<Paywall
