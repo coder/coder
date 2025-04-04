@@ -71,6 +71,55 @@ Use [`external-auth`](../reference/cli/external-auth.md) in the Coder CLI to acc
 coder external-auth access-token <USER_DEFINED_ID>
 ```
 
+## Git Authentication in Workspaces
+
+Coder provides automatic Git authentication for workspaces through SSH authentication and Git-provider specific env variables.
+
+When performing Git operations, Coder first attempts to use external auth provider tokens if available.
+If no tokens are available, it defaults to SSH authentication.
+
+### OAuth (external auth)
+
+For Git providers configured with [external authentication](#configuration), Coder can use OAuth tokens for Git operations.
+
+When Git operations require authentication, and no SSH key is configured, Coder will automatically use the appropriate external auth provider based on the repository URL.
+
+For example, if you've configured a GitHub external auth provider and attempt to clone a GitHub repository, Coder will use the OAuth token from that provider for authentication.
+
+To manually access these tokens within a workspace:
+
+```shell
+coder external-auth access-token <USER_DEFINED_ID>
+```
+
+### SSH Authentication
+
+Coder automatically generates an SSH key pair for each user that can be used for Git operations.
+When you use SSH URLs for Git repositories, for example, `git@github.com:organization/repo.git`, Coder checks for and uses an existing SSH key.
+If one is not available, it uses the Coder-generated one.
+
+The `coder gitssh` command wraps the standard `ssh` command and injects the SSH key during Git operations.
+This works automatically when you:
+
+1. Clone a repository using SSH URLs
+1. Pull/push changes to remote repositories
+1. Use any Git command that requires SSH authentication
+
+You must add the SSH key to your Git provider.
+
+#### Add your Coder SSH key to your Git provider
+
+1. View your Coder Git SSH key:
+
+   ```shell
+   coder publickey
+   ```
+
+1. Add the key to your Git provider accounts:
+
+   - [GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account#adding-a-new-ssh-key-to-your-account)
+   - [GitLab](https://docs.gitlab.com/user/ssh/#add-an-ssh-key-to-your-gitlab-account)
+
 ## Git-provider specific env variables
 
 ### Azure DevOps
