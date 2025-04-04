@@ -1208,7 +1208,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusTooEarly, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
