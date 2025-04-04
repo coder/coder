@@ -36,3 +36,5 @@ const theme = {
 } satisfies Record<string, Theme>;
 
 export default theme;
+
+export const DEFAULT_TERMINAL_FONT = "ibm-plex-mono";

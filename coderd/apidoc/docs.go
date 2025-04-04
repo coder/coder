@@ -15599,12 +15599,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "",
-                "ibm-mono-plex",
+                "ibm-plex-mono",
                 "fira-code"
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
-                "TerminalFontIbmMonoPlex",
+                "TerminalFontIbmPlexMono",
                 "TerminalFontFiraCode"
             ]
         },
@@ -15787,7 +15787,7 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "enum": [
-                        "ibm-mono-plex",
+                        "ibm-plex-mono",
                         "fira-code"
                     ],
                     "allOf": [
@@ -16089,7 +16089,7 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "enum": [
-                        "ibm-mono-plex",
+                        "ibm-plex-mono",
                         "fira-code"
                     ],
                     "allOf": [

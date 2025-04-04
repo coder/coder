@@ -194,18 +194,18 @@ type TerminalFontName string
 
 const (
 	TerminalFontUnknown     TerminalFontName = ""
-	TerminalFontIbmMonoPlex TerminalFontName = "ibm-mono-plex"
+	TerminalFontIbmPlexMono TerminalFontName = "ibm-plex-mono"
 	TerminalFontFiraCode    TerminalFontName = "fira-code"
 )
 
 type UserAppearanceSettings struct {
 	ThemePreference string           `json:"theme_preference"`
-	TerminalFont    TerminalFontName `json:"terminal_font" enums:"ibm-mono-plex,fira-code"`
+	TerminalFont    TerminalFontName `json:"terminal_font" enums:"ibm-plex-mono,fira-code"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string           `json:"theme_preference" validate:"required"`
-	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required" enums:"ibm-mono-plex,fira-code"`
+	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required" enums:"ibm-plex-mono,fira-code"`
 }
 
 type UpdateUserPasswordRequest struct {

@@ -14182,10 +14182,10 @@
 		},
 		"codersdk.TerminalFontName": {
 			"type": "string",
-			"enum": ["", "ibm-mono-plex", "fira-code"],
+			"enum": ["", "ibm-plex-mono", "fira-code"],
 			"x-enum-varnames": [
 				"TerminalFontUnknown",
-				"TerminalFontIbmMonoPlex",
+				"TerminalFontIbmPlexMono",
 				"TerminalFontFiraCode"
 			]
 		},
@@ -14362,7 +14362,7 @@
 			"required": ["terminal_font", "theme_preference"],
 			"properties": {
 				"terminal_font": {
-					"enum": ["ibm-mono-plex", "fira-code"],
+					"enum": ["ibm-plex-mono", "fira-code"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.TerminalFontName"
@@ -14635,7 +14635,7 @@
 			"type": "object",
 			"properties": {
 				"terminal_font": {
-					"enum": ["ibm-mono-plex", "fira-code"],
+					"enum": ["ibm-plex-mono", "fira-code"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.TerminalFontName"

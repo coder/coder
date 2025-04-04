@@ -6,7 +6,7 @@ import { PreviewBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC } from "react";
-import themes, { DEFAULT_THEME, type Theme } from "theme";
+import themes, { DEFAULT_TERMINAL_FONT, DEFAULT_THEME, type Theme } from "theme";
 
 export interface AppearanceFormProps {
 	isUpdating?: boolean;
@@ -22,13 +22,14 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	initialValues,
 }) => {
 	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
+	const currentTerminalFont = initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
 
 	const onChangeTheme = async (theme: string) => {
 		if (isUpdating) {
 			return;
 		}
 
-		await onSubmit({ theme_preference: theme });
+		await onSubmit({ theme_preference: theme, terminal_font: currentTerminalFont });
 	};
 
 	return (

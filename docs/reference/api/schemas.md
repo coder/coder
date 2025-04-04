@@ -6725,7 +6725,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Value           |
 |-----------------|
 | ``              |
-| `ibm-mono-plex` |
+| `ibm-plex-mono` |
 | `fira-code`     |
 
 ## codersdk.TimingStage
@@ -6925,7 +6925,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "terminal_font": "ibm-mono-plex",
+  "terminal_font": "ibm-plex-mono",
   "theme_preference": "string"
 }
 ```
@@ -6941,7 +6941,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Property        | Value           |
 |-----------------|-----------------|
-| `terminal_font` | `ibm-mono-plex` |
+| `terminal_font` | `ibm-plex-mono` |
 | `terminal_font` | `fira-code`     |
 
 ## codersdk.UpdateUserNotificationPreferences
@@ -7285,7 +7285,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "terminal_font": "ibm-mono-plex",
+  "terminal_font": "ibm-plex-mono",
   "theme_preference": "string"
 }
 ```
@@ -7301,7 +7301,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Property        | Value           |
 |-----------------|-----------------|
-| `terminal_font` | `ibm-mono-plex` |
+| `terminal_font` | `ibm-plex-mono` |
 | `terminal_font` | `fira-code`     |
 
 ## codersdk.UserLatency

@@ -989,8 +989,22 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 		themePreference = ""
 	}
 
+	terminalFont, err := api.Database.GetUserTerminalFont(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		terminalFont = ""
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
 		ThemePreference: themePreference,
+		TerminalFont:    codersdk.TerminalFontName(terminalFont),
 	})
 }
 
@@ -1015,20 +1029,33 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedSettings, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+	updatedThemePreference, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
 		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user.",
+			Message: "Internal error updating user theme prefence.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updatedTerminalFont, err := api.Database.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+		UserID:       user.ID,
+		TerminalFont: string(params.ThemePreference),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user terminal font.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
-		ThemePreference: updatedSettings.Value,
+		ThemePreference: updatedThemePreference.Value,
+		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
 	})
 }
 

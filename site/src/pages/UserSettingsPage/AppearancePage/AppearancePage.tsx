@@ -47,6 +47,7 @@ export const AppearancePage: FC = () => {
 					error={updateAppearanceSettingsMutation.error}
 					initialValues={{
 						theme_preference: appearanceSettingsQuery.data.theme_preference,
+						terminal_font: appearanceSettingsQuery.data.terminal_font,
 					}}
 					onSubmit={updateAppearanceSettingsMutation.mutateAsync}
 				/>

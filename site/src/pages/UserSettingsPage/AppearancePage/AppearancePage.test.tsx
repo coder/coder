@@ -12,6 +12,7 @@ describe("appearance page", () => {
 		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUser,
 			theme_preference: "dark",
+			terminal_font: "",
 		});
 
 		const dark = await screen.findByText("Dark");
@@ -27,6 +28,7 @@ describe("appearance page", () => {
 		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUser,
 			theme_preference: "light",
+			terminal_font: "",
 		});
 
 		const light = await screen.findByText("Light");
