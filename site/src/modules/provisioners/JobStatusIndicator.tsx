@@ -1,4 +1,4 @@
-import type { ProvisionerJob, ProvisionerJobStatus } from "api/typesGenerated";
+import type { ProvisionerJobStatus } from "api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -21,18 +21,22 @@ const variantByStatus: Record<
 };
 
 type JobStatusIndicatorProps = {
-	job: ProvisionerJob;
+	status: ProvisionerJobStatus;
+	queue?: { size: number; position: number };
 };
 
-export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({ job }) => {
+export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({
+	status,
+	queue,
+}) => {
 	return (
-		<StatusIndicator size="sm" variant={variantByStatus[job.status]}>
+		<StatusIndicator size="sm" variant={variantByStatus[status]}>
 			<StatusIndicatorDot />
-			<span className="[&:first-letter]:uppercase">{job.status}</span>
-			{job.status === "failed" && (
+			<span className="[&:first-letter]:uppercase">{status}</span>
+			{status === "failed" && (
 				<TriangleAlertIcon className="size-icon-xs p-[1px]" />
 			)}
-			{job.status === "pending" && `(${job.queue_position}/${job.queue_size})`}
+			{status === "pending" && queue && `(${queue.position}/${queue.size})`}
 		</StatusIndicator>
 	);
 };

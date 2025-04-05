@@ -19,7 +19,7 @@ Roles determine which actions users can take within the platform.
 |                                                                 | Auditor | User Admin | Template Admin | Owner |
 |-----------------------------------------------------------------|---------|------------|----------------|-------|
 | Add and remove Users                                            |         | ✅          |                | ✅     |
-| Manage groups (enterprise) (premium)                            |         | ✅          |                | ✅     |
+| Manage groups (premium)                                         |         | ✅          |                | ✅     |
 | Change User roles                                               |         |            |                | ✅     |
 | Manage **ALL** Templates                                        |         |            | ✅              | ✅     |
 | View **ALL** Workspaces                                         |         |            | ✅              | ✅     |

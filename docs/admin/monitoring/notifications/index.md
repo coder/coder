@@ -250,7 +250,7 @@ notification is indicated on the right hand side of this table.
 ## Delivery Preferences
 
 > [!NOTE]
-> Delivery preferences is an Enterprise and Premium feature.
+> Delivery preferences is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Administrators can configure which delivery methods are used for each different

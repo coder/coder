@@ -1,7 +1,7 @@
 import { API } from "api/api";
 import {
 	getProvisionerDaemonsKey,
-	provisionerJobQueryKey,
+	provisionerJobsQueryKey,
 } from "api/queries/organizations";
 import type { ProvisionerJob } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -28,7 +28,7 @@ export const CancelJobConfirmationDialog: FC<
 		mutationFn: cancelProvisionerJob,
 		onSuccess: () => {
 			queryClient.invalidateQueries(
-				provisionerJobQueryKey(job.organization_id),
+				provisionerJobsQueryKey(job.organization_id),
 			);
 			queryClient.invalidateQueries(
 				getProvisionerDaemonsKey(job.organization_id, job.tags),

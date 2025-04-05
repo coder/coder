@@ -51,11 +51,13 @@
 		"@mui/utils": "5.16.14",
 		"@mui/x-tree-view": "7.25.0",
 		"@radix-ui/react-avatar": "1.1.2",
+		"@radix-ui/react-checkbox": "1.1.4",
 		"@radix-ui/react-collapsible": "1.1.2",
 		"@radix-ui/react-dialog": "1.1.4",
 		"@radix-ui/react-dropdown-menu": "2.1.4",
 		"@radix-ui/react-label": "2.1.0",
 		"@radix-ui/react-popover": "1.1.5",
+		"@radix-ui/react-radio-group": "1.2.3",
 		"@radix-ui/react-scroll-area": "1.2.3",
 		"@radix-ui/react-select": "2.1.4",
 		"@radix-ui/react-slider": "1.2.2",
@@ -187,7 +189,7 @@
 		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
 		"typescript": "5.6.3",
-		"vite": "5.4.16",
+		"vite": "5.4.17",
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
@@ -203,7 +205,9 @@
 	"pnpm": {
 		"overrides": {
 			"@babel/runtime": "7.26.10",
-			"@babel/helpers": "7.26.10"
+			"@babel/helpers": "7.26.10",
+			"esbuild": "^0.25.0",
+			"prismjs": "1.30.0"
 		}
 	}
 }
