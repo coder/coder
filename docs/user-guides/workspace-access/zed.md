@@ -66,7 +66,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
    ```hcl
    resource "coder_app" "zed" {
-     agent_id = coder_agent.dev.id
+     agent_id = coder_agent.main.id
      slug          = "slug"
      display_name  = "Zed"
      external = true
