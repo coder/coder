@@ -121,12 +121,10 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	srv := httptest.NewServer(customHandler)
 	defer srv.Close()
 
-	conn, resp, err := websocket.Dial(ctx, srv.URL, nil)
+	// nolint: bodyclose
+	conn, _, err := websocket.Dial(ctx, srv.URL, nil)
 	if err != nil {
 		t.Fatalf("failed to create WebSocket connection: %v", err)
-	}
-	if resp != nil {
-		defer resp.Body.Close()
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
