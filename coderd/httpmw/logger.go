@@ -35,9 +35,9 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				slog.F("start", start),
 			)
 
-			logContext := NewRequestLoggerContext(httplog, r.Method, start)
+			logContext := NewRequestLogger(httplog, r.Method, start)
 
-			ctx := context.WithValue(r.Context(), logContextKey{}, logContext)
+			ctx := WithRequestLogger(r.Context(), logContext)
 
 			next.ServeHTTP(sw, r.WithContext(ctx))
 
@@ -63,15 +63,20 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 	}
 }
 
-type RequestLoggerContext struct {
+type RequestLogger interface {
+	WithFields(fields ...slog.Field)
+	WriteLog(ctx context.Context, status int)
+}
+
+type RequestContextLogger struct {
 	log     slog.Logger
 	written bool
 	message string
 	start   time.Time
 }
 
-func NewRequestLoggerContext(log slog.Logger, message string, start time.Time) *RequestLoggerContext {
-	return &RequestLoggerContext{
+func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestLogger {
+	return &RequestContextLogger{
 		log:     log,
 		written: false,
 		message: message,
@@ -79,11 +84,11 @@ func NewRequestLoggerContext(log slog.Logger, message string, start time.Time) *
 	}
 }
 
-func (c *RequestLoggerContext) WithFields(fields ...slog.Field) {
+func (c *RequestContextLogger) WithFields(fields ...slog.Field) {
 	c.log = c.log.With(fields...)
 }
 
-func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
+func (c *RequestContextLogger) WriteLog(ctx context.Context, status int) {
 	if c.written {
 		return
 	}
@@ -107,9 +112,13 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
 
 type logContextKey struct{}
 
-func RequestLoggerFromContext(ctx context.Context) *RequestLoggerContext {
+func WithRequestLogger(ctx context.Context, rl RequestLogger) context.Context {
+	return context.WithValue(ctx, logContextKey{}, rl)
+}
+
+func RequestLoggerFromContext(ctx context.Context) RequestLogger {
 	val := ctx.Value(logContextKey{})
-	if logCtx, ok := val.(*RequestLoggerContext); ok {
+	if logCtx, ok := val.(RequestLogger); ok {
 		return logCtx
 	}
 	return nil

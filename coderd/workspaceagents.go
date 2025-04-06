@@ -556,10 +556,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	defer t.Stop()
 
 	// Log the request immediately instead of after it completes.
-	requestLogger := httpmw.RequestLoggerFromContext(ctx)
-	if requestLogger != nil {
-		requestLogger.WriteLog(ctx, http.StatusAccepted)
-	}
+	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	go func() {
 		defer func() {
@@ -935,10 +932,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	defer encoder.Close(websocket.StatusGoingAway)
 
 	// Log the request immediately instead of after it completes.
-	requestLogger := httpmw.RequestLoggerFromContext(ctx)
-	if requestLogger != nil {
-		requestLogger.WriteLog(ctx, http.StatusAccepted)
-	}
+	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	go func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
@@ -1328,10 +1322,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 	defer sendTicker.Stop()
 
 	// Log the request immediately instead of after it completes.
-	requestLogger := httpmw.RequestLoggerFromContext(ctx)
-	if requestLogger != nil {
-		requestLogger.WriteLog(ctx, http.StatusAccepted)
-	}
+	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	// Send initial metadata.
 	sendMetadata()

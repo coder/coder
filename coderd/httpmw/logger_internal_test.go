@@ -12,13 +12,13 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
-func TestRequestLoggerContext_WriteLog(t *testing.T) {
+func TestRequestLogger_WriteLog(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	testLogger := slogtest.Make(t, nil)
 
-	logCtx := NewRequestLoggerContext(testLogger, "GET", time.Now())
+	logCtx := NewRequestLogger(testLogger, "GET", time.Now())
 
 	// Add custom fields
 	logCtx.WithFields(
@@ -28,9 +28,13 @@ func TestRequestLoggerContext_WriteLog(t *testing.T) {
 	// Write log for 200 status
 	logCtx.WriteLog(ctx, http.StatusOK)
 
-	if !logCtx.written {
-		t.Error("expected log to be written once")
+	if logCtx != nil {
+		requestCtxLog, ok := logCtx.(*RequestContextLogger)
+		if ok && !requestCtxLog.written {
+			t.Error("expected log to be written once")
+		}
 	}
+
 	// Attempt to write again (should be skipped).
 	// If the error log entry gets written,
 	// slogtest will fail the test.
@@ -66,7 +70,10 @@ func TestLoggerMiddleware(t *testing.T) {
 
 	logCtx := RequestLoggerFromContext(context.Background())
 	// Verify that the log was written
-	if logCtx != nil && !logCtx.written {
-		t.Error("expected log to be written exactly once")
+	if logCtx != nil {
+		requestCtxLog, ok := logCtx.(*RequestContextLogger)
+		if ok && !requestCtxLog.written {
+			t.Error("expected log to be written once")
+		}
 	}
 }
