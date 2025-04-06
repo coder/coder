@@ -1,4 +1,4 @@
-package codermcp
+package mcp
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ Use this tool to keep the user informed about your progress with their request.
 For long-running operations, call this periodically to provide status updates.
 This is especially useful when performing multi-step operations like workspace creation or deployment.`),
 			mcp.WithString("summary", mcp.Description(`A concise summary of your current progress on the task.
-		
+
 Good Summaries:
 - "Taking a look at the login page..."
 - "Found a bug! Fixing it now..."
@@ -151,7 +151,7 @@ Common errors:
 - Agent not connected: The workspace may still be starting up`),
 			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name where the command will execute.
 Can be specified as either:
-- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d" 
+- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
 - Workspace name: e.g., "dev", "python-project"
 The workspace must be running with a connected agent.
 Use coder_get_workspace first to check the workspace status.`), mcp.Required()),

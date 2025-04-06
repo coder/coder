@@ -1,4 +1,4 @@
-package codermcp_test
+package mcp_test
 
 import (
 	"context"
