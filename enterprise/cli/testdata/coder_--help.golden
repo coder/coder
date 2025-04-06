@@ -37,6 +37,9 @@ variables or flags.
           Coder. Network telemetry is used to measure network quality and detect
           regressions.
 
+      --force-tty bool, $CODER_FORCE_TTY
+          Force the use of a TTY.
+
       --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.
 

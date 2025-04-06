@@ -293,6 +293,12 @@ CREATE TYPE workspace_app_open_in AS ENUM (
     'slim-window'
 );
 
+CREATE TYPE workspace_app_status_state AS ENUM (
+    'working',
+    'complete',
+    'failure'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -450,10 +456,10 @@ CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
     AS $$
 DECLARE
     workspace_count int;
-	template_count int;
-	group_count int;
-	member_count int;
-	provisioner_keys_count int;
+    template_count int;
+    group_count int;
+    member_count int;
+    provisioner_keys_count int;
 BEGIN
     workspace_count := (
         SELECT count(*) as count FROM workspaces
@@ -462,50 +468,69 @@ BEGIN
             AND workspaces.deleted = false
     );
 
-	template_count := (
+    template_count := (
         SELECT count(*) as count FROM templates
         WHERE
             templates.organization_id = OLD.id
             AND templates.deleted = false
     );
 
-	group_count := (
+    group_count := (
         SELECT count(*) as count FROM groups
         WHERE
             groups.organization_id = OLD.id
     );
 
-	member_count := (
+    member_count := (
         SELECT count(*) as count FROM organization_members
         WHERE
             organization_members.organization_id = OLD.id
     );
 
-	provisioner_keys_count := (
-		Select count(*) as count FROM provisioner_keys
-		WHERE
-			provisioner_keys.organization_id = OLD.id
-	);
+    provisioner_keys_count := (
+        Select count(*) as count FROM provisioner_keys
+        WHERE
+            provisioner_keys.organization_id = OLD.id
+    );
 
     -- Fail the deletion if one of the following:
     -- * the organization has 1 or more workspaces
-	-- * the organization has 1 or more templates
-	-- * the organization has 1 or more groups other than "Everyone" group
-	-- * the organization has 1 or more members other than the organization owner
-	-- * the organization has 1 or more provisioner keys
+    -- * the organization has 1 or more templates
+    -- * the organization has 1 or more groups other than "Everyone" group
+    -- * the organization has 1 or more members other than the organization owner
+    -- * the organization has 1 or more provisioner keys
 
+    -- Only create error message for resources that actually exist
     IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
+        DECLARE
+            error_message text := 'cannot delete organization: organization has ';
+            error_parts text[] := '{}';
+        BEGIN
+            IF workspace_count > 0 THEN
+                error_parts := array_append(error_parts, workspace_count || ' workspaces');
+            END IF;
+            
+            IF template_count > 0 THEN
+                error_parts := array_append(error_parts, template_count || ' templates');
+            END IF;
+            
+            IF provisioner_keys_count > 0 THEN
+                error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
+            END IF;
+            
+            error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
+            RAISE EXCEPTION '%', error_message;
+        END;
     END IF;
 
-	IF (group_count) > 1 THEN
+    IF (group_count) > 1 THEN
             RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count - 1;
     END IF;
 
     -- Allow 1 member to exist, because you cannot remove yourself. You can
     -- remove everyone else. Ideally, we only omit the member that matches
     -- the user_id of the caller, however in a trigger, the caller is unknown.
-	IF (member_count) > 1 THEN
+    IF (member_count) > 1 THEN
             RAISE EXCEPTION 'cannot delete organization: organization has % members that must be deleted first', member_count - 1;
     END IF;
 
@@ -854,6 +879,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -866,6 +892,8 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -892,6 +920,7 @@ CREATE VIEW group_members_expanded AS
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
+    users.is_system AS user_is_system,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
@@ -1372,7 +1401,9 @@ CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desired_instances integer,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -1591,12 +1622,22 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
+CREATE TABLE webpush_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    endpoint text NOT NULL,
+    endpoint_p256dh_key text NOT NULL,
+    endpoint_auth_key text NOT NULL
+);
+
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,
     workspace_agent_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
-    config_path text NOT NULL
+    config_path text NOT NULL,
+    name text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
@@ -1610,6 +1651,8 @@ COMMENT ON COLUMN workspace_agent_devcontainers.created_at IS 'Creation timestam
 COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace folder';
 
 COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.name IS 'The name of the Dev Container.';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -1861,6 +1904,19 @@ CREATE SEQUENCE workspace_app_stats_id_seq
 
 ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
+CREATE TABLE workspace_app_statuses (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    agent_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    state workspace_app_status_state NOT NULL,
+    needs_user_attention boolean NOT NULL,
+    message text NOT NULL,
+    uri text,
+    icon text
+);
+
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1937,6 +1993,19 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE VIEW workspace_latest_builds AS
+ SELECT DISTINCT ON (wb.workspace_id) wb.id,
+    wb.workspace_id,
+    wb.template_version_id,
+    wb.job_id,
+    wb.template_version_preset_id,
+    wb.transition,
+    wb.created_at,
+    pj.job_status
+   FROM (workspace_builds wb
+     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
+  ORDER BY wb.workspace_id, wb.build_number DESC;
+
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
     job_id uuid NOT NULL,
@@ -1946,6 +2015,92 @@ CREATE TABLE workspace_modules (
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
 );
+
+CREATE VIEW workspace_prebuild_builds AS
+ SELECT workspace_builds.id,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.transition,
+    workspace_builds.job_id,
+    workspace_builds.template_version_preset_id,
+    workspace_builds.build_number
+   FROM workspace_builds
+  WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
+CREATE TABLE workspace_resources (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    type character varying(192) NOT NULL,
+    name character varying(64) NOT NULL,
+    hide boolean DEFAULT false NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    instance_type character varying(256),
+    daily_cost integer DEFAULT 0 NOT NULL,
+    module_path text
+);
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+CREATE VIEW workspace_prebuilds AS
+ WITH all_prebuilds AS (
+         SELECT w.id,
+            w.name,
+            w.template_id,
+            w.created_at
+           FROM workspaces w
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), workspaces_with_latest_presets AS (
+         SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.workspace_id,
+            workspace_builds.template_version_preset_id
+           FROM workspace_builds
+          WHERE (workspace_builds.template_version_preset_id IS NOT NULL)
+          ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC
+        ), workspaces_with_agents_status AS (
+         SELECT w.id AS workspace_id,
+            bool_and((wa.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)) AS ready
+           FROM (((workspaces w
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
+             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+          GROUP BY w.id
+        ), current_presets AS (
+         SELECT w.id AS prebuild_id,
+            wlp.template_version_preset_id
+           FROM (workspaces w
+             JOIN workspaces_with_latest_presets wlp ON ((wlp.workspace_id = w.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        )
+ SELECT p.id,
+    p.name,
+    p.template_id,
+    p.created_at,
+    COALESCE(a.ready, false) AS ready,
+    cp.template_version_preset_id AS current_preset_id
+   FROM ((all_prebuilds p
+     LEFT JOIN workspaces_with_agents_status a ON ((a.workspace_id = p.id)))
+     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -2002,41 +2157,6 @@ CREATE SEQUENCE workspace_resource_metadata_id_seq
     CACHE 1;
 
 ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
-
-CREATE TABLE workspace_resources (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    job_id uuid NOT NULL,
-    transition workspace_transition NOT NULL,
-    type character varying(192) NOT NULL,
-    name character varying(64) NOT NULL,
-    hide boolean DEFAULT false NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL,
-    instance_type character varying(256),
-    daily_cost integer DEFAULT 0 NOT NULL,
-    module_path text
-);
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
@@ -2279,6 +2399,9 @@ ALTER TABLE ONLY user_status_changes
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY webpush_subscriptions
+    ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
 
@@ -2320,6 +2443,9 @@ ALTER TABLE ONLY workspace_app_stats
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
@@ -2405,6 +2531,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -2412,6 +2540,8 @@ CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btr
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
+
+CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
@@ -2719,6 +2849,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
+ALTER TABLE ONLY webpush_subscriptions
+    ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
@@ -2760,6 +2893,15 @@ ALTER TABLE ONLY workspace_app_stats
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_app_id_fkey FOREIGN KEY (app_id) REFERENCES workspace_apps(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

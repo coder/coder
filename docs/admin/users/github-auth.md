@@ -15,6 +15,11 @@ This access is necessary for the Coder server to complete the authentication
 process. To the best of our knowledge, Coder, the company, does not gain access
 to this data by administering the GitHub app.
 
+> [!IMPORTANT]
+> The default GitHub app requires [device flow](#device-flow) to authenticate.
+> This is enabled by default when using the default GitHub app. If you disable
+> device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored.
+
 By default, only the admin user can sign up. To allow additional users to sign
 up with GitHub, add the following environment variable:
 
@@ -124,11 +129,16 @@ organizations. This can be enforced from the organization settings page in the
 
 Coder supports
 [device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)
-for GitHub OAuth. To enable it, set:
+for GitHub OAuth. This is enabled by default for the default GitHub app and cannot be disabled
+for that app. For your own custom GitHub OAuth app, you can enable device flow by setting:
 
 ```env
 CODER_OAUTH2_GITHUB_DEVICE_FLOW=true
 ```
 
-This is optional. We recommend using the standard OAuth flow instead, as it is
-more convenient for end users.
+Device flow is optional for custom GitHub OAuth apps. We generally recommend using
+the standard OAuth flow instead, as it is more convenient for end users.
+
+> [!NOTE]
+> If you're using the default GitHub app, device flow is always enabled regardless of
+> the `CODER_OAUTH2_GITHUB_DEVICE_FLOW` setting.

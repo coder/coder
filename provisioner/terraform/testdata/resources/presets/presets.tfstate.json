@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.11.0",
+  "terraform_version": "1.11.3",
   "values": {
     "root_module": {
       "resources": [
@@ -77,7 +77,6 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -89,7 +88,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },

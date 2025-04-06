@@ -357,6 +357,14 @@ resource "coder_agent" "dev" {
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
   EOT
+
+  shutdown_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    # Stop the Docker service to prevent errors during workspace destroy.
+    sudo service docker stop
+  EOT
 }
 
 # Add a cost so we get some quota usage in dev.coder.com
@@ -418,6 +426,10 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
+  # Ensure the workspace is given time to execute shutdown scripts.
+  destroy_grace_seconds = 60
+  stop_timeout          = 60
+  stop_signal           = "SIGINT"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "USE_CAP_NET_ADMIN=true",

@@ -260,6 +260,7 @@ func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.W
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
 		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
 		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
 	})
@@ -476,6 +477,18 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 	})
 	require.NoError(t, err, "insert notification")
 	return notification
+}
+
+func WebpushSubscription(t testing.TB, db database.Store, orig database.InsertWebpushSubscriptionParams) database.WebpushSubscription {
+	subscription, err := db.InsertWebpushSubscription(genCtx, database.InsertWebpushSubscriptionParams{
+		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		Endpoint:          takeFirst(orig.Endpoint, testutil.GetRandomName(t)),
+		EndpointP256dhKey: takeFirst(orig.EndpointP256dhKey, testutil.GetRandomName(t)),
+		EndpointAuthKey:   takeFirst(orig.EndpointAuthKey, testutil.GetRandomName(t)),
+	})
+	require.NoError(t, err, "insert webpush subscription")
+	return subscription
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
@@ -958,6 +971,19 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 	return version
 }
 
+func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.InsertTemplateVersionTerraformValuesByJobIDParams) {
+	t.Helper()
+
+	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
+		JobID:      takeFirst(orig.JobID, uuid.New()),
+		CachedPlan: takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
+	}
+
+	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
+	require.NoError(t, err, "insert template version parameter")
+}
+
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
@@ -1168,6 +1194,29 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 	item, err := db.GetTelemetryItem(genCtx, seed.Key)
 	require.NoError(t, err, "get telemetry item")
 	return item
+}
+
+func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
+	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
+		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
+		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		DesiredInstances:    seed.DesiredInstances,
+		InvalidateAfterSecs: seed.InvalidateAfterSecs,
+	})
+	require.NoError(t, err, "insert preset")
+	return preset
+}
+
+func PresetParameter(t testing.TB, db database.Store, seed database.InsertPresetParametersParams) []database.TemplateVersionPresetParameter {
+	parameters, err := db.InsertPresetParameters(genCtx, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: takeFirst(seed.TemplateVersionPresetID, uuid.New()),
+		Names:                   takeFirstSlice(seed.Names, []string{testutil.GetRandomName(t)}),
+		Values:                  takeFirstSlice(seed.Values, []string{testutil.GetRandomName(t)}),
+	})
+
+	require.NoError(t, err, "insert preset parameters")
+	return parameters
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

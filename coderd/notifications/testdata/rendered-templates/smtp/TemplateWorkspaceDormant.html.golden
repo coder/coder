@@ -13,12 +13,13 @@ Content-Type: text/plain; charset=UTF-8
 Hi Bobby,
 
 Your workspace bobby-workspace has been marked as dormant (https://coder.co=
-m/docs/templates/schedule#dormancy-threshold-enterprise) because of breache=
-d the template's threshold for inactivity.
-Dormant workspaces are automatically deleted (https://coder.com/docs/templa=
-tes/schedule#dormancy-auto-deletion-enterprise) after 24 hours of inactivit=
-y.
-To prevent deletion, use your workspace with the link below.
+m/docs/templates/schedule#dormancy-threshold-enterprise) due to inactivity =
+exceeding the dormancy threshold.
+
+This workspace will be automatically deleted in 24 hours if it remains inac=
+tive.
+
+To prevent deletion, activate your workspace using the link below.
 
 
 View workspace: http://test.com/@bobby/bobby-workspace
@@ -54,12 +55,13 @@ argin: 8px 0 32px; line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>Your workspace <strong>bobby-workspace</strong> has been marked =
 as <a href=3D"https://coder.com/docs/templates/schedule#dormancy-threshold-=
-enterprise"><strong>dormant</strong></a> because of breached the template&r=
-squo;s threshold for inactivity.<br>
-Dormant workspaces are <a href=3D"https://coder.com/docs/templates/schedule=
-#dormancy-auto-deletion-enterprise">automatically deleted</a> after 24 hour=
-s of inactivity.<br>
-To prevent deletion, use your workspace with the link below.</p>
+enterprise"><strong>dormant</strong></a> due to inactivity exceeding the do=
+rmancy threshold.</p>
+
+<p>This workspace will be automatically deleted in 24 hours if it remains i=
+nactive.</p>
+
+<p>To prevent deletion, activate your workspace using the link below.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

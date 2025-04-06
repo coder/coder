@@ -24,30 +24,19 @@ linters-settings:
     enabled-checks:
       # - appendAssign
       # - appendCombine
-      - argOrder
       # - assignOp
       # - badCall
-      - badCond
       - badLock
       - badRegexp
       - boolExprSimplify
       # - builtinShadow
       - builtinShadowDecl
-      - captLocal
-      - caseOrder
-      - codegenComment
       # - commentedOutCode
       - commentedOutImport
-      - commentFormatting
-      - defaultCaseOrder
       - deferUnlambda
       # - deprecatedComment
       # - docStub
-      - dupArg
-      - dupBranchBody
-      - dupCase
       - dupImport
-      - dupSubExpr
       # - elseif
       - emptyFallthrough
       # - emptyStringTest
@@ -56,8 +45,6 @@ linters-settings:
       # - exitAfterDefer
       # - exposedSyncMutex
       # - filepathJoin
-      - flagDeref
-      - flagName
       - hexLiteral
       # - httpNoBody
       # - hugeParam
@@ -65,47 +52,36 @@ linters-settings:
       # - importShadow
       - indexAlloc
       - initClause
-      - mapKey
       - methodExprCall
       # - nestingReduce
-      - newDeref
       - nilValReturn
       # - octalLiteral
-      - offBy1
       # - paramTypeCombine
       # - preferStringWriter
       # - preferWriteByte
       # - ptrToRefParam
       # - rangeExprCopy
       # - rangeValCopy
-      - regexpMust
       - regexpPattern
       # - regexpSimplify
       - ruleguard
-      - singleCaseSwitch
-      - sloppyLen
       # - sloppyReassign
-      - sloppyTypeAssert
       - sortSlice
       - sprintfQuotedString
       - sqlQuery
       # - stringConcatSimplify
       # - stringXbytes
       # - suspiciousSorting
-      - switchTrue
       - truncateCmp
       - typeAssertChain
       # - typeDefFirst
-      - typeSwitchVar
       # - typeUnparen
-      - underef
       # - unlabelStmt
       # - unlambda
       # - unnamedResult
       # - unnecessaryBlock
       # - unnecessaryDefer
       # - unslice
-      - valSwap
       - weakCond
       # - whyNoLint
       # - wrapperFunc
@@ -188,6 +164,7 @@ linters-settings:
       - name: unnecessary-stmt
       - name: unreachable-code
       - name: unused-parameter
+        exclude: "**/*_test.go"
       - name: unused-receiver
       - name: var-declaration
       - name: var-naming
@@ -203,6 +180,14 @@ linters-settings:
       - G601
 
 issues:
+  exclude-dirs:
+    - coderd/database/dbmem
+    - node_modules
+    - .git
+
+  exclude-files:
+    - scripts/rules.go
+
   # Rules listed here: https://github.com/securego/gosec#available-rules
   exclude-rules:
     - path: _test\.go
@@ -214,17 +199,15 @@ issues:
     - path: scripts/*
       linters:
         - exhaustruct
+    - path: scripts/rules.go
+      linters:
+        - ALL
 
   fix: true
   max-issues-per-linter: 0
   max-same-issues: 0
 
 run:
-  skip-dirs:
-    - node_modules
-    - .git
-  skip-files:
-    - scripts/rules.go
   timeout: 10m
 
 # Over time, add more and more linters from
