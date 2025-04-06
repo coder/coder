@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -16,9 +15,10 @@ func TestRequestLogger_WriteLog(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	testLogger := slogtest.Make(t, nil)
-
-	logCtx := NewRequestLogger(testLogger, "GET", time.Now())
+	sink := &fakeSink{}
+	logger := slog.Make(sink)
+	logger = logger.Leveled(slog.LevelDebug)
+	logCtx := NewRequestLogger(logger, "GET", time.Now())
 
 	// Add custom fields
 	logCtx.WithFields(
@@ -28,24 +28,32 @@ func TestRequestLogger_WriteLog(t *testing.T) {
 	// Write log for 200 status
 	logCtx.WriteLog(ctx, http.StatusOK)
 
-	if logCtx != nil {
-		requestCtxLog, ok := logCtx.(*RequestContextLogger)
-		if ok && !requestCtxLog.written {
-			t.Error("expected log to be written once")
-		}
+	if len(sink.entries) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(sink.entries))
+	}
+
+	if sink.entries[0].Message != "GET" {
+		t.Errorf("expected log message to be 'GET', got '%s'", sink.entries[0].Message)
+	}
+
+	if sink.entries[0].Fields[0].Value != "custom_value" {
+		t.Errorf("expected a custom_field with value custom_value, got '%s'", sink.entries[0].Fields[0].Value)
 	}
 
 	// Attempt to write again (should be skipped).
-	// If the error log entry gets written,
-	// slogtest will fail the test.
 	logCtx.WriteLog(ctx, http.StatusInternalServerError)
+
+	if len(sink.entries) != 1 {
+		t.Fatalf("expected 1 log entry after second write, got %d", len(sink.entries))
+	}
 }
 
 func TestLoggerMiddleware(t *testing.T) {
 	t.Parallel()
 
-	// Create a test logger
-	testLogger := slogtest.Make(t, nil)
+	sink := &fakeSink{}
+	logger := slog.Make(sink)
+	logger = logger.Leveled(slog.LevelDebug)
 
 	// Create a test handler to simulate an HTTP request
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -54,7 +62,7 @@ func TestLoggerMiddleware(t *testing.T) {
 	})
 
 	// Wrap the test handler with the Logger middleware
-	loggerMiddleware := Logger(testLogger)
+	loggerMiddleware := Logger(logger)
 	wrappedHandler := loggerMiddleware(testHandler)
 
 	// Create a test HTTP request
@@ -68,12 +76,21 @@ func TestLoggerMiddleware(t *testing.T) {
 	// Serve the request
 	wrappedHandler.ServeHTTP(sw, req)
 
-	logCtx := RequestLoggerFromContext(context.Background())
-	// Verify that the log was written
-	if logCtx != nil {
-		requestCtxLog, ok := logCtx.(*RequestContextLogger)
-		if ok && !requestCtxLog.written {
-			t.Error("expected log to be written once")
-		}
+	if len(sink.entries) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(sink.entries))
+	}
+
+	if sink.entries[0].Message != "GET" {
+		t.Errorf("expected log message to be 'GET', got '%s'", sink.entries[0].Message)
 	}
 }
+
+type fakeSink struct {
+	entries []slog.SinkEntry
+}
+
+func (s *fakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.entries = append(s.entries, e)
+}
+
+func (*fakeSink) Sync() {}
