@@ -14,57 +14,41 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ResourceHandler associates a resource with its handler creation function
+// ResourceHandler associates a resource or resource template with its handler creation function
 type ResourceHandler struct {
 	ResourceTemplate mcp.ResourceTemplate
-	MakeHandler      func(ToolDeps) server.ResourceTemplateHandlerFunc
-}
-
-// allResources is the list of all available resources.
-var allResources = []ResourceHandler{
-	{
-		ResourceTemplate: mcp.NewResourceTemplate(
-			`coder://user/{id}`,
-			"Coder User By ID",
-			mcp.WithTemplateDescription("Information about a given Coder user. The string {id} is replaced with the user ID. Alternatively, you can use the pre-defined alias 'me' to get information about the current user."),
-			mcp.WithTemplateMIMEType("application/json"),
-		),
-		MakeHandler: handleCoderUser,
-	},
-	{
-		ResourceTemplate: mcp.NewResourceTemplate(
-			`coder://templates`,
-			"Coder Templates",
-			mcp.WithTemplateDescription("List of all Coder templates available to the current user"),
-			mcp.WithTemplateMIMEType("application/json"),
-		),
-		MakeHandler: handleCoderTemplates,
-	},
-	{
-		ResourceTemplate: mcp.NewResourceTemplate(
-			`coder://workspaces{?limit,offset,owner}`,
-			"Coder Workspaces",
-			mcp.WithTemplateDescription("List of Coder workspaces with optional filtering parameters owner, limit, and offset. The owner parameter can be 'me' or a username. The limit and offset parameters are used for pagination. The default values are limit=10, offset=0, and owner=me. Note that only a subset of fields is returned. To get detailed information about a specific workspace, use the Coder Workspace by ID resource."),
-			mcp.WithTemplateMIMEType("application/json"),
-		),
-		MakeHandler: handleCoderWorkspaces,
-	},
-	{
-		ResourceTemplate: mcp.NewResourceTemplate(
-			`coder://workspace/{id}`,
-			"Coder Workspace by ID",
-			mcp.WithTemplateDescription("Detailed information about a specific Coder workspace by ID. The {id} parameter is replaced with the workspace UUID."),
-			mcp.WithTemplateMIMEType("application/json"),
-		),
-		MakeHandler: handleCoderWorkspaceByID,
-	},
+	MakeHandler      func(ToolDeps) func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error)
 }
 
 // RegisterResources registers all resources with the given server.
 func RegisterResources(srv *server.MCPServer, deps ToolDeps) {
-	for _, entry := range allResources {
-		srv.AddResourceTemplate(entry.ResourceTemplate, entry.MakeHandler(deps))
-	}
+	srv.AddResourceTemplate(
+		mcp.NewResourceTemplate(
+			`coder://templates`,
+			"Coder Templates",
+			mcp.WithTemplateDescription("List of all Coder templates available to the current user"),
+			mcp.WithTemplateMIMEType("application/json"),
+		), handleCoderTemplates(deps))
+	srv.AddResourceTemplate(
+		mcp.NewResourceTemplate(
+			`coder://user/{id}`,
+			"Coder User By ID",
+			mcp.WithTemplateDescription("Information about a given Coder user. The string {id} is replaced with the user ID. Alternatively, you can use the pre-defined alias 'me' to get information about the current user."),
+			mcp.WithTemplateMIMEType("application/json"),
+		), handleCoderUser(deps))
+	srv.AddResourceTemplate(
+		mcp.NewResourceTemplate(
+			`coder://workspaces{?limit,offset,owner}`,
+			"Coder Workspaces",
+			mcp.WithTemplateDescription("List of Coder workspaces with optional filtering parameters owner, limit, and offset. The owner parameter can be 'me' or a username. The limit and offset parameters are used for pagination. The default values are limit=10, offset=0, and owner=me. Note that only a subset of fields is returned. To get detailed information about a specific workspace, use the Coder Workspace by ID resource."),
+			mcp.WithTemplateMIMEType("application/json"),
+		), handleCoderWorkspaces(deps))
+	srv.AddResourceTemplate(mcp.NewResourceTemplate(
+		`coder://workspace/{id}`,
+		"Coder Workspace by ID",
+		mcp.WithTemplateDescription("Detailed information about a specific Coder workspace by ID. The {id} parameter is replaced with the workspace UUID."),
+		mcp.WithTemplateMIMEType("application/json"),
+	), handleCoderWorkspaceByID(deps))
 }
 
 type handleCoderUserParams struct {
@@ -72,7 +56,7 @@ type handleCoderUserParams struct {
 }
 
 // handleCoderUser handles requests for the user resource.
-func handleCoderUser(deps ToolDeps) server.ResourceTemplateHandlerFunc {
+func handleCoderUser(deps ToolDeps) func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	return func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
@@ -107,7 +91,7 @@ func handleCoderUser(deps ToolDeps) server.ResourceTemplateHandlerFunc {
 }
 
 // handleCoderTemplates handles requests for the templates resource.
-func handleCoderTemplates(deps ToolDeps) server.ResourceTemplateHandlerFunc {
+func handleCoderTemplates(deps ToolDeps) func(context.Context, mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	return func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
@@ -134,7 +118,7 @@ func handleCoderTemplates(deps ToolDeps) server.ResourceTemplateHandlerFunc {
 }
 
 // handleCoderWorkspaces handles requests for the workspaces resource.
-func handleCoderWorkspaces(deps ToolDeps) server.ResourceTemplateHandlerFunc {
+func handleCoderWorkspaces(deps ToolDeps) func(context.Context, mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	return func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
@@ -204,7 +188,7 @@ type handleCoderWorkspaceByIDParams struct {
 }
 
 // handleCoderWorkspaceByID handles requests for the workspace by ID resource.
-func handleCoderWorkspaceByID(deps ToolDeps) server.ResourceTemplateHandlerFunc {
+func handleCoderWorkspaceByID(deps ToolDeps) func(context.Context, mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	return func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
