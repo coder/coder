@@ -99,7 +99,6 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	var wg sync.WaitGroup
 	// Create a test handler to simulate a WebSocket connection
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-
 		conn, err := websocket.Accept(rw, r, nil)
 		if err != nil {
 			t.Errorf("failed to accept websocket: %v", err)
@@ -111,7 +110,6 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 		// Send a couple of messages for testing
 		_ = conn.Write(ctx, websocket.MessageText, []byte("ping"))
 		_ = conn.Write(ctx, websocket.MessageText, []byte("pong"))
-
 	})
 
 	// Wrap the test handler with the Logger middleware
