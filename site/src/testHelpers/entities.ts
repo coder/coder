@@ -3032,6 +3032,7 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
 	hostname_prefix: " coder.",
 	ssh_config_options: {},
+	hostname_suffix: "coder",
 };
 
 export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [

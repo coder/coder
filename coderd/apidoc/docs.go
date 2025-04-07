@@ -14754,6 +14754,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "hostname_prefix": {
+                    "description": "HostnamePrefix is the prefix we append to workspace names for SSH hostnames.\nDeprecated: use HostnameSuffix instead.",
+                    "type": "string"
+                },
+                "hostname_suffix": {
+                    "description": "HostnameSuffix is the suffix to append to workspace names for SSH hostnames.",
                     "type": "string"
                 },
                 "ssh_config_options": {

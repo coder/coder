@@ -653,6 +653,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
+					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				Entitlements:          entitlements.New(),
