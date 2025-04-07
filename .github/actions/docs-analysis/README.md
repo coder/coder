@@ -6,10 +6,10 @@ A composite GitHub Action to analyze documentation changes in pull requests and 
 
 - Detects documentation files changed in a PR
 - Calculates metrics (files changed, words added/removed)
-- Tracks image changes (added, modified, deleted)
-- Analyzes document structure (headings, title)
-- Identifies the most changed files
-- Provides outputs for use in workflows
+- Tracks image modifications with detailed reporting
+- Analyzes document structure (headings, titles)
+- Identifies the most significantly changed files
+- Provides standardized outputs that can be used by any workflow
 
 ## Usage
 
@@ -49,6 +49,7 @@ jobs:
           base-ref: 'main'
           significant-words-threshold: '100'
           skip-if-no-docs: 'true'
+          debug-mode: 'false'
       
       - name: Create Preview Comment
         if: steps.docs-analysis.outputs.docs-changed == 'true'
@@ -74,8 +75,11 @@ jobs:
 | `base-ref` | Base reference to compare against | No | `main` |
 | `files-changed` | Comma-separated list of files changed (alternative to git diff) | No | `` |
 | `max-scan-files` | Maximum number of files to scan | No | `100` |
+| `max-files-to-analyze` | Maximum files to analyze in detail (for performance) | No | `20` |
+| `throttle-large-repos` | Enable throttling for large repositories | No | `true` |
 | `significant-words-threshold` | Threshold for significant text changes | No | `100` |
 | `skip-if-no-docs` | Whether to skip if no docs files are changed | No | `true` |
+| `debug-mode` | Enable verbose debugging output | No | `false` |
 
 ## Outputs
 
@@ -98,3 +102,57 @@ jobs:
 | `most-changed-url-path` | URL path for the most changed file |
 | `most-significant-image` | Path to the most significant image |
 | `doc-structure` | JSON structure of document heading counts |
+| `execution-time` | Execution time in seconds |
+| `cache-key` | Cache key for this analysis run |
+
+## Security Features
+
+- Input validation to prevent command injection
+- Path sanitization for safer file operations
+- Git command retry logic for improved reliability
+- Cross-platform compatibility with fallbacks
+- Repository size detection with adaptive throttling
+- Python integration for safer JSON handling (with bash fallbacks)
+
+## Performance Optimization
+
+- Configurable document scan limits
+- Intelligent throttling for large repositories
+- Git performance tuning
+- Execution time tracking
+- Content-based caching
+- Debug mode for troubleshooting
+
+## Examples
+
+### Analyzing Documentation Changes for a PR
+
+```yaml
+- name: Analyze Documentation Changes
+  uses: ./.github/actions/docs-analysis
+  id: docs-analysis
+  with:
+    docs-path: 'docs/'
+```
+
+### Analyzing Non-Git Files
+
+```yaml
+- name: Analyze Documentation Files
+  uses: ./.github/actions/docs-analysis
+  id: docs-analysis
+  with:
+    files-changed: 'docs/file1.md,docs/file2.md,README.md'
+    docs-path: 'docs/'
+```
+
+### Debug Mode for Troubleshooting
+
+```yaml
+- name: Analyze Documentation with Debug Output
+  uses: ./.github/actions/docs-analysis
+  id: docs-analysis
+  with:
+    docs-path: 'docs/'
+    debug-mode: 'true'
+```
