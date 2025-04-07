@@ -393,6 +393,7 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -944,7 +945,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupClient = serpent.Group{
 			Name: "Client",
 			Description: "These options change the behavior of how clients interact with the Coder. " +
-				"Clients include the coder cli, vs code extension, and the web UI.",
+				"Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.",
 			YAML: "client",
 		}
 		deploymentGroupConfig = serpent.Group{
@@ -2548,6 +2549,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SSHConfig.DeploymentName,
 			Hidden:      false,
 			Default:     "coder.",
+		},
+		{
+			Name:        "Workspace Hostname Suffix",
+			Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+			Flag:        "workspace-hostname-suffix",
+			Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
+			YAML:        "workspaceHostnameSuffix",
+			Group:       &deploymentGroupClient,
+			Value:       &c.WorkspaceHostnameSuffix,
+			Hidden:      false,
+			Default:     "coder",
 		},
 		{
 			Name: "SSH Config Options",

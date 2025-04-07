@@ -684,6 +684,7 @@ export interface DeploymentValues {
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
+	readonly workspace_hostname_suffix?: string;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
