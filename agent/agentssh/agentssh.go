@@ -1060,8 +1060,10 @@ func (s *Server) Close() error {
 	// Guard against multiple calls to Close and
 	// accepting new connections during close.
 	if s.closing != nil {
+		closing := s.closing
 		s.mu.Unlock()
-		return xerrors.New("server is closing")
+		<-closing
+		return xerrors.New("server is closed")
 	}
 	s.closing = make(chan struct{})
 
