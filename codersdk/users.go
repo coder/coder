@@ -28,8 +28,8 @@ type UsersRequest struct {
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
-	Role      string    `json:"role,omitempty" typescript:"-"`
-	LoginType LoginType `json:"login_type,omitempty" typescript:"-"`
+	Role      string      `json:"role,omitempty" typescript:"-"`
+	LoginType []LoginType `json:"login_type,omitempty" typescript:"-"`
 
 	SearchQuery string `json:"q,omitempty"`
 	Pagination
@@ -724,8 +724,10 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			if req.SearchQuery != "" {
 				params = append(params, req.SearchQuery)
 			}
-			if req.LoginType != "" {
-				params = append(params, "login_type:"+string(req.LoginType))
+			if len(req.LoginType) > 0 {
+				for _, lt := range req.LoginType {
+					params = append(params, "login_type:"+string(lt))
+				}
 			}
 			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()
