@@ -93,6 +93,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		cli := codersdk.New(client.URL)
 		cli.HTTPClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
+				//nolint:gosec
 				InsecureSkipVerify: true,
 			},
 		}
