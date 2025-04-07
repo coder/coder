@@ -6925,7 +6925,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "terminal_font": "ibm-plex-mono",
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
@@ -6936,13 +6936,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------|--------------------------------------------------------|----------|--------------|-------------|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
 | `theme_preference` | string                                                 | true     |              |             |
-
-#### Enumerated Values
-
-| Property        | Value           |
-|-----------------|-----------------|
-| `terminal_font` | `ibm-plex-mono` |
-| `terminal_font` | `fira-code`     |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -7285,7 +7278,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "terminal_font": "ibm-plex-mono",
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
@@ -7296,13 +7289,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|--------------------------------------------------------|----------|--------------|-------------|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
 | `theme_preference` | string                                                 | false    |              |             |
-
-#### Enumerated Values
-
-| Property        | Value           |
-|-----------------|-----------------|
-| `terminal_font` | `ibm-plex-mono` |
-| `terminal_font` | `fira-code`     |
 
 ## codersdk.UserLatency
 

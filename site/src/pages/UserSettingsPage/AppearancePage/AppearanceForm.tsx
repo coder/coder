@@ -18,6 +18,7 @@ import type { FC } from "react";
 import themes, {
 	DEFAULT_TERMINAL_FONT,
 	DEFAULT_THEME,
+	fontLabels,
 	type Theme,
 } from "theme";
 import { Section } from "../Section";
@@ -112,18 +113,18 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 							onChangeTerminalFont(toTerminalFontName(value))
 						}
 					>
-						<FormControlLabel
-							value="ibm-plex-mono"
-							control={<Radio />}
-							label={
-								<div css={{ fontFamily: "IBM Plex Mono" }}>IBM Plex Mono</div>
-							}
-						/>
-						<FormControlLabel
-							value="fira-code"
-							control={<Radio />}
-							label={<div css={{ fontFamily: "Fira Code" }}>Fira Code</div>}
-						/>
+						{TerminalFontNames.filter((name) => name !== "").map((name) => (
+							<FormControlLabel
+								key={name}
+								value={name}
+								control={<Radio />}
+								label={
+									<div css={{ fontFamily: fontLabels[name] }}>
+										IBM Plex Mono
+									</div>
+								}
+							/>
+						))}
 					</RadioGroup>
 				</FormControl>
 			</Section>

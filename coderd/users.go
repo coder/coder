@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -1067,12 +1068,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {
-	switch font {
-	case codersdk.TerminalFontIbmPlexMono, codersdk.TerminalFontFiraCode, "":
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(codersdk.TerminalFontNames, font)
 }
 
 // @Summary Update user password

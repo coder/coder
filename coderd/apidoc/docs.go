@@ -15604,7 +15604,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
-                "TerminalFontIbmPlexMono",
+                "TerminalFontIBMPlexMono",
                 "TerminalFontFiraCode"
             ]
         },
@@ -15786,15 +15786,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "terminal_font": {
-                    "enum": [
-                        "ibm-plex-mono",
-                        "fira-code"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TerminalFontName"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
                 "theme_preference": {
                     "type": "string"
@@ -16088,15 +16080,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "terminal_font": {
-                    "enum": [
-                        "ibm-plex-mono",
-                        "fira-code"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TerminalFontName"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
                 "theme_preference": {
                     "type": "string"
