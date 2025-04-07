@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -95,7 +96,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	sink := &fakeSink{}
 	logger := slog.Make(sink)
 	logger = logger.Leveled(slog.LevelDebug)
-
+	wg := sync.WaitGroup{}
 	// Create a test handler to simulate a WebSocket connection
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(rw, r, nil)
@@ -105,6 +106,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 		}
 		requestLgr := RequestLoggerFromContext(r.Context())
 		requestLgr.WriteLog(r.Context(), http.StatusSwitchingProtocols)
+		wg.Done()
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
 		// Send a couple of messages for testing
@@ -122,16 +124,16 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 		wrappedHandler.ServeHTTP(sw, r)
 	})
 
-	// Create a test HTTP request
 	srv := httptest.NewServer(customHandler)
 	defer srv.Close()
+	wg.Add(1)
 	// nolint: bodyclose
 	conn, _, err := websocket.Dial(ctx, srv.URL, nil)
 	if err != nil {
 		t.Fatalf("failed to create WebSocket connection: %v", err)
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-
+	wg.Wait()
 	if len(sink.entries) != 1 {
 		t.Fatalf("expected 1 log entry, got %d", len(sink.entries))
 	}
