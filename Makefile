@@ -631,7 +631,7 @@ gen/mark-fresh:
 		coderd/database/pubsub/psmock/psmock.go \
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
-		coderd/httmpw/loggermock/loggermock.go \
+		coderd/httpmw/loggermock/loggermock.go \
 		"
 
 	for file in $$files; do
