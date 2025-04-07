@@ -706,6 +706,21 @@ export const DisplayApps: DisplayApp[] = [
 	"web_terminal",
 ];
 
+// From codersdk/templateversions.go
+export interface DynamicParametersRequest {
+	readonly id: number;
+	readonly inputs: Record<string, string>;
+}
+
+// From codersdk/templateversions.go
+export interface DynamicParametersResponse {
+	readonly id: number;
+	// this is likely an enum in an external package "github.com/coder/preview/types.Diagnostics"
+	readonly diagnostics: readonly (HclDiagnostic | null)[];
+	// external type "github.com/coder/preview/types.Parameter", to include this type the package must be explicitly included in the parsing
+	readonly parameters: readonly unknown[];
+}
+
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
 	| "azure-devops"
@@ -974,6 +989,44 @@ export interface GroupSyncSettings {
 	readonly regex_filter: string | null;
 	readonly auto_create_missing_groups: boolean;
 	readonly legacy_group_name_mapping?: Record<string, string>;
+}
+
+// From hcl/diagnostic.go
+export interface HclDiagnostic {
+	readonly Severity: HclDiagnosticSeverity;
+	readonly Summary: string;
+	readonly Detail: string;
+	readonly Subject: HclRange | null;
+	readonly Context: HclRange | null;
+	readonly Expression: unknown;
+	readonly EvalContext: HclEvalContext | null;
+	// empty interface{} type, falling back to unknown
+	readonly Extra: unknown;
+}
+
+// From hcl/diagnostic.go
+export type HclDiagnosticSeverity = number;
+
+// From hcl/eval_context.go
+export interface HclEvalContext {
+	// external type "github.com/zclconf/go-cty/cty.Value", to include this type the package must be explicitly included in the parsing
+	readonly Variables: Record<string, unknown>;
+	// external type "github.com/zclconf/go-cty/cty/function.Function", to include this type the package must be explicitly included in the parsing
+	readonly Functions: Record<string, unknown>;
+}
+
+// From hcl/pos.go
+export interface HclPos {
+	readonly Line: number;
+	readonly Column: number;
+	readonly Byte: number;
+}
+
+// From hcl/pos.go
+export interface HclRange {
+	readonly Filename: string;
+	readonly Start: HclPos;
+	readonly End: HclPos;
 }
 
 // From health/model.go

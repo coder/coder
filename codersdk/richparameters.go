@@ -119,7 +119,7 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		Error:       richParameter.ValidationError,
 		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
-	return validation.Valid(richParameter.Type, value)
+	return validation.Valid(provider.OptionType(richParameter.Type), value)
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {

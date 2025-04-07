@@ -43,6 +43,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -549,6 +550,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		FileCache:                   files.NewFromStore(options.Database),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -1088,6 +1090,7 @@ func New(options *Options) *API {
 			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
 			r.Get("/schema", templateVersionSchemaDeprecated)
 			r.Get("/parameters", templateVersionParametersDeprecated)
+			r.Get("/dynamic-parameters", api.templateVersionDynamicParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
@@ -1527,6 +1530,7 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	FileCache          files.Cache
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

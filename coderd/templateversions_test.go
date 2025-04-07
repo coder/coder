@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestTemplateVersion(t *testing.T) {
@@ -1207,7 +1208,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusTooEarly, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -2056,11 +2057,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some unused versions
 	for i := 0; i < 2; i++ {
-		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		expArchived = append(expArchived, unused.ID)
@@ -2069,11 +2066,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some used template versions
 	for i := 0; i < 2; i++ {
-		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
@@ -2139,4 +2132,188 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	})
 	require.NoError(t, err, "fetch all versions")
 	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed)+1, "remaining versions")
+}
+
+const dynamicParametersTerraformSource = `
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+    }
+  }
+}
+
+data coder_workspace_owner "me" {}
+
+output "groups" {
+  value = data.coder_workspace_owner.me.groups
+}
+
+data "coder_parameter" "group" {
+  name = "group"
+  default = try(data.coder_workspace_owner.me.groups[0], "")
+  dynamic "option" {
+    for_each = data.coder_workspace_owner.me.groups
+    content {
+      name  = option.value
+      value = option.value
+    }
+  }
+}
+`
+
+const dynamicParametersTerraformPlan = `
+{
+  "terraform_version": "1.11.2",
+  "format_version": "1.2",
+  "checks": [],
+  "complete": true,
+  "timestamp": "2025-04-02T01:29:59Z",
+  "variables": {},
+  "prior_state": {
+    "values": {
+      "root_module": {
+        "resources": [
+          {
+            "mode": "data",
+            "name": "me",
+            "type": "coder_workspace_owner",
+            "address": "data.coder_workspace_owner.me",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "id": "25e81ec3-0eb9-4ee3-8b6d-738b8552f7a9",
+              "name": "default",
+              "email": "default@example.com",
+              "groups": [],
+              "full_name": "default",
+              "login_type": null,
+              "rbac_roles": [],
+              "session_token": "",
+              "ssh_public_key": "",
+              "ssh_private_key": "",
+              "oidc_access_token": ""
+            },
+            "sensitive_values": {
+              "groups": [],
+              "rbac_roles": [],
+              "ssh_private_key": true
+            }
+          }
+        ],
+        "child_modules": []
+      }
+    },
+    "format_version": "1.0",
+    "terraform_version": "1.11.2"
+  },
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "mode": "data",
+          "name": "me",
+          "type": "coder_workspace_owner",
+          "address": "data.coder_workspace_owner.me",
+          "schema_version": 0,
+          "provider_config_key": "coder"
+        }
+      ],
+      "variables": {},
+      "module_calls": {}
+    },
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder"
+      }
+    }
+  },
+  "planned_values": {
+    "root_module": {
+      "resources": [],
+      "child_modules": []
+    }
+  },
+  "resource_changes": [],
+  "relevant_attributes": [
+    {
+      "resource": "data.coder_workspace_owner.me",
+      "attribute": ["full_name"]
+    },
+    {
+      "resource": "data.coder_workspace_owner.me",
+      "attribute": ["email"]
+    },
+    {
+      "resource": "data.coder_workspace_owner.me",
+      "attribute": ["id"]
+    },
+    {
+      "resource": "data.coder_workspace_owner.me",
+      "attribute": ["name"]
+    }
+  ]
+}
+`
+
+func TestTemplateVersionDynamicParameters(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	files := echo.WithExtraFiles(map[string][]byte{
+		"main.tf": []byte(dynamicParametersTerraformSource),
+	})
+	files.ProvisionPlan = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Plan: []byte(dynamicParametersTerraformPlan),
+			},
+		},
+	}}
+
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
+	require.NoError(t, err)
+	defer stream.Close(websocket.StatusGoingAway)
+
+	previews := stream.Chan()
+
+	// Should automatically send a form state with all defaulted/empty values
+	preview := testutil.RequireRecvCtx(ctx, t, previews)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
+
+	// Send a new value, and see it reflected
+	stream.Send(codersdk.DynamicParametersRequest{
+		ID:     1,
+		Inputs: map[string]string{"group": "Bloob"},
+	})
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 1, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Bloob", preview.Parameters[0].Value.Value.AsString())
+
+	// Back to default
+	stream.Send(codersdk.DynamicParametersRequest{
+		ID:     3,
+		Inputs: map[string]string{},
+	})
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 3, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
 }
