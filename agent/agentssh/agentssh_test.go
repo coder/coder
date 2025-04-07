@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -193,10 +192,10 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				}
 				// The 60 seconds here is intended to be longer than the
 				// test. The shutdown should propagate.
-				err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; sleep 60'")
+				err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; echo start\"ed\"; sleep 60'")
 				assert.NoError(t, err)
 
-				time.Sleep(100 * time.Millisecond) // Give the session time to start.
+				pty.ExpectMatchContext(ctx, "started")
 				close(ch)
 
 				err = sess.Wait()
