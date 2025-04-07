@@ -6391,12 +6391,11 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 
 const getPresetParametersByPresetID = `-- name: GetPresetParametersByPresetID :many
 SELECT
-	template_version_preset_parameters.id, template_version_preset_parameters.template_version_preset_id, template_version_preset_parameters.name, template_version_preset_parameters.value
+	tvpp.id, tvpp.template_version_preset_id, tvpp.name, tvpp.value
 FROM
-	template_version_preset_parameters
-	INNER JOIN template_version_presets ON template_version_preset_parameters.template_version_preset_id = template_version_presets.id
+	template_version_preset_parameters tvpp
 WHERE
-	template_version_presets.id = $1
+	tvpp.template_version_preset_id = $1
 `
 
 func (q *sqlQuerier) GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]TemplateVersionPresetParameter, error) {

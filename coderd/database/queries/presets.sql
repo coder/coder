@@ -51,12 +51,11 @@ WHERE
 
 -- name: GetPresetParametersByPresetID :many
 SELECT
-	template_version_preset_parameters.*
+	tvpp.*
 FROM
-	template_version_preset_parameters
-	INNER JOIN template_version_presets ON template_version_preset_parameters.template_version_preset_id = template_version_presets.id
+	template_version_preset_parameters tvpp
 WHERE
-	template_version_presets.id = @preset_id;
+	tvpp.template_version_preset_id = @preset_id;
 
 -- name: GetPresetByID :one
 SELECT tvp.*, tv.template_id, tv.organization_id FROM
