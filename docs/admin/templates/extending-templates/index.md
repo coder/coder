@@ -87,6 +87,53 @@ and can be hidden directly in the
 resource. You can arrange the display orientation of Coder apps in your template
 using [resource ordering](./resource-ordering.md).
 
+### Coder app examples
+
+<div class="tabs">
+
+You can use these examples to add new Coder apps:
+
+## code-server
+
+```hcl
+resource "coder_app" "code-server" {
+  agent_id     = coder_agent.main.id
+  slug         = "code-server"
+  display_name = "code-server"
+  url          = "http://localhost:13337/?folder=/home/${local.username}"
+  icon         = "/icon/code.svg"
+  subdomain    = false
+  share        = "owner"
+```
+
+## Filebrowser
+
+```hcl
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.main.id
+  display_name = "file browser"
+  slug         = "filebrowser"
+  url          = "http://localhost:13339"
+  icon         = "/icon/database.svg"
+  subdomain    = true
+  share        = "owner"
+```
+
+## Zed
+
+```hcl
+resource "coder_app" "zed" {
+    agent_id = coder_agent.main.id
+    slug          = "slug"
+    display_name  = "Zed"
+    external = true
+    url      = "zed://ssh/coder.${data.coder_workspace.me.name}"
+    icon     = "/icon/zed.svg"
+}
+```
+
+</div>
+
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.
 
