@@ -582,7 +582,7 @@ GEN_FILES := \
 	coderd/database/pubsub/psmock/psmock.go \
 	agent/agentcontainers/acmock/acmock.go \
 	agent/agentcontainers/dcspec/dcspec_gen.go \
-	coderd/httmpw/loggermock/loggermock.go
+	coderd/httpmw/loggermock/loggermock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -669,6 +669,10 @@ coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 
 agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	go generate ./agent/agentcontainers/acmock/
+	touch "$@"
+
+coderd/httpmw/loggermock/loggermock.go: coderd/httpmw/logger.go
+	go generate ./coderd/httpmw/loggermock/loggermock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
