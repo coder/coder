@@ -1030,7 +1030,7 @@ jobs:
           IMAGES_MODIFIED="${{ needs.verify-docs-changes.outputs.images_modified }}"
           
           # Create base preview section with word metrics
-          PREVIEW_SECTION="📖 [View documentation preview]($PREVIEW_URL) (+$WORDS_ADDED/-$WORDS_REMOVED words"
+          PREVIEW_SECTION="📖 [View documentation preview](${PREVIEW_URL}) (+$WORDS_ADDED/-$WORDS_REMOVED words"
           
           # Add image info if present
           if [[ "$IMAGES_TOTAL" != "0" ]]; then
@@ -1044,7 +1044,7 @@ jobs:
 
           # Add link to most changed file if available
           if [[ -n "$MOST_CHANGED" && -n "$FILE_PREVIEW_URL" ]]; then
-            PREVIEW_SECTION="$PREVIEW_SECTION | [View most changed file \`$MOST_CHANGED\`]($FILE_PREVIEW_URL)"
+            PREVIEW_SECTION="$PREVIEW_SECTION | [View most changed file \`$MOST_CHANGED\`](${FILE_PREVIEW_URL})"
           fi
 
           # Check if preview link already exists and update accordingly
@@ -1126,9 +1126,9 @@ jobs:
             COMMENT=$(cat <<EOF
 ### Documentation Preview 📖
 
-[View full documentation preview]($PREVIEW_URL)
+[View full documentation preview](${PREVIEW_URL})
 
-Most changed file: [View \`$MOST_CHANGED\`]($FILE_PREVIEW_URL) (+$MOST_CHANGED_ADDITIONS lines)
+Most changed file: [View \`$MOST_CHANGED\`](${FILE_PREVIEW_URL}) (+$MOST_CHANGED_ADDITIONS lines)
 EOF
 )
           else
@@ -1136,7 +1136,7 @@ EOF
             COMMENT=$(cat <<EOF
 ### Documentation Preview 📖
 
-[View documentation preview]($PREVIEW_URL)
+[View documentation preview](${PREVIEW_URL})
 EOF
 )
           fi
