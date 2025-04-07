@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -96,7 +95,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	sink := &fakeSink{}
 	logger := slog.Make(sink)
 	logger = logger.Leveled(slog.LevelDebug)
-	var wg sync.WaitGroup
+
 	// Create a test handler to simulate a WebSocket connection
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(rw, r, nil)
@@ -104,8 +103,9 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 			t.Errorf("failed to accept websocket: %v", err)
 			return
 		}
+		requestLgr := RequestLoggerFromContext(r.Context())
+		requestLgr.WriteLog(r.Context(), http.StatusSwitchingProtocols)
 		defer conn.Close(websocket.StatusNormalClosure, "")
-		defer wg.Done()
 
 		// Send a couple of messages for testing
 		_ = conn.Write(ctx, websocket.MessageText, []byte("ping"))
@@ -125,10 +125,8 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	// Create a test HTTP request
 	srv := httptest.NewServer(customHandler)
 	defer srv.Close()
-	wg.Add(1)
 	// nolint: bodyclose
 	conn, _, err := websocket.Dial(ctx, srv.URL, nil)
-	wg.Wait()
 	if err != nil {
 		t.Fatalf("failed to create WebSocket connection: %v", err)
 	}
