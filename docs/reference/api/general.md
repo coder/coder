@@ -515,6 +515,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
+    "workspace_hostname_suffix": "string",
     "write_config": true
   },
   "options": [
@@ -581,6 +582,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
 ```json
 {
   "hostname_prefix": "string",
+  "hostname_suffix": "string",
   "ssh_config_options": {
     "property1": "string",
     "property2": "string"

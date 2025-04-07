@@ -684,6 +684,7 @@ export interface DeploymentValues {
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
+	readonly workspace_hostname_suffix?: string;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -749,6 +750,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "auto-fill-parameters"
+	| "dynamic-parameters"
 	| "example"
 	| "notifications"
 	| "web-push"
@@ -2217,6 +2219,7 @@ export interface SSHConfig {
 // From codersdk/deployment.go
 export interface SSHConfigResponse {
 	readonly hostname_prefix: string;
+	readonly hostname_suffix: string;
 	readonly ssh_config_options: Record<string, string>;
 }
 
@@ -2654,6 +2657,15 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 	readonly include_archived: boolean;
 }
 
+// From codersdk/users.go
+export type TerminalFontName = "fira-code" | "ibm-plex-mono" | "";
+
+export const TerminalFontNames: TerminalFontName[] = [
+	"fira-code",
+	"ibm-plex-mono",
+	"",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -2787,6 +2799,7 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/notifications.go
@@ -2903,6 +2916,7 @@ export interface UserActivityInsightsResponse {
 // From codersdk/users.go
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/insights.go

@@ -63,8 +63,11 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	client, store := coderdtest.NewWithDatabase(t, nil)
 	client.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, client)
-	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+	userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+		r.Username = "myuser"
+	})
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		Name:           "myworkspace",
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(mutations...).Do()
@@ -97,6 +100,46 @@ func TestSSH(t *testing.T) {
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+	t.Run("WorkspaceNameInput", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []string{
+			"myworkspace",
+			"myuser/myworkspace",
+			"myuser--myworkspace",
+			"myuser/myworkspace--dev",
+			"myuser/myworkspace.dev",
+			"myuser--myworkspace--dev",
+			"myuser--myworkspace.dev",
+		}
+
+		for _, tc := range cases {
+			t.Run(tc, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+				inv, root := clitest.New(t, "ssh", tc)
+				clitest.SetupConfig(t, client, root)
+				pty := ptytest.New(t).Attach(inv)
+
+				cmdDone := tGo(t, func() {
+					err := inv.WithContext(ctx).Run()
+					assert.NoError(t, err)
+				})
+				pty.ExpectMatch("Waiting")
+
+				_ = agenttest.New(t, client.URL, agentToken)
+				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+				// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+				pty.WriteLine("exit")
+				<-cmdDone
+			})
+		}
 	})
 	t.Run("StartStoppedWorkspace", func(t *testing.T) {
 		t.Parallel()
@@ -479,6 +522,9 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
 		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		inv.Stdin = clientOutput
@@ -490,7 +536,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		keySeed, err := agent.WorkspaceKeySeed(workspace.ID, "dev")
+		keySeed, err := agent.SSHKeySeed(user.Username, workspace.Name, "dev")
 		assert.NoError(t, err)
 
 		signer, err := agentssh.CoderSigner(keySeed)

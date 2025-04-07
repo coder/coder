@@ -12019,6 +12019,9 @@ const docTemplate = `{
                 "wildcard_access_url": {
                     "type": "string"
                 },
+                "workspace_hostname_suffix": {
+                    "type": "string"
+                },
                 "write_config": {
                     "type": "boolean"
                 }
@@ -12097,10 +12100,12 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push"
+                "web-push",
+                "dynamic-parameters"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
@@ -12111,7 +12116,8 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush"
+                "ExperimentWebPush",
+                "ExperimentDynamicParameters"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -14748,6 +14754,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "hostname_prefix": {
+                    "description": "HostnamePrefix is the prefix we append to workspace names for SSH hostnames.\nDeprecated: use HostnameSuffix instead.",
+                    "type": "string"
+                },
+                "hostname_suffix": {
+                    "description": "HostnameSuffix is the suffix to append to workspace names for SSH hostnames.",
                     "type": "string"
                 },
                 "ssh_config_options": {
@@ -15592,6 +15603,19 @@ const docTemplate = `{
                 "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
+        "codersdk.TerminalFontName": {
+            "type": "string",
+            "enum": [
+                "",
+                "ibm-plex-mono",
+                "fira-code"
+            ],
+            "x-enum-varnames": [
+                "TerminalFontUnknown",
+                "TerminalFontIBMPlexMono",
+                "TerminalFontFiraCode"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -15765,9 +15789,13 @@ const docTemplate = `{
         "codersdk.UpdateUserAppearanceSettingsRequest": {
             "type": "object",
             "required": [
+                "terminal_font",
                 "theme_preference"
             ],
             "properties": {
+                "terminal_font": {
+                    "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
                 "theme_preference": {
                     "type": "string"
                 }
@@ -16059,6 +16087,9 @@ const docTemplate = `{
         "codersdk.UserAppearanceSettings": {
             "type": "object",
             "properties": {
+                "terminal_font": {
+                    "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
                 "theme_preference": {
                     "type": "string"
                 }

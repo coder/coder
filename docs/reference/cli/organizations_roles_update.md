@@ -1,12 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations roles edit
+# organizations roles update
 
-Edit an organization custom role
+Update an organization custom role
 
 ## Usage
 
 ```console
-coder organizations roles edit [flags] <role_name>
+coder organizations roles update [flags] <role_name>
 ```
 
 ## Description
@@ -14,7 +14,7 @@ coder organizations roles edit [flags] <role_name>
 ```console
   - Run with an input.json file:
 
-     $ coder roles edit --stdin < role.json
+     $ coder roles update --stdin < role.json
 ```
 
 ## Options

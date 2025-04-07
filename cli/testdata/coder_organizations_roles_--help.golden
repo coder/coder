@@ -8,8 +8,9 @@ USAGE:
   Aliases: role
 
 SUBCOMMANDS:
-    edit    Edit an organization custom role
-    show    Show role(s)
+    create    Create a new organization custom role
+    show      Show role(s)
+    update    Update an organization custom role
 
 ———
 Run `coder --help` for a list of global options.

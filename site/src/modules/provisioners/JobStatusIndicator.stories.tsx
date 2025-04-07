@@ -3,7 +3,7 @@ import { MockProvisionerJob } from "testHelpers/entities";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 
 const meta: Meta<typeof JobStatusIndicator> = {
-	title: "pages/OrganizationProvisionerJobsPage/JobStatusIndicator",
+	title: "modules/provisioners/JobStatusIndicator",
 	component: JobStatusIndicator,
 };
 
@@ -12,65 +12,43 @@ type Story = StoryObj<typeof JobStatusIndicator>;
 
 export const Succeeded: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "succeeded",
-		},
+		status: "succeeded",
 	},
 };
 
 export const Failed: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "failed",
-		},
+		status: "failed",
 	},
 };
 
 export const Pending: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "pending",
-			queue_position: 1,
-			queue_size: 1,
-		},
+		status: "pending",
+		queue: { size: 1, position: 1 },
 	},
 };
 
 export const Running: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "running",
-		},
+		status: "running",
 	},
 };
 
 export const Canceling: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "canceling",
-		},
+		status: "canceling",
 	},
 };
 
 export const Canceled: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "canceled",
-		},
+		status: "canceled",
 	},
 };
 
 export const Unknown: Story = {
 	args: {
-		job: {
-			...MockProvisionerJob,
-			status: "unknown",
-		},
+		status: "unknown",
 	},
 };

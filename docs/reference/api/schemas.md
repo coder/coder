@@ -2204,6 +2204,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
+    "workspace_hostname_suffix": "string",
     "write_config": true
   },
   "options": [
@@ -2680,6 +2681,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
   "wildcard_access_url": "string",
+  "workspace_hostname_suffix": "string",
   "write_config": true
 }
 ```
@@ -2748,6 +2750,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
 | `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
+| `workspace_hostname_suffix`          | string                                                                                               | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp
@@ -2845,6 +2848,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `notifications`        |
 | `workspace-usage`      |
 | `web-push`             |
+| `dynamic-parameters`   |
 
 ## codersdk.ExternalAuth
 
@@ -5744,6 +5748,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "hostname_prefix": "string",
+  "hostname_suffix": "string",
   "ssh_config_options": {
     "property1": "string",
     "property2": "string"
@@ -5753,11 +5758,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-|----------------------|--------|----------|--------------|-------------|
-| `hostname_prefix`    | string | false    |              |             |
-| `ssh_config_options` | object | false    |              |             |
-| » `[any property]`   | string | false    |              |             |
+| Name                 | Type   | Required | Restrictions | Description                                                                                                           |
+|----------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `hostname_prefix`    | string | false    |              | Hostname prefix is the prefix we append to workspace names for SSH hostnames. Deprecated: use HostnameSuffix instead. |
+| `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
+| `ssh_config_options` | object | false    |              |                                                                                                                       |
+| » `[any property]`   | string | false    |              |                                                                                                                       |
 
 ## codersdk.ServerSentEvent
 
@@ -6711,6 +6717,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|
 | `UNSUPPORTED_WORKSPACES` |
 
+## codersdk.TerminalFontName
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+|-----------------|
+| ``              |
+| `ibm-plex-mono` |
+| `fira-code`     |
+
 ## codersdk.TimingStage
 
 ```json
@@ -6908,15 +6930,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `theme_preference` | string | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
+| `theme_preference` | string                                                 | true     |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -7259,15 +7283,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `theme_preference` | string | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
+| `theme_preference` | string                                                 | false    |              |             |
 
 ## codersdk.UserLatency
 
