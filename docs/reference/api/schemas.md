@@ -629,9 +629,7 @@
 ```json
 {
   "action": "create",
-  "additional_fields": [
-    0
-  ],
+  "additional_fields": {},
   "description": "string",
   "diff": {
     "property1": {
@@ -695,7 +693,7 @@
 | Name                | Type                                                         | Required | Restrictions | Description                                  |
 |---------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------|
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)                 | false    |              |                                              |
-| `additional_fields` | array of integer                                             | false    |              |                                              |
+| `additional_fields` | object                                                       | false    |              |                                              |
 | `description`       | string                                                       | false    |              |                                              |
 | `diff`              | [codersdk.AuditDiff](#codersdkauditdiff)                     | false    |              |                                              |
 | `id`                | string                                                       | false    |              |                                              |
@@ -721,9 +719,7 @@
   "audit_logs": [
     {
       "action": "create",
-      "additional_fields": [
-        0
-      ],
+      "additional_fields": {},
       "description": "string",
       "diff": {
         "property1": {
