@@ -2,7 +2,6 @@ package agentssh
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"syscall"
 
@@ -15,7 +14,8 @@ func cmdSysProcAttr() *syscall.SysProcAttr {
 
 func cmdCancel(ctx context.Context, logger slog.Logger, cmd *exec.Cmd) func() error {
 	return func() error {
-		logger.Debug(ctx, "cmdCancel: sending interrupt to process", slog.F("pid", cmd.Process.Pid))
-		return cmd.Process.Signal(os.Interrupt)
+		logger.Debug(ctx, "cmdCancel: killing process", slog.F("pid", cmd.Process.Pid))
+		return cmd.Process.Kill()
+		// return cmd.Process.Signal(os.Interrupt)
 	}
 }
