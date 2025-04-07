@@ -368,6 +368,21 @@ module "filebrowser" {
 
 ![File Browser](../../../images/file-browser.png)
 
+## Zed
+
+Configure your agent and `coder_app` like to include a Zed hotlink:
+
+```hcl
+resource "coder_app" "zed" {
+    agent_id = coder_agent.main.id
+    slug          = "slug"
+    display_name  = "Zed"
+    external = true
+    url      = "zed://ssh/coder.${data.coder_workspace.me.name}"
+    icon     = "/icon/zed.svg"
+}
+```
+
 ## SSH Fallback
 
 If you prefer to run web IDEs in localhost, you can port forward using

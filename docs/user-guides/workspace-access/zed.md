@@ -62,19 +62,6 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    zed ssh://coder.workspace-name
    ```
 
-1. Connect via a coder_app workspace icon and SSH hotlink:
-
-   ```hcl
-   resource "coder_app" "zed" {
-     agent_id = coder_agent.main.id
-     slug          = "slug"
-     display_name  = "Zed"
-     external = true
-     url      = "zed://ssh/coder.${data.coder_workspace.me.name}"
-     icon     = "/icon/zed.svg"
-   }
-   ```
-
    Or use Zed's [Remote Development](https://zed.dev/docs/remote-development#setup) to connect to the workspace:
 
    ![Zed open remote project](../../images/zed/zed-ssh-open-remote.png)
