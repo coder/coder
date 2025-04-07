@@ -29,6 +29,15 @@ Specifies whether to emit SSH output over stdin/stdout.
 
 Strip this prefix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command.
 
+### --hostname-suffix
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_SSH_HOSTNAME_SUFFIX</code> |
+
+Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix should be specified WITHOUT a leading . character.
+
 ### -A, --forward-agent
 
 |             |                                       |
