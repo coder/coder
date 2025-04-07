@@ -581,7 +581,8 @@ GEN_FILES := \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go \
 	agent/agentcontainers/acmock/acmock.go \
-	agent/agentcontainers/dcspec/dcspec_gen.go
+	agent/agentcontainers/dcspec/dcspec_gen.go \
+	coderd/httmpw/loggermock/loggermock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -630,6 +631,7 @@ gen/mark-fresh:
 		coderd/database/pubsub/psmock/psmock.go \
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
+		coderd/httmpw/loggermock/loggermock.go \
 		"
 
 	for file in $$files; do
