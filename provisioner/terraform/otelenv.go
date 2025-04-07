@@ -43,23 +43,37 @@ func (c *envCarrier) Set(key, value string) {
 		if strings.HasPrefix(e, key+"=") {
 			// don't directly update the slice so we don't modify the slice
 			// passed in
-			newEnv := slices.Clone(c.Env)
-			newEnv = append(newEnv[:i], append([]string{fmt.Sprintf("%s=%s", key, value)}, newEnv[i+1:]...)...)
-			c.Env = newEnv
+			c.Env = slices.Clone(c.Env)
+			c.Env[i] = fmt.Sprintf("%s=%s", key, value)
 			return
 		}
 	}
 	c.Env = append(c.Env, fmt.Sprintf("%s=%s", key, value))
 }
 
-func (*envCarrier) Get(_ string) string {
-	// Get not necessary to inject environment variables
-	panic("Not implemented")
+func (c *envCarrier) Get(key string) string {
+	if c == nil {
+		return ""
+	}
+	key = toKey(key)
+	for _, e := range c.Env {
+		if strings.HasPrefix(e, key+"=") {
+			return strings.TrimPrefix(e, key+"=")
+		}
+	}
+	return ""
 }
 
-func (*envCarrier) Keys() []string {
-	// Keys not necessary to inject environment variables
-	panic("Not implemented")
+func (c *envCarrier) Keys() []string {
+	if c == nil {
+		return nil
+	}
+	keys := make([]string, len(c.Env))
+	for i, e := range c.Env {
+		k, _, _ := strings.Cut(e, "=")
+		keys[i] = k
+	}
+	return keys
 }
 
 // otelEnvInject will add add any necessary environment variables for the span

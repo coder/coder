@@ -1,4 +1,4 @@
-package terraform // nolint:testpackage
+package terraform
 
 import (
 	"context"
@@ -60,4 +60,26 @@ func TestOtelEnvInject(t *testing.T) {
 		"TRACEPARENT=00-60d19e9e9abf2197c1d6d8f93e28ee2a-a028bd951229a46f-01",
 		"TERM=xterm",
 	}, got)
+}
+
+func TestEnvCarrierSet(t *testing.T) {
+	t.Parallel()
+	c := &envCarrier{
+		Env: []string{"PATH=/usr/bin:/bin", "TERM=xterm"},
+	}
+	c.Set("PATH", "/usr/local/bin")
+	c.Set("NEWVAR", "newval")
+	require.Equal(t, []string{
+		"PATH=/usr/local/bin",
+		"TERM=xterm",
+		"NEWVAR=newval",
+	}, c.Env)
+}
+
+func TestEnvCarrierKeys(t *testing.T) {
+	t.Parallel()
+	c := &envCarrier{
+		Env: []string{"PATH=/usr/bin:/bin", "TERM=xterm"},
+	}
+	require.Equal(t, []string{"PATH", "TERM"}, c.Keys())
 }
