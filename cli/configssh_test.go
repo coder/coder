@@ -611,6 +611,18 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				regexMatch: "RemoteForward 2222 192.168.11.1:2222.*\n.*RemoteForward 2223 192.168.11.1:2223",
 			},
 		},
+		{
+			name: "Hostname Suffix",
+			args: []string{
+				"--yes",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* ssh .* --hostname-suffix testy %h`,
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
