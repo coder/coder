@@ -10,7 +10,12 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { visuallyHidden } from "@mui/utils";
-import type { Template, Workspace } from "api/typesGenerated";
+import type {
+	Template,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceApp,
+} from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
@@ -22,11 +27,12 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
@@ -55,13 +61,46 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 }) => {
 	const theme = useTheme();
 	const dashboard = useDashboard();
+	const workspaceIDToAppByStatus = useMemo(() => {
+		return (
+			workspaces?.reduce(
+				(acc, workspace) => {
+					if (!workspace.latest_app_status) {
+						return acc;
+					}
+					for (const resource of workspace.latest_build.resources) {
+						for (const agent of resource.agents ?? []) {
+							for (const app of agent.apps ?? []) {
+								if (app.id === workspace.latest_app_status.app_id) {
+									acc[workspace.id] = { app, agent };
+									break;
+								}
+							}
+						}
+					}
+					return acc;
+				},
+				{} as Record<
+					string,
+					{
+						app: WorkspaceApp;
+						agent: WorkspaceAgent;
+					}
+				>,
+			) || {}
+		);
+	}, [workspaces]);
+	const hasAppStatus = useMemo(
+		() => Object.keys(workspaceIDToAppByStatus).length > 0,
+		[workspaceIDToAppByStatus],
+	);
 
 	return (
 		<TableContainer>
 			<Table>
 				<TableHead>
 					<TableRow>
-						<TableCell width="40%">
+						<TableCell width={hasAppStatus ? "30%" : "40%"}>
 							<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
 								{canCheckWorkspaces && (
 									<Checkbox
@@ -94,6 +133,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								Name
 							</div>
 						</TableCell>
+						{hasAppStatus && <TableCell width="30%">Activity</TableCell>}
 						<TableCell width="25%">Template</TableCell>
 						<TableCell width="20%">Last used</TableCell>
 						<TableCell width="15%">Status</TableCell>
@@ -181,7 +221,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											}
 											subtitle={
 												<div>
-													<span css={{ ...visuallyHidden }}>User: </span>
+													<span css={{ ...visuallyHidden }}>Owner: </span>
 													{workspace.owner_name}
 												</div>
 											}
@@ -190,11 +230,23 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													variant="icon"
 													src={workspace.template_icon}
 													fallback={workspace.name}
+													size="lg"
 												/>
 											}
 										/>
 									</div>
 								</TableCell>
+
+								{hasAppStatus && (
+									<TableCell>
+										<WorkspaceAppStatus
+											workspace={workspace}
+											agent={workspaceIDToAppByStatus[workspace.id]?.agent}
+											app={workspaceIDToAppByStatus[workspace.id]?.app}
+											status={workspace.latest_app_status}
+										/>
+									</TableCell>
+								)}
 
 								<TableCell>
 									<div>{getDisplayWorkspaceTemplateName(workspace)}</div>

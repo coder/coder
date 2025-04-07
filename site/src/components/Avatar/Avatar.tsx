@@ -22,13 +22,13 @@ const avatarVariants = cva(
 	{
 		variants: {
 			size: {
-				lg: "h-[--avatar-lg] w-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				md: "h-[--avatar-default] w-[--avatar-default] text-2xs",
-				sm: "h-[--avatar-sm] w-[--avatar-sm] text-[8px]",
+				lg: "size-[--avatar-lg] rounded-[6px] text-sm font-medium",
+				md: "size-[--avatar-default] text-2xs",
+				sm: "size-[--avatar-sm] text-[8px]",
 			},
 			variant: {
 				default: null,
-				icon: null,
+				icon: "[&_svg]:size-full",
 			},
 		},
 		defaultVariants: {

@@ -19,12 +19,12 @@ Roles determine which actions users can take within the platform.
 |                                                                 | Auditor | User Admin | Template Admin | Owner |
 |-----------------------------------------------------------------|---------|------------|----------------|-------|
 | Add and remove Users                                            |         | ✅          |                | ✅     |
-| Manage groups (enterprise) (premium)                            |         | ✅          |                | ✅     |
+| Manage groups (premium)                                         |         | ✅          |                | ✅     |
 | Change User roles                                               |         |            |                | ✅     |
 | Manage **ALL** Templates                                        |         |            | ✅              | ✅     |
 | View **ALL** Workspaces                                         |         |            | ✅              | ✅     |
 | Update and delete **ALL** Workspaces                            |         |            |                | ✅     |
-| Run [external provisioners](../provisioners.md)                 |         |            | ✅              | ✅     |
+| Run [external provisioners](../provisioners/index.md)           |         |            | ✅              | ✅     |
 | Execute and use **ALL** Workspaces                              |         |            |                | ✅     |
 | View all user operation [Audit Logs](../security/audit-logs.md) | ✅       |            |                | ✅     |
 
@@ -80,7 +80,7 @@ Note that these permissions only apply to the scope of an
 A malicious Template Admin could write a template that executes commands on the
 host (or `coder server` container), which potentially escalates their privileges
 or shuts down the Coder server. To avoid this, run
-[external provisioners](../provisioners.md).
+[external provisioners](../provisioners/index.md).
 
 In low-trust environments, we do not recommend giving users direct access to
 edit templates. Instead, use

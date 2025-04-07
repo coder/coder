@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 
@@ -283,6 +284,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
+					rbac.ResourceWebpushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceDeploymentConfig.Type:    {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -359,6 +362,27 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectPrebuildsOrchestrator = rbac.Subject{
+		FriendlyName: "Prebuilds Orchestrator",
+		ID:           prebuilds.SystemUserID.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "prebuilds-orchestrator"},
+				DisplayName: "Coder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// May use template, read template-related info, & insert template-related resources (preset prebuilds).
+					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionUse, policy.ActionViewInsights},
+					// May CRUD workspaces, and start/stop them.
+					rbac.ResourceWorkspace.Type: {
+						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
+						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
+					},
+				}),
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -411,6 +435,12 @@ func AsSystemRestricted(ctx context.Context) context.Context {
 // to read provisioner daemons.
 func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectSystemReadProvisionerDaemons)
+}
+
+// AsPrebuildsOrchestrator returns a context with an actor that has permissions
+// to read orchestrator workspace prebuilds.
+func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectPrebuildsOrchestrator)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1107,6 +1137,31 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
+func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	empty := database.ClaimPrebuiltWorkspaceRow{}
+
+	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
+	if err != nil {
+		return empty, err
+	}
+
+	workspaceObject := rbac.ResourceWorkspace.WithOwner(arg.NewUserID.String()).InOrg(preset.OrganizationID)
+	err = q.authorizeContext(ctx, policy.ActionCreate, workspaceObject.RBACObject())
+	if err != nil {
+		return empty, err
+	}
+
+	tpl, err := q.GetTemplateByID(ctx, preset.TemplateID.UUID)
+	if err != nil {
+		return empty, xerrors.Errorf("verify template by id: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUse, tpl); err != nil {
+		return empty, xerrors.Errorf("use template for workspace: %w", err)
+	}
+
+	return q.db.ClaimPrebuiltWorkspace(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1126,6 +1181,13 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 		return err
 	}
 	return q.db.CleanTailnetTunnels(ctx)
+}
+
+func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.CountInProgressPrebuilds(ctx)
 }
 
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -1174,6 +1236,13 @@ func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.Dele
 		return err
 	}
 	return q.db.DeleteAllTailnetTunnels(ctx, arg)
+}
+
+func (q *querier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWebpushSubscription); err != nil {
+		return err
+	}
+	return q.db.DeleteAllWebpushSubscriptions(ctx)
 }
 
 func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -1379,6 +1448,20 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWebpushSubscription.WithOwner(arg.UserID.String())); err != nil {
+		return err
+	}
+	return q.db.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg)
+}
+
+func (q *querier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteWebpushSubscriptions(ctx, ids)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -1718,6 +1801,22 @@ func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File,
 	return file, nil
 }
 
+func (q *querier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	fileID, err := q.db.GetFileIDByTemplateVersionID(ctx, templateVersionID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	// This is a kind of weird check, because users will almost never have this
+	// permission. Since this query is not currently used to provide data in a
+	// user facing way, it's expected that this query is run as some system
+	// subject in order to be authorized.
+	err = q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.WithID(fileID))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return fileID, nil
+}
+
 func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -1815,6 +1914,13 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 		return database.CryptoKey{}, err
 	}
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
+}
+
+func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx, ids)
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -2050,6 +2156,30 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	// GetPrebuildMetrics returns metrics related to prebuilt workspaces,
+	// such as the number of created and failed prebuilt workspaces.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildMetrics(ctx)
+}
+
+func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+	empty := database.GetPresetByIDRow{}
+
+	preset, err := q.db.GetPresetByID(ctx, presetID)
+	if err != nil {
+		return empty, err
+	}
+	_, err = q.GetTemplateByID(ctx, preset.TemplateID.UUID)
+	if err != nil {
+		return empty, err
+	}
+
+	return preset, nil
+}
+
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return database.TemplateVersionPreset{}, err
@@ -2065,6 +2195,14 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, te
 	}
 
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+}
+
+func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
+	// GetPresetsBackoff returns a list of template version presets along with metadata such as the number of failed prebuilds.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsBackoff(ctx, lookback)
 }
 
 func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -2118,13 +2256,13 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 		// can read the job.
 		_, err := q.GetWorkspaceBuildByJobID(ctx, id)
 		if err != nil {
-			return database.ProvisionerJob{}, err
+			return database.ProvisionerJob{}, xerrors.Errorf("fetch related workspace build: %w", err)
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
 		// Authorized call to get template version.
 		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
 		if err != nil {
-			return database.ProvisionerJob{}, err
+			return database.ProvisionerJob{}, xerrors.Errorf("fetch related template version: %w", err)
 		}
 	default:
 		return database.ProvisionerJob{}, xerrors.Errorf("unknown job type: %q", job.Type)
@@ -2215,6 +2353,14 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 		return nil, err
 	}
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
+}
+
+func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
+	// This query returns only prebuilt workspaces, but we decided to require permissions for all workspaces.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetRunningPrebuiltWorkspaces(ctx)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
@@ -2341,6 +2487,15 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
+func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
+	// Presets and prebuilds are part of the template, so if you can access templates - you can access them as well.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)
+}
+
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -2421,6 +2576,18 @@ func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVers
 		return nil, err
 	}
 	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
+}
+
+func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	// The template_version_terraform_values table should follow the same access
+	// control as the template_version table. Rather than reimplement the checks,
+	// we just defer to existing implementation. (plus we'd need to use this query
+	// to reimplement the proper checks anyway)
+	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return database.TemplateVersionTerraformValue{}, err
+	}
+	return q.db.GetTemplateVersionTerraformValues(ctx, templateVersionID)
 }
 
 func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
@@ -2663,6 +2830,20 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
+func (q *querier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWebpushSubscription.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetWebpushSubscriptionsByUserID(ctx, userID)
+}
+
+func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetWebpushVAPIDKeysRow{}, err
+	}
+	return q.db.GetWebpushVAPIDKeys(ctx)
+}
+
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	// This is a system function
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
@@ -2815,6 +2996,13 @@ func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg datab
 	}
 
 	return q.db.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAppStatusesByAppIDs(ctx, ids)
 }
 
 func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -3420,6 +3608,13 @@ func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.
 	return q.db.InsertVolumeResourceMonitor(ctx, arg)
 }
 
+func (q *querier) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWebpushSubscription.WithOwner(arg.UserID.String())); err != nil {
+		return database.WebpushSubscription{}, err
+	}
+	return q.db.InsertWebpushSubscription(ctx, arg)
+}
+
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	tpl, err := q.GetTemplateByID(ctx, arg.TemplateID)
@@ -3501,6 +3696,13 @@ func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.Inse
 		return err
 	}
 	return q.db.InsertWorkspaceAppStats(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+	return q.db.InsertWorkspaceAppStatus(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
@@ -4668,6 +4870,13 @@ func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.UpsertTemplateUsageStats(ctx)
+}
+
+func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

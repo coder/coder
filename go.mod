@@ -161,7 +161,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.6.0
 	github.com/prometheus/client_golang v1.21.0
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.62.0
+	github.com/prometheus/common v0.63.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.25.2
@@ -471,9 +471,16 @@ require (
 
 require github.com/coder/clistat v1.0.0
 
+require github.com/SherClockHolmes/webpush-go v1.4.0
+
 require (
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/go-json-experiment/json v0.0.0-20250211171154-1ae217ad3535 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 )
+
+require github.com/mark3labs/mcp-go v0.17.0
+
+require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect

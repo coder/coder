@@ -6,7 +6,11 @@ import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -80,10 +84,14 @@ export const GroupsPage: FC = () => {
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Groups"
-					description={`Manage groups for this ${showOrganizations ? "organization" : "deployment"}.`}
-				/>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Manage groups for this{" "}
+						{showOrganizations ? "organization" : "deployment"}.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
 				{groupsEnabled && permissions.createGroup && (
 					<Button asChild>
 						<RouterLink to="create">

@@ -33,6 +33,8 @@ type PermissionDefinition struct {
 	// should represent. The key in the actions map is the verb to use
 	// in the rbac policy.
 	Actions map[Action]ActionDefinition
+	// Comment is additional text to include in the generated object comment.
+	Comment string
 }
 
 type ActionDefinition struct {
@@ -203,6 +205,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update system resources"),
 			ActionDelete: actDef("delete system resources"),
 		},
+		Comment: `
+	// DEPRECATED: New resources should be created for new things, rather than adding them to System, which has become
+	//             an unmanaged collection of things that don't relate to one another. We can't effectively enforce
+	//             least privilege access control when unrelated resources are grouped together.`,
 	},
 	"api_key": {
 		Actions: map[Action]ActionDefinition{
@@ -278,6 +284,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   actDef("read notification preferences"),
 			ActionUpdate: actDef("update notification preferences"),
+		},
+	},
+	"webpush_subscription": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create webpush subscriptions"),
+			ActionRead:   actDef("read webpush subscriptions"),
+			ActionDelete: actDef("delete webpush subscriptions"),
 		},
 	},
 	"inbox_notification": {

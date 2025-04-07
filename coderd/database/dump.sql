@@ -293,6 +293,12 @@ CREATE TYPE workspace_app_open_in AS ENUM (
     'slim-window'
 );
 
+CREATE TYPE workspace_app_status_state AS ENUM (
+    'working',
+    'complete',
+    'failure'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -1395,7 +1401,9 @@ CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desired_instances integer,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -1613,6 +1621,15 @@ CREATE TABLE user_status_changes (
 );
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
+
+CREATE TABLE webpush_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    endpoint text NOT NULL,
+    endpoint_p256dh_key text NOT NULL,
+    endpoint_auth_key text NOT NULL
+);
 
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,
@@ -1887,6 +1904,19 @@ CREATE SEQUENCE workspace_app_stats_id_seq
 
 ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
+CREATE TABLE workspace_app_statuses (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    agent_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    state workspace_app_status_state NOT NULL,
+    needs_user_attention boolean NOT NULL,
+    message text NOT NULL,
+    uri text,
+    icon text
+);
+
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1963,6 +1993,19 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE VIEW workspace_latest_builds AS
+ SELECT DISTINCT ON (wb.workspace_id) wb.id,
+    wb.workspace_id,
+    wb.template_version_id,
+    wb.job_id,
+    wb.template_version_preset_id,
+    wb.transition,
+    wb.created_at,
+    pj.job_status
+   FROM (workspace_builds wb
+     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
+  ORDER BY wb.workspace_id, wb.build_number DESC;
+
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
     job_id uuid NOT NULL,
@@ -1972,6 +2015,92 @@ CREATE TABLE workspace_modules (
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
 );
+
+CREATE VIEW workspace_prebuild_builds AS
+ SELECT workspace_builds.id,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.transition,
+    workspace_builds.job_id,
+    workspace_builds.template_version_preset_id,
+    workspace_builds.build_number
+   FROM workspace_builds
+  WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
+CREATE TABLE workspace_resources (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    type character varying(192) NOT NULL,
+    name character varying(64) NOT NULL,
+    hide boolean DEFAULT false NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    instance_type character varying(256),
+    daily_cost integer DEFAULT 0 NOT NULL,
+    module_path text
+);
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+CREATE VIEW workspace_prebuilds AS
+ WITH all_prebuilds AS (
+         SELECT w.id,
+            w.name,
+            w.template_id,
+            w.created_at
+           FROM workspaces w
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), workspaces_with_latest_presets AS (
+         SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.workspace_id,
+            workspace_builds.template_version_preset_id
+           FROM workspace_builds
+          WHERE (workspace_builds.template_version_preset_id IS NOT NULL)
+          ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC
+        ), workspaces_with_agents_status AS (
+         SELECT w.id AS workspace_id,
+            bool_and((wa.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)) AS ready
+           FROM (((workspaces w
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
+             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+          GROUP BY w.id
+        ), current_presets AS (
+         SELECT w.id AS prebuild_id,
+            wlp.template_version_preset_id
+           FROM (workspaces w
+             JOIN workspaces_with_latest_presets wlp ON ((wlp.workspace_id = w.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        )
+ SELECT p.id,
+    p.name,
+    p.template_id,
+    p.created_at,
+    COALESCE(a.ready, false) AS ready,
+    cp.template_version_preset_id AS current_preset_id
+   FROM ((all_prebuilds p
+     LEFT JOIN workspaces_with_agents_status a ON ((a.workspace_id = p.id)))
+     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -2028,41 +2157,6 @@ CREATE SEQUENCE workspace_resource_metadata_id_seq
     CACHE 1;
 
 ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
-
-CREATE TABLE workspace_resources (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    job_id uuid NOT NULL,
-    transition workspace_transition NOT NULL,
-    type character varying(192) NOT NULL,
-    name character varying(64) NOT NULL,
-    hide boolean DEFAULT false NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL,
-    instance_type character varying(256),
-    daily_cost integer DEFAULT 0 NOT NULL,
-    module_path text
-);
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
@@ -2305,6 +2399,9 @@ ALTER TABLE ONLY user_status_changes
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY webpush_subscriptions
+    ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
 
@@ -2346,6 +2443,9 @@ ALTER TABLE ONLY workspace_app_stats
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
@@ -2431,6 +2531,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -2438,6 +2540,8 @@ CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btr
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
+
+CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
@@ -2745,6 +2849,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
+ALTER TABLE ONLY webpush_subscriptions
+    ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
@@ -2786,6 +2893,15 @@ ALTER TABLE ONLY workspace_app_stats
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_app_id_fkey FOREIGN KEY (app_id) REFERENCES workspace_apps(id);
+
+ALTER TABLE ONLY workspace_app_statuses
+    ADD CONSTRAINT workspace_app_statuses_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

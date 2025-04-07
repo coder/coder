@@ -40,6 +40,7 @@ import {
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
@@ -87,9 +88,14 @@ const TemplateHelpTooltip: FC = () => {
 interface TemplateRowProps {
 	showOrganizations: boolean;
 	template: Template;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
-const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
+const TemplateRow: FC<TemplateRowProps> = ({
+	showOrganizations,
+	template,
+	workspacePermissions,
+}) => {
 	const getLink = useLinks();
 	const templatePageLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
@@ -113,6 +119,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 					subtitle={template.description}
 					avatar={
 						<Avatar
+							size="lg"
 							variant="icon"
 							src={template.icon}
 							fallback={template.display_name || template.name}
@@ -152,7 +159,8 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 			<TableCell css={styles.actionCell}>
 				{template.deprecated ? (
 					<DeprecatedBadge />
-				) : (
+				) : workspacePermissions?.[template.organization_id]
+						?.createWorkspaceForUserID ? (
 					<MuiButton
 						size="small"
 						css={styles.actionButton}
@@ -166,7 +174,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 					>
 						Create Workspace
 					</MuiButton>
-				)}
+				) : null}
 			</TableCell>
 		</TableRow>
 	);
@@ -179,6 +187,7 @@ export interface TemplatesPageViewProps {
 	canCreateTemplates: boolean;
 	examples: TemplateExample[] | undefined;
 	templates: Template[] | undefined;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
@@ -188,6 +197,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	canCreateTemplates,
 	examples,
 	templates,
+	workspacePermissions,
 }) => {
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
@@ -249,6 +259,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 									key={template.id}
 									showOrganizations={showOrganizations}
 									template={template}
+									workspacePermissions={workspacePermissions}
 								/>
 							))
 						)}
