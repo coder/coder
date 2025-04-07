@@ -52,6 +52,9 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	logger := slog.Make(sink)
 	logger = logger.Leveled(slog.LevelDebug)
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
 	// Create a test handler to simulate an HTTP request
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
@@ -63,7 +66,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	wrappedHandler := loggerMiddleware(testHandler)
 
 	// Create a test HTTP request
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test-path", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/test-path", nil)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -76,6 +79,24 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	require.Len(t, sink.entries, 1, "log was written twice")
 
 	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
+
+	fieldsMap := make(map[string]interface{})
+	for _, field := range sink.entries[0].Fields {
+		fieldsMap[field.Name] = field.Value
+	}
+
+	// Check that the log contains the expected fields
+	requiredFields := []string{"host", "path", "proto", "remote_addr", "start", "took", "status_code", "latency_ms"}
+	for _, field := range requiredFields {
+		_, exists := fieldsMap[field]
+		require.True(t, exists, "field %q is missing in log fields", field)
+	}
+
+	require.Len(t, sink.entries[0].Fields, len(requiredFields), "log should contain only the required fields")
+
+	// Check value of the status code
+	require.Equal(t, fieldsMap["status_code"], http.StatusOK, "status_code should be 200")
+
 }
 
 func TestLoggerMiddleware_WebSocket(t *testing.T) {
