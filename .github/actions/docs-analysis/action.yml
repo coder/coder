@@ -146,14 +146,14 @@ runs:
           echo "::warning::Documentation path '${{ inputs.docs-path }}' does not exist - some functions may not work correctly"
         fi
        
-        # Validate branch references for command injection prevention
-        if [[ "${{ inputs.pr-ref }}" =~ [;&|$"'`] ]]; then
-          echo "::error::Invalid characters in pr-ref"
+        # Validate branch references with strict whitelist approach for better security
+        if [[ ! "${{ inputs.pr-ref }}" =~ ^[a-zA-Z0-9_\-\.\/]+$ ]]; then
+          echo "::error::Invalid characters in pr-ref - only alphanumeric, underscore, hyphen, dot, and forward slash are allowed"
           exit 1
         fi
         
-        if [[ "${{ inputs.base-ref }}" =~ [;&|$"'`] ]]; then
-          echo "::error::Invalid characters in base-ref"
+        if [[ ! "${{ inputs.base-ref }}" =~ ^[a-zA-Z0-9_\-\.\/]+$ ]]; then
+          echo "::error::Invalid characters in base-ref - only alphanumeric, underscore, hyphen, dot, and forward slash are allowed"
           exit 1
         fi
         
@@ -224,6 +224,8 @@ runs:
       id: verify
       shell: bash
       run: |
+        # Add error tracing for better debugging and recovery
+        trap 'echo "::error::Error occurred in verify docs changes at line $LINENO"' ERR
         # Helper functions for better error handling and path sanitization
         function handle_error() {
           echo "::error::$1"
@@ -231,18 +233,28 @@ runs:
           exit 1
         }
         
+        # More secure path sanitization with validation
         function sanitize_path() {
-          echo "$1" | sed 's/[;&|"`$]/\\&/g'
+          local path="$1"
+          
+          # Check for path traversal attempts or absolute paths if needed
+          if [[ "$path" == *".."* || "$path" == "/"* ]]; then
+            echo "::error::Invalid path containing directory traversal patterns or absolute reference"
+            return 1
+          fi
+          
+          # Sanitize the path - escape special characters
+          echo "$path" | sed 's/[;&|"`$]/\\&/g'
         }
         
         # Retry function for git operations to handle potential rate limiting
+        # Uses direct command execution instead of eval for better security
         function git_with_retry() {
           local max_retries=3
-          local cmd="$@"
           local retry_count=0
           
           while [[ $retry_count -lt $max_retries ]]; do
-            if eval "$cmd"; then
+            if "$@"; then  # Direct execution instead of eval
               return 0
             fi
             
@@ -251,7 +263,7 @@ runs:
             sleep $((retry_count * 2))
           done
           
-          echo "::warning::Git operation failed after $max_retries retries: $cmd"
+          echo "::warning::Git operation failed after $max_retries retries"
           return 1
         }
 
@@ -503,9 +515,22 @@ runs:
           set -x
         fi
         
+        # Add error tracing for better debugging and recovery
+        trap 'echo "::error::Error occurred in document structure analysis at line $LINENO"' ERR
+        
         # Helper functions
+        # More secure path sanitization with validation
         function sanitize_path() {
-          echo "$1" | sed 's/[;&|"`$]/\\&/g'
+          local path="$1"
+          
+          # Check for path traversal attempts or absolute paths if needed
+          if [[ "$path" == *".."* || "$path" == "/"* ]]; then
+            echo "::error::Invalid path containing directory traversal patterns or absolute reference"
+            return 1
+          fi
+          
+          # Sanitize the path - escape special characters
+          echo "$path" | sed 's/[;&|"`$]/\\&/g'
         }
         
         function json_escape() {
@@ -656,9 +681,22 @@ print(json.dumps(doc_structure))
       if: steps.verify.outputs.docs_changed == 'true'
       shell: bash
       run: |
+        # Add error tracing for better debugging and recovery
+        trap 'echo "::error::Error occurred in finding changed files at line $LINENO"' ERR
+        
         # Helper functions
+        # More secure path sanitization with validation
         function sanitize_path() {
-          echo "$1" | sed 's/[;&|"`$]/\\&/g'
+          local path="$1"
+          
+          # Check for path traversal attempts or absolute paths if needed
+          if [[ "$path" == *".."* || "$path" == "/"* ]]; then
+            echo "::error::Invalid path containing directory traversal patterns or absolute reference"
+            return 1
+          fi
+          
+          # Sanitize the path - escape special characters
+          echo "$path" | sed 's/[;&|"`$]/\\&/g'
         }
         
         # Enable debug output if requested
@@ -815,4 +853,22 @@ print(json.dumps(doc_structure))
         START_TIME="${{ steps.timing.outputs.start_time }}"
         DURATION=$((END_TIME - START_TIME))
         echo "duration=$DURATION" >> $GITHUB_OUTPUT
-        echo "Docs analysis completed in ${DURATION}s"
+        
+        # Output for CI monitoring systems
+        if [[ $DURATION -gt 30 ]]; then
+          echo "::warning::Docs analysis took ${DURATION}s to complete - consider optimizing"
+        else
+          echo "::notice::Docs analysis completed in ${DURATION}s"
+        fi
+        
+        # Create execution metrics JSON for potential monitoring integration
+        mkdir -p .github/temp
+        cat > .github/temp/docs-analysis-metrics.json << EOF
+        {
+          "execution_time": $DURATION,
+          "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "repository": "${{ github.repository }}",
+          "workflow": "${{ github.workflow }}",
+          "action": "docs-analysis"
+        }
+        EOF
