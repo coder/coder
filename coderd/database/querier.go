@@ -237,6 +237,7 @@ type sqlcQuerier interface {
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
+	GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]TemplateVersionPresetParameter, error)
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
 	// GetPresetsBackoff groups workspace builds by preset ID.
 	// Each preset is associated with exactly one template version ID.

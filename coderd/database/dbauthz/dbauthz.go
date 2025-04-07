@@ -2187,14 +2187,24 @@ func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID u
 	return q.db.GetPresetByWorkspaceBuildID(ctx, workspaceID)
 }
 
-func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+func (q *querier) GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
 	// An actor can read template version presets if they can read the related template version.
-	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	_, err := q.GetPresetByID(ctx, presetID)
 	if err != nil {
 		return nil, err
 	}
 
-	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+	return q.db.GetPresetParametersByPresetID(ctx, presetID)
+}
+
+func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, args uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	// An actor can read template version presets if they can read the related template version.
+	_, err := q.GetTemplateVersionByID(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetPresetParametersByTemplateVersionID(ctx, args)
 }
 
 func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {

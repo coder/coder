@@ -6389,6 +6389,43 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 	return i, err
 }
 
+const getPresetParametersByPresetID = `-- name: GetPresetParametersByPresetID :many
+SELECT
+	tvpp.id, tvpp.template_version_preset_id, tvpp.name, tvpp.value
+FROM
+	template_version_preset_parameters tvpp
+WHERE
+	tvpp.template_version_preset_id = $1
+`
+
+func (q *sqlQuerier) GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]TemplateVersionPresetParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetParametersByPresetID, presetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionPresetParameter
+	for rows.Next() {
+		var i TemplateVersionPresetParameter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateVersionPresetID,
+			&i.Name,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPresetParametersByTemplateVersionID = `-- name: GetPresetParametersByTemplateVersionID :many
 SELECT
 	template_version_preset_parameters.id, template_version_preset_parameters.template_version_preset_id, template_version_preset_parameters.name, template_version_preset_parameters.value
