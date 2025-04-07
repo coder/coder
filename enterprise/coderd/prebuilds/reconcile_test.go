@@ -436,19 +436,20 @@ func TestFailedBuildBackoff(t *testing.T) {
 		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
 	}
 
-	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
-	state, err := reconciler.SnapshotState(ctx, db)
+	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed snapshot.
+	snapshot, err := reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	require.Len(t, state.Presets, 1)
-	presetState, err := state.FilterByPreset(preset.ID)
+	require.Len(t, snapshot.Presets, 1)
+	presetState, err := snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	actions, err := reconciler.DetermineActions(ctx, *presetState)
+	state := presetState.CalculateState()
+	actions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
 
 	// Then: the backoff time is in the future, no prebuilds are running, and we won't create any new prebuilds.
-	require.EqualValues(t, 0, actions.Actual)
+	require.EqualValues(t, 0, state.Actual)
 	require.EqualValues(t, 0, actions.Create)
-	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, desiredInstances, state.Desired)
 	require.True(t, clock.Now().Before(actions.BackoffUntil))
 
 	// Then: the backoff time is as expected based on the number of failed builds.
@@ -460,29 +461,31 @@ func TestFailedBuildBackoff(t *testing.T) {
 	clock.Advance(clock.Until(clock.Now().Add(cfg.ReconciliationInterval.Value())))
 
 	// Then: the backoff interval will not have changed.
-	state, err = reconciler.SnapshotState(ctx, db)
+	snapshot, err = reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	presetState, err = state.FilterByPreset(preset.ID)
+	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	newActions, err := reconciler.DetermineActions(ctx, *presetState)
+	newState := presetState.CalculateState()
+	newActions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, newActions.Actual)
+	require.EqualValues(t, 0, newState.Actual)
 	require.EqualValues(t, 0, newActions.Create)
-	require.EqualValues(t, desiredInstances, newActions.Desired)
+	require.EqualValues(t, desiredInstances, newState.Desired)
 	require.EqualValues(t, actions.BackoffUntil, newActions.BackoffUntil)
 
 	// When: advancing beyond the backoff time.
 	clock.Advance(clock.Until(actions.BackoffUntil.Add(time.Second)))
 
 	// Then: we will attempt to create a new prebuild.
-	state, err = reconciler.SnapshotState(ctx, db)
+	snapshot, err = reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	presetState, err = state.FilterByPreset(preset.ID)
+	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	actions, err = reconciler.DetermineActions(ctx, *presetState)
+	state = presetState.CalculateState()
+	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, actions.Actual)
-	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, 0, state.Actual)
+	require.EqualValues(t, desiredInstances, state.Desired)
 	require.EqualValues(t, desiredInstances, actions.Create)
 
 	// When: the desired number of new prebuild are provisioned, but one fails again.
@@ -495,14 +498,15 @@ func TestFailedBuildBackoff(t *testing.T) {
 	}
 
 	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
-	state, err = reconciler.SnapshotState(ctx, db)
+	snapshot, err = reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	presetState, err = state.FilterByPreset(preset.ID)
+	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	actions, err = reconciler.DetermineActions(ctx, *presetState)
+	state = presetState.CalculateState()
+	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, actions.Actual)
-	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, 1, state.Actual)
+	require.EqualValues(t, desiredInstances, state.Desired)
 	require.EqualValues(t, 0, actions.Create)
 	require.EqualValues(t, 3, presetState.Backoff.NumFailed)
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))

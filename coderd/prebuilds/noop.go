@@ -14,15 +14,15 @@ func NewNoopReconciler() *NoopReconciler {
 
 func (NoopReconciler) RunLoop(context.Context)     {}
 func (NoopReconciler) Stop(context.Context, error) {}
-func (NoopReconciler) SnapshotState(context.Context, database.Store) (*ReconciliationState, error) {
-	return &ReconciliationState{}, nil
+func (NoopReconciler) SnapshotState(context.Context, database.Store) (*GlobalSnapshot, error) {
+	return &GlobalSnapshot{}, nil
 }
 
-func (NoopReconciler) DetermineActions(context.Context, PresetState) (*ReconciliationActions, error) {
+func (NoopReconciler) CalculateActions(context.Context, PresetSnapshot) (*ReconciliationActions, error) {
 	return &ReconciliationActions{}, nil
 }
 
-func (NoopReconciler) Reconcile(context.Context, PresetState, ReconciliationActions) error {
+func (NoopReconciler) ReconcilePreset(context.Context, PresetSnapshot) error {
 	return nil
 }
 

@@ -1,52 +1,171 @@
 package prebuilds
 
 import (
-	"math"
 	"slices"
 	"time"
 
 	"github.com/coder/quartz"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.Duration) (*ReconciliationActions, error) {
+// CalculateState computes the current state of prebuilds for a preset, including:
+// - Actual: Number of currently running prebuilds
+// - Desired: Number of prebuilds desired as defined in the preset
+// - Eligible: Number of prebuilds that are ready to be claimed
+// - Extraneous: Number of extra running prebuilds beyond the desired count
+// - Starting/Stopping/Deleting: Counts of prebuilds in various transition states
+//
+// The function takes into account whether the preset is active (using the active template version)
+// and calculates appropriate counts based on the current state of running prebuilds and
+// in-progress transitions. This state information is used to determine what reconciliation
+// actions are needed to reach the desired state.
+func (p PresetSnapshot) CalculateState() *ReconciliationState {
+	var (
+		actual     int32
+		desired    int32
+		eligible   int32
+		extraneous int32
+	)
+
+	if p.isActive() {
+		actual = int32(len(p.Running))
+		desired = p.Preset.DesiredInstances.Int32
+		eligible = p.countEligible()
+		extraneous = max(actual-desired, 0)
+	}
+
+	starting, stopping, deleting := p.countInProgress()
+
+	return &ReconciliationState{
+		Actual:     actual,
+		Desired:    desired,
+		Eligible:   eligible,
+		Extraneous: extraneous,
+
+		Starting: starting,
+		Stopping: stopping,
+		Deleting: deleting,
+	}
+}
+
+// CalculateActions determines what actions are needed to reconcile the current state with the desired state.
+// The function:
+// 1. First checks if a backoff period is needed (if previous builds failed)
+// 2. If the preset is inactive (template version is not active), it will delete all running prebuilds
+// 3. For active presets, it calculates the number of prebuilds to create or delete based on:
+//   - The desired number of instances
+//   - Currently running prebuilds
+//   - Prebuilds in transition states (starting/stopping/deleting)
+//   - Any extraneous prebuilds that need to be removed
+//
+// The function returns a ReconciliationActions struct that will have exactly one action type set:
+// - ActionTypeBackoff: Only BackoffUntil is set, indicating when to retry
+// - ActionTypeCreate: Only Create is set, indicating how many prebuilds to create
+// - ActionTypeDelete: Only DeleteIDs is set, containing IDs of prebuilds to delete
+func (p PresetSnapshot) CalculateActions(clock quartz.Clock, backoffInterval time.Duration) (*ReconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
 	// TODO: add mechanism to prevent prebuilds being reconciled from being claimable by users; i.e. if a prebuild is
 	// 		 about to be deleted, it should not be deleted if it has been claimed - beware of TOCTOU races!
 
-	var (
-		actual                       int32 // Running prebuilds for active version.
-		desired                      int32 // Active template version's desired instances as defined in preset.
-		eligible                     int32 // Prebuilds which can be claimed.
-		outdated                     int32 // Prebuilds which no longer match the active template version.
-		extraneous                   int32 // Extra running prebuilds for active version (somehow).
-		starting, stopping, deleting int32 // Prebuilds currently being provisioned up or down.
-	)
-
-	if p.Preset.UsingActiveVersion {
-		actual = int32(len(p.Running))
-		desired = p.Preset.DesiredInstances.Int32
+	actions, needsBackoff := p.needsBackoffPeriod(clock, backoffInterval)
+	if needsBackoff {
+		return actions, nil
 	}
 
+	if !p.isActive() {
+		return p.handleInactiveTemplateVersion()
+	}
+
+	return p.handleActiveTemplateVersion()
+}
+
+// isActive returns true if the preset's template version is the active version for its template.
+// This determines whether we should maintain prebuilds for this preset or delete them.
+func (p PresetSnapshot) isActive() bool {
+	return p.Preset.UsingActiveVersion && !p.Preset.Deleted && !p.Preset.Deprecated
+}
+
+// handleActiveTemplateVersion deletes excess prebuilds if there are too many,
+// otherwise creates new ones to reach the desired count.
+func (p PresetSnapshot) handleActiveTemplateVersion() (*ReconciliationActions, error) {
+	state := p.CalculateState()
+
+	// If we have more prebuilds than desired, delete the oldest ones
+	if state.Extraneous > 0 {
+		return &ReconciliationActions{
+			ActionType: ActionTypeDelete,
+			DeleteIDs:  p.getOldestPrebuildIDs(int(state.Extraneous)),
+		}, nil
+	}
+
+	// Calculate how many new prebuilds we need to create
+	// We subtract starting prebuilds since they're already being created
+	prebuildsToCreate := max(state.Desired-state.Actual-state.Starting, 0)
+
+	return &ReconciliationActions{
+		ActionType: ActionTypeCreate,
+		Create:     prebuildsToCreate,
+	}, nil
+}
+
+// handleInactiveTemplateVersion deletes all running prebuilds except those already being deleted
+// to avoid duplicate deletion attempts.
+func (p PresetSnapshot) handleInactiveTemplateVersion() (*ReconciliationActions, error) {
+	state := p.CalculateState()
+
+	// TODO(yevhenii): is it correct behavior? What if we choose prebuild IDs that are already being deleted?
+	prebuildsToDelete := max(len(p.Running)-int(state.Deleting), 0)
+	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
+
+	return &ReconciliationActions{
+		ActionType: ActionTypeDelete,
+		DeleteIDs:  deleteIDs,
+	}, nil
+}
+
+// needsBackoffPeriod checks if we should delay prebuild creation due to recent failures.
+// If there were failures, it calculates a backoff period based on the number of failures
+// and returns true if we're still within that period.
+func (p PresetSnapshot) needsBackoffPeriod(clock quartz.Clock, backoffInterval time.Duration) (*ReconciliationActions, bool) {
+	if p.Backoff == nil || p.Backoff.NumFailed == 0 {
+		return nil, false
+	}
+	backoffUntil := p.Backoff.LastBuildAt.Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
+	if clock.Now().After(backoffUntil) {
+		return nil, false
+	}
+
+	return &ReconciliationActions{
+		ActionType:   ActionTypeBackoff,
+		BackoffUntil: backoffUntil,
+	}, true
+}
+
+// countEligible returns the number of prebuilds that are ready to be claimed.
+// A prebuild is eligible if it's running and its agents are in ready state.
+func (p PresetSnapshot) countEligible() int32 {
+	var count int32
 	for _, prebuild := range p.Running {
-		if p.Preset.UsingActiveVersion {
-			if prebuild.Ready {
-				eligible++
-			}
-
-			extraneous = int32(math.Max(float64(actual-p.Preset.DesiredInstances.Int32), 0))
-		}
-
-		if prebuild.TemplateVersionID == p.Preset.TemplateVersionID && !p.Preset.UsingActiveVersion {
-			outdated++
+		if prebuild.Ready {
+			count++
 		}
 	}
+	return count
+}
 
-	// In-progress builds are common across all presets belonging to a given template.
-	// In other words: these values will be identical across all presets belonging to this template.
+// countInProgress returns counts of prebuilds in transition states (starting, stopping, deleting).
+// These counts are tracked at the template level, so all presets sharing the same template see the same values.
+func (p PresetSnapshot) countInProgress() (int32, int32, int32) {
+	var starting, stopping, deleting int32
+
+	// In-progress builds are tracked at the template level, not per preset.
+	// This means all presets sharing the same template will see the same counts
+	// for starting, stopping, and deleting prebuilds.
+	// TODO(yevhenii): is it correct behavior?
 	for _, progress := range p.InProgress {
 		num := progress.Count
 		switch progress.Transition {
@@ -59,109 +178,23 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 		}
 	}
 
-	var (
-		toCreate = int(math.Max(0, float64(
-			desired-(actual+starting)), // The number of prebuilds currently being stopped (should be 0)
-		))
-		toDelete = int(math.Max(0, float64(
-			outdated- // The number of prebuilds running above the desired count for active version
-				deleting), // The number of prebuilds currently being deleted
-		))
+	return starting, stopping, deleting
+}
 
-		actions = &ReconciliationActions{
-			Actual:     actual,
-			Desired:    desired,
-			Eligible:   eligible,
-			Outdated:   outdated,
-			Extraneous: extraneous,
-			Starting:   starting,
-			Stopping:   stopping,
-			Deleting:   deleting,
-		}
-	)
+// getOldestPrebuildIDs returns the IDs of the N oldest prebuilds, sorted by creation time.
+// This is used when we need to delete prebuilds, ensuring we remove the oldest ones first.
+func (p PresetSnapshot) getOldestPrebuildIDs(n int) []uuid.UUID {
+	// Sort by creation time, oldest first
+	slices.SortFunc(p.Running, func(a, b database.GetRunningPrebuiltWorkspacesRow) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
 
-	// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
-	// scale those prebuilds down to zero.
-	if p.Preset.Deleted || p.Preset.Deprecated {
-		toCreate = 0
-		toDelete = int(actual + outdated)
-		actions.Desired = 0
+	// Take the first N IDs
+	n = min(n, len(p.Running))
+	ids := make([]uuid.UUID, n)
+	for i := 0; i < n; i++ {
+		ids[i] = p.Running[i].ID
 	}
 
-	// We backoff when the last build failed, to give the operator some time to investigate the issue and to not provision
-	// a tonne of prebuilds (_n_ on each reconciliation iteration).
-	if p.Backoff != nil && p.Backoff.NumFailed > 0 {
-		actions.Failed = p.Backoff.NumFailed
-
-		backoffUntil := p.Backoff.LastBuildAt.Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
-
-		if clock.Now().Before(backoffUntil) {
-			actions.Create = 0
-			actions.DeleteIDs = nil
-			actions.BackoffUntil = backoffUntil
-
-			// Return early here; we should not perform any reconciliation actions if we're in a backoff period.
-			return actions, nil
-		}
-	}
-
-	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
-	// we check if there are somehow more prebuilds than we expect, and then pick random victims to be deleted.
-	if extraneous > 0 {
-		// Sort running IDs by creation time so we always delete the oldest prebuilds.
-		// In general, we want fresher prebuilds (imagine a mono-repo is cloned; newer is better).
-		slices.SortFunc(p.Running, func(a, b database.GetRunningPrebuiltWorkspacesRow) int {
-			if a.CreatedAt.Before(b.CreatedAt) {
-				return -1
-			}
-			if a.CreatedAt.After(b.CreatedAt) {
-				return 1
-			}
-
-			return 0
-		})
-
-		for i := 0; i < int(extraneous); i++ {
-			if i >= len(p.Running) {
-				// This should never happen.
-				// TODO: move up
-				// c.logger.Warn(ctx, "unexpected reconciliation state; extraneous count exceeds running prebuilds count!",
-				//	slog.F("running_count", len(p.Running)),
-				//	slog.F("extraneous", extraneous))
-				continue
-			}
-
-			actions.DeleteIDs = append(actions.DeleteIDs, p.Running[i].ID)
-		}
-
-		// TODO: move up
-		// c.logger.Warn(ctx, "found extra prebuilds running, picking random victim(s)",
-		//	slog.F("template_id", p.Preset.TemplateID.String()), slog.F("desired", desired), slog.F("actual", actual), slog.F("extra", extraneous),
-		//	slog.F("victims", victims))
-
-		// Prevent the rest of the reconciliation from completing
-		return actions, nil
-	}
-
-	actions.Create = int32(toCreate)
-
-	// if toDelete > 0 && len(p.Running) != toDelete {
-	// TODO: move up
-	// c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
-	//	slog.F("template_id", s.preset.TemplateID.String()), slog.F("running", len(p.Running)), slog.F("to_delete", toDelete))
-	// }
-
-	// TODO: implement lookup to not perform same action on workspace multiple times in $period
-	// 		 i.e. a workspace cannot be deleted for some reason, which continually makes it eligible for deletion
-	for i := 0; i < toDelete; i++ {
-		if i >= len(p.Running) {
-			// TODO: move up
-			// Above warning will have already addressed this.
-			continue
-		}
-
-		actions.DeleteIDs = append(actions.DeleteIDs, p.Running[i].ID)
-	}
-
-	return actions, nil
+	return ids
 }

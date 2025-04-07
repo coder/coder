@@ -10,43 +10,79 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-// ReconciliationState represents a full point-in-time snapshot of state relating to prebuilds across all templates.
-type ReconciliationState struct {
+// ActionType represents the type of action needed to reconcile prebuilds.
+type ActionType int
+
+const (
+	// ActionTypeCreate indicates that new prebuilds should be created.
+	ActionTypeCreate ActionType = iota
+
+	// ActionTypeDelete indicates that existing prebuilds should be deleted.
+	ActionTypeDelete
+
+	// ActionTypeBackoff indicates that prebuild creation should be delayed.
+	ActionTypeBackoff
+)
+
+// GlobalSnapshot represents a full point-in-time snapshot of state relating to prebuilds across all templates.
+type GlobalSnapshot struct {
 	Presets             []database.GetTemplatePresetsWithPrebuildsRow
 	RunningPrebuilds    []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress []database.CountInProgressPrebuildsRow
 	Backoffs            []database.GetPresetsBackoffRow
 }
 
-// PresetState is a subset of ReconciliationState but specifically for a single preset.
-type PresetState struct {
+// PresetSnapshot is a filtered view of GlobalSnapshot focused on a single preset.
+// It contains the raw data needed to calculate the current state of a preset's prebuilds,
+// including running prebuilds, in-progress builds, and backoff information.
+type PresetSnapshot struct {
 	Preset     database.GetTemplatePresetsWithPrebuildsRow
 	Running    []database.GetRunningPrebuiltWorkspacesRow
 	InProgress []database.CountInProgressPrebuildsRow
 	Backoff    *database.GetPresetsBackoffRow
 }
 
-// ReconciliationActions represents the set of actions which must be taken to achieve the desired state for prebuilds.
+// ReconciliationState represents the processed state of a preset's prebuilds,
+// calculated from a PresetSnapshot. While PresetSnapshot contains raw data,
+// ReconciliationState contains derived metrics that are directly used to
+// determine what actions are needed (create, delete, or backoff).
+// For example, it calculates how many prebuilds are eligible, how many are
+// extraneous, and how many are in various transition states.
+type ReconciliationState struct {
+	Actual     int32 // Number of currently running prebuilds
+	Desired    int32 // Number of prebuilds desired as defined in the preset
+	Eligible   int32 // Number of prebuilds that are ready to be claimed
+	Extraneous int32 // Number of extra running prebuilds beyond the desired count
+
+	// Counts of prebuilds in various transition states
+	Starting int32
+	Stopping int32
+	Deleting int32
+}
+
+// ReconciliationActions represents a single action needed to reconcile the current state with the desired state.
+// Exactly one field will be set based on the ActionType.
 type ReconciliationActions struct {
-	Actual                       int32       // Running prebuilds for active version.
-	Desired                      int32       // Active template version's desired instances as defined in preset.
-	Eligible                     int32       // Prebuilds which can be claimed.
-	Outdated                     int32       // Prebuilds which no longer match the active template version.
-	Extraneous                   int32       // Extra running prebuilds for active version (somehow).
-	Starting, Stopping, Deleting int32       // Prebuilds currently being provisioned up or down.
-	Failed                       int32       // Number of prebuilds which have failed in the past CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD.
-	Create                       int32       // The number of prebuilds required to be created to reconcile required state.
-	DeleteIDs                    []uuid.UUID // IDs of running prebuilds required to be deleted to reconcile required state.
-	BackoffUntil                 time.Time   // The time to wait until before trying to provision a new prebuild.
+	// ActionType determines which field is set and what action should be taken
+	ActionType ActionType
+
+	// Create is set when ActionType is ActionTypeCreate and indicates the number of prebuilds to create
+	Create int32
+
+	// DeleteIDs is set when ActionType is ActionTypeDelete and contains the IDs of prebuilds to delete
+	DeleteIDs []uuid.UUID
+
+	// BackoffUntil is set when ActionType is ActionTypeBackoff and indicates when to retry creating prebuilds
+	BackoffUntil time.Time
 }
 
-func NewReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
+func NewGlobalSnapshot(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow, backoffs []database.GetPresetsBackoffRow,
-) ReconciliationState {
-	return ReconciliationState{Presets: presets, RunningPrebuilds: runningPrebuilds, PrebuildsInProgress: prebuildsInProgress, Backoffs: backoffs}
+) GlobalSnapshot {
+	return GlobalSnapshot{Presets: presets, RunningPrebuilds: runningPrebuilds, PrebuildsInProgress: prebuildsInProgress, Backoffs: backoffs}
 }
 
-func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, error) {
+func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, error) {
 	preset, found := slice.Find(s.Presets, func(preset database.GetTemplatePresetsWithPrebuildsRow) bool {
 		return preset.ID == presetID
 	})
@@ -79,7 +115,7 @@ func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, e
 		backoff = &backoffs[0]
 	}
 
-	return &PresetState{
+	return &PresetSnapshot{
 		Preset:     preset,
 		Running:    running,
 		InProgress: inProgress,

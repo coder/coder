@@ -73,13 +73,15 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	state := prebuilds.NewReconciliationState(presets, nil, nil, nil)
-	ps, err := state.FilterByPreset(current.presetID)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil)
+	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
+	validateState(t, prebuilds.ReconciliationState{ /*all zero values*/ }, *state)
 	validateActions(t, prebuilds.ReconciliationActions{ /*all zero values*/ }, *actions)
 }
 
@@ -93,16 +95,19 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	state := prebuilds.NewReconciliationState(presets, nil, nil, nil)
-	ps, err := state.FilterByPreset(current.presetID)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil)
+	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
-	validateActions(t, prebuilds.ReconciliationActions{
+	validateState(t, prebuilds.ReconciliationState{
 		Desired: 1,
-		Create:  1,
+	}, *state)
+	validateActions(t, prebuilds.ReconciliationActions{
+		Create: 1,
 	}, *actions)
 }
 
@@ -129,23 +134,27 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.FilterByPreset(outdated.presetID)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, prebuilds.ReconciliationActions{Outdated: 1, DeleteIDs: []uuid.UUID{outdated.prebuildID}}, *actions)
+	validateState(t, prebuilds.ReconciliationState{}, *state)
+	validateActions(t, prebuilds.ReconciliationActions{DeleteIDs: []uuid.UUID{outdated.prebuildID}}, *actions)
 
 	// WHEN: calculating the current preset's state.
-	ps, err = state.FilterByPreset(current.presetID)
+	ps, err = snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
+	state = ps.CalculateState()
 	actions, err = ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Create: 1}, *actions)
+	validateState(t, prebuilds.ReconciliationState{Desired: 1}, *state)
+	validateActions(t, prebuilds.ReconciliationActions{Create: 1}, *actions)
 }
 
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
@@ -161,7 +170,7 @@ func TestInProgressActions(t *testing.T) {
 		desired    int32
 		running    int32
 		inProgress int32
-		checkFn    func(actions prebuilds.ReconciliationActions) bool
+		checkFn    func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool
 	}{
 		// With no running prebuilds and one starting, no creations/deletions should take place.
 		{
@@ -170,8 +179,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Starting: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Desired: 1, Starting: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{}, actions)
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur since we're approaching the correct state.
@@ -181,8 +191,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    1,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 2, Starting: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Starting: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{}, actions)
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur
@@ -193,8 +204,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 2, Starting: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Starting: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{}, actions)
 			},
 		},
 		// With one prebuild desired and one stopping, a new prebuild will be created.
@@ -204,8 +216,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Stopping: 1, Create: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Desired: 1, Stopping: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{Create: 1}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 2 running, and 1 stopping, a new prebuild will be created.
@@ -215,8 +228,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 3, Stopping: 1, Create: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 3, Stopping: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{Create: 1}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 3 running, and 1 stopping, no creations/deletions should occur since the desired state is already achieved.
@@ -226,8 +240,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    3,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 3, Desired: 3, Stopping: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 3, Desired: 3, Stopping: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{}, actions)
 			},
 		},
 		// With one prebuild desired and one deleting, a new prebuild will be created.
@@ -237,8 +252,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Deleting: 1, Create: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Desired: 1, Deleting: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{Create: 1}, actions)
 			},
 		},
 		// With 2 prebuilds desired, 1 running, and 1 deleting, a new prebuild will be created.
@@ -248,8 +264,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    1,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 2, Deleting: 1, Create: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Deleting: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{Create: 1}, actions)
 			},
 		},
 		// With 2 prebuilds desired, 2 running, and 1 deleting, no creations/deletions should occur since the desired state is already achieved.
@@ -259,8 +276,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 2, Deleting: 1}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Deleting: 1}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 1 running, and 2 starting, no creations should occur since the builds are in progress.
@@ -270,8 +288,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    1,
 			inProgress: 2,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 3, Starting: 2, Create: 0}, actions))
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				return validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 3, Starting: 2}, state) &&
+					validateActions(t, prebuilds.ReconciliationActions{Create: 0}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 5 running, and 2 deleting, no deletions should occur since the builds are in progress.
@@ -281,18 +300,18 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    5,
 			inProgress: 2,
-			checkFn: func(actions prebuilds.ReconciliationActions) bool {
-				expected := prebuilds.ReconciliationActions{Actual: 5, Desired: 3, Deleting: 2, Extraneous: 2}
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+				expectedState := prebuilds.ReconciliationState{Actual: 5, Desired: 3, Deleting: 2, Extraneous: 2}
+				expectedActions := prebuilds.ReconciliationActions{}
 				return assert.Len(t, actions.DeleteIDs, 2, "'deleteIDs' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Create, actions.Create, "'create' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Desired, actions.Desired, "'desired' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Actual, actions.Actual, "'actual' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Eligible, actions.Eligible, "'eligible' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Extraneous, actions.Extraneous, "'extraneous' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Outdated, actions.Outdated, "'outdated' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Starting, actions.Starting, "'starting' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Stopping, actions.Stopping, "'stopping' did not match expectation") &&
-					assert.EqualValuesf(t, expected.Deleting, actions.Deleting, "'deleting' did not match expectation")
+					assert.EqualValuesf(t, expectedActions.Create, actions.Create, "'create' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Desired, state.Desired, "'desired' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Actual, state.Actual, "'actual' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Eligible, state.Eligible, "'eligible' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Extraneous, state.Extraneous, "'extraneous' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Starting, state.Starting, "'starting' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Stopping, state.Stopping, "'stopping' did not match expectation") &&
+					assert.EqualValuesf(t, expectedState.Deleting, state.Deleting, "'deleting' did not match expectation")
 			},
 		},
 	}
@@ -334,14 +353,15 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
-			ps, err := state.FilterByPreset(current.presetID)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is in progress.
+			state := ps.CalculateState()
 			actions, err := ps.CalculateActions(clock, backoffInterval)
 			require.NoError(t, err)
-			require.True(t, tc.checkFn(*actions))
+			require.True(t, tc.checkFn(*state, *actions))
 		})
 	}
 }
@@ -376,15 +396,19 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.FilterByPreset(current.presetID)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
+	validateState(t, prebuilds.ReconciliationState{
+		Actual: 2, Desired: 1, Extraneous: 1, Eligible: 2,
+	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
-		Actual: 2, Desired: 1, Extraneous: 1, DeleteIDs: []uuid.UUID{older}, Eligible: 2,
+		DeleteIDs: []uuid.UUID{older},
 	}, *actions)
 }
 
@@ -411,15 +435,17 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.FilterByPreset(current.presetID)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
+	validateState(t, prebuilds.ReconciliationState{}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
-		Actual: 1, DeleteIDs: []uuid.UUID{current.prebuildID}, Eligible: 1,
+		DeleteIDs: []uuid.UUID{current.prebuildID},
 	}, *actions)
 }
 
@@ -457,39 +483,51 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	state := prebuilds.NewReconciliationState(presets, running, inProgress, backoffs)
-	psCurrent, err := state.FilterByPreset(current.presetID)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, backoffs)
+	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: reconciliation should backoff.
+	state := psCurrent.CalculateState()
 	actions, err := psCurrent.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
+	validateState(t, prebuilds.ReconciliationState{
+		Actual: 0, Desired: 1,
+	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
-		Actual: 0, Desired: 1, BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+		BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
 
 	// WHEN: calculating the other preset's state.
-	psOther, err := state.FilterByPreset(other.presetID)
+	psOther, err := snapshot.FilterByPreset(other.presetID)
 	require.NoError(t, err)
 
 	// THEN: it should NOT be in backoff because all is OK.
+	state = psOther.CalculateState()
 	actions, err = psOther.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
+	validateState(t, prebuilds.ReconciliationState{
+		Actual: 1, Desired: 1, Eligible: 1,
+	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
-		Actual: 1, Desired: 1, Eligible: 1, BackoffUntil: time.Time{},
+		BackoffUntil: time.Time{},
 	}, *actions)
 
 	// WHEN: the clock is advanced a backoff interval.
 	clock.Advance(backoffInterval + time.Microsecond)
 
 	// THEN: a new prebuild should be created.
-	psCurrent, err = state.FilterByPreset(current.presetID)
+	psCurrent, err = snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
+	state = psCurrent.CalculateState()
 	actions, err = psCurrent.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
+	validateState(t, prebuilds.ReconciliationState{
+		Actual: 0, Desired: 1,
+	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
-		Create: 1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
-		Actual: 0, Desired: 1, BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+		Create:       1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
+		BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
 }
 
@@ -531,17 +569,19 @@ func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRun
 	return entry
 }
 
+func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState) bool {
+	return assert.EqualValuesf(t, expected.Desired, actual.Desired, "'desired' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Actual, actual.Actual, "'actual' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Eligible, actual.Eligible, "'eligible' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Extraneous, actual.Extraneous, "'extraneous' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Starting, actual.Starting, "'starting' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Stopping, actual.Stopping, "'stopping' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Deleting, actual.Deleting, "'deleting' did not match expectation")
+}
+
 // validateActions is a convenience func to make tests more readable; it exploits the fact that the default states for
 // prebuilds align with zero values.
 func validateActions(t *testing.T, expected, actual prebuilds.ReconciliationActions) bool {
 	return assert.EqualValuesf(t, expected.DeleteIDs, actual.DeleteIDs, "'deleteIDs' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Create, actual.Create, "'create' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Desired, actual.Desired, "'desired' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Actual, actual.Actual, "'actual' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Eligible, actual.Eligible, "'eligible' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Extraneous, actual.Extraneous, "'extraneous' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Outdated, actual.Outdated, "'outdated' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Starting, actual.Starting, "'starting' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Stopping, actual.Stopping, "'stopping' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Deleting, actual.Deleting, "'deleting' did not match expectation")
+		assert.EqualValuesf(t, expected.Create, actual.Create, "'create' did not match expectation")
 }

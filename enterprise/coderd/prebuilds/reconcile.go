@@ -145,21 +145,21 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	logger.Debug(ctx, "starting reconciliation")
 
 	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, db database.Store) error {
-		state, err := c.SnapshotState(ctx, db)
+		snapshot, err := c.SnapshotState(ctx, db)
 		if err != nil {
-			return xerrors.Errorf("determine current state: %w", err)
+			return xerrors.Errorf("determine current snapshot: %w", err)
 		}
-		if len(state.Presets) == 0 {
+		if len(snapshot.Presets) == 0 {
 			logger.Debug(ctx, "no templates found with prebuilds configured")
 			return nil
 		}
 
 		// TODO: bounded concurrency? probably not but consider
 		var eg errgroup.Group
-		for _, preset := range state.Presets {
-			ps, err := state.FilterByPreset(preset.ID)
+		for _, preset := range snapshot.Presets {
+			ps, err := snapshot.FilterByPreset(preset.ID)
 			if err != nil {
-				logger.Warn(ctx, "failed to find preset state", slog.Error(err), slog.F("preset_id", preset.ID.String()))
+				logger.Warn(ctx, "failed to find preset snapshot", slog.Error(err), slog.F("preset_id", preset.ID.String()))
 				continue
 			}
 
@@ -172,14 +172,8 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			}
 
 			eg.Go(func() error {
-				actions, err := c.DetermineActions(ctx, *ps)
-				if err != nil {
-					logger.Error(ctx, "failed to determine actions for preset", slog.Error(err), slog.F("preset_id", preset.ID))
-					return nil
-				}
-
 				// Pass outer context.
-				err = c.Reconcile(ctx, *ps, *actions)
+				err = c.ReconcilePreset(ctx, *ps)
 				if err != nil {
 					logger.Error(ctx, "failed to reconcile prebuilds for preset", slog.Error(err), slog.F("preset_id", preset.ID))
 				}
@@ -228,12 +222,12 @@ func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slo
 
 // SnapshotState determines the current state of prebuilds & the presets which define them.
 // An application-level lock is used
-func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Store) (*prebuilds.ReconciliationState, error) {
+func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Store) (*prebuilds.GlobalSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	var state prebuilds.ReconciliationState
+	var state prebuilds.GlobalSnapshot
 
 	err := store.InTx(func(db database.Store) error {
 		start := c.clock.Now()
@@ -268,7 +262,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
 
-		state = prebuilds.NewReconciliationState(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
+		state = prebuilds.NewGlobalSnapshot(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
@@ -279,83 +273,91 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 	return &state, err
 }
 
-func (c *StoreReconciler) DetermineActions(ctx context.Context, state prebuilds.PresetState) (*prebuilds.ReconciliationActions, error) {
+func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) (*prebuilds.ReconciliationActions, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
-	return state.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
+	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
 }
 
-func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetState, actions prebuilds.ReconciliationActions) error {
-	logger := c.logger.With(slog.F("template_id", ps.Preset.TemplateID.String()), slog.F("template_name", ps.Preset.TemplateName))
+func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.PresetSnapshot) error {
+	logger := c.logger.With(
+		slog.F("template_id", ps.Preset.TemplateID.String()),
+		slog.F("template_name", ps.Preset.TemplateName),
+		slog.F("template_version_id", ps.Preset.TemplateVersionID),
+		slog.F("template_version_name", ps.Preset.TemplateVersionName),
+		slog.F("preset_id", ps.Preset.ID),
+		slog.F("preset_name", ps.Preset.Name),
+	)
 
-	var lastErr multierror.Error
-	vlogger := logger.With(slog.F("template_version_id", ps.Preset.TemplateVersionID), slog.F("template_version_name", ps.Preset.TemplateVersionName),
-		slog.F("preset_id", ps.Preset.ID), slog.F("preset_name", ps.Preset.Name))
+	actions, err := c.CalculateActions(ctx, ps)
+	if err != nil {
+		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err), slog.F("preset_id", ps.Preset.ID))
+		return nil
+	}
 
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
-	levelFn := vlogger.Debug
-	if actions.Create > 0 || len(actions.DeleteIDs) > 0 {
-		// Only log with info level when there's a change that needs to be effected.
-		levelFn = vlogger.Info
-	} else if c.clock.Now().Before(actions.BackoffUntil) {
-		levelFn = vlogger.Warn
+	levelFn := logger.Debug
+	switch actions.ActionType {
+	case prebuilds.ActionTypeBackoff:
+		levelFn = logger.Warn
+	case prebuilds.ActionTypeCreate, prebuilds.ActionTypeDelete:
+		// Log at info level when there's a change to be effected.
+		levelFn = logger.Info
 	}
 
 	fields := []any{
-		slog.F("create_count", actions.Create), slog.F("delete_count", len(actions.DeleteIDs)),
+		slog.F("action_type", actions.ActionType),
+		slog.F("create_count", actions.Create),
+		slog.F("delete_count", len(actions.DeleteIDs)),
 		slog.F("to_delete", actions.DeleteIDs),
-		slog.F("desired", actions.Desired), slog.F("actual", actions.Actual),
-		slog.F("outdated", actions.Outdated), slog.F("extraneous", actions.Extraneous),
-		slog.F("starting", actions.Starting), slog.F("stopping", actions.Stopping),
-		slog.F("deleting", actions.Deleting), slog.F("eligible", actions.Eligible),
 	}
+	levelFn(ctx, "reconciliation actions for preset are calculated", fields...)
 
 	// TODO: add quartz
+	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
 
-	// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
-	if actions.BackoffUntil.After(c.clock.Now()) {
+	switch actions.ActionType {
+	case prebuilds.ActionTypeBackoff:
+		// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
 		levelFn(ctx, "template prebuild state retrieved, backing off",
 			append(fields,
-				slog.F("failed", actions.Failed),
 				slog.F("backoff_until", actions.BackoffUntil.Format(time.RFC3339)),
 				slog.F("backoff_secs", math.Round(actions.BackoffUntil.Sub(c.clock.Now()).Seconds())),
 			)...)
 
 		// return ErrBackoff
 		return nil
-	}
 
-	levelFn(ctx, "template prebuild state retrieved", fields...)
+	case prebuilds.ActionTypeCreate:
+		var multiErr multierror.Error
 
-	// Shit happens (i.e. bugs or bitflips); let's defend against disastrous outcomes.
-	// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
-	// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-	if actions.Create > actions.Desired {
-		vlogger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
-			slog.F("create_count", actions.Create), slog.F("desired_count", actions.Desired))
-
-		actions.Create = actions.Desired
-	}
-
-	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
-	for range actions.Create {
-		if err := c.createPrebuild(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
-			vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
-			lastErr.Errors = append(lastErr.Errors, err)
+		for range actions.Create {
+			if err := c.createPrebuild(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
+				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
+				multiErr.Errors = append(multiErr.Errors, err)
+			}
 		}
-	}
 
-	for _, id := range actions.DeleteIDs {
-		if err := c.deletePrebuild(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
-			vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
-			lastErr.Errors = append(lastErr.Errors, err)
+		return multiErr.ErrorOrNil()
+
+	case prebuilds.ActionTypeDelete:
+		var multiErr multierror.Error
+
+		for _, id := range actions.DeleteIDs {
+			if err := c.deletePrebuild(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
+				logger.Error(ctx, "failed to delete prebuild", slog.Error(err))
+				multiErr.Errors = append(multiErr.Errors, err)
+			}
 		}
-	}
 
-	return lastErr.ErrorOrNil()
+		return multiErr.ErrorOrNil()
+
+	default:
+		return xerrors.Errorf("unknown action type: %s", actions.ActionType)
+	}
 }
 
 func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
