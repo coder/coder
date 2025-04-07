@@ -1907,8 +1907,7 @@ func TestGetUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "bob@email.com",
@@ -1918,67 +1917,52 @@ func TestGetUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Test filtering by role
 		res, err := client.Users(ctx, codersdk.UsersRequest{
 			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone},
 		})
-		require.NoError(t, err, "should not error when filtering by role")
-		require.Len(t, res.Users, 1, "should find one user with the member role")
-		require.Equal(t, res.Users[0].Username, "bob", "should return the correct user with member role")
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeNone)
 	})
 
 	t.Run("LoginTypeMultipleFilter", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		filtered := make([]codersdk.User, 0)
 
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		bob, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "bob@email.com",
 			Username:        "bob",
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			UserLoginType:   codersdk.LoginTypeNone,
 		})
 		require.NoError(t, err)
+		filtered = append(filtered, bob)
 
-		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		charlie, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "charlie@email.com",
 			Username:        "charlie",
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			UserLoginType:   codersdk.LoginTypeGithub,
 		})
 		require.NoError(t, err)
+		filtered = append(filtered, charlie)
 
-		// Test filtering by role
 		res, err := client.Users(ctx, codersdk.UsersRequest{
-			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone, codersdk.LoginTypeGithub}, // Ensure we're filtering by login type
+			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone, codersdk.LoginTypeGithub},
 		})
-		require.NoError(t, err, "should not error when filtering by role")
-		require.Len(t, res.Users, 2, "should find two users with the specified login types")
-		usernames := make(map[string]bool)
-		for _, user := range res.Users {
-			usernames[user.Username] = true
-		}
-		require.True(t, usernames["bob"], "should return the correct user with login type none")
-		require.True(t, usernames["charlie"], "should return the correct user with login type github")
-		// Ensure that the user with login type none is indeed in the result
-		for _, user := range res.Users {
-			if user.Username == "bob" {
-				require.Equal(t, user.LoginType, codersdk.LoginTypeNone, "bob should have login type none")
-			}
-			if user.Username == "charlie" {
-				require.Equal(t, user.LoginType, codersdk.LoginTypeGithub, "charlie should have login type github")
-			}
-		}
+		require.NoError(t, err)
+		require.Len(t, res.Users, 2)
+		require.ElementsMatch(t, filtered, res.Users)
 	})
 
 	t.Run("DormantUserWithLoginTypeNone", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "bob@email.com",
@@ -1989,18 +1973,17 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.UpdateUserStatus(ctx, "bob", codersdk.UserStatusSuspended)
-		require.NoError(t, err, "should set bob's status to dormant")
+		require.NoError(t, err)
 
-		// Test filtering by role
 		res, err := client.Users(ctx, codersdk.UsersRequest{
 			Status:    codersdk.UserStatusSuspended,
 			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone, codersdk.LoginTypeGithub},
 		})
-		require.NoError(t, err, "should not error when filtering by role")
-		require.Len(t, res.Users, 1, "should find one dormant user with the specified login type")
-		require.Equal(t, res.Users[0].Username, "bob", "should return the correct dormant user with login type none")
-		require.Equal(t, res.Users[0].Status, codersdk.UserStatusSuspended, "bob should be in dormant status")
-		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeNone, "bob should have login type none")
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].Username, "bob")
+		require.Equal(t, res.Users[0].Status, codersdk.UserStatusSuspended)
+		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeNone)
 	})
 }
 
