@@ -1,133 +1,1821 @@
-name: Add Docs Preview Link
+name: Docs Preview Link
+
+# This workflow adds documentation preview links to PRs that modify docs content.
+# It integrates with the wider CI system while ensuring security for fork PRs.
+#
+# Primary features:
+# 1. Generates preview links in the format https://coder.com/docs/@branch_name
+# 2. Adds direct links to changed files & sections with most modifications
+# 3. Safely handles fork PRs through multi-stage verification
+# 4. Coordinates with other CI checks via unified status namespace
+# 5. Supports slash commands for manual triggering
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+  # For automatic addition of preview links on new PRs and PR state changes
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
     paths:
       - 'docs/**'
       - '**.md'
+  # For manual triggering via comment commands
   issue_comment:
     types: [created]
+  # Allow manual runs from the GitHub Actions UI (for maintainers)
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to generate preview link for'
+        required: true
+      delay:
+        description: 'Delay start by N seconds (for CI load management)'
+        required: false
+        default: '0'
+      priority:
+        description: 'Priority level (normal, high)'
+        required: false
+        default: 'normal'
+      force:
+        description: 'Force preview generation even if no docs changes (for maintainers)'
+        required: false
+        default: 'false'
+      self_test:
+        description: 'Run workflow self-test to validate configuration'
+        required: false
+        default: 'false'
+        type: boolean
 
-permissions:
-  contents: read
-  pull-requests: write
+# Prevent concurrent workflow runs on the same PR to avoid conflicts
+# This reduces redundant runs triggered by multiple events
+# cancel-in-progress ensures only the most recent run continues
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
+  cancel-in-progress: true
+
+# Environment configuration with expanded options
+env:
+  # Enable fast track processing for docs-only PRs
+  DOCS_ONLY_PR: ${{ contains(github.event.pull_request.labels.*.name, 'docs-only') }}
+  DOCS_FAST_TRACK: 'true'
+  # Status check namespace for better integration with other CI checks
+  STATUS_CHECK_PREFIX: 'coder/docs'
+  # Organization-level cache strategy for sharing with other doc workflows
+  CACHE_PREFIX: 'docs-${{ github.repository_owner }}'
+  # API retry configuration
+  MAX_API_RETRIES: '3'
+  API_RETRY_DELAY: '2'
+  # Documentation paths configuration
+  DOCS_PRIMARY_PATH: 'docs/'
+  DOCS_FILE_PATTERNS: '^docs/|^.*\.md$'$'
+  # Documentation metrics thresholds for highlighting significant changes
+  SIGNIFICANT_WORDS_THRESHOLD: '100'
+  # Throttling controls for synchronize events
+  THROTTLE_DOCS_CHECK: ${{ github.event_name == 'pull_request_target' && github.event.action == 'synchronize' }}
+  # PR size detection for automatic throttling
+  LARGE_PR_THRESHOLD: '500'
+  # Repository and app information
+  DOCS_URL_BASE: 'https://coder.com/docs'
+  # Control the info disclosure level based on repo visibility
+  SECURITY_LEVEL: ${{ github.event.repository.private && 'strict' || 'standard' }}
+  # Scan depth control
+  MAX_SCAN_FILES: '100'
+  # Add rate limiting for external URL creation
+  RATE_LIMIT_REQUESTS: '10'
+  # Timeout constraints
+  COMMAND_TIMEOUT: '30s'
+
+# Default timeout for the entire workflow (5 minutes)
+defaults:
+  run:
+    timeout-minutes: 5
 
 jobs:
-  add-preview-link:
+  # Conditionally delay the workflow start to manage CI load
+  # Self-test for workflow validation (only runs when explicitly triggered)
+  validate-workflow:
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'pull_request') || 
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/docs-preview'))
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.self_test == 'true'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get PR Details
-        id: pr_details
+      - name: Validate workflow configuration
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+          echo "Running workflow self-test..."
+          
+          # Verify required environment variables
+          for var in DOCS_URL_BASE STATUS_CHECK_PREFIX; do
+            if [[ -z "${{ env[var] }}" ]]; then
+              echo "::error::Required environment variable $var is not set"
+              exit 1
+            else
+              echo "✓ Environment variable $var is set: ${{ env[var] }}"
+            fi
+          done
+          
+          # Check for required permissions
+          if [[ "${{ github.token }}" == "***" ]]; then
+            echo "✓ GitHub token is available"
           else
-            # For comments, we need to fetch the PR information
-            PR_NUMBER="${{ github.event.issue.number }}"
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-            BRANCH=$(gh pr view $PR_NUMBER --json headRefName -q .headRefName)
-            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+            echo "::error::GitHub token is not properly configured"
+            exit 1
           fi
+          
+          # Verify repository configuration
+          echo "Repository: ${{ github.repository }}"
+          echo "Repository visibility: ${{ github.event.repository.private == true && 'private' || 'public' }}"
+          echo "Security level: ${{ env.SECURITY_LEVEL }}"
+          
+          echo "::notice::Self-test completed successfully"
+  
+  delay-start:
+    runs-on: ubuntu-latest
+    needs: [validate-workflow]
+    if: |
+      always() &&
+      (github.event.inputs.delay != '' && github.event.inputs.delay != '0' || 
+      (github.event_name == 'pull_request_target' && github.event.action == 'synchronize' && github.event.pull_request.additions + github.event.pull_request.deletions > 500))
+    steps:
+      - name: Calculate delay time
+        id: delay_calc
+        run: |
+          if [[ "${{ github.event.inputs.delay }}" != "" && "${{ github.event.inputs.delay }}" != "0" ]]; then
+            DELAY="${{ github.event.inputs.delay }}"
+            echo "reason=Manually specified delay" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request_target" && "${{ github.event.action }}" == "synchronize" ]]; then
+            PR_SIZE=${{ github.event.pull_request.additions + github.event.pull_request.deletions }}
+            if [[ $PR_SIZE -gt ${{ env.LARGE_PR_THRESHOLD }} ]]; then
+              # Scale delay based on PR size
+              DELAY=$(( PR_SIZE / 500 * 20 ))
+              # Cap at 2 minutes max delay
+              DELAY=$(( DELAY > 120 ? 120 : DELAY ))
+              echo "reason=Large PR size ($PR_SIZE changes)" >> $GITHUB_OUTPUT
+            else
+              DELAY=0
+            fi
+          else
+            DELAY=0
+          fi
+          echo "delay_time=$DELAY" >> $GITHUB_OUTPUT
+      
+      - name: Delay workflow start
+        if: steps.delay_calc.outputs.delay_time != '0'
+        run: |
+          DELAY="${{ steps.delay_calc.outputs.delay_time }}"
+          REASON="${{ steps.delay_calc.outputs.reason }}"
+          echo "Delaying workflow start by $DELAY seconds for CI load management"
+          echo "Reason: $REASON"
+          sleep $DELAY
+          echo "Proceeding with workflow execution"
+
+  verify-docs-changes:
+    needs: [validate-workflow, delay-start]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3 # Reduced timeout for verification step
+    if: |
+      always() && 
+      (needs.validate-workflow.result == 'success' || needs.validate-workflow.result == 'skipped')
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write # For creating check runs
+      statuses: write # For creating commit statuses
+    if: |
+      always() && (
+        (github.event_name == 'pull_request_target' && 
+         (github.event.pull_request.draft == false || contains(github.event.pull_request.labels.*.name, 'run-checks-on-draft'))) ||
+        (github.event_name == 'workflow_dispatch') ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request && 
+         (contains(github.event.comment.body, '/docs-preview') || contains(github.event.comment.body, '/docs-help')))
+      )
+    outputs:
+      docs_changed: ${{ steps.verify.outputs.docs_changed }}
+      pr_number: ${{ steps.pr_info.outputs.pr_number }}
+      branch_name: ${{ steps.pr_info.outputs.branch_name }}
+      repo_owner: ${{ steps.pr_info.outputs.repo_owner }}
+      is_fork: ${{ steps.pr_info.outputs.is_fork }}
+      is_comment: ${{ steps.pr_info.outputs.is_comment }}
+      is_manual: ${{ steps.pr_info.outputs.is_manual }}
+      skip: ${{ steps.pr_info.outputs.skip }}
+      execution_start_time: ${{ steps.timing.outputs.start_time }}
+      has_non_docs_changes: ${{ steps.verify.outputs.has_non_docs_changes }}
+      words_added: ${{ steps.verify.outputs.words_added }}
+      words_removed: ${{ steps.verify.outputs.words_removed }}
+      docs_files_count: ${{ steps.verify.outputs.docs_files_count }}
+      images_added: ${{ steps.verify.outputs.images_added }}
+      manifest_changed: ${{ steps.verify.outputs.manifest_changed }}
+      format_only: ${{ steps.verify.outputs.format_only }}
+    steps:
+      # Start timing the execution for performance tracking
+      - name: Capture start time
+        id: timing
+        run: |
+          echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "::notice::Starting docs preview workflow at $(date)"
+
+      # Apply security hardening to the runner
+      - name: Harden Runner
+        uses: step-security/harden-runner@latest
+        with:
+          egress-policy: audit
+
+      - name: Create verification check run
+        id: create_check
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Determine the SHA based on event type
+            let sha;
+            let pr_number;
+            
+            if (process.env.GITHUB_EVENT_NAME === 'pull_request_target') {
+              sha = context.payload.pull_request.head.sha;
+              pr_number = context.payload.pull_request.number;
+            } else if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') {
+              pr_number = context.payload.inputs.pr_number;
+              // We'll get the SHA later from the PR data
+            } else if (process.env.GITHUB_EVENT_NAME === 'issue_comment') {
+              pr_number = context.payload.issue.number;
+              // We'll get the SHA later from the PR data
+            }
+            
+            // Create a check run to indicate verification is in progress
+            const { data: check } = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: '${{ env.STATUS_CHECK_PREFIX }}/verification',
+              head_sha: sha || context.sha,
+              status: 'in_progress',
+              output: {
+                title: 'Verifying documentation changes',
+                summary: 'Checking PR content to validate documentation changes and ensure security requirements are met.',
+                text: 'This check ensures that documentation changes are properly identified and can be safely previewed.'
+              }
+            });
+            
+            // Store the check run ID for later updates
+            console.log(`Created check run with ID: ${check.id}`);
+            core.exportVariable('DOCS_VERIFICATION_CHECK_ID', check.id);
+            core.setOutput('check_id', check.id);
+            core.setOutput('pr_number', pr_number);
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          # Set defaults for error handling
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+          if [[ "${{ github.event_name }}" == "pull_request_target" ]]; then
+            # Direct PR trigger
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+            REPO_OWNER="${{ github.event.pull_request.head.repo.owner.login }}"
+            IS_FORK="${{ github.event.pull_request.head.repo.fork }}"
+            SHA="${{ github.event.pull_request.head.sha }}"
+            IS_COMMENT="false"
+            IS_MANUAL="false"
+
+            # Early check: If PR doesn't modify docs, exit immediately (for path-filtered events)
+            if [[ "${{ github.event.pull_request.title }}" == *"[skip docs]"* || "${{ github.event.pull_request.body }}" == *"[skip docs]"* ]]; then
+              echo "PR is marked to skip docs processing"
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "repo_owner=$REPO_OWNER" >> $GITHUB_OUTPUT
+            echo "is_fork=$IS_FORK" >> $GITHUB_OUTPUT
+            echo "is_comment=$IS_COMMENT" >> $GITHUB_OUTPUT
+            echo "is_manual=$IS_MANUAL" >> $GITHUB_OUTPUT
+            echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+            IS_MANUAL="true"
+            IS_COMMENT="false"
+
+            # Validate PR number
+            if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid PR number provided: $PR_NUMBER"
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Get PR details using GitHub API with better error handling
+            echo "Fetching PR data for PR #$PR_NUMBER"
+
+            # Use retry logic for GitHub API calls with configurable retries
+            MAX_RETRIES="${{ env.MAX_API_RETRIES }}"
+            for ((i=1; i<=MAX_RETRIES; i++)); do
+              PR_DATA=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.head.ref, .head.repo.owner.login, .head.repo.fork, .head.sha, .draft')
+              if [[ $? -eq 0 ]]; then
+                break
+              fi
+
+              if [[ $i -eq $MAX_RETRIES ]]; then
+                echo "::error::Failed to fetch PR data for PR #$PR_NUMBER after $MAX_RETRIES attempts"
+                echo "skip=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+
+              echo "API call failed, retrying in $(($i*${{ env.API_RETRY_DELAY }})) seconds..."
+              sleep $(($i*${{ env.API_RETRY_DELAY }}))
+            done
+
+            BRANCH_NAME=$(echo "$PR_DATA" | head -1)
+            REPO_OWNER=$(echo "$PR_DATA" | head -2 | tail -1)
+            IS_FORK=$(echo "$PR_DATA" | head -3 | tail -1)
+            SHA=$(echo "$PR_DATA" | head -4 | tail -1)
+            IS_DRAFT=$(echo "$PR_DATA" | head -5 | tail -1)
+
+            # Skip draft PRs unless they have the run-checks-on-draft label
+            if [[ "$IS_DRAFT" == "true" ]]; then
+              # Check if PR has the run-checks-on-draft label
+              LABELS=$(gh api repos/${{ github.repository }}/issues/$PR_NUMBER/labels --jq '.[].name')
+              if [[ ! "$LABELS" == *"run-checks-on-draft"* ]]; then
+                echo "PR is in draft state and doesn't have run-checks-on-draft label. Skipping."
+                echo "skip=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "repo_owner=$REPO_OWNER" >> $GITHUB_OUTPUT
+            echo "is_fork=$IS_FORK" >> $GITHUB_OUTPUT
+            echo "is_comment=$IS_COMMENT" >> $GITHUB_OUTPUT
+            echo "is_manual=$IS_MANUAL" >> $GITHUB_OUTPUT
+            echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+          else
+            # Comment trigger
+            IS_COMMENT="true"
+            IS_MANUAL="false"
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
+
+            # Check if this is a PR comment
+            if [[ -z "${{ github.event.issue.pull_request }}" ]]; then
+              echo "Comment is not on a PR, skipping"
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Check if this is the correct comment command
+            if [[ "${{ github.event.comment.body }}" != *"/docs-preview"* && "${{ github.event.comment.body }}" != *"/docs-help"* ]]; then
+              echo "Comment does not contain docs command, skipping"
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Get PR details using GitHub API
+            echo "Fetching PR data for issue #$ISSUE_NUMBER"
+
+            # Use retry logic for GitHub API calls with configurable retries
+            MAX_RETRIES="${{ env.MAX_API_RETRIES }}"
+            for ((i=1; i<=MAX_RETRIES; i++)); do
+              PR_DATA=$(gh api repos/${{ github.repository }}/pulls/$ISSUE_NUMBER --jq '.head.ref, .head.repo.owner.login, .head.repo.fork, .head.sha, .draft')
+              if [[ $? -eq 0 ]]; then
+                break
+              fi
+
+              if [[ $i -eq $MAX_RETRIES ]]; then
+                echo "::error::Failed to fetch PR data for issue #$ISSUE_NUMBER after $MAX_RETRIES attempts"
+                echo "skip=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+
+              echo "API call failed, retrying in $(($i*${{ env.API_RETRY_DELAY }})) seconds..."
+              sleep $(($i*${{ env.API_RETRY_DELAY }}))
+            done
+
+            BRANCH_NAME=$(echo "$PR_DATA" | head -1)
+            REPO_OWNER=$(echo "$PR_DATA" | head -2 | tail -1)
+            IS_FORK=$(echo "$PR_DATA" | head -3 | tail -1)
+            SHA=$(echo "$PR_DATA" | head -4 | tail -1)
+            IS_DRAFT=$(echo "$PR_DATA" | head -5 | tail -1)
+
+            echo "pr_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "repo_owner=$REPO_OWNER" >> $GITHUB_OUTPUT
+            echo "is_fork=$IS_FORK" >> $GITHUB_OUTPUT
+            echo "is_comment=$IS_COMMENT" >> $GITHUB_OUTPUT
+            echo "is_manual=$IS_MANUAL" >> $GITHUB_OUTPUT
+            echo "sha=$SHA" >> $GITHUB_OUTPUT
+          fi
+
+          # Debug information to help with troubleshooting
+          echo "Processing PR #${PR_NUMBER} from branch: ${BRANCH_NAME}"
+          echo "Owner: ${REPO_OWNER}, Is fork: ${IS_FORK}"
+          echo "Trigger type: ${github.event_name}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Find files with most additions (when requested via comment)
-        id: find_changed_files
-        if: github.event_name == 'issue_comment'
-        run: |
-          # Get the list of changed files in the docs directory
-          PR_NUMBER="${{ steps.pr_details.outputs.pr_number }}"
-          CHANGED_FILES=$(gh pr diff $PR_NUMBER --name-only | grep -E "^docs/|\.md$" || echo "")
+      # Only check out the DEFAULT branch (not the PR code) to verify changes safely
+      - name: Check out base repository code
+        if: steps.pr_info.outputs.skip != 'true'
+        uses: actions/checkout@latest
+        with:
+          ref: main  # Always use the main branch
+          fetch-depth: 5  # Reduce checkout depth for faster runs
+          # Use sparse checkout to only download docs and markdown files
+          # This is faster and more efficient
+          sparse-checkout: |
+            ${{ env.DOCS_PRIMARY_PATH }}
+            *.md
+            README.md
+          sparse-checkout-cone-mode: false
           
+      # Optimize git for large repositories
+      - name: Optimize git for large repositories
+        if: steps.pr_info.outputs.skip != 'true'
+        run: |
+          # Configure git for better performance with large repos
+          git config core.preloadIndex true
+          git config core.fsyncMethod batch
+          git config core.compression 9
+          
+          # Verify configuration
+          echo "Git optimization applied:"
+          git config --get-regexp "core\.(preloadIndex|fsyncMethod|compression)"
+
+      # Use more efficient content-based caching
+      - name: Setup content-based cache
+        if: steps.pr_info.outputs.skip != 'true'
+        uses: actions/cache@latest
+        with:
+          path: |
+            .git
+            .cache/docs
+            .github/temp
+          # More precise content-based hash that includes image files
+          key: ${{ runner.os }}-docs-${{ hashFiles('docs/**/*.md', 'docs/**/*.png', 'docs/**/*.jpg', 'docs/manifest.json') || github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docs-
+            ${{ env.CACHE_PREFIX }}-
+            ${{ runner.os }}-
+
+      - name: Verify only docs files are changed
+        id: verify
+        if: steps.pr_info.outputs.skip != 'true'
+        run: |
+          # Declare function for better error handling
+          function handle_error() {
+            echo "::error::$1"
+            echo "docs_changed=false" >> $GITHUB_OUTPUT
+            exit 1
+          }
+
+          # Declare more secure URL encode function using Python
+          function url_encode() {
+            python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+          }
+
+          # Fetch but don't checkout the PR head
+          if [[ "${{ steps.pr_info.outputs.is_fork }}" == "true" ]]; then
+            FORK_REPO="${{ steps.pr_info.outputs.repo_owner }}/${GITHUB_REPOSITORY#*/}"
+            echo "This is a fork PR from: $FORK_REPO"
+
+            # Validate repo owner format for security
+            if [[ ! "${{ steps.pr_info.outputs.repo_owner }}" =~ ^[a-zA-Z0-9-]+$ ]]; then
+              handle_error "Invalid repository owner format"
+            fi
+
+            # Add fork remote and fetch branch
+            git remote add fork "https://github.com/$FORK_REPO.git" || handle_error "Failed to add fork remote"
+            git fetch fork "${{ steps.pr_info.outputs.branch_name }}" --depth=5 || handle_error "Failed to fetch from fork"
+            PR_REF="fork/${{ steps.pr_info.outputs.branch_name }}"
+          else
+            # Fetch from the origin for non-fork PRs
+            git fetch origin "${{ steps.pr_info.outputs.branch_name }}" --depth=5 || handle_error "Failed to fetch from origin"
+            PR_REF="origin/${{ steps.pr_info.outputs.branch_name }}"
+          fi
+
+          # Check if the branch exists after fetching
+          if ! git rev-parse --verify "$PR_REF" >/dev/null 2>&1; then
+            handle_error "Branch $PR_REF does not exist after fetching"
+          fi
+
+          # Check which files are modified without checking out the code
+          echo "Checking changed files between main and $PR_REF"
+          CHANGED_FILES=$(git diff --name-only origin/main..$PR_REF)
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "No files changed in this PR compared to main"
+            echo "docs_changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if manifest.json was modified - a key indicator for doc structure changes
+          MANIFEST_CHANGED=$(echo "$CHANGED_FILES" | grep -c "docs/manifest.json" || true)
+          if [[ $MANIFEST_CHANGED -gt 0 ]]; then
+            echo "docs/manifest.json was modified - likely a significant docs change"
+            echo "manifest_changed=true" >> $GITHUB_OUTPUT
+            # Get the files referenced in the manifest diff
+            MANIFEST_DIFF_FILES=$(git diff origin/main..$PR_REF -- docs/manifest.json | grep -E "^\+.*\"path\"" | grep -oE '\"[^\"]+\.md\"' | tr -d '"' || true)
+            if [[ -n "$MANIFEST_DIFF_FILES" ]]; then
+              echo "Found files referenced in manifest changes:"
+              echo "$MANIFEST_DIFF_FILES"
+              echo "manifest_changed_files<<EOF" >> $GITHUB_OUTPUT
+              echo "$MANIFEST_DIFF_FILES" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "manifest_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Identify docs files in the changes
+          DOCS_FILES=$(echo "$CHANGED_FILES" | grep -E "^docs/|^.*\.md$" || true)
+          NON_DOCS_FILES=$(echo "$CHANGED_FILES" | grep -v -E "^docs/|^.*\.md$" || true)
+          DOCS_DIR_FILES=$(echo "$CHANGED_FILES" | grep "^docs/" || true)
+          
+          # Check if we have non-docs changes for use in status messages
+          if [[ -n "$NON_DOCS_FILES" ]]; then
+            echo "has_non_docs_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_non_docs_changes=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Create a list of only docs files being changed for targeted checkout later
+          echo "changed_docs_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$DOCS_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Always output docs directory files for preview link
+          echo "docs_dir_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$DOCS_DIR_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Check if docs/ directory files are changed (these are what we want to preview)
+          if [[ -n "$DOCS_DIR_FILES" || "${{ env.DOCS_ONLY_PR }}" == "true" ]]; then
+            # We have docs/ changes, so we should generate a preview
+            echo "docs_changed=true" >> $GITHUB_OUTPUT
+            
+            # If there are also non-docs files, we'll just print a notice but still proceed
+            if [[ -n "$NON_DOCS_FILES" ]]; then
+              if [[ "${{ env.DOCS_ONLY_PR }}" == "true" ]]; then
+                echo "⚠️ PR has 'docs-only' label but contains non-docs files. Proceeding due to label."
+              else
+                echo "⚠️ PR contains both docs/ changes and other file changes. Generating preview for docs/ changes only."
+              fi
+            else
+              echo "✅ All changes are docs-related, proceeding safely."
+            fi
+            
+            # Analyze content changes vs. format changes
+            CONTENT_CHANGED=$(git diff --word-diff=porcelain origin/main..$PR_REF -- docs/ | grep -E "^\+[^+]|\-[^-]" | wc -l | tr -d ' ')
+            FORMAT_ONLY=false
+            if [[ $CONTENT_CHANGED -eq 0 ]]; then
+              echo "Only formatting changes detected (no content changes)"
+              FORMAT_ONLY=true
+            fi
+            echo "format_only=$FORMAT_ONLY" >> $GITHUB_OUTPUT
+            
+            # Calculate documentation metrics
+            DOCS_FILES_COUNT=$(echo "$CHANGED_FILES" | grep -E "^docs/|^.*\.md$" | wc -l | tr -d ' ')
+            WORDS_ADDED=$(git diff --word-diff=porcelain origin/main..$PR_REF -- docs/ | grep -E "^\+" | wc -w | tr -d ' ')
+            WORDS_REMOVED=$(git diff --word-diff=porcelain origin/main..$PR_REF -- docs/ | grep -E "^\-" | wc -w | tr -d ' ')
+            
+            # Improve image tracking by detecting added, modified, and removed images
+            IMAGE_PATHS=$(git diff --name-status origin/main..$PR_REF | grep -E "\.(png|jpg|jpeg|gif|svg|webp)$" || echo "")
+            IMAGE_ADDED=$(echo "$IMAGE_PATHS" | grep -c "^A" || true)
+            IMAGE_MODIFIED=$(echo "$IMAGE_PATHS" | grep -c "^M" || true)
+            IMAGE_DELETED=$(echo "$IMAGE_PATHS" | grep -c "^D" || true)
+            IMAGE_TOTAL=$((IMAGE_ADDED + IMAGE_MODIFIED + IMAGE_DELETED))
+            IMAGE_NAMES=""
+            
+            # Capture image names for display in the report
+            if [[ $IMAGE_TOTAL -gt 0 ]]; then
+              IMAGE_NAMES=$(echo "$IMAGE_PATHS" | grep -E "\.(png|jpg|jpeg|gif|svg|webp)$" | awk '{print $2}' | tr '\n' ',' | sed 's/,$//')
+              echo "image_names=$IMAGE_NAMES" >> $GITHUB_OUTPUT
+              echo "Found $IMAGE_TOTAL image changes: +$IMAGE_ADDED modified:$IMAGE_MODIFIED -$IMAGE_DELETED"
+              echo "Images: $IMAGE_NAMES"
+            fi
+            
+            echo "docs_files_count=$DOCS_FILES_COUNT" >> $GITHUB_OUTPUT
+            echo "words_added=$WORDS_ADDED" >> $GITHUB_OUTPUT
+            echo "words_removed=$WORDS_REMOVED" >> $GITHUB_OUTPUT
+            echo "images_added=$IMAGE_ADDED" >> $GITHUB_OUTPUT
+            echo "images_modified=$IMAGE_MODIFIED" >> $GITHUB_OUTPUT
+            echo "images_deleted=$IMAGE_DELETED" >> $GITHUB_OUTPUT
+            echo "images_total=$IMAGE_TOTAL" >> $GITHUB_OUTPUT
+
+            # Determine if this is a significant docs change for prioritization
+            if [[ $WORDS_ADDED -gt ${{ env.SIGNIFICANT_WORDS_THRESHOLD }} || $MANIFEST_CHANGED -gt 0 || $IMAGE_TOTAL -gt 1 ]]; then
+              echo "significant_change=true" >> $GITHUB_OUTPUT
+              
+              if [[ $IMAGE_TOTAL -gt 1 ]]; then
+                echo "⭐ This PR contains significant image changes ($IMAGE_TOTAL images)"
+                echo "image_focused=true" >> $GITHUB_OUTPUT
+              elif [[ $MANIFEST_CHANGED -gt 0 ]]; then
+                echo "⭐ This PR contains structure changes (manifest.json modified)"
+                echo "image_focused=false" >> $GITHUB_OUTPUT
+              else
+                echo "⭐ This PR contains significant documentation changes ($WORDS_ADDED words added)"
+                echo "image_focused=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "significant_change=false" >> $GITHUB_OUTPUT
+              echo "image_focused=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Warning: Changes outside the docs directory or non-markdown files detected."
+            echo "For security reasons, the docs preview link will not be added automatically."
+            echo "docs_changed=false" >> $GITHUB_OUTPUT
+
+            # List suspicious files changed outside of docs/ for security review
+            echo "Files changed outside of docs/:"
+            echo "$NON_DOCS_FILES"
+          fi
+
+          # Output a summary of changes for the job log
+          DOCS_FILES_COUNT=$(echo "$CHANGED_FILES" | grep -E "^docs/|^.*\.md$" | wc -l | tr -d ' ')
+          TOTAL_FILES_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+          echo "::notice::PR #${{ steps.pr_info.outputs.pr_number }} changes $DOCS_FILES_COUNT docs files out of $TOTAL_FILES_COUNT total files"
+
+      # Update the status check with verification results using Check Run API
+      - name: Update verification status
+        if: github.event_name == 'pull_request_target' || (github.event_name == 'workflow_dispatch' && steps.pr_info.outputs.skip != 'true')
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = '${{ steps.pr_info.outputs.sha }}';
+            const docsChanged = '${{ steps.verify.outputs.docs_changed }}' === 'true';
+            const hasMixedChanges = '${{ contains(steps.verify.outputs.changed_docs_files, "docs/") && steps.verify.outputs.has_non_docs_changes }}' === 'true';
+            const hasDocsOnly = '${{ contains(github.event.pull_request.labels.*.name, "docs-only") }}' === 'true';
+            const checkRunId = process.env.DOCS_VERIFICATION_CHECK_ID;
+            
+            // Get document metrics for the check run output
+            const docsFilesCount = parseInt('${{ steps.verify.outputs.docs_files_count || 0 }}');
+            const wordsAdded = parseInt('${{ steps.verify.outputs.words_added || 0 }}');
+            const wordsRemoved = parseInt('${{ steps.verify.outputs.words_removed || 0 }}');
+            const imagesAdded = parseInt('${{ steps.verify.outputs.images_added || 0 }}');
+            const imagesModified = parseInt('${{ steps.verify.outputs.images_modified || 0 }}');
+            const imagesDeleted = parseInt('${{ steps.verify.outputs.images_deleted || 0 }}');
+            const imagesTotal = parseInt('${{ steps.verify.outputs.images_total || 0 }}');
+            const imageNames = '${{ steps.verify.outputs.image_names || "" }}';
+            const significantChange = '${{ steps.verify.outputs.significant_change }}' === 'true' || imagesTotal > 0;
+            
+            let title = '';
+            let summary = '';
+            
+            if (docsChanged) {
+              if (hasMixedChanges) {
+                title = 'Documentation changes detected (mixed content PR)';
+                summary = 'This PR contains both documentation and code changes. A preview link will be generated for the documentation changes only.';
+              } else if (hasDocsOnly) {
+                title = 'Documentation-only changes verified';
+                summary = 'This PR is labeled as docs-only and contains documentation changes. A preview link will be generated.';
+              } else {
+                title = 'Documentation changes detected';
+                summary = 'This PR contains documentation changes. A preview link will be generated.';
+              }
+              
+              // Add metrics to the summary when docs changed
+              summary += `\n\n### Documentation Change Metrics\n- Files changed: ${docsFilesCount}\n- Words: +${wordsAdded}/-${wordsRemoved}`;
+              
+              if (imagesTotal > 0) {
+                summary += `\n- Images: ${imagesAdded > 0 ? '+' + imagesAdded : ''}${imagesModified > 0 ? ' ~' + imagesModified : ''}${imagesDeleted > 0 ? ' -' + imagesDeleted : ''}`;
+                if (imageNames) {
+                  // Show image names with truncation if too many
+                  const imageList = imageNames.split(',');
+                  const displayImages = imageList.length > 3 ? 
+                    imageList.slice(0, 3).join(', ') + ` and ${imageList.length - 3} more` : 
+                    imageList.join(', ');
+                  summary += `\n- Changed images: \`${displayImages}\``;
+                }
+              }
+              
+              if ('${{ steps.verify.outputs.manifest_changed }}' === 'true') {
+                summary += `\n- ⚠️ **Structure changes detected**: This PR modifies the documentation structure (manifest.json).`;
+              }
+              
+              if (significantChange) {
+                summary += `\n\n⭐ **This PR contains significant documentation changes** (>${{ env.SIGNIFICANT_WORDS_THRESHOLD }} words added or structure changes)`;
+              }
+            } else {
+              title = 'No documentation changes to preview';
+              summary = 'This PR does not contain changes to files in the docs/ directory that can be previewed.';
+              
+              if ('${{ steps.verify.outputs.has_non_docs_changes }}' === 'true') {
+                summary += '\n\nThis PR contains changes to non-documentation files. For security reasons, the automatic documentation preview is only available for PRs that modify files within the docs directory or markdown files.';
+              }
+            }
+            
+            // Update the check run if we have an ID, otherwise create a new one
+            if (checkRunId) {
+              console.log(`Updating existing check run: ${checkRunId}`);
+              await github.rest.checks.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                check_run_id: checkRunId,
+                status: 'completed',
+                conclusion: docsChanged ? 'success' : 'failure',
+                output: {
+                  title: title,
+                  summary: summary
+                }
+              });
+            } else {
+              // Fallback to creating a new check if somehow we don't have the ID
+              console.log('Creating new check run as fallback');
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: '${{ env.STATUS_CHECK_PREFIX }}/verification',
+                head_sha: sha,
+                status: 'completed',
+                conclusion: docsChanged ? 'success' : 'failure',
+                output: {
+                  title: title,
+                  summary: summary
+                }
+              });
+            }
+            
+            // For backward compatibility, still create a commit status
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: docsChanged ? 'success' : 'error',
+              context: '${{ env.STATUS_CHECK_PREFIX }}/verification',
+              description: docsChanged ? 
+                'Documentation changes verified: preview link will be generated' : 
+                'No docs/ directory changes to preview'
+            });
+
+  add-preview-link:
+    needs: verify-docs-changes
+    if: needs.verify-docs-changes.outputs.docs_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write # For creating check runs
+      statuses: write # For creating commit statuses
+    steps:
+      - name: Create preview check run
+        id: create_preview_check
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = '${{ needs.verify-docs-changes.outputs.sha }}';
+            const pr_number = '${{ needs.verify-docs-changes.outputs.pr_number }}';
+            
+            // Create a check run to indicate preview generation is in progress
+            const { data: check } = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: '${{ env.STATUS_CHECK_PREFIX }}/preview',
+              head_sha: sha,
+              status: 'in_progress',
+              output: {
+                title: 'Generating documentation preview',
+                summary: 'Preparing preview links to documentation changes...',
+                text: 'Generating links to preview the documentation changes in this PR.'
+              }
+            });
+            
+            // Store the check run ID for later updates
+            console.log(`Created preview check run with ID: ${check.id}`);
+            core.exportVariable('DOCS_PREVIEW_CHECK_ID', check.id);
+            core.setOutput('check_id', check.id);
+
+      - name: Checkout base repository code
+        uses: actions/checkout@latest
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # Restore git cache from previous job
+      - name: Restore Git cache
+        uses: actions/cache/restore@latest
+        with:
+          path: .git
+          key: git-docs-${{ runner.os }}-${{ hashFiles('docs/manifest.json') || github.sha }}
+          fail-on-cache-miss: false
+
+      - name: Safely check out docs files only
+        id: checkout_docs
+        run: |
+          # Set variables from previous job output
+          BRANCH_NAME="${{ needs.verify-docs-changes.outputs.branch_name }}"
+          IS_FORK="${{ needs.verify-docs-changes.outputs.is_fork }}"
+          CHANGED_DOCS_FILES="${{ needs.verify-docs-changes.outputs.changed_docs_files }}"
+          MANIFEST_CHANGED="${{ needs.verify-docs-changes.outputs.manifest_changed }}"
+          MANIFEST_FILES="${{ needs.verify-docs-changes.outputs.manifest_changed_files }}"
+          SHA="${{ needs.verify-docs-changes.outputs.sha }}"
+
+          # Declare function for better error handling
+          function handle_error() {
+            echo "::error::$1"
+            echo "checkout_success=false" >> $GITHUB_OUTPUT
+            exit 1
+          }
+
+          # Declare more secure URL encode function using Python
+          function url_encode() {
+            python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+          }
+
+          # Prepare the checkout based on whether this is a fork or not
+          if [[ "$IS_FORK" == "true" ]]; then
+            FORK_REPO="${{ needs.verify-docs-changes.outputs.repo_owner }}/${GITHUB_REPOSITORY#*/}"
+            echo "Checking out docs from fork: $FORK_REPO branch: $BRANCH_NAME"
+
+            # Add fork remote if it doesn't exist
+            if ! git remote | grep -q "^fork$"; then
+              git remote add fork "https://github.com/$FORK_REPO.git" || handle_error "Failed to add fork remote"
+            fi
+
+            git fetch fork || handle_error "Failed to fetch from fork"
+
+            # Create a new branch for docs changes only
+            git checkout -b pr-docs-preview || handle_error "Failed to create preview branch"
+
+            # Targeted checkout - prioritize files in the docs/ directory
+            DOCS_DIR_FILES="${{ needs.verify-docs-changes.outputs.docs_dir_files }}"
+            
+            if [[ -n "$DOCS_DIR_FILES" ]]; then
+              echo "Checking out changed files from docs/ directory:"
+              
+              # Read each line of changed files from docs/ directory and check them out
+              while IFS= read -r file; do
+                if [[ -n "$file" && "$file" == docs/* ]]; then
+                  echo "Checking out: $file"
+                  git checkout fork/$BRANCH_NAME -- "$file" || echo "Warning: Failed to checkout $file, skipping"
+                fi
+              done <<< "$CHANGED_DOCS_FILES"
+            elif [[ -n "$CHANGED_DOCS_FILES" ]]; then
+              echo "No docs/ directory files changed, checking out other markdown files:"
+              
+              # If no docs/ files but there are .md files, check them out
+              while IFS= read -r file; do
+                if [[ -n "$file" ]]; then
+                  echo "Checking out: $file"
+                  git checkout fork/$BRANCH_NAME -- "$file" || echo "Warning: Failed to checkout $file, skipping"
+                fi
+              done <<< "$CHANGED_DOCS_FILES"
+              
+              # Always check out manifest.json if it was modified
+              if [[ "$MANIFEST_CHANGED" == "true" ]]; then
+                echo "Checking out manifest.json which was modified"
+                git checkout fork/$BRANCH_NAME -- docs/manifest.json || echo "Warning: Failed to checkout manifest.json"
+              fi
+            else
+              # Fallback: check out all docs files if we can't determine specific changes
+              git checkout fork/$BRANCH_NAME -- docs/ || handle_error "Failed to checkout docs/ directory"
+
+              # If the PR includes markdown files outside docs/, check them out too
+              EXTERNAL_MD_FILES=$(git diff --name-only origin/main..fork/$BRANCH_NAME | grep -v "^docs/" | grep "\.md$" || true)
+              if [[ -n "$EXTERNAL_MD_FILES" ]]; then
+                echo "Found markdown files outside docs/ directory, checking them out selectively"
+                for file in $EXTERNAL_MD_FILES; do
+                  git checkout fork/$BRANCH_NAME -- "$file" || echo "Warning: Failed to checkout $file, skipping"
+                done
+              fi
+            fi
+
+            DIFF_TARGET="fork/$BRANCH_NAME"
+          else
+            echo "Checking out docs from branch: $BRANCH_NAME"
+            git fetch origin $BRANCH_NAME || handle_error "Failed to fetch from origin"
+
+            # Create a new branch for docs changes only
+            git checkout -b pr-docs-preview || handle_error "Failed to create preview branch"
+
+            # Targeted checkout - prioritize files in the docs/ directory
+            DOCS_DIR_FILES="${{ needs.verify-docs-changes.outputs.docs_dir_files }}"
+            
+            if [[ -n "$DOCS_DIR_FILES" ]]; then
+              echo "Checking out changed files from docs/ directory:"
+              
+              # Read each line of changed files from docs/ directory and check them out
+              while IFS= read -r file; do
+                if [[ -n "$file" && "$file" == docs/* ]]; then
+                  echo "Checking out: $file"
+                  git checkout origin/$BRANCH_NAME -- "$file" || echo "Warning: Failed to checkout $file, skipping"
+                fi
+              done <<< "$CHANGED_DOCS_FILES"
+            elif [[ -n "$CHANGED_DOCS_FILES" ]]; then
+              echo "No docs/ directory files changed, checking out other markdown files:"
+              
+              # If no docs/ files but there are .md files, check them out
+              while IFS= read -r file; do
+                if [[ -n "$file" ]]; then
+                  echo "Checking out: $file"
+                  git checkout origin/$BRANCH_NAME -- "$file" || echo "Warning: Failed to checkout $file, skipping"
+                fi
+              done <<< "$CHANGED_DOCS_FILES"
+              
+              # Always check out manifest.json if it was modified
+              if [[ "$MANIFEST_CHANGED" == "true" ]]; then
+                echo "Checking out manifest.json which was modified"
+                git checkout origin/$BRANCH_NAME -- docs/manifest.json || echo "Warning: Failed to checkout manifest.json"
+              fi
+            else
+              # Fallback: check out all docs files if we can't determine specific changes
+              git checkout origin/$BRANCH_NAME -- docs/ || handle_error "Failed to checkout docs/ directory"
+
+              # If the PR includes markdown files outside docs/, check them out too
+              EXTERNAL_MD_FILES=$(git diff --name-only origin/main..origin/$BRANCH_NAME | grep -v "^docs/" | grep "\.md$" || true)
+              if [[ -n "$EXTERNAL_MD_FILES" ]]; then
+                echo "Found markdown files outside docs/ directory, checking them out selectively"
+                for file in $EXTERNAL_MD_FILES; do
+                  git checkout origin/$BRANCH_NAME -- "$file" || echo "Warning: Failed to checkout $file, skipping"
+                done
+              fi
+            fi
+
+            DIFF_TARGET="origin/$BRANCH_NAME"
+          fi
+
+          echo "checkout_success=true" >> $GITHUB_OUTPUT
+          echo "diff_target=$DIFF_TARGET" >> $GITHUB_OUTPUT
+
+          # List all checked out files for debugging
+          echo "Files checked out for preview:"
+          git diff --name-only origin/main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Analyze document structure to provide better context
+      - name: Analyze document structure
+        id: analyze_structure
+        if: steps.checkout_docs.outputs.checkout_success == 'true'
+        run: |
+          # Create a temporary directory for document analysis artifacts
+          mkdir -p .github/temp
+
+          # Extract potential document titles from files to provide better context
+          DOC_STRUCTURE={}
+          for file in $(git diff --name-only origin/main); do
+            if [[ "$file" == *.md && -f "$file" ]]; then
+              # Extract document title (first heading)
+              TITLE=$(head -50 "$file" | grep -E "^# " | head -1 | sed 's/^# //')
+              if [[ -n "$TITLE" ]]; then
+                echo "Found title for $file: $TITLE"
+                echo "$file:$TITLE" >> .github/temp/doc_titles.txt
+              fi
+              
+              # Count headings at each level
+              H1_COUNT=$(grep -c "^# " "$file")
+              H2_COUNT=$(grep -c "^## " "$file")
+              H3_COUNT=$(grep -c "^### " "$file")
+              
+              echo "Document structure for $file: H1=$H1_COUNT, H2=$H2_COUNT, H3=$H3_COUNT"
+              echo "$file:$H1_COUNT:$H2_COUNT:$H3_COUNT" >> .github/temp/doc_structure.txt
+            fi
+          done
+          
+          # Output if we found any document titles
+          if [[ -f ".github/temp/doc_titles.txt" ]]; then
+            echo "document_titles_found=true" >> $GITHUB_OUTPUT
+            echo "Found document titles for improved context"
+          else
+            echo "document_titles_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Find files with most additions
+        id: find_changed_files
+        if: steps.checkout_docs.outputs.checkout_success == 'true'
+        run: |
+          # Set variables for this step
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
+          DIFF_TARGET="${{ steps.checkout_docs.outputs.diff_target }}"
+          IS_IMAGE_FOCUSED="${{ needs.verify-docs-changes.outputs.image_focused }}"
+
+          # Get the list of changed files in the docs directory or markdown files
+          echo "Finding changed documentation files..."
+          CHANGED_FILES=$(git diff --name-only origin/main..$DIFF_TARGET | grep -E "^docs/|\.md$" || echo "")
+
           if [[ -z "$CHANGED_FILES" ]]; then
             echo "No documentation files changed in this PR."
             echo "has_changes=false" >> $GITHUB_OUTPUT
             exit 0
           else
+            echo "Found changed documentation files, proceeding with analysis."
             echo "has_changes=true" >> $GITHUB_OUTPUT
+
+            # Write file count to output
+            FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+            echo "changed_file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
           fi
-          
+
           # Find the file with the most additions
+          echo "Analyzing files to find the one with most additions..."
           MOST_CHANGED=""
           MAX_ADDITIONS=0
-          
-          while IFS= read -r file; do
-            if [[ -n "$file" ]]; then
-              # Get additions count for this file
-              ADDITIONS=$(gh pr diff $PR_NUMBER --patch | grep "^+++ b/$file" -A 1000 | grep -c "^+" || echo "0")
+          MOST_SIGNIFICANT_IMAGE=""
+
+          # First, check if this is an image-focused PR to prioritize images
+          if [[ "$IS_IMAGE_FOCUSED" == "true" ]]; then
+            echo "This is an image-focused PR, prioritizing image files in analysis"
+            
+            # Find the most significant image change
+            IMAGE_FILES=$(git diff --name-status origin/main..$DIFF_TARGET | grep -E ".(png|jpg|jpeg|gif|svg|webp)$" | awk '{print $2}')
+            
+            if [[ -n "$IMAGE_FILES" ]]; then
+              # Find the largest added/modified image by looking at file size
+              while IFS= read -r img_file; do
+                if [[ -f "$img_file" ]]; then
+                  # Get file size in bytes (compatible with both macOS and Linux)
+                  FILE_SIZE=$(stat -f "%z" "$img_file" 2>/dev/null || stat -c "%s" "$img_file" 2>/dev/null || echo "0")
+                  
+                  # Find containing markdown file to link to
+                  # Look for filenames that include the image basename
+                  IMAGE_BASENAME=$(basename "$img_file")
+                  CONTAINING_MD=$(grep -l "$IMAGE_BASENAME" $(find docs -name "*.md") 2>/dev/null | head -1)
+                  
+                  if [[ -n "$CONTAINING_MD" ]]; then
+                    echo "Found image $img_file ($FILE_SIZE bytes) referenced in $CONTAINING_MD"
+                    if [[ -z "$MOST_SIGNIFICANT_IMAGE" || $FILE_SIZE -gt $MAX_ADDITIONS ]]; then
+                      MOST_SIGNIFICANT_IMAGE="$img_file"
+                      MOST_CHANGED="$CONTAINING_MD"
+                      MAX_ADDITIONS=$FILE_SIZE
+                    fi
+                  else
+                    echo "Found image $img_file ($FILE_SIZE bytes) but no matching markdown file"
+                    if [[ -z "$MOST_SIGNIFICANT_IMAGE" || $FILE_SIZE -gt $MAX_ADDITIONS ]]; then
+                      MOST_SIGNIFICANT_IMAGE="$img_file"
+                      MOST_CHANGED=""
+                      MAX_ADDITIONS=$FILE_SIZE
+                    fi
+                  fi
+                fi
+              done <<< "$IMAGE_FILES"
               
-              if (( ADDITIONS > MAX_ADDITIONS )); then
-                MAX_ADDITIONS=$ADDITIONS
-                MOST_CHANGED=$file
+              if [[ -n "$MOST_SIGNIFICANT_IMAGE" ]]; then
+                echo "Most significant image: $MOST_SIGNIFICANT_IMAGE ($MAX_ADDITIONS bytes)"
+                echo "most_significant_image=$MOST_SIGNIFICANT_IMAGE" >> $GITHUB_OUTPUT
+                
+                # If we found a containing markdown file, use that for the URL path
+                if [[ -n "$MOST_CHANGED" ]]; then
+                  echo "Referenced in markdown file: $MOST_CHANGED"
+                  
+                  # Convert path to URL path by removing the file extension and default index files
+                  URL_PATH=$(echo "$MOST_CHANGED" | sed -E 's/\.md$//' | sed -E 's/\/index$//')
+                  echo "URL path for markdown file: $URL_PATH"
+                  
+                  echo "most_changed_file=$MOST_CHANGED" >> $GITHUB_OUTPUT
+                  echo "most_changed_url_path=$URL_PATH" >> $GITHUB_OUTPUT
+                  echo "most_changed_additions=$MAX_ADDITIONS" >> $GITHUB_OUTPUT
+                  
+                  # Add image URL for thumbnail display if possible
+                  IMAGE_URL_PATH=$(echo "$MOST_SIGNIFICANT_IMAGE" | sed 's/^docs\///')
+                  echo "most_changed_image=$IMAGE_URL_PATH" >> $GITHUB_OUTPUT
+                fi
               fi
             fi
-          done <<< "$CHANGED_FILES"
-          
-          if [[ -n "$MOST_CHANGED" ]]; then
-            # Convert path to URL path by removing the file extension and default index files
-            URL_PATH=$(echo $MOST_CHANGED | sed -E 's/\.md$//' | sed -E 's/\/index$//')
-            echo "most_changed_file=$MOST_CHANGED" >> $GITHUB_OUTPUT
-            echo "most_changed_url_path=$URL_PATH" >> $GITHUB_OUTPUT
+            
+            # If we haven't found a significant image link, fall back to default behavior
+            if [[ -z "$MOST_CHANGED" ]]; then
+              echo "No significant image reference found, falling back to regular analysis"
+            else
+              # We've found our image connection, so we can exit this step
+              return 0
+            fi
           fi
+          
+          # Standard analysis for finding the most changed file if not already found
+          if [[ -z "$MOST_CHANGED" ]]; then
+            MAX_ADDITIONS=0
+            
+            while IFS= read -r file; do
+              if [[ -n "$file" ]]; then
+                # Get additions count for this file
+                ADDITIONS=$(git diff --numstat origin/main..$DIFF_TARGET -- "$file" | awk '{print $1}')
+
+                if (( ADDITIONS > MAX_ADDITIONS && ADDITIONS > 0 )); then
+                  MAX_ADDITIONS=$ADDITIONS
+                  MOST_CHANGED=$file
+                fi
+              fi
+            done <<< "$CHANGED_FILES"
+
+            if [[ -n "$MOST_CHANGED" ]]; then
+              echo "Most changed file: $MOST_CHANGED with $MAX_ADDITIONS additions"
+
+              # Convert path to URL path by removing the file extension and default index files
+              URL_PATH=$(echo $MOST_CHANGED | sed -E 's/\.md$//' | sed -E 's/\/index$//')
+              echo "URL path for most changed file: $URL_PATH"
+
+              echo "most_changed_file=$MOST_CHANGED" >> $GITHUB_OUTPUT
+              echo "most_changed_url_path=$URL_PATH" >> $GITHUB_OUTPUT
+              echo "most_changed_additions=$MAX_ADDITIONS" >> $GITHUB_OUTPUT
+            else
+              echo "Could not determine most changed file. This is unexpected."
+            fi
+          fi
+
+      - name: Create and encode preview URL
+        id: create_preview_url
+        if: steps.find_changed_files.outputs.has_changes == 'true'
+        run: |
+          BRANCH_NAME="${{ needs.verify-docs-changes.outputs.branch_name }}"
+          MOST_CHANGED="${{ steps.find_changed_files.outputs.most_changed_file }}"
+          MANIFEST_CHANGED="${{ needs.verify-docs-changes.outputs.manifest_changed }}"
+          MANIFEST_FILES="${{ needs.verify-docs-changes.outputs.manifest_changed_files }}"
+          
+          # More efficient URL encoding using Python (more secure than sed)
+          function url_encode() {
+            python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+          }
+          
+          # URL encode the branch name safely
+          ENCODED_BRANCH=$(url_encode "$BRANCH_NAME")
+          BASE_PREVIEW_URL="${{ env.DOCS_URL_BASE }}/@$ENCODED_BRANCH"
+          echo "Preview URL: $BASE_PREVIEW_URL"
+          echo "preview_url=$BASE_PREVIEW_URL" >> $GITHUB_OUTPUT
+          
+          # Use manifest-changed files if available, otherwise use most changed file
+          TARGET_FILE=""
+          if [[ "$MANIFEST_CHANGED" == "true" && -n "$MANIFEST_FILES" ]]; then
+            # Get the first file from manifest changes
+            TARGET_FILE=$(echo "$MANIFEST_FILES" | head -1)
+            echo "Using file from manifest changes: $TARGET_FILE"
+          elif [[ -n "${{ steps.find_changed_files.outputs.most_changed_url_path }}" ]]; then
+            TARGET_FILE="${{ steps.find_changed_files.outputs.most_changed_file }}"
+            echo "Using most changed file: $TARGET_FILE"
+          fi
+          
+          if [[ -n "$TARGET_FILE" ]]; then
+            # Create URL path
+            URL_PATH="${{ steps.find_changed_files.outputs.most_changed_url_path }}"
+            if [[ -n "$MANIFEST_CHANGED" && -n "$MANIFEST_FILES" ]]; then
+              # Format the manifest file path for URL
+              URL_PATH=$(echo "$TARGET_FILE" | sed -E 's/\.md$//' | sed -E 's/\/index$//')
+            fi
+            ENCODED_PATH=$(url_encode "$URL_PATH")
+            
+            # Check for section headings to link directly to them
+            if [[ -f "$TARGET_FILE" ]]; then
+              # Find the first heading in the file (## or ### etc)
+              SECTION_HEADING=$(grep -n "^##" "$TARGET_FILE" 2>/dev/null | head -1 | cut -d: -f2- | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+              if [[ -n "$SECTION_HEADING" ]]; then
+                echo "Found section heading: $SECTION_HEADING"
+                ENCODED_PATH="${ENCODED_PATH}#${SECTION_HEADING}"
+              fi
+            fi
+            
+            FILE_PREVIEW_URL="$BASE_PREVIEW_URL/$ENCODED_PATH"
+            echo "File preview URL: $FILE_PREVIEW_URL"
+            echo "file_preview_url=$FILE_PREVIEW_URL" >> $GITHUB_OUTPUT
+            echo "target_file=$TARGET_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "No specific file preview URL available"
+          fi
+
+      - name: Update PR Description
+        if: |
+          needs.verify-docs-changes.outputs.is_comment == 'false' &&
+          steps.find_changed_files.outputs.has_changes == 'true'
+        id: update_pr
+        run: |
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
+          PREVIEW_URL="${{ steps.create_preview_url.outputs.preview_url }}"
+          FILE_PREVIEW_URL="${{ steps.create_preview_url.outputs.file_preview_url }}"
+          MOST_CHANGED="${{ steps.find_changed_files.outputs.most_changed_file }}"
+          CHANGED_COUNT="${{ steps.find_changed_files.outputs.changed_file_count }}"
+          WORDS_ADDED="${{ needs.verify-docs-changes.outputs.words_added }}"
+          WORDS_REMOVED="${{ needs.verify-docs-changes.outputs.words_removed }}"
+
+          # Get current PR description
+          PR_BODY=$(gh pr view $PR_NUMBER --json body -q .body)
+
+          # Create updated preview section with metrics
+          IMAGES_TOTAL="${{ needs.verify-docs-changes.outputs.images_total }}"
+          IMAGES_ADDED="${{ needs.verify-docs-changes.outputs.images_added }}"
+          IMAGES_MODIFIED="${{ needs.verify-docs-changes.outputs.images_modified }}"
+          
+          # Create base preview section with word metrics
+          PREVIEW_SECTION="📖 [View documentation preview]($PREVIEW_URL) (+$WORDS_ADDED/-$WORDS_REMOVED words"
+          
+          # Add image info if present
+          if [[ "$IMAGES_TOTAL" != "0" ]]; then
+            if [[ "$IMAGES_ADDED" != "0" || "$IMAGES_MODIFIED" != "0" ]]; then
+              PREVIEW_SECTION="$PREVIEW_SECTION, $IMAGES_TOTAL images updated"
+            fi
+          fi
+          
+          # Close the preview section
+          PREVIEW_SECTION="$PREVIEW_SECTION)"
+
+          # Add link to most changed file if available
+          if [[ -n "$MOST_CHANGED" && -n "$FILE_PREVIEW_URL" ]]; then
+            PREVIEW_SECTION="$PREVIEW_SECTION | [View most changed file \`$MOST_CHANGED\`]($FILE_PREVIEW_URL)"
+          fi
+
+          # Check if preview link already exists and update accordingly
+          if [[ "$PR_BODY" == *"[View documentation preview]"* ]]; then
+            echo "Preview link already exists in PR description, updating it"
+            # Replace existing preview link line
+            NEW_BODY=$(echo "$PR_BODY" | sed -E "s|📖 \\[View documentation preview\\]\\([^)]+\\)(.*)\$|$PREVIEW_SECTION|")
+            UPDATE_TYPE="updated"
+          else
+            echo "Adding preview link to PR description"
+            # Add preview link to the end of the PR description
+            if [[ -n "$PR_BODY" ]]; then
+              NEW_BODY="${PR_BODY}
+
+$PREVIEW_SECTION"
+            else
+              NEW_BODY="$PREVIEW_SECTION"
+            fi
+            UPDATE_TYPE="added"
+          fi
+
+          # Update PR description
+          gh pr edit $PR_NUMBER --body "$NEW_BODY" || echo "::warning::Failed to update PR description, but continuing workflow"
+
+          echo "update_type=$UPDATE_TYPE" >> $GITHUB_OUTPUT
+          echo "changed_count=$CHANGED_COUNT" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update PR Description
-        if: github.event_name == 'pull_request'
+      - name: Check for existing comments
+        id: check_comments
+        if: |
+          (needs.verify-docs-changes.outputs.is_comment == 'true' || needs.verify-docs-changes.outputs.is_manual == 'true') &&
+          steps.find_changed_files.outputs.has_changes == 'true'
         run: |
-          PR_NUMBER="${{ steps.pr_details.outputs.pr_number }}"
-          BRANCH="${{ steps.pr_details.outputs.branch }}"
-          PREVIEW_URL="https://coder.com/docs/@$BRANCH"
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
           
-          # Get current PR description
-          PR_BODY=$(gh pr view $PR_NUMBER --json body -q .body)
-          
-          # Check if preview link already exists
-          if [[ "$PR_BODY" == *"[preview]"*"$PREVIEW_URL"* ]]; then
-            echo "Preview link already exists in PR description."
+          # Check for existing preview comments
+          COMMENTS=$(gh api repos/${{ github.repository }}/issues/$PR_NUMBER/comments --jq '.[].body')
+          if [[ "$COMMENTS" == *"Documentation Preview 📖"* ]]; then
+            # Get ID of the most recent preview comment
+            COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/$PR_NUMBER/comments --jq '.[] | select(.body | contains("Documentation Preview 📖")) | .id' | head -1)
+            if [[ -n "$COMMENT_ID" ]]; then
+              echo "Found existing preview comment with ID: $COMMENT_ID"
+              echo "has_existing_comment=true" >> $GITHUB_OUTPUT
+              echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+            else
+              echo "No existing preview comment found"
+              echo "has_existing_comment=false" >> $GITHUB_OUTPUT
+            fi
           else
-            # Add preview link to the end of the PR description
-            NEW_BODY="${PR_BODY}
-
-[preview](${PREVIEW_URL})"
-            
-            # Update PR description
-            gh pr edit $PR_NUMBER --body "$NEW_BODY"
-            echo "Added preview link to PR description: $PREVIEW_URL"
+            echo "No existing preview comment found"
+            echo "has_existing_comment=false" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on PR with Preview Link
-        if: github.event_name == 'issue_comment' && steps.find_changed_files.outputs.has_changes == 'true'
+        id: post_comment
+        if: |
+          (needs.verify-docs-changes.outputs.is_comment == 'true' || needs.verify-docs-changes.outputs.is_manual == 'true') &&
+          steps.find_changed_files.outputs.has_changes == 'true'
         run: |
-          PR_NUMBER="${{ steps.pr_details.outputs.pr_number }}"
-          BRANCH="${{ steps.pr_details.outputs.branch }}"
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
+          PREVIEW_URL="${{ steps.create_preview_url.outputs.preview_url }}"
+          FILE_PREVIEW_URL="${{ steps.create_preview_url.outputs.file_preview_url }}"
           MOST_CHANGED="${{ steps.find_changed_files.outputs.most_changed_file }}"
-          URL_PATH="${{ steps.find_changed_files.outputs.most_changed_url_path }}"
-          
-          BASE_PREVIEW_URL="https://coder.com/docs/@$BRANCH"
-          
-          if [[ -n "$URL_PATH" ]]; then
+          MOST_CHANGED_ADDITIONS="${{ steps.find_changed_files.outputs.most_changed_additions }}"
+          CHANGED_COUNT="${{ steps.find_changed_files.outputs.changed_file_count }}"
+          IS_MANUAL="${{ needs.verify-docs-changes.outputs.is_manual }}"
+          HAS_NON_DOCS="${{ needs.verify-docs-changes.outputs.has_non_docs_changes }}"
+          WORDS_ADDED="${{ needs.verify-docs-changes.outputs.words_added }}"
+          WORDS_REMOVED="${{ needs.verify-docs-changes.outputs.words_removed }}"
+          HAS_EXISTING="${{ steps.check_comments.outputs.has_existing_comment }}"
+          COMMENT_ID="${{ steps.check_comments.outputs.comment_id }}"
+
+          # Create the comment with the preview link
+          if [[ -n "$FILE_PREVIEW_URL" && -n "$MOST_CHANGED" ]]; then
             # If we have a specific file that changed the most, link directly to it
-            FILE_PREVIEW_URL="${BASE_PREVIEW_URL}/${URL_PATH}"
-            COMMENT="📚 Documentation preview is available:
-- Full docs: [${BASE_PREVIEW_URL}](${BASE_PREVIEW_URL})
-- Most changed file (\`${MOST_CHANGED}\`): [${FILE_PREVIEW_URL}](${FILE_PREVIEW_URL})"
+            COMMENT="### Documentation Preview 📖
+
+[View full documentation preview]($PREVIEW_URL)
+
+Most changed file: [View \`$MOST_CHANGED\`]($FILE_PREVIEW_URL) (+$MOST_CHANGED_ADDITIONS lines)"
           else
             # Just link to the main docs page
-            COMMENT="📚 Documentation preview is available:
-- [${BASE_PREVIEW_URL}](${BASE_PREVIEW_URL})"
+            COMMENT="### Documentation Preview 📖
+
+[View documentation preview]($PREVIEW_URL)"
+          fi
+
+          # Add info about total changed files, words, and images
+          IMAGES_TOTAL="${{ needs.verify-docs-changes.outputs.images_total }}"
+          IMAGES_ADDED="${{ needs.verify-docs-changes.outputs.images_added }}"
+          IMAGES_MODIFIED="${{ needs.verify-docs-changes.outputs.images_modified }}"
+          IMAGES_DELETED="${{ needs.verify-docs-changes.outputs.images_deleted }}"
+          IMAGE_NAMES="${{ needs.verify-docs-changes.outputs.image_names }}"
+          
+          # Create metrics section of comment
+          COMMENT="$COMMENT
+
+*This PR changes $CHANGED_COUNT documentation file(s) with +$WORDS_ADDED/-$WORDS_REMOVED words*"
+
+          # Add image metrics if there are image changes
+          if [[ "$IMAGES_TOTAL" != "0" ]]; then
+            IMAGE_TEXT=""
+            if [[ "$IMAGES_ADDED" != "0" ]]; then
+              IMAGE_TEXT="${IMAGES_ADDED} added"
+            fi
+            if [[ "$IMAGES_MODIFIED" != "0" ]]; then
+              if [[ -n "$IMAGE_TEXT" ]]; then
+                IMAGE_TEXT="$IMAGE_TEXT, ${IMAGES_MODIFIED} modified"
+              else
+                IMAGE_TEXT="${IMAGES_MODIFIED} modified"
+              fi
+            fi
+            if [[ "$IMAGES_DELETED" != "0" ]]; then
+              if [[ -n "$IMAGE_TEXT" ]]; then
+                IMAGE_TEXT="$IMAGE_TEXT, ${IMAGES_DELETED} deleted"
+              else
+                IMAGE_TEXT="${IMAGES_DELETED} deleted"
+              fi
+            fi
+            
+            COMMENT="$COMMENT
+*Images: $IMAGE_TEXT*"
+            
+            # Add image names if not too many
+            if [[ -n "$IMAGE_NAMES" ]]; then
+              # Count the number of images by counting commas plus 1
+              NUM_IMAGES=$(echo "$IMAGE_NAMES" | awk -F, '{print NF}')
+              if [[ $NUM_IMAGES -le 5 ]]; then
+                COMMENT="$COMMENT
+*Changed images: \`$IMAGE_NAMES\`*"
+              fi
+            fi
+          fi
+
+          # Add note if manually triggered
+          if [[ "$IS_MANUAL" == "true" ]]; then
+            COMMENT="$COMMENT
+
+*This preview was manually generated by a repository maintainer*"
           fi
           
-          gh pr comment $PR_NUMBER --body "$COMMENT"
+          # Add note if this PR has both docs and non-docs changes
+          if [[ "$HAS_NON_DOCS" == "true" ]]; then
+            COMMENT="$COMMENT
+
+**Note:** This PR contains changes outside the docs directory. Only the documentation changes are being previewed here."
+          fi
+
+          # Post or update comment based on whether one exists
+          if [[ "$HAS_EXISTING" == "true" && -n "$COMMENT_ID" ]]; then
+            echo "Updating existing comment with ID: $COMMENT_ID"
+            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID -f body="$COMMENT" -X PATCH
+            echo "comment_action=updated" >> $GITHUB_OUTPUT
+          else
+            echo "Creating new comment"
+            gh pr comment $PR_NUMBER --body "$COMMENT"
+            echo "comment_action=created" >> $GITHUB_OUTPUT
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Add a job summary with success details, metrics, and performance information
+      # Save analytics data as artifact for potential reuse or auditing
+      - name: Save image and document analytics
+        if: steps.find_changed_files.outputs.has_changes == 'true' && (needs.verify-docs-changes.outputs.images_total > 0 || steps.analyze_structure.outputs.document_titles_found == 'true')
+        uses: actions/upload-artifact@latest
+        with:
+          name: pr-${{ needs.verify-docs-changes.outputs.pr_number }}-doc-data
+          path: |
+            .github/temp/*.txt
+          retention-days: 1
+          if-no-files-found: ignore
+      
+      - name: Create job summary
+        if: steps.find_changed_files.outputs.has_changes == 'true'
+        run: |
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
+          PREVIEW_URL="${{ steps.create_preview_url.outputs.preview_url }}"
+          MOST_CHANGED="${{ steps.find_changed_files.outputs.most_changed_file }}"
+          TARGET_FILE="${{ steps.create_preview_url.outputs.target_file }}"
+          UPDATE_TYPE="${{ steps.update_pr.outputs.update_type }}"
+          CHANGED_COUNT="${{ steps.update_pr.outputs.changed_count }}"
+          COMMENT_ACTION="${{ steps.post_comment.outputs.comment_action }}"
+          
+          # Get document metrics
+          DOCS_FILES_COUNT="${{ needs.verify-docs-changes.outputs.docs_files_count }}"
+          WORDS_ADDED="${{ needs.verify-docs-changes.outputs.words_added }}"
+          WORDS_REMOVED="${{ needs.verify-docs-changes.outputs.words_removed }}"
+          IMAGES_ADDED="${{ needs.verify-docs-changes.outputs.images_added }}"
+          FORMAT_ONLY="${{ needs.verify-docs-changes.outputs.format_only }}"
+          MANIFEST_CHANGED="${{ needs.verify-docs-changes.outputs.manifest_changed }}"
+
+          # Calculate execution time
+          START_TIME="${{ needs.verify-docs-changes.outputs.execution_start_time }}"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          # Format duration nicely
+          if [[ $DURATION -lt 60 ]]; then
+            DURATION_STR="${DURATION} seconds"
+          else
+            MINS=$((DURATION / 60))
+            SECS=$((DURATION % 60))
+            DURATION_STR="${MINS}m ${SECS}s"
+          fi
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Documentation Preview Added ✅
+
+          **PR #${PR_NUMBER}** has been processed successfully.
+
+          **Preview Links:**
+          - Main Preview: [${PREVIEW_URL}](${PREVIEW_URL})
+EOF
+
+          # Add most changed file or manifest file info
+          if [[ "$MANIFEST_CHANGED" == "true" && -n "$TARGET_FILE" ]]; then
+            echo "- Manifest Change: [View \`$TARGET_FILE\`](${PREVIEW_URL}/$TARGET_FILE)" >> $GITHUB_STEP_SUMMARY
+          elif [[ -n "$MOST_CHANGED" ]]; then
+            echo "- Most Changed File: [View \`$MOST_CHANGED\`](${{ steps.create_preview_url.outputs.file_preview_url }})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+
+          **Document Metrics:**
+          - Files Modified: ${DOCS_FILES_COUNT}
+          - Words: +${WORDS_ADDED}/-${WORDS_REMOVED}
+EOF
+
+          if [[ "${IMAGES_ADDED}" != "0" ]]; then
+            echo "- Images Added/Modified: ${IMAGES_ADDED}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "$FORMAT_ONLY" == "true" ]]; then
+            echo "- Only formatting changes detected (no content changes)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+
+          **Performance:**
+          - Preview Link Status: ${UPDATE_TYPE:-added} to PR description
+EOF
+          
+          if [[ -n "$COMMENT_ACTION" ]]; then
+            echo "- Comment Status: ${COMMENT_ACTION} on PR" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "- Execution Time: ${DURATION_STR}" >> $GITHUB_STEP_SUMMARY
+
+          # Add notice with timing information
+          echo "::notice::Docs preview workflow completed in ${DURATION_STR} (Modified ${DOCS_FILES_COUNT} files, +${WORDS_ADDED}/-${WORDS_REMOVED} words)"
+
+      # Record workflow metrics for performance monitoring
+      - name: Record workflow metrics
+        if: always()
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const startTimeMs = parseInt('${{ needs.verify-docs-changes.outputs.execution_start_time }}') * 1000;
+            const jobDuration = Date.now() - startTimeMs;
+            
+            console.log(`Workflow completed in ${jobDuration}ms`);
+            core.exportVariable('WORKFLOW_DURATION_MS', jobDuration);
+            
+            // Record metric as annotation in workflow
+            core.notice(`Documentation preview workflow metrics:
+            - Total execution time: ${Math.round(jobDuration / 1000)}s
+            - Files processed: ${{ needs.verify-docs-changes.outputs.docs_files_count || 0 }}
+            - Content changes: +${{ needs.verify-docs-changes.outputs.words_added || 0 }}/-${{ needs.verify-docs-changes.outputs.words_removed || 0 }} words
+            - PR #${{ needs.verify-docs-changes.outputs.pr_number }}`);
+            
+            // Comprehensive workflow metrics in standardized format
+            const metrics = {
+              workflow_name: 'docs-preview-link',
+              duration_ms: jobDuration,
+              success: '${{ job.status }}' === 'success',
+              pr_number: ${{ needs.verify-docs-changes.outputs.pr_number }},
+              files_changed: ${{ needs.verify-docs-changes.outputs.docs_files_count || 0 }},
+              words_added: ${{ needs.verify-docs-changes.outputs.words_added || 0 }},
+              words_removed: ${{ needs.verify-docs-changes.outputs.words_removed || 0 }},
+              images_changed: ${{ needs.verify-docs-changes.outputs.images_total || 0 }},
+              manifest_changed: '${{ needs.verify-docs-changes.outputs.manifest_changed }}' === 'true',
+              result: 'preview_success'
+            };
+            
+            // Log metrics in standardized format for easy extraction
+            console.log(`WORKFLOW_METRICS ${JSON.stringify(metrics)}`);
+            
+            // Store metrics for potential use by other systems
+            core.setOutput('workflow_metrics', JSON.stringify(metrics));
+
+      # Update the PR status using GitHub Check Run API for better CI integration
+      - name: Update PR status with combined information
+        if: |
+          (needs.verify-docs-changes.outputs.is_comment == 'false' || needs.verify-docs-changes.outputs.is_manual == 'true') &&
+          steps.find_changed_files.outputs.has_changes == 'true'
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = '${{ needs.verify-docs-changes.outputs.sha }}';
+            
+            const fileCount = parseInt('${{ steps.find_changed_files.outputs.changed_file_count }}');
+            const wordsAdded = parseInt('${{ needs.verify-docs-changes.outputs.words_added }}');
+            const wordsRemoved = parseInt('${{ needs.verify-docs-changes.outputs.words_removed }}');
+            const formatOnly = '${{ needs.verify-docs-changes.outputs.format_only }}' === 'true';
+            const manifestChanged = '${{ needs.verify-docs-changes.outputs.manifest_changed }}' === 'true';
+            const imagesAdded = parseInt('${{ needs.verify-docs-changes.outputs.images_added || 0 }}');
+            const imagesModified = parseInt('${{ needs.verify-docs-changes.outputs.images_modified || 0 }}');
+            const imagesDeleted = parseInt('${{ needs.verify-docs-changes.outputs.images_deleted || 0 }}');
+            const imagesTotal = parseInt('${{ needs.verify-docs-changes.outputs.images_total || 0 }}');
+            const imageNames = '${{ needs.verify-docs-changes.outputs.image_names || "" }}';
+            const previewUrl = '${{ steps.create_preview_url.outputs.preview_url }}';
+            const filePreviewUrl = '${{ steps.create_preview_url.outputs.file_preview_url }}';
+            const targetFile = '${{ steps.create_preview_url.outputs.target_file }}';
+            const mostChangedFile = '${{ steps.find_changed_files.outputs.most_changed_file }}';
+            const checkRunId = process.env.DOCS_PREVIEW_CHECK_ID;
+            
+            // Create a descriptive title based on the nature of changes
+            let title = '';
+            if (manifestChanged) {
+              title = 'Documentation Structure Preview';
+            } else if (formatOnly) {
+              title = 'Documentation Format Preview';
+            } else {
+              title = 'Documentation Content Preview';
+            }
+            
+            // Create a detailed summary for the check output
+            let summary = `## Documentation Preview Links\n\n`;
+            summary += `- [View full documentation preview](${previewUrl})\n`;
+            
+            if (filePreviewUrl && (mostChangedFile || targetFile)) {
+              const displayFile = targetFile || mostChangedFile;
+              summary += `- [View most changed file: \`${displayFile}\`](${filePreviewUrl})\n`;
+            }
+            
+            // Add metrics section
+            summary += `\n## Documentation Metrics\n\n`;
+            summary += `- Files Modified: ${fileCount}\n`;
+            summary += `- Words: +${wordsAdded}/-${wordsRemoved}\n`;
+            
+            if (imagesTotal > 0) {
+              // Add image change details with more information
+              summary += `- Images: ${imagesAdded > 0 ? '+' + imagesAdded + ' added' : ''}${imagesModified > 0 ? (imagesAdded > 0 ? ', ' : '') + imagesModified + ' modified' : ''}${imagesDeleted > 0 ? ((imagesAdded > 0 || imagesModified > 0) ? ', ' : '') + imagesDeleted + ' removed' : ''}\n`;
+              
+              // Show image names if available
+              if (imageNames) {
+                const imageList = imageNames.split(',');
+                if (imageList.length > 0) {
+                  // Format nicely with truncation if needed
+                  const displayImages = imageList.length > 5 ? 
+                    imageList.slice(0, 5).join(', ') + ` and ${imageList.length - 5} more` : 
+                    imageList.join(', ');
+                  summary += `- Changed image files: \`${displayImages}\`\n`;
+                }
+              }
+            }
+            
+            if (formatOnly) {
+              summary += `\n**Note:** Only formatting changes detected (no content changes).\n`;
+            }
+            
+            if (manifestChanged) {
+              summary += `\n**Important:** This PR modifies the documentation structure (manifest.json).\n`;
+            }
+            
+            if ('${{ needs.verify-docs-changes.outputs.has_non_docs_changes }}' === 'true') {
+              summary += `\n**Note:** This PR contains both documentation and other code changes. Only documentation changes are being previewed.\n`;
+            }
+            
+            // Create metadata for the check run
+            const details = {
+              file_count: fileCount,
+              words_added: wordsAdded,
+              words_removed: wordsRemoved,
+              manifest_changed: manifestChanged,
+              format_only: formatOnly,
+              has_mixed_changes: '${{ needs.verify-docs-changes.outputs.has_non_docs_changes }}' === 'true'
+            };
+            
+            // Update the check run if we have an ID, otherwise create a new one
+            if (checkRunId) {
+              console.log(`Updating existing check run: ${checkRunId}`);
+              await github.rest.checks.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                check_run_id: checkRunId,
+                status: 'completed',
+                conclusion: 'success',
+                details_url: previewUrl,
+                output: {
+                  title: title,
+                  summary: summary,
+                }
+              });
+            } else {
+              // Create a rich check run with all our information
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: '${{ env.STATUS_CHECK_PREFIX }}/preview',
+                head_sha: sha,
+                status: 'completed',
+                conclusion: 'success',
+                details_url: previewUrl,
+                output: {
+                  title: title,
+                  summary: summary,
+                }
+              });
+            }
+            
+            // Create a more informative description for the commit status (keeping for backward compatibility)
+            let description = 'Docs preview: ';
+            
+            if (manifestChanged) {
+              description += 'Structure changes';
+            } else if (formatOnly) {
+              description += 'Format changes only';
+            } else {
+              description += `${fileCount} files (+${wordsAdded}/-${wordsRemoved} words)`;
+              
+              // Add image info to description if present
+              if (imagesTotal > 0) {
+                // Keep within GitHub status description length limit
+                if (description.length < 120) {
+                  description += `, ${imagesTotal} images`;
+                }
+              }
+            }
+              
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: 'success',
+              target_url: previewUrl,
+              context: '${{ env.STATUS_CHECK_PREFIX }}/preview',
+              description: description
+            });
+
+  security-check-failed:
+    needs: verify-docs-changes
+    if: needs.verify-docs-changes.outputs.docs_changed == 'false' && needs.verify-docs-changes.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: write
+      statuses: write
+      checks: write # For creating check runs
+    steps:
+      - name: Update PR status using Check Run API
+        if: needs.verify-docs-changes.outputs.is_comment == 'false' || needs.verify-docs-changes.outputs.is_manual == 'true'
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = '${{ needs.verify-docs-changes.outputs.sha }}';
+
+            // Create detailed security error feedback using Check Run API
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: '${{ env.STATUS_CHECK_PREFIX }}/security',
+              head_sha: sha,
+              status: 'completed',
+              conclusion: 'failure',
+              output: {
+                title: 'Documentation Preview Security Check Failed',
+                summary: 'This PR contains changes outside the docs directory or markdown files. For security reasons, the automatic documentation preview is only available for PRs that modify files exclusively within the docs directory or markdown files.\n\nA repository maintainer must review and manually approve preview link generation for this PR.',
+                text: 'Docs preview links are generated automatically only for PRs that exclusively change documentation files. This security restriction protects against potential abuse through fork PRs.'
+              }
+            });
+            
+            // For backward compatibility, still create a commit status
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: 'error',
+              context: '${{ env.STATUS_CHECK_PREFIX }}/security',
+              description: 'PR contains changes outside docs directory'
+            });
+
+      - name: Comment on security issue
+        if: needs.verify-docs-changes.outputs.is_comment == 'true' || needs.verify-docs-changes.outputs.is_manual == 'true'
+        run: |
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
+          IS_MANUAL="${{ needs.verify-docs-changes.outputs.is_manual }}"
+
+          if [[ "$IS_MANUAL" == "true" ]]; then
+            TRIGGER_INFO="This was manually triggered by a repository maintainer."
+          else
+            TRIGGER_INFO="This was triggered by your comment."
+          fi
+
+          RESPONSE="⚠️ **Security Check Failed**
+
+This PR contains changes outside the docs and markdown files. For security reasons, the automatic documentation preview is only available for PRs that modify files exclusively within the docs directory or markdown files.
+
+$TRIGGER_INFO
+
+Please contact a repository maintainer if you need help with documentation previews for this PR."
+
+          # Check if there's an existing comment we should update
+          COMMENTS=$(gh api repos/${{ github.repository }}/issues/$PR_NUMBER/comments --jq '.[] | select(.body | contains("Security Check Failed")) | .id')
+          if [[ -n "$COMMENTS" ]]; then
+            COMMENT_ID=$(echo "$COMMENTS" | head -1)
+            echo "Updating existing security comment with ID: $COMMENT_ID"
+            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID -f body="$RESPONSE" -X PATCH
+          else
+            # Post comment
+            gh pr comment $PR_NUMBER --body "$RESPONSE" || echo "::warning::Failed to post security comment, but continuing workflow"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Add a job summary with failure details
+      - name: Create job summary
+        run: |
+          PR_NUMBER="${{ needs.verify-docs-changes.outputs.pr_number }}"
+
+          # Calculate execution time
+          START_TIME="${{ needs.verify-docs-changes.outputs.execution_start_time }}"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          # Format duration nicely
+          if [[ $DURATION -lt 60 ]]; then
+            DURATION_STR="${DURATION} seconds"
+          else
+            MINS=$((DURATION / 60))
+            SECS=$((DURATION % 60))
+            DURATION_STR="${MINS}m ${SECS}s"
+          fi
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Documentation Preview Failed ❌
+
+          **PR #${PR_NUMBER}** contains changes to files outside the docs directory.
+
+          For security reasons, the automatic documentation preview is only available for PRs
+          that modify files exclusively within the docs directory or markdown files.
+
+          A maintainer must manually review this PR's content before generating previews.
+
+          - Execution Time: ${DURATION_STR}
+          EOF
+
+          # Add notice with timing information
+          echo "::notice::Docs preview workflow failed in ${DURATION_STR}"
+
+      # Record workflow failure metrics
+      - name: Record failure metrics
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const startTimeMs = parseInt('${{ needs.verify-docs-changes.outputs.execution_start_time }}') * 1000;
+            const jobDuration = Date.now() - startTimeMs;
+            
+            console.log(`Security check failed in ${jobDuration}ms`);
+            core.exportVariable('WORKFLOW_DURATION_MS', jobDuration);
+            
+            // Record metric as annotation in workflow
+            core.notice(`Security check failure:
+            - Total execution time: ${Math.round(jobDuration / 1000)}s
+            - PR #${{ needs.verify-docs-changes.outputs.pr_number }}
+            - Reason: PR contains changes outside docs directory`);
+            
+      # Comprehensive workflow metrics
+      - name: Report workflow metrics
+        if: always()
+        uses: actions/github-script@latest
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const metrics = {
+              workflow_name: 'docs-preview-link',
+              duration_ms: Date.now() - new Date('${{ needs.verify-docs-changes.outputs.execution_start_time }}000').getTime(),
+              success: '${{ job.status }}' === 'success',
+              pr_number: ${{ needs.verify-docs-changes.outputs.pr_number }},
+              files_changed: 0,
+              words_added: 0,
+              words_removed: 0,
+              images_changed: 0,
+              result: 'security_check_failed'
+            };
+            
+            // Log metrics in standardized format for easy extraction
+            console.log(`WORKFLOW_METRICS ${JSON.stringify(metrics)}`);
+            
+            // Option to send metrics to tracking system (commented out)
+            /*
+            if (process.env.METRICS_ENDPOINT) {
+              try {
+                const response = await fetch(process.env.METRICS_ENDPOINT, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify(metrics)
+                });
+                console.log(`Metrics sent: ${response.status}`);
+              } catch (e) {
+                console.error(`Failed to send metrics: ${e.message}`);
+              }
+            }
+            */
