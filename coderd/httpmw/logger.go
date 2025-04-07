@@ -54,11 +54,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				)
 			}
 
-			// We already capture most of this information in the span (minus
-			// the response body which we don't want to capture anyways).
-			tracing.RunWithoutSpan(r.Context(), func(ctx context.Context) {
-				logContext.WriteLog(ctx, sw.Status)
-			})
+			logContext.WriteLog(r.Context(), sw.Status)
 		})
 	}
 }
@@ -68,15 +64,17 @@ type RequestLogger interface {
 	WriteLog(ctx context.Context, status int)
 }
 
-type RequestContextLogger struct {
+type SlogRequestLogger struct {
 	log     slog.Logger
 	written bool
 	message string
 	start   time.Time
 }
 
+var _ RequestLogger = &SlogRequestLogger{}
+
 func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestLogger {
-	return &RequestContextLogger{
+	return &SlogRequestLogger{
 		log:     log,
 		written: false,
 		message: message,
@@ -84,11 +82,11 @@ func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestL
 	}
 }
 
-func (c *RequestContextLogger) WithFields(fields ...slog.Field) {
+func (c *SlogRequestLogger) WithFields(fields ...slog.Field) {
 	c.log = c.log.With(fields...)
 }
 
-func (c *RequestContextLogger) WriteLog(ctx context.Context, status int) {
+func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 	if c.written {
 		return
 	}
@@ -100,14 +98,18 @@ func (c *RequestContextLogger) WriteLog(ctx context.Context, status int) {
 		slog.F("status_code", status),
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
-	// We should not log at level ERROR for 5xx status codes because 5xx
-	// includes proxy errors etc. It also causes slogtest to fail
-	// instantly without an error message by default.
-	if status >= http.StatusInternalServerError {
-		logger.Warn(ctx, c.message)
-	} else {
-		logger.Debug(ctx, c.message)
-	}
+	// We already capture most of this information in the span (minus
+	// the response body which we don't want to capture anyways).
+	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
+		// We should not log at level ERROR for 5xx status codes because 5xx
+		// includes proxy errors etc. It also causes slogtest to fail
+		// instantly without an error message by default.
+		if status >= http.StatusInternalServerError {
+			logger.Warn(ctx, c.message)
+		} else {
+			logger.Debug(ctx, c.message)
+		}
+	})
 }
 
 type logContextKey struct{}

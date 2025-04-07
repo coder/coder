@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"
@@ -31,24 +33,16 @@ func TestRequestLogger_WriteLog(t *testing.T) {
 	// Write log for 200 status
 	logCtx.WriteLog(ctx, http.StatusOK)
 
-	if len(sink.entries) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(sink.entries))
-	}
+	require.Len(t, sink.entries, 1, "log was written twice")
 
-	if sink.entries[0].Message != "GET" {
-		t.Errorf("expected log message to be 'GET', got '%s'", sink.entries[0].Message)
-	}
+	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
 
-	if sink.entries[0].Fields[0].Value != "custom_value" {
-		t.Errorf("expected a custom_field with value custom_value, got '%s'", sink.entries[0].Fields[0].Value)
-	}
+	require.Equal(t, sink.entries[0].Fields[0].Value, "custom_value", "custom_field should be custom_value")
 
 	// Attempt to write again (should be skipped).
 	logCtx.WriteLog(ctx, http.StatusInternalServerError)
 
-	if len(sink.entries) != 1 {
-		t.Fatalf("expected 1 log entry after second write, got %d", len(sink.entries))
-	}
+	require.Len(t, sink.entries, 1, "log was written twice")
 }
 
 func TestLoggerMiddleware_SingleRequest(t *testing.T) {
@@ -79,13 +73,9 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	// Serve the request
 	wrappedHandler.ServeHTTP(sw, req)
 
-	if len(sink.entries) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(sink.entries))
-	}
+	require.Len(t, sink.entries, 1, "log was written twice")
 
-	if sink.entries[0].Message != "GET" {
-		t.Errorf("expected log message to be 'GET', got '%s'", sink.entries[0].Message)
-	}
+	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
 }
 
 func TestLoggerMiddleware_WebSocket(t *testing.T) {
@@ -134,13 +124,9 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	wg.Wait()
-	if len(sink.entries) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(sink.entries))
-	}
+	require.Len(t, sink.entries, 1, "log was written twice")
 
-	if sink.entries[0].Message != "GET" {
-		t.Errorf("expected log message to be 'GET', got '%s'", sink.entries[0].Message)
-	}
+	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
 }
 
 type fakeSink struct {
