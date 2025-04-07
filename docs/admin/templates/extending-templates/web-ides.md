@@ -315,6 +315,21 @@ module "airflow" {
 
 ![Airflow in Coder](../../../images/airflow-port-forward.png)
 
+## Zed
+
+Configure your agent and `coder_app` like to include a Zed hotlink:
+
+```hcl
+resource "coder_app" "zed" {
+    agent_id = coder_agent.main.id
+    slug          = "slug"
+    display_name  = "Zed"
+    external = true
+    url      = "zed://ssh/coder.${data.coder_workspace.me.name}"
+    icon     = "/icon/zed.svg"
+}
+```
+
 ## File Browser
 
 To access the contents of a workspace directory in a browser, you can use File
@@ -367,21 +382,6 @@ module "filebrowser" {
 ```
 
 ![File Browser](../../../images/file-browser.png)
-
-## Zed
-
-Configure your agent and `coder_app` like to include a Zed hotlink:
-
-```hcl
-resource "coder_app" "zed" {
-    agent_id = coder_agent.main.id
-    slug          = "slug"
-    display_name  = "Zed"
-    external = true
-    url      = "zed://ssh/coder.${data.coder_workspace.me.name}"
-    icon     = "/icon/zed.svg"
-}
-```
 
 ## SSH Fallback
 
