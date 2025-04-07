@@ -483,9 +483,4 @@ require (
 
 require github.com/mark3labs/mcp-go v0.17.0
 
-require (
-	github.com/hashicorp/go-plugin v1.6.2 // indirect
-	github.com/hashicorp/terraform-registry-address v0.2.4 // indirect
-	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
-	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-)
+require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
