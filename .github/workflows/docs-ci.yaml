@@ -1,5 +1,10 @@
 name: Docs CI
 
+# This workflow runs linting and formatting checks on documentation files.
+# It leverages the shared docs-analysis composite action for detecting changes
+# and integrates with other documentation workflows through shared outputs.
+# Security features ensure safe handling of files and commands.
+
 on:
   push:
     branches:
@@ -8,12 +13,14 @@ on:
       - "docs/**"
       - "**.md"
       - ".github/workflows/docs-ci.yaml"
+      - ".github/actions/docs-analysis/**"
 
   pull_request:
     paths:
       - "docs/**"
       - "**.md"
       - ".github/workflows/docs-ci.yaml"
+      - ".github/actions/docs-analysis/**"
 
 permissions:
   contents: read
@@ -21,9 +28,23 @@ permissions:
 jobs:
   docs:
     runs-on: ubuntu-latest
+    outputs:
+      docs_changed: ${{ steps.docs-analysis.outputs.docs-changed }}
+      docs_files_count: ${{ steps.docs-analysis.outputs.docs-files-count }}
+      words_added: ${{ steps.docs-analysis.outputs.words-added }}
+      words_removed: ${{ steps.docs-analysis.outputs.words-removed }}
+      images_changed: ${{ steps.docs-analysis.outputs.images-total }}
+      significant_change: ${{ steps.docs-analysis.outputs.significant-change }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 50  # Increased for better detection of doc changes
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -35,14 +56,113 @@ jobs:
             docs/**
             **.md
           separator: ","
+          fetch_depth: 50
+          since_last_remote_commit: ${{ github.event_name == 'push' }}
+
+      # Use our composite action to analyze documentation changes
+      - name: Analyze documentation changes
+        id: docs-analysis
+        uses: ./.github/actions/docs-analysis
+        with:
+          docs-path: "docs/"
+          changed-files: ${{ steps.changed-files.outputs.all_changed_files }}
+          files-pattern: "docs/**|**.md"
+          debug-mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug == 'true' || 'false' }}
+          # Enable throttling for large repositories
+          throttle-large-repos: 'true'
+          # Default performance optimization values
+          max-scan-files: '100'
+          max-files-to-analyze: '20'
 
       - name: lint
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.docs-analysis.outputs.docs-changed == 'true'
         run: |
           pnpm exec markdownlint-cli2 ${{ steps.changed-files.outputs.all_changed_files }}
 
       - name: fmt
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.docs-analysis.outputs.docs-changed == 'true'
         run: |
           # markdown-table-formatter requires a space separated list of files
           echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+          
+      # Display metrics about documentation changes (only on PRs)
+      - name: Documentation metrics summary
+        if: github.event_name == 'pull_request' && steps.docs-analysis.outputs.docs-changed == 'true'
+        run: |
+          echo "## Documentation Changes Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Files changed | ${{ steps.docs-analysis.outputs.docs-files-count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Words added | ${{ steps.docs-analysis.outputs.words-added }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Words removed | ${{ steps.docs-analysis.outputs.words-removed }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Processing time | ${{ steps.docs-analysis.outputs.execution-time }}s |" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.docs-analysis.outputs.images-total }}" != "0" ]]; then
+            echo "| Images changed | ${{ steps.docs-analysis.outputs.images-total }} |" >> $GITHUB_STEP_SUMMARY
+            
+            # Add more detailed image metrics if available
+            if [[ "${{ steps.docs-analysis.outputs.images-added }}" != "0" || "${{ steps.docs-analysis.outputs.images-modified }}" != "0" || "${{ steps.docs-analysis.outputs.images-deleted }}" != "0" ]]; then
+              IMAGES_DETAIL=""
+              if [[ "${{ steps.docs-analysis.outputs.images-added }}" != "0" ]]; then
+                IMAGES_DETAIL="${{ steps.docs-analysis.outputs.images-added }} added"
+              fi
+              if [[ "${{ steps.docs-analysis.outputs.images-modified }}" != "0" ]]; then
+                if [[ -n "$IMAGES_DETAIL" ]]; then
+                  IMAGES_DETAIL="$IMAGES_DETAIL, ${{ steps.docs-analysis.outputs.images-modified }} modified"
+                else
+                  IMAGES_DETAIL="${{ steps.docs-analysis.outputs.images-modified }} modified"
+                fi
+              fi
+              if [[ "${{ steps.docs-analysis.outputs.images-deleted }}" != "0" ]]; then
+                if [[ -n "$IMAGES_DETAIL" ]]; then
+                  IMAGES_DETAIL="$IMAGES_DETAIL, ${{ steps.docs-analysis.outputs.images-deleted }} deleted"
+                else
+                  IMAGES_DETAIL="${{ steps.docs-analysis.outputs.images-deleted }} deleted"
+                fi
+              fi
+              echo "| Images detail | $IMAGES_DETAIL |" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          if [[ "${{ steps.docs-analysis.outputs.manifest-changed }}" == "true" ]]; then
+            echo "| Structure changes | Yes (manifest.json modified) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ steps.docs-analysis.outputs.format-only }}" == "true" ]]; then
+            echo "| Format only | Yes (no content changes) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add most changed file info if available
+          if [[ "${{ steps.docs-analysis.outputs.most-changed-file }}" != "" ]]; then
+            echo "| Most changed file | \`${{ steps.docs-analysis.outputs.most-changed-file }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      # Create job summary for GitHub Actions UI
+      - name: Job status summary
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          
+          if [[ "$STATUS" == "success" ]]; then
+            echo "## ✅ Documentation checks passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ Documentation checks failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Ran with:" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs Analysis version: $(cd .github/actions/docs-analysis && git rev-parse --short HEAD || echo 'unknown')" >> $GITHUB_STEP_SUMMARY
+          echo "- Event: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Output useful links for debugging
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "- [View PR](https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Output performance metrics
+          if [[ -f ".github/temp/docs-analysis-metrics.json" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Performance Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "$(cat .github/temp/docs-analysis-metrics.json | grep -o '"execution_time": [0-9]*' | cut -d' ' -f2) seconds to analyze documentation" >> $GITHUB_STEP_SUMMARY
+          fi
