@@ -65,6 +65,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
 		hostPrefix          string
+		hostnameSuffix      string
 		forwardAgent        bool
 		forwardGPG          bool
 		identityAgent       string
@@ -202,10 +203,14 @@ func (r *RootCmd) ssh() *serpent.Command {
 				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
 
-			workspaceInput := strings.TrimPrefix(inv.Args[0], hostPrefix)
-			// convert workspace name format into owner/workspace.agent
-			namedWorkspace := normalizeWorkspaceInput(workspaceInput)
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, namedWorkspace)
+			deploymentSSHConfig := codersdk.SSHConfigResponse{
+				HostnamePrefix: hostPrefix,
+				HostnameSuffix: hostnameSuffix,
+			}
+
+			workspace, workspaceAgent, err := findWorkspaceAndAgentByHostname(
+				ctx, inv, client,
+				inv.Args[0], deploymentSSHConfig, disableAutostart)
 			if err != nil {
 				return err
 			}
@@ -565,6 +570,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Value:       serpent.StringOf(&hostPrefix),
 		},
 		{
+			Flag:        "hostname-suffix",
+			Env:         "CODER_SSH_HOSTNAME_SUFFIX",
+			Description: "Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix must be specified without a leading . character.",
+			Value:       serpent.StringOf(&hostnameSuffix),
+		},
+		{
 			Flag:          "forward-agent",
 			FlagShorthand: "A",
 			Env:           "CODER_SSH_FORWARD_AGENT",
@@ -654,6 +665,30 @@ func (r *RootCmd) ssh() *serpent.Command {
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 	return cmd
+}
+
+// findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it
+// corresponds to, taking into account any name prefixes or suffixes configured (e.g. myworkspace.coder, or
+// vscode-coder--myusername--myworkspace).
+func findWorkspaceAndAgentByHostname(
+	ctx context.Context, inv *serpent.Invocation, client *codersdk.Client,
+	hostname string, config codersdk.SSHConfigResponse, disableAutostart bool,
+) (
+	codersdk.Workspace, codersdk.WorkspaceAgent, error,
+) {
+	// for suffixes, we don't explicitly get the . and must add it. This is to ensure that the suffix is always
+	// interpreted as a dotted label in DNS names, not just any string suffix. That is, a suffix of 'coder' will
+	// match a hostname like 'en.coder', but not 'encoder'.
+	qualifiedSuffix := "." + config.HostnameSuffix
+
+	switch {
+	case config.HostnamePrefix != "" && strings.HasPrefix(hostname, config.HostnamePrefix):
+		hostname = strings.TrimPrefix(hostname, config.HostnamePrefix)
+	case config.HostnameSuffix != "" && strings.HasSuffix(hostname, qualifiedSuffix):
+		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
+	}
+	hostname = normalizeWorkspaceInput(hostname)
+	return getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 }
 
 // watchAndClose ensures closer is called if the context is canceled or
