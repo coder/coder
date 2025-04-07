@@ -1,0 +1,133 @@
+name: Add Docs Preview Link
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'docs/**'
+      - '**.md'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  add-preview-link:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'pull_request') || 
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/docs-preview'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get PR Details
+        id: pr_details
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+          else
+            # For comments, we need to fetch the PR information
+            PR_NUMBER="${{ github.event.issue.number }}"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            BRANCH=$(gh pr view $PR_NUMBER --json headRefName -q .headRefName)
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find files with most additions (when requested via comment)
+        id: find_changed_files
+        if: github.event_name == 'issue_comment'
+        run: |
+          # Get the list of changed files in the docs directory
+          PR_NUMBER="${{ steps.pr_details.outputs.pr_number }}"
+          CHANGED_FILES=$(gh pr diff $PR_NUMBER --name-only | grep -E "^docs/|\.md$" || echo "")
+          
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "No documentation files changed in this PR."
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Find the file with the most additions
+          MOST_CHANGED=""
+          MAX_ADDITIONS=0
+          
+          while IFS= read -r file; do
+            if [[ -n "$file" ]]; then
+              # Get additions count for this file
+              ADDITIONS=$(gh pr diff $PR_NUMBER --patch | grep "^+++ b/$file" -A 1000 | grep -c "^+" || echo "0")
+              
+              if (( ADDITIONS > MAX_ADDITIONS )); then
+                MAX_ADDITIONS=$ADDITIONS
+                MOST_CHANGED=$file
+              fi
+            fi
+          done <<< "$CHANGED_FILES"
+          
+          if [[ -n "$MOST_CHANGED" ]]; then
+            # Convert path to URL path by removing the file extension and default index files
+            URL_PATH=$(echo $MOST_CHANGED | sed -E 's/\.md$//' | sed -E 's/\/index$//')
+            echo "most_changed_file=$MOST_CHANGED" >> $GITHUB_OUTPUT
+            echo "most_changed_url_path=$URL_PATH" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR Description
+        if: github.event_name == 'pull_request'
+        run: |
+          PR_NUMBER="${{ steps.pr_details.outputs.pr_number }}"
+          BRANCH="${{ steps.pr_details.outputs.branch }}"
+          PREVIEW_URL="https://coder.com/docs/@$BRANCH"
+          
+          # Get current PR description
+          PR_BODY=$(gh pr view $PR_NUMBER --json body -q .body)
+          
+          # Check if preview link already exists
+          if [[ "$PR_BODY" == *"[preview]"*"$PREVIEW_URL"* ]]; then
+            echo "Preview link already exists in PR description."
+          else
+            # Add preview link to the end of the PR description
+            NEW_BODY="${PR_BODY}
+
+[preview](${PREVIEW_URL})"
+            
+            # Update PR description
+            gh pr edit $PR_NUMBER --body "$NEW_BODY"
+            echo "Added preview link to PR description: $PREVIEW_URL"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on PR with Preview Link
+        if: github.event_name == 'issue_comment' && steps.find_changed_files.outputs.has_changes == 'true'
+        run: |
+          PR_NUMBER="${{ steps.pr_details.outputs.pr_number }}"
+          BRANCH="${{ steps.pr_details.outputs.branch }}"
+          MOST_CHANGED="${{ steps.find_changed_files.outputs.most_changed_file }}"
+          URL_PATH="${{ steps.find_changed_files.outputs.most_changed_url_path }}"
+          
+          BASE_PREVIEW_URL="https://coder.com/docs/@$BRANCH"
+          
+          if [[ -n "$URL_PATH" ]]; then
+            # If we have a specific file that changed the most, link directly to it
+            FILE_PREVIEW_URL="${BASE_PREVIEW_URL}/${URL_PATH}"
+            COMMENT="📚 Documentation preview is available:
+- Full docs: [${BASE_PREVIEW_URL}](${BASE_PREVIEW_URL})
+- Most changed file (\`${MOST_CHANGED}\`): [${FILE_PREVIEW_URL}](${FILE_PREVIEW_URL})"
+          else
+            # Just link to the main docs page
+            COMMENT="📚 Documentation preview is available:
+- [${BASE_PREVIEW_URL}](${BASE_PREVIEW_URL})"
+          fi
+          
+          gh pr comment $PR_NUMBER --body "$COMMENT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
