@@ -185,7 +185,7 @@ jobs:
          (contains(github.event.comment.body, '/docs-preview') || contains(github.event.comment.body, '/docs-help')))
       )
     outputs:
-      docs_changed: ${{ steps.verify.outputs.docs_changed }}
+      docs_changed: ${{ steps.docs-analysis.outputs.docs-changed }}
       pr_number: ${{ steps.pr_info.outputs.pr_number }}
       branch_name: ${{ steps.pr_info.outputs.branch_name }}
       repo_owner: ${{ steps.pr_info.outputs.repo_owner }}
@@ -194,13 +194,17 @@ jobs:
       is_manual: ${{ steps.pr_info.outputs.is_manual }}
       skip: ${{ steps.pr_info.outputs.skip }}
       execution_start_time: ${{ steps.timing.outputs.start_time }}
-      has_non_docs_changes: ${{ steps.verify.outputs.has_non_docs_changes }}
-      words_added: ${{ steps.verify.outputs.words_added }}
-      words_removed: ${{ steps.verify.outputs.words_removed }}
-      docs_files_count: ${{ steps.verify.outputs.docs_files_count }}
-      images_added: ${{ steps.verify.outputs.images_added }}
-      manifest_changed: ${{ steps.verify.outputs.manifest_changed }}
-      format_only: ${{ steps.verify.outputs.format_only }}
+      has_non_docs_changes: ${{ steps.docs-analysis.outputs.has-non-docs-changes }}
+      words_added: ${{ steps.docs-analysis.outputs.words-added }}
+      words_removed: ${{ steps.docs-analysis.outputs.words-removed }}
+      docs_files_count: ${{ steps.docs-analysis.outputs.docs-files-count }}
+      images_added: ${{ steps.docs-analysis.outputs.images-added }}
+      images_modified: ${{ steps.docs-analysis.outputs.images-modified }}
+      images_deleted: ${{ steps.docs-analysis.outputs.images-deleted }}
+      images_total: ${{ steps.docs-analysis.outputs.images-total }}
+      image_names: ${{ steps.docs-analysis.outputs.image-names }}
+      manifest_changed: ${{ steps.docs-analysis.outputs.manifest-changed }}
+      format_only: ${{ steps.docs-analysis.outputs.format-only }}
     steps:
       # Start timing the execution for performance tracking
       - name: Capture start time
@@ -453,183 +457,18 @@ jobs:
             ${{ env.CACHE_PREFIX }}-
             ${{ runner.os }}-
 
-      - name: Verify only docs files are changed
-        id: verify
+      # Use our composite action to analyze documentation changes more efficiently
+      - name: Analyze documentation changes
+        id: docs-analysis
         if: steps.pr_info.outputs.skip != 'true'
-        run: |
-          # Declare function for better error handling
-          function handle_error() {
-            echo "::error::$1"
-            echo "docs_changed=false" >> $GITHUB_OUTPUT
-            exit 1
-          }
-
-          # Declare more secure URL encode function using Python
-          function url_encode() {
-            python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
-          }
-
-          # Fetch but don't checkout the PR head
-          if [[ "${{ steps.pr_info.outputs.is_fork }}" == "true" ]]; then
-            FORK_REPO="${{ steps.pr_info.outputs.repo_owner }}/${GITHUB_REPOSITORY#*/}"
-            echo "This is a fork PR from: $FORK_REPO"
-
-            # Validate repo owner format for security
-            if [[ ! "${{ steps.pr_info.outputs.repo_owner }}" =~ ^[a-zA-Z0-9-]+$ ]]; then
-              handle_error "Invalid repository owner format"
-            fi
-
-            # Add fork remote and fetch branch
-            git remote add fork "https://github.com/$FORK_REPO.git" || handle_error "Failed to add fork remote"
-            git fetch fork "${{ steps.pr_info.outputs.branch_name }}" --depth=5 || handle_error "Failed to fetch from fork"
-            PR_REF="fork/${{ steps.pr_info.outputs.branch_name }}"
-          else
-            # Fetch from the origin for non-fork PRs
-            git fetch origin "${{ steps.pr_info.outputs.branch_name }}" --depth=5 || handle_error "Failed to fetch from origin"
-            PR_REF="origin/${{ steps.pr_info.outputs.branch_name }}"
-          fi
-
-          # Check if the branch exists after fetching
-          if ! git rev-parse --verify "$PR_REF" >/dev/null 2>&1; then
-            handle_error "Branch $PR_REF does not exist after fetching"
-          fi
-
-          # Check which files are modified without checking out the code
-          echo "Checking changed files between main and $PR_REF"
-          CHANGED_FILES=$(git diff --name-only origin/main..$PR_REF)
-
-          if [[ -z "$CHANGED_FILES" ]]; then
-            echo "No files changed in this PR compared to main"
-            echo "docs_changed=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Check if manifest.json was modified - a key indicator for doc structure changes
-          MANIFEST_CHANGED=$(echo "$CHANGED_FILES" | grep -c "docs/manifest.json" || true)
-          if [[ $MANIFEST_CHANGED -gt 0 ]]; then
-            echo "docs/manifest.json was modified - likely a significant docs change"
-            echo "manifest_changed=true" >> $GITHUB_OUTPUT
-            # Get the files referenced in the manifest diff
-            MANIFEST_DIFF_FILES=$(git diff origin/main..$PR_REF -- docs/manifest.json | grep -E "^\+.*\"path\"" | grep -oE '\"[^\"]+\.md\"' | tr -d '"' || true)
-            if [[ -n "$MANIFEST_DIFF_FILES" ]]; then
-              echo "Found files referenced in manifest changes:"
-              echo "$MANIFEST_DIFF_FILES"
-              echo "manifest_changed_files<<EOF" >> $GITHUB_OUTPUT
-              echo "$MANIFEST_DIFF_FILES" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "manifest_changed=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Identify docs files in the changes
-          DOCS_FILES=$(echo "$CHANGED_FILES" | grep -E "^docs/|^.*\.md$" || true)
-          NON_DOCS_FILES=$(echo "$CHANGED_FILES" | grep -v -E "^docs/|^.*\.md$" || true)
-          DOCS_DIR_FILES=$(echo "$CHANGED_FILES" | grep "^docs/" || true)
-          
-          # Check if we have non-docs changes for use in status messages
-          if [[ -n "$NON_DOCS_FILES" ]]; then
-            echo "has_non_docs_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_non_docs_changes=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Create a list of only docs files being changed for targeted checkout later
-          echo "changed_docs_files<<EOF" >> $GITHUB_OUTPUT
-          echo "$DOCS_FILES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          # Always output docs directory files for preview link
-          echo "docs_dir_files<<EOF" >> $GITHUB_OUTPUT
-          echo "$DOCS_DIR_FILES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          # Check if docs/ directory files are changed (these are what we want to preview)
-          if [[ -n "$DOCS_DIR_FILES" || "${{ env.DOCS_ONLY_PR }}" == "true" ]]; then
-            # We have docs/ changes, so we should generate a preview
-            echo "docs_changed=true" >> $GITHUB_OUTPUT
-            
-            # If there are also non-docs files, we'll just print a notice but still proceed
-            if [[ -n "$NON_DOCS_FILES" ]]; then
-              if [[ "${{ env.DOCS_ONLY_PR }}" == "true" ]]; then
-                echo "⚠️ PR has 'docs-only' label but contains non-docs files. Proceeding due to label."
-              else
-                echo "⚠️ PR contains both docs/ changes and other file changes. Generating preview for docs/ changes only."
-              fi
-            else
-              echo "✅ All changes are docs-related, proceeding safely."
-            fi
-            
-            # Analyze content changes vs. format changes
-            CONTENT_CHANGED=$(git diff --word-diff=porcelain origin/main..$PR_REF -- docs/ | grep -E "^\+[^+]|\-[^-]" | wc -l | tr -d ' ')
-            FORMAT_ONLY=false
-            if [[ $CONTENT_CHANGED -eq 0 ]]; then
-              echo "Only formatting changes detected (no content changes)"
-              FORMAT_ONLY=true
-            fi
-            echo "format_only=$FORMAT_ONLY" >> $GITHUB_OUTPUT
-            
-            # Calculate documentation metrics
-            DOCS_FILES_COUNT=$(echo "$CHANGED_FILES" | grep -E "^docs/|^.*\.md$" | wc -l | tr -d ' ')
-            WORDS_ADDED=$(git diff --word-diff=porcelain origin/main..$PR_REF -- docs/ | grep -E "^\+" | wc -w | tr -d ' ')
-            WORDS_REMOVED=$(git diff --word-diff=porcelain origin/main..$PR_REF -- docs/ | grep -E "^\-" | wc -w | tr -d ' ')
-            
-            # Improve image tracking by detecting added, modified, and removed images
-            IMAGE_PATHS=$(git diff --name-status origin/main..$PR_REF | grep -E "\.(png|jpg|jpeg|gif|svg|webp)$" || echo "")
-            IMAGE_ADDED=$(echo "$IMAGE_PATHS" | grep -c "^A" || true)
-            IMAGE_MODIFIED=$(echo "$IMAGE_PATHS" | grep -c "^M" || true)
-            IMAGE_DELETED=$(echo "$IMAGE_PATHS" | grep -c "^D" || true)
-            IMAGE_TOTAL=$((IMAGE_ADDED + IMAGE_MODIFIED + IMAGE_DELETED))
-            IMAGE_NAMES=""
-            
-            # Capture image names for display in the report
-            if [[ $IMAGE_TOTAL -gt 0 ]]; then
-              IMAGE_NAMES=$(echo "$IMAGE_PATHS" | grep -E "\.(png|jpg|jpeg|gif|svg|webp)$" | awk '{print $2}' | tr '\n' ',' | sed 's/,$//')
-              echo "image_names=$IMAGE_NAMES" >> $GITHUB_OUTPUT
-              echo "Found $IMAGE_TOTAL image changes: +$IMAGE_ADDED modified:$IMAGE_MODIFIED -$IMAGE_DELETED"
-              echo "Images: $IMAGE_NAMES"
-            fi
-            
-            echo "docs_files_count=$DOCS_FILES_COUNT" >> $GITHUB_OUTPUT
-            echo "words_added=$WORDS_ADDED" >> $GITHUB_OUTPUT
-            echo "words_removed=$WORDS_REMOVED" >> $GITHUB_OUTPUT
-            echo "images_added=$IMAGE_ADDED" >> $GITHUB_OUTPUT
-            echo "images_modified=$IMAGE_MODIFIED" >> $GITHUB_OUTPUT
-            echo "images_deleted=$IMAGE_DELETED" >> $GITHUB_OUTPUT
-            echo "images_total=$IMAGE_TOTAL" >> $GITHUB_OUTPUT
-
-            # Determine if this is a significant docs change for prioritization
-            if [[ $WORDS_ADDED -gt ${{ env.SIGNIFICANT_WORDS_THRESHOLD }} || $MANIFEST_CHANGED -gt 0 || $IMAGE_TOTAL -gt 1 ]]; then
-              echo "significant_change=true" >> $GITHUB_OUTPUT
-              
-              if [[ $IMAGE_TOTAL -gt 1 ]]; then
-                echo "⭐ This PR contains significant image changes ($IMAGE_TOTAL images)"
-                echo "image_focused=true" >> $GITHUB_OUTPUT
-              elif [[ $MANIFEST_CHANGED -gt 0 ]]; then
-                echo "⭐ This PR contains structure changes (manifest.json modified)"
-                echo "image_focused=false" >> $GITHUB_OUTPUT
-              else
-                echo "⭐ This PR contains significant documentation changes ($WORDS_ADDED words added)"
-                echo "image_focused=false" >> $GITHUB_OUTPUT
-              fi
-            else
-              echo "significant_change=false" >> $GITHUB_OUTPUT
-              echo "image_focused=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "⚠️ Warning: Changes outside the docs directory or non-markdown files detected."
-            echo "For security reasons, the docs preview link will not be added automatically."
-            echo "docs_changed=false" >> $GITHUB_OUTPUT
-
-            # List suspicious files changed outside of docs/ for security review
-            echo "Files changed outside of docs/:"
-            echo "$NON_DOCS_FILES"
-          fi
-
-          # Output a summary of changes for the job log
-          DOCS_FILES_COUNT=$(echo "$CHANGED_FILES" | grep -E "^docs/|^.*\.md$" | wc -l | tr -d ' ')
-          TOTAL_FILES_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
-          echo "::notice::PR #${{ steps.pr_info.outputs.pr_number }} changes $DOCS_FILES_COUNT docs files out of $TOTAL_FILES_COUNT total files"
+        uses: ./.github/actions/docs-analysis
+        with:
+          docs-path: "${{ env.DOCS_PRIMARY_PATH }}"
+          pr-ref: "${{ steps.pr_info.outputs.branch_name }}"
+          base-ref: "main"
+          significant-words-threshold: "${{ env.SIGNIFICANT_WORDS_THRESHOLD }}"
+          throttle-large-repos: "true"
+          debug-mode: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug == 'true' || 'false' }}"
 
       # Update the status check with verification results using Check Run API
       - name: Update verification status
@@ -639,21 +478,21 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const sha = '${{ steps.pr_info.outputs.sha }}';
-            const docsChanged = '${{ steps.verify.outputs.docs_changed }}' === 'true';
-            const hasMixedChanges = '${{ contains(steps.verify.outputs.changed_docs_files, "docs/") && steps.verify.outputs.has_non_docs_changes }}' === 'true';
+            const docsChanged = '${{ steps.docs-analysis.outputs.docs-changed }}' === 'true';
+            const hasMixedChanges = '${{ steps.docs-analysis.outputs.has-non-docs-changes }}' === 'true';
             const hasDocsOnly = '${{ contains(github.event.pull_request.labels.*.name, "docs-only") }}' === 'true';
             const checkRunId = process.env.DOCS_VERIFICATION_CHECK_ID;
             
             // Get document metrics for the check run output
-            const docsFilesCount = parseInt('${{ steps.verify.outputs.docs_files_count || 0 }}');
-            const wordsAdded = parseInt('${{ steps.verify.outputs.words_added || 0 }}');
-            const wordsRemoved = parseInt('${{ steps.verify.outputs.words_removed || 0 }}');
-            const imagesAdded = parseInt('${{ steps.verify.outputs.images_added || 0 }}');
-            const imagesModified = parseInt('${{ steps.verify.outputs.images_modified || 0 }}');
-            const imagesDeleted = parseInt('${{ steps.verify.outputs.images_deleted || 0 }}');
-            const imagesTotal = parseInt('${{ steps.verify.outputs.images_total || 0 }}');
-            const imageNames = '${{ steps.verify.outputs.image_names || "" }}';
-            const significantChange = '${{ steps.verify.outputs.significant_change }}' === 'true' || imagesTotal > 0;
+            const docsFilesCount = parseInt('${{ steps.docs-analysis.outputs.docs-files-count || 0 }}');
+            const wordsAdded = parseInt('${{ steps.docs-analysis.outputs.words-added || 0 }}');
+            const wordsRemoved = parseInt('${{ steps.docs-analysis.outputs.words-removed || 0 }}');
+            const imagesAdded = parseInt('${{ steps.docs-analysis.outputs.images-added || 0 }}');
+            const imagesModified = parseInt('${{ steps.docs-analysis.outputs.images-modified || 0 }}');
+            const imagesDeleted = parseInt('${{ steps.docs-analysis.outputs.images-deleted || 0 }}');
+            const imagesTotal = parseInt('${{ steps.docs-analysis.outputs.images-total || 0 }}');
+            const imageNames = '${{ steps.docs-analysis.outputs.image-names || "" }}';
+            const significantChange = '${{ steps.docs-analysis.outputs.significant-change }}' === 'true' || imagesTotal > 0;
             
             let title = '';
             let summary = '';
@@ -685,7 +524,7 @@ jobs:
                 }
               }
               
-              if ('${{ steps.verify.outputs.manifest_changed }}' === 'true') {
+              if ('${{ steps.docs-analysis.outputs.manifest-changed }}' === 'true') {
                 summary += `\n- ⚠️ **Structure changes detected**: This PR modifies the documentation structure (manifest.json).`;
               }
               
@@ -696,7 +535,7 @@ jobs:
               title = 'No documentation changes to preview';
               summary = 'This PR does not contain changes to files in the docs/ directory that can be previewed.';
               
-              if ('${{ steps.verify.outputs.has_non_docs_changes }}' === 'true') {
+              if ('${{ steps.docs-analysis.outputs.has-non-docs-changes }}' === 'true') {
                 summary += '\n\nThis PR contains changes to non-documentation files. For security reasons, the automatic documentation preview is only available for PRs that modify files within the docs directory or markdown files.';
               }
             }
@@ -803,9 +642,9 @@ jobs:
           # Set variables from previous job output
           BRANCH_NAME="${{ needs.verify-docs-changes.outputs.branch_name }}"
           IS_FORK="${{ needs.verify-docs-changes.outputs.is_fork }}"
-          CHANGED_DOCS_FILES="${{ needs.verify-docs-changes.outputs.changed_docs_files }}"
-          MANIFEST_CHANGED="${{ needs.verify-docs-changes.outputs.manifest_changed }}"
-          MANIFEST_FILES="${{ needs.verify-docs-changes.outputs.manifest_changed_files }}"
+          CHANGED_DOCS_FILES="${{ steps.docs-analysis.outputs.changed-docs-files }}"
+          MANIFEST_CHANGED="${{ needs.verify-docs-changes.outputs.manifest-changed }}"
+          MANIFEST_FILES="${{ steps.docs-analysis.outputs.manifest-changed-files }}"
           SHA="${{ needs.verify-docs-changes.outputs.sha }}"
 
           # Declare function for better error handling
@@ -836,7 +675,7 @@ jobs:
             git checkout -b pr-docs-preview || handle_error "Failed to create preview branch"
 
             # Targeted checkout - prioritize files in the docs/ directory
-            DOCS_DIR_FILES="${{ needs.verify-docs-changes.outputs.docs_dir_files }}"
+            DOCS_DIR_FILES="${{ steps.docs-analysis.outputs.docs-dir-files }}"
             
             if [[ -n "$DOCS_DIR_FILES" ]]; then
               echo "Checking out changed files from docs/ directory:"
@@ -887,7 +726,7 @@ jobs:
             git checkout -b pr-docs-preview || handle_error "Failed to create preview branch"
 
             # Targeted checkout - prioritize files in the docs/ directory
-            DOCS_DIR_FILES="${{ needs.verify-docs-changes.outputs.docs_dir_files }}"
+            DOCS_DIR_FILES="${{ steps.docs-analysis.outputs.docs-dir-files }}"
             
             if [[ -n "$DOCS_DIR_FILES" ]]; then
               echo "Checking out changed files from docs/ directory:"

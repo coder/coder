@@ -8,6 +8,14 @@ inputs:
     description: 'Path to the documentation directory'
     required: false
     default: 'docs/'
+  files-pattern:
+    description: 'Glob pattern(s) for documentation files (use vertical bar | to separate multiple patterns)'
+    required: false
+    default: '**.md|docs/**'
+  changed-files:
+    description: 'Comma-separated list of changed files (from tj-actions/changed-files)'
+    required: false
+    default: ''
   pr-ref:
     description: 'PR reference to analyze (e.g., refs/pull/123/head)'
     required: false
@@ -16,10 +24,6 @@ inputs:
     description: 'Base reference to compare against'
     required: false
     default: 'main'
-  files-changed:
-    description: 'Comma-separated list of files changed in PR'
-    required: false
-    default: ''
   max-scan-files:
     description: 'Maximum number of files to scan'
     required: false
@@ -42,6 +46,10 @@ inputs:
     default: 'true'
   debug-mode:
     description: 'Enable verbose debugging output'
+    required: false
+    default: 'false'
+  use-changed-files-action:
+    description: 'Whether to use tj-actions/changed-files instead of git commands'
     required: false
     default: 'false'
 
@@ -77,15 +85,27 @@ outputs:
   manifest-changed:
     description: 'Whether manifest.json was changed'
     value: ${{ steps.verify.outputs.manifest_changed }}
+  manifest-changed-files:
+    description: 'List of files referenced in manifest changes'
+    value: ${{ steps.verify.outputs.manifest_changed_files }}
   format-only:
     description: 'Whether changes are formatting-only'
     value: ${{ steps.verify.outputs.format_only }}
   significant-change:
     description: 'Whether changes are significant'
     value: ${{ steps.verify.outputs.significant_change }}
+  image-focused:
+    description: 'Whether changes are focused on images'
+    value: ${{ steps.verify.outputs.image_focused }}
   has-non-docs-changes:
     description: 'Whether PR contains non-docs changes'
     value: ${{ steps.verify.outputs.has_non_docs_changes }}
+  changed-docs-files:
+    description: 'List of changed docs files'
+    value: ${{ steps.verify.outputs.changed_docs_files }}
+  docs-dir-files:
+    description: 'List of changed files in docs directory'
+    value: ${{ steps.verify.outputs.docs_dir_files }}
   most-changed-file:
     description: 'Path to the most changed file'
     value: ${{ steps.find_changed_files.outputs.most_changed_file }}
@@ -256,12 +276,16 @@ runs:
         fi
 
         # Determine which files to analyze
-        if [[ -n "${{ inputs.files-changed }}" ]]; then
-          # Use provided list of files
+        if [[ -n "${{ inputs.changed-files }}" ]]; then
+          # Priority 1: Use files from tj-actions/changed-files
+          CHANGED_FILES=$(echo "${{ inputs.changed-files }}" | tr ',' '\n')
+          echo "Using files from tj-actions/changed-files"
+        elif [[ -n "${{ inputs.files-changed }}" ]]; then
+          # Priority 2: Use provided list of files (backward compatibility)
           CHANGED_FILES=$(echo "${{ inputs.files-changed }}" | tr ',' '\n')
           echo "Using provided list of changed files"
         else
-          # Otherwise use git to determine changed files
+          # Priority 3: Use git to determine changed files
           # Skip if git isn't available
           if ! command -v git &> /dev/null; then
             echo "::warning::Git not available, cannot determine changed files"
@@ -286,6 +310,11 @@ runs:
           
           echo "Checking changed files between $BASE_REF and origin/$BRANCH_NAME"
           CHANGED_FILES=$(git diff --name-only origin/$BASE_REF..origin/$BRANCH_NAME)
+          
+          if [[ "${{ inputs.debug-mode }}" == "true" ]]; then
+            echo "Files detected via git diff:"
+            echo "$CHANGED_FILES"
+          fi
         fi
 
         if [[ -z "$CHANGED_FILES" ]]; then
@@ -459,7 +488,7 @@ runs:
         if [[ "${{ inputs.debug-mode }}" == "true" ]]; then
           set +x
         fi
-
+        
     # Analyze document structure for files that have been changed
     - name: Analyze document structure
       id: analyze_structure
