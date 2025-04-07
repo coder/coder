@@ -561,52 +561,53 @@ runs:
         
         # Create JSON structure with better error handling
         if command -v python3 &>/dev/null; then
-          # Use Python for more reliable JSON handling
-          python3 -c '
-import sys
-import json
-import os
-import re
-
-files_to_analyze = sys.stdin.read().strip().split("\n")
-doc_structure = {}
-
-for file_path in files_to_analyze:
-    if not file_path or not file_path.endswith(".md") or not os.path.isfile(file_path):
-        continue
-        
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+          # Use the external Python script file for more reliable JSON handling
+          if [[ -f ".github/actions/docs-analysis/analyze_docs.py" ]]; then
+            cat "$FILES_TO_ANALYZE" | python3 .github/actions/docs-analysis/analyze_docs.py > .github/temp/doc_structure.json
+          else
+            echo "::warning::Could not find analyze_docs.py script, falling back to bash-only approach"
+            # Fallback to bash if Python isn't available
+            echo "{" > .github/temp/doc_structure.json
+            FIRST_FILE=true
             
-        # Extract title (first h1)
-        title_match = re.search(r"^# (.+)$", content, re.MULTILINE)
-        title = title_match.group(1) if title_match else "Untitled"
-        
-        # Count headings
-        h1_count = len(re.findall(r"^# ", content, re.MULTILINE))
-        h2_count = len(re.findall(r"^## ", content, re.MULTILINE))
-        h3_count = len(re.findall(r"^### ", content, re.MULTILINE))
-        
-        doc_structure[file_path] = {
-            "title": title,
-            "headings": {
-                "h1": h1_count,
-                "h2": h2_count,
-                "h3": h3_count
-            }
-        }
-        
-        print(f"Analyzed {file_path}: H1={h1_count}, H2={h2_count}, H3={h3_count}, Title=\'{title}\'", file=sys.stderr)
-    except Exception as e:
-        print(f"Error analyzing {file_path}: {str(e)}", file=sys.stderr)
-
-# Write JSON output
-with open(".github/temp/doc_structure.json", "w", encoding="utf-8") as f:
-    json.dump(doc_structure, f, indent=2)
-
-print(json.dumps(doc_structure))
-          ' <<< "$FILES_TO_ANALYZE" > .github/temp/doc_structure.json
+            # Process each file
+            while IFS= read -r file; do
+              if [[ -n "$file" && -f "$file" && "$file" == *.md ]]; then
+                # Extract document title (first heading)
+                TITLE=$(head -50 "$file" | grep -E "^# " | head -1 | sed 's/^# //')
+                
+                # Count headings at each level with better error handling
+                H1_COUNT=$(grep -c "^# " "$file" 2>/dev/null || echo "0")
+                H2_COUNT=$(grep -c "^## " "$file" 2>/dev/null || echo "0")
+                H3_COUNT=$(grep -c "^### " "$file" 2>/dev/null || echo "0")
+                
+                # Skip separator for first file
+                if [[ "$FIRST_FILE" == "true" ]]; then
+                  FIRST_FILE=false
+                else
+                  echo "," >> .github/temp/doc_structure.json
+                fi
+                
+                # Add to JSON structure - sanitize file for JSON
+                FILE_JSON=$(json_escape "$file")
+                TITLE_JSON=$(json_escape "${TITLE:-Untitled}")
+                
+                echo "  $FILE_JSON: {" >> .github/temp/doc_structure.json
+                echo "    \"title\": $TITLE_JSON," >> .github/temp/doc_structure.json
+                echo "    \"headings\": {" >> .github/temp/doc_structure.json
+                echo "      \"h1\": $H1_COUNT," >> .github/temp/doc_structure.json
+                echo "      \"h2\": $H2_COUNT," >> .github/temp/doc_structure.json
+                echo "      \"h3\": $H3_COUNT" >> .github/temp/doc_structure.json
+                echo "    }" >> .github/temp/doc_structure.json
+                echo "  }" >> .github/temp/doc_structure.json
+                
+                echo "Analyzed $file: H1=$H1_COUNT, H2=$H2_COUNT, H3=$H3_COUNT, Title='${TITLE:-Untitled}'"
+              fi
+            done <<< "$FILES_TO_ANALYZE"
+            
+            # Close JSON object
+            echo "}" >> .github/temp/doc_structure.json
+          fi
         else
           # Fallback to bash if Python isn't available
           echo "{" > .github/temp/doc_structure.json
@@ -698,11 +699,6 @@ print(json.dumps(doc_structure))
           # Sanitize the path - escape special characters
           echo "$path" | sed 's/[;&|"`$]/\\&/g'
         }
-        
-        # Enable debug output if requested
-        if [[ "${{ inputs.debug-mode }}" == "true" ]]; then
-          set -x
-        fi
         
         # Only run if we have docs changes
         CHANGED_FILES="${{ steps.verify.outputs.changed_docs_files }}"
