@@ -106,9 +106,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			>
 				<FormControl>
 					<RadioGroup
-						aria-labelledby="demo-radio-buttons-group-label"
+						aria-labelledby="fonts-radio-buttons-group-label"
 						defaultValue={currentTerminalFont}
-						name="radio-buttons-group"
+						name="fonts-radio-buttons-group"
 						onChange={(_, value) =>
 							onChangeTerminalFont(toTerminalFontName(value))
 						}
@@ -120,7 +120,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 								control={<Radio />}
 								label={
 									<div css={{ fontFamily: fontLabels[name] }}>
-										IBM Plex Mono
+										{fontLabels[name]}
 									</div>
 								}
 							/>
