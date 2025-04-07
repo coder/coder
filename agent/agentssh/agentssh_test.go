@@ -153,7 +153,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
-		defer s.Close()
+		t.Cleanup(func() {
+			_ = s.Close()
+		})
 		err = s.UpdateHostSigner(42)
 		assert.NoError(t, err)
 
