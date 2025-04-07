@@ -65,7 +65,7 @@ env:
   API_RETRY_DELAY: '2'
   # Documentation paths configuration
   DOCS_PRIMARY_PATH: 'docs/'
-  DOCS_FILE_PATTERNS: '^docs/|^.*\.md$'$'
+  DOCS_FILE_PATTERNS: '^docs/|^.*\.md$'
   # Documentation metrics thresholds for highlighting significant changes
   SIGNIFICANT_WORDS_THRESHOLD: '100'
   # Throttling controls for synchronize events
@@ -1057,9 +1057,8 @@ jobs:
             echo "Adding preview link to PR description"
             # Add preview link to the end of the PR description
             if [[ -n "$PR_BODY" ]]; then
-              NEW_BODY="${PR_BODY}
-
-$PREVIEW_SECTION"
+              # Use echo to safely handle multi-line strings
+              NEW_BODY=$(echo "$PR_BODY" && echo "" && echo "$PREVIEW_SECTION")
             else
               NEW_BODY="$PREVIEW_SECTION"
             fi
