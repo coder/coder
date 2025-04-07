@@ -146,13 +146,18 @@ runs:
           echo "::warning::Documentation path '${{ inputs.docs-path }}' does not exist - some functions may not work correctly"
         fi
        
-        # Validate branch references with security checks but allow more chars used in branch names
-        if [[ "${{ inputs.pr-ref }}" =~ [;&|'"'"`] ]]; then
+        # Validate branch references with basic security checks for shell injection chars
+        if [[ "${{ inputs.pr-ref }}" == *";"* || "${{ inputs.pr-ref }}" == *"&"* || 
+              "${{ inputs.pr-ref }}" == *"|"* || "${{ inputs.pr-ref }}" == *">"* || 
+              "${{ inputs.pr-ref }}" == *"<"* || "${{ inputs.pr-ref }}" == *"\`"* ]]; then
           echo "::error::Invalid characters in pr-ref - branch name contains potentially unsafe characters"
           exit 1
         fi
         
-        if [[ "${{ inputs.base-ref }}" =~ [;&|'"'"`] ]]; then
+        # Similar validation for base-ref
+        if [[ "${{ inputs.base-ref }}" == *";"* || "${{ inputs.base-ref }}" == *"&"* || 
+              "${{ inputs.base-ref }}" == *"|"* || "${{ inputs.base-ref }}" == *">"* || 
+              "${{ inputs.base-ref }}" == *"<"* || "${{ inputs.base-ref }}" == *"\`"* ]]; then
           echo "::error::Invalid characters in base-ref - branch name contains potentially unsafe characters"
           exit 1
         fi
