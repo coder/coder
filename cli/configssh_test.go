@@ -509,7 +509,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			},
 		},
 		{
-			name:    "Start/End out of order",
+			name: "Start/End out of order",
 			matches: []match{
 				// {match: "Continue?", write: "yes"},
 			},
@@ -524,7 +524,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "Multiple sections",
+			name: "Multiple sections",
 			matches: []match{
 				// {match: "Continue?", write: "yes"},
 			},
@@ -620,7 +620,22 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
+				ssh:        []string{"Host coder.* *.testy"},
 				regexMatch: `ProxyCommand .* ssh .* --hostname-suffix testy %h`,
+			},
+		},
+		{
+			name: "Hostname Prefix and Suffix",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "presto.",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh:        []string{"Host presto.* *.testy"},
+				regexMatch: `ProxyCommand .* ssh .* --ssh-host-prefix presto\. --hostname-suffix testy %h`,
 			},
 		},
 	}
