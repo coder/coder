@@ -1123,16 +1123,22 @@ jobs:
           # Create the comment with the preview link
           if [[ -n "$FILE_PREVIEW_URL" && -n "$MOST_CHANGED" ]]; then
             # If we have a specific file that changed the most, link directly to it
-            COMMENT="### Documentation Preview 📖
+            COMMENT=$(cat <<EOF
+### Documentation Preview 📖
 
 [View full documentation preview]($PREVIEW_URL)
 
-Most changed file: [View \`$MOST_CHANGED\`]($FILE_PREVIEW_URL) (+$MOST_CHANGED_ADDITIONS lines)"
+Most changed file: [View \`$MOST_CHANGED\`]($FILE_PREVIEW_URL) (+$MOST_CHANGED_ADDITIONS lines)
+EOF
+)
           else
             # Just link to the main docs page
-            COMMENT="### Documentation Preview 📖
+            COMMENT=$(cat <<EOF
+### Documentation Preview 📖
 
-[View documentation preview]($PREVIEW_URL)"
+[View documentation preview]($PREVIEW_URL)
+EOF
+)
           fi
 
           # Add info about total changed files, words, and images
