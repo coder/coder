@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -195,7 +196,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; sleep 60'")
 				assert.NoError(t, err)
 
+				time.Sleep(100 * time.Millisecond) // Give the session time to start.
 				close(ch)
+
 				err = sess.Wait()
 				assert.Error(t, err)
 			}(waitConns[i])
