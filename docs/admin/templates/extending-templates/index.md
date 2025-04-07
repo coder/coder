@@ -104,6 +104,7 @@ resource "coder_app" "code-server" {
   icon         = "/icon/code.svg"
   subdomain    = false
   share        = "owner"
+}
 ```
 
 ## Filebrowser
@@ -117,6 +118,7 @@ resource "coder_app" "filebrowser" {
   icon         = "/icon/database.svg"
   subdomain    = true
   share        = "owner"
+}
 ```
 
 ## Zed
