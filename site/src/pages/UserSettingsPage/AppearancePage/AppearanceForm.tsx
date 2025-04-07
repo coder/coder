@@ -15,12 +15,8 @@ import { PreviewBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC } from "react";
-import themes, {
-	DEFAULT_TERMINAL_FONT,
-	DEFAULT_THEME,
-	fontLabels,
-	type Theme,
-} from "theme";
+import themes, { DEFAULT_THEME, type Theme } from "theme";
+import { DEFAULT_TERMINAL_FONT, terminalFontLabels } from "theme/constants";
 import { Section } from "../Section";
 
 export interface AppearanceFormProps {
@@ -119,8 +115,8 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 								value={name}
 								control={<Radio />}
 								label={
-									<div css={{ fontFamily: fontLabels[name] }}>
-										{fontLabels[name]}
+									<div css={{ fontFamily: terminalFontLabels[name] }}>
+										{terminalFontLabels[name]}
 									</div>
 								}
 							/>
