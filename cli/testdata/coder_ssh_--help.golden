@@ -26,7 +26,7 @@ OPTIONS:
       --hostname-suffix string, $CODER_SSH_HOSTNAME_SUFFIX
           Strip this suffix from the provided hostname to determine the
           workspace name. This is useful when used as part of an OpenSSH proxy
-          command. The suffix should be specified WITHOUT a leading . character.
+          command. The suffix must be specified without a leading . character.
 
       --identity-agent string, $CODER_SSH_IDENTITY_AGENT
           Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),

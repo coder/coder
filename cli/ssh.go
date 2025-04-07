@@ -572,7 +572,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		{
 			Flag:        "hostname-suffix",
 			Env:         "CODER_SSH_HOSTNAME_SUFFIX",
-			Description: "Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix should be specified WITHOUT a leading . character.",
+			Description: "Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix must be specified without a leading . character.",
 			Value:       serpent.StringOf(&hostnameSuffix),
 		},
 		{

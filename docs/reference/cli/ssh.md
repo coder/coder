@@ -36,7 +36,7 @@ Strip this prefix from the provided hostname to determine the workspace name. Th
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_SSH_HOSTNAME_SUFFIX</code> |
 
-Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix should be specified WITHOUT a leading . character.
+Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix must be specified without a leading . character.
 
 ### -A, --forward-agent
 
