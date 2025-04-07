@@ -672,7 +672,7 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	touch "$@"
 
 coderd/httpmw/loggermock/loggermock.go: coderd/httpmw/logger.go
-	go generate ./coderd/httpmw/loggermock/loggermock/
+	go generate ./coderd/httpmw/loggermock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
