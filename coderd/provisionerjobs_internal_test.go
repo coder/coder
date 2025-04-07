@@ -20,7 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/httpmw/mocks"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -307,7 +307,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
-	mockLogger := mocks.NewMockRequestLogger(ctrl)
+	mockLogger := loggermock.NewMockRequestLogger(ctrl)
 	mockLogger.EXPECT().WriteLog(gomock.Any(), http.StatusAccepted).Times(1)
 	ctx = httpmw.WithRequestLogger(ctx, mockLogger)
 
