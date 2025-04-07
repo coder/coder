@@ -21,7 +21,7 @@ func (testIDGenerator) NewIDs(ctx context.Context) (trace.TraceID, trace.SpanID)
 	return traceID, spanID
 }
 
-func (testIDGenerator) NewSpanID(ctx context.Context, traceID trace.TraceID) trace.SpanID {
+func (testIDGenerator) NewSpanID(_ context.Context, _ trace.TraceID) trace.SpanID {
 	spanID, _ := trace.SpanIDFromHex("a028bd951229a46f")
 	return spanID
 }
