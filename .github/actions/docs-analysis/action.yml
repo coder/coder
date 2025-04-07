@@ -1,0 +1,511 @@
+name: 'Docs Analysis'
+description: 'Analyzes documentation changes, extracts metrics, and provides contextual information'
+author: 'Coder Team'
+
+# Define inputs for the action - all are optional with sane defaults
+inputs:
+  docs-path:
+    description: 'Path to the documentation directory'
+    required: false
+    default: 'docs/'
+  pr-ref:
+    description: 'PR reference to analyze (e.g., refs/pull/123/head)'
+    required: false
+    default: ${{ github.event.pull_request.head.ref }}
+  base-ref:
+    description: 'Base reference to compare against'
+    required: false
+    default: 'main'
+  files-changed:
+    description: 'Comma-separated list of files changed in PR'
+    required: false
+    default: ''
+  max-scan-files:
+    description: 'Maximum number of files to scan'
+    required: false
+    default: '100'
+  significant-words-threshold:
+    description: 'Threshold for significant text changes'
+    required: false
+    default: '100'
+  skip-if-no-docs:
+    description: 'Whether to skip if no docs files are changed'
+    required: false
+    default: 'true'
+
+# Define outputs that this action will provide
+outputs:
+  docs-changed:
+    description: 'Whether documentation files were changed'
+    value: ${{ steps.verify.outputs.docs_changed }}
+  docs-files-count:
+    description: 'Number of documentation files changed'
+    value: ${{ steps.verify.outputs.docs_files_count }}
+  words-added:
+    description: 'Number of words added to documentation'
+    value: ${{ steps.verify.outputs.words_added }}
+  words-removed:
+    description: 'Number of words removed from documentation'
+    value: ${{ steps.verify.outputs.words_removed }}
+  images-added:
+    description: 'Number of images added'
+    value: ${{ steps.verify.outputs.images_added }}
+  images-modified:
+    description: 'Number of images modified'
+    value: ${{ steps.verify.outputs.images_modified }}
+  images-deleted:
+    description: 'Number of images deleted'
+    value: ${{ steps.verify.outputs.images_deleted }}
+  images-total:
+    description: 'Total number of images changed'
+    value: ${{ steps.verify.outputs.images_total }}
+  image-names:
+    description: 'Comma-separated list of changed image files'
+    value: ${{ steps.verify.outputs.image_names }}
+  manifest-changed:
+    description: 'Whether manifest.json was changed'
+    value: ${{ steps.verify.outputs.manifest_changed }}
+  format-only:
+    description: 'Whether changes are formatting-only'
+    value: ${{ steps.verify.outputs.format_only }}
+  significant-change:
+    description: 'Whether changes are significant'
+    value: ${{ steps.verify.outputs.significant_change }}
+  has-non-docs-changes:
+    description: 'Whether PR contains non-docs changes'
+    value: ${{ steps.verify.outputs.has_non_docs_changes }}
+  most-changed-file:
+    description: 'Path to the most changed file'
+    value: ${{ steps.find_changed_files.outputs.most_changed_file }}
+  most-changed-url-path:
+    description: 'URL path for the most changed file'
+    value: ${{ steps.find_changed_files.outputs.most_changed_url_path }}
+  most-significant-image:
+    description: 'Path to the most significant image'
+    value: ${{ steps.find_changed_files.outputs.most_significant_image }}
+  doc-structure:
+    description: 'JSON structure of document heading counts'
+    value: ${{ steps.analyze_structure.outputs.doc_structure }}
+
+# This is a composite action that runs multiple steps
+runs:
+  using: "composite"
+  steps:
+    # Optimize git for large repositories
+    - name: Optimize git for large repositories
+      shell: bash
+      run: |
+        # Configure git for better performance with large repos
+        git config core.preloadIndex true
+        git config core.fsyncMethod batch
+        git config core.compression 9
+        
+        # Verify configuration
+        echo "Git optimization applied:"
+        git config --get-regexp "core\.(preloadIndex|fsyncMethod|compression)"
+
+    # Detect if files changed match docs patterns
+    - name: Verify docs changes
+      id: verify
+      shell: bash
+      run: |
+        # Declare function for better error handling
+        function handle_error() {
+          echo "::error::$1"
+          echo "docs_changed=false" >> $GITHUB_OUTPUT
+          exit 1
+        }
+
+        # Set defaults for outputs to avoid null values
+        echo "docs_changed=false" >> $GITHUB_OUTPUT
+        echo "docs_files_count=0" >> $GITHUB_OUTPUT
+        echo "words_added=0" >> $GITHUB_OUTPUT
+        echo "words_removed=0" >> $GITHUB_OUTPUT
+        echo "images_added=0" >> $GITHUB_OUTPUT
+        echo "images_modified=0" >> $GITHUB_OUTPUT
+        echo "images_deleted=0" >> $GITHUB_OUTPUT
+        echo "images_total=0" >> $GITHUB_OUTPUT
+        echo "image_names=" >> $GITHUB_OUTPUT
+        echo "manifest_changed=false" >> $GITHUB_OUTPUT
+        echo "format_only=false" >> $GITHUB_OUTPUT
+        echo "significant_change=false" >> $GITHUB_OUTPUT
+        echo "has_non_docs_changes=false" >> $GITHUB_OUTPUT
+
+        # Determine which files to analyze
+        if [[ -n "${{ inputs.files-changed }}" ]]; then
+          # Use provided list of files
+          CHANGED_FILES=$(echo "${{ inputs.files-changed }}" | tr ',' '\n')
+        else
+          # Otherwise use git to determine changed files
+          BRANCH_NAME="${{ inputs.pr-ref }}"
+          BASE_REF="${{ inputs.base-ref }}"
+          
+          # Check if the branch exists
+          if ! git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME"; then
+            # Try to fetch the branch if it doesn't exist
+            git fetch origin "$BRANCH_NAME" --depth=5 || handle_error "Failed to fetch branch $BRANCH_NAME"
+          fi
+          
+          echo "Checking changed files between $BASE_REF and origin/$BRANCH_NAME"
+          CHANGED_FILES=$(git diff --name-only origin/$BASE_REF..origin/$BRANCH_NAME)
+        fi
+
+        if [[ -z "$CHANGED_FILES" ]]; then
+          echo "No files changed in this PR"
+          if [[ "${{ inputs.skip-if-no-docs }}" == "true" ]]; then
+            exit 0
+          fi
+        fi
+        
+        # Check if manifest.json was modified - a key indicator for doc structure changes
+        MANIFEST_CHANGED=$(echo "$CHANGED_FILES" | grep -c "docs/manifest.json" || true)
+        if [[ $MANIFEST_CHANGED -gt 0 ]]; then
+          echo "docs/manifest.json was modified - likely a significant docs change"
+          echo "manifest_changed=true" >> $GITHUB_OUTPUT
+          
+          # Get the files referenced in the manifest diff if using git
+          if [[ -z "${{ inputs.files-changed }}" ]]; then
+            MANIFEST_DIFF_FILES=$(git diff origin/$BASE_REF..origin/$BRANCH_NAME -- docs/manifest.json | grep -E "^\+.*\"path\"" | grep -oE '\"[^\"]+\.md\"' | tr -d '"' || true)
+            if [[ -n "$MANIFEST_DIFF_FILES" ]]; then
+              echo "Found files referenced in manifest changes:"
+              echo "$MANIFEST_DIFF_FILES"
+              echo "manifest_changed_files<<EOF" >> $GITHUB_OUTPUT
+              echo "$MANIFEST_DIFF_FILES" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          fi
+        else
+          echo "manifest_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Identify docs files in the changes
+        DOCS_PATH="${{ inputs.docs-path }}"
+        DOCS_FILES=$(echo "$CHANGED_FILES" | grep -E "^$DOCS_PATH|^.*\.md$" || true)
+        NON_DOCS_FILES=$(echo "$CHANGED_FILES" | grep -v -E "^$DOCS_PATH|^.*\.md$" || true)
+        DOCS_DIR_FILES=$(echo "$CHANGED_FILES" | grep "^$DOCS_PATH" || true)
+        
+        # Check if we have non-docs changes for use in status messages
+        if [[ -n "$NON_DOCS_FILES" ]]; then
+          echo "has_non_docs_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_non_docs_changes=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Output docs files for further processing
+        if [[ -n "$DOCS_FILES" ]]; then
+          echo "changed_docs_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$DOCS_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+        
+        # Always output docs directory files for preview link
+        if [[ -n "$DOCS_DIR_FILES" ]]; then
+          echo "docs_dir_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$DOCS_DIR_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+        
+        # Check if docs/ directory files are changed (these are what we want to preview)
+        if [[ -n "$DOCS_DIR_FILES" ]]; then
+          # We have docs/ changes, so we should generate a preview
+          echo "docs_changed=true" >> $GITHUB_OUTPUT
+          
+          # If there are also non-docs files, we'll just print a notice but still proceed
+          if [[ -n "$NON_DOCS_FILES" ]]; then
+            echo "⚠️ PR contains both docs/ changes and other file changes."
+          else
+            echo "✅ All changes are docs-related, proceeding safely."
+          fi
+          
+          # Calculate documentation metrics if using git
+          if [[ -z "${{ inputs.files-changed }}" ]]; then
+            # Analyze content changes vs. format changes
+            CONTENT_CHANGED=$(git diff --word-diff=porcelain origin/$BASE_REF..origin/$BRANCH_NAME -- $DOCS_PATH | grep -E "^\+[^+]|\-[^-]" | wc -l | tr -d ' ')
+            FORMAT_ONLY=false
+            if [[ $CONTENT_CHANGED -eq 0 ]]; then
+              echo "Only formatting changes detected (no content changes)"
+              FORMAT_ONLY=true
+            fi
+            echo "format_only=$FORMAT_ONLY" >> $GITHUB_OUTPUT
+            
+            # Calculate documentation metrics
+            DOCS_FILES_COUNT=$(echo "$CHANGED_FILES" | grep -E "^$DOCS_PATH|^.*\.md$" | wc -l | tr -d ' ')
+            WORDS_ADDED=$(git diff --word-diff=porcelain origin/$BASE_REF..origin/$BRANCH_NAME -- $DOCS_PATH | grep -E "^\+" | wc -w | tr -d ' ')
+            WORDS_REMOVED=$(git diff --word-diff=porcelain origin/$BASE_REF..origin/$BRANCH_NAME -- $DOCS_PATH | grep -E "^\-" | wc -w | tr -d ' ')
+            
+            echo "docs_files_count=$DOCS_FILES_COUNT" >> $GITHUB_OUTPUT
+            echo "words_added=$WORDS_ADDED" >> $GITHUB_OUTPUT
+            echo "words_removed=$WORDS_REMOVED" >> $GITHUB_OUTPUT
+            
+            # Improve image tracking by detecting added, modified, and removed images
+            IMAGE_PATHS=$(git diff --name-status origin/$BASE_REF..origin/$BRANCH_NAME | grep -E "\.(png|jpg|jpeg|gif|svg|webp)$" || echo "")
+            IMAGE_ADDED=$(echo "$IMAGE_PATHS" | grep -c "^A" || true)
+            IMAGE_MODIFIED=$(echo "$IMAGE_PATHS" | grep -c "^M" || true)
+            IMAGE_DELETED=$(echo "$IMAGE_PATHS" | grep -c "^D" || true)
+            IMAGE_TOTAL=$((IMAGE_ADDED + IMAGE_MODIFIED + IMAGE_DELETED))
+            IMAGE_NAMES=""
+            
+            # Capture image names for display in the report
+            if [[ $IMAGE_TOTAL -gt 0 ]]; then
+              IMAGE_NAMES=$(echo "$IMAGE_PATHS" | grep -E "\.(png|jpg|jpeg|gif|svg|webp)$" | awk '{print $2}' | tr '\n' ',' | sed 's/,$//')
+              echo "image_names=$IMAGE_NAMES" >> $GITHUB_OUTPUT
+              echo "Found $IMAGE_TOTAL image changes: +$IMAGE_ADDED modified:$IMAGE_MODIFIED -$IMAGE_DELETED"
+              echo "Images: $IMAGE_NAMES"
+            fi
+            
+            echo "images_added=$IMAGE_ADDED" >> $GITHUB_OUTPUT
+            echo "images_modified=$IMAGE_MODIFIED" >> $GITHUB_OUTPUT
+            echo "images_deleted=$IMAGE_DELETED" >> $GITHUB_OUTPUT
+            echo "images_total=$IMAGE_TOTAL" >> $GITHUB_OUTPUT
+
+            # Determine if this is a significant docs change for prioritization
+            if [[ $WORDS_ADDED -gt ${{ inputs.significant-words-threshold }} || $MANIFEST_CHANGED -gt 0 || $IMAGE_TOTAL -gt 1 ]]; then
+              echo "significant_change=true" >> $GITHUB_OUTPUT
+              
+              if [[ $IMAGE_TOTAL -gt 1 ]]; then
+                echo "⭐ This PR contains significant image changes ($IMAGE_TOTAL images)"
+                echo "image_focused=true" >> $GITHUB_OUTPUT
+              elif [[ $MANIFEST_CHANGED -gt 0 ]]; then
+                echo "⭐ This PR contains structure changes (manifest.json modified)"
+                echo "image_focused=false" >> $GITHUB_OUTPUT
+              else
+                echo "⭐ This PR contains significant documentation changes ($WORDS_ADDED words added)"
+                echo "image_focused=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "significant_change=false" >> $GITHUB_OUTPUT
+              echo "image_focused=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # If using files-changed input, just count the files
+            DOCS_FILES_COUNT=$(echo "$DOCS_FILES" | wc -l | tr -d ' ')
+            echo "docs_files_count=$DOCS_FILES_COUNT" >> $GITHUB_OUTPUT
+          fi
+        else
+          if [[ -n "$DOCS_FILES" ]]; then
+            # We have .md files outside docs/ directory
+            echo "docs_changed=true" >> $GITHUB_OUTPUT
+            echo "Found markdown changes outside docs/ directory."
+            
+            # Count the files
+            DOCS_FILES_COUNT=$(echo "$DOCS_FILES" | wc -l | tr -d ' ')
+            echo "docs_files_count=$DOCS_FILES_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No documentation files changed."
+            echo "docs_changed=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+        # Output a summary of changes for the job log
+        DOCS_FILES_COUNT=$(echo "$CHANGED_FILES" | grep -E "^$DOCS_PATH|^.*\.md$" | wc -l | tr -d ' ')
+        TOTAL_FILES_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+        echo "PR changes $DOCS_FILES_COUNT docs files out of $TOTAL_FILES_COUNT total files"
+
+    # Analyze document structure for files that have been changed
+    - name: Analyze document structure
+      id: analyze_structure
+      if: steps.verify.outputs.docs_changed == 'true'
+      shell: bash
+      run: |
+        # Create a temporary directory for analysis artifacts if needed
+        mkdir -p .github/temp 2>/dev/null || true
+        
+        # Extract document structure information
+        DOC_TITLES=()
+        DOC_STRUCTURE=()
+        
+        # Files to analyze - either specified files or detect changed docs files
+        FILES_TO_ANALYZE="${{ steps.verify.outputs.changed_docs_files }}"
+        if [[ -z "$FILES_TO_ANALYZE" ]]; then
+          # Fallback to all markdown files in docs directory if no specific files
+          FILES_TO_ANALYZE=$(find ${{ inputs.docs-path }} -name "*.md" | head -${{ inputs.max-scan-files }})
+        fi
+        
+        # Convert to JSON for output
+        echo "{" > .github/temp/doc_structure.json
+        FIRST_FILE=true
+        
+        # Process each file
+        while IFS= read -r file; do
+          if [[ -n "$file" && -f "$file" && "$file" == *.md ]]; then
+            # Extract document title (first heading)
+            TITLE=$(head -50 "$file" | grep -E "^# " | head -1 | sed 's/^# //')
+            
+            # Count headings at each level
+            H1_COUNT=$(grep -c "^# " "$file" || echo "0")
+            H2_COUNT=$(grep -c "^## " "$file" || echo "0")
+            H3_COUNT=$(grep -c "^### " "$file" || echo "0")
+            
+            # Skip separator for first file
+            if [[ "$FIRST_FILE" == "true" ]]; then
+              FIRST_FILE=false
+            else
+              echo "," >> .github/temp/doc_structure.json
+            fi
+            
+            # Add to JSON structure - sanitize file for JSON
+            FILE_JSON=$(echo "$file" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+            echo "  \"$FILE_JSON\": {" >> .github/temp/doc_structure.json
+            echo "    \"title\": \"${TITLE:-Untitled}\"," >> .github/temp/doc_structure.json
+            echo "    \"headings\": {" >> .github/temp/doc_structure.json
+            echo "      \"h1\": $H1_COUNT," >> .github/temp/doc_structure.json
+            echo "      \"h2\": $H2_COUNT," >> .github/temp/doc_structure.json
+            echo "      \"h3\": $H3_COUNT" >> .github/temp/doc_structure.json
+            echo "    }" >> .github/temp/doc_structure.json
+            echo "  }" >> .github/temp/doc_structure.json
+            
+            echo "Analyzed $file: H1=$H1_COUNT, H2=$H2_COUNT, H3=$H3_COUNT, Title='${TITLE:-Untitled}'"
+          fi
+        done <<< "$FILES_TO_ANALYZE"
+        
+        # Close JSON object
+        echo "}" >> .github/temp/doc_structure.json
+        
+        # Set outputs
+        DOC_STRUCTURE=$(cat .github/temp/doc_structure.json)
+        echo "doc_structure<<EOF" >> $GITHUB_OUTPUT
+        echo "$DOC_STRUCTURE" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        if [[ -s .github/temp/doc_structure.json && "$DOC_STRUCTURE" != "{}" ]]; then
+          echo "document_structure_found=true" >> $GITHUB_OUTPUT
+          echo "Found document structure for improved context"
+        else
+          echo "document_structure_found=false" >> $GITHUB_OUTPUT
+          echo "No document structure found"
+        fi
+
+    # Find the most changed files for providing direct links
+    - name: Find files with most changes
+      id: find_changed_files
+      if: steps.verify.outputs.docs_changed == 'true'
+      shell: bash
+      run: |
+        # Only run if we have docs changes
+        CHANGED_FILES="${{ steps.verify.outputs.changed_docs_files }}"
+        DIFF_TARGET="origin/${{ inputs.pr-ref }}"
+        IS_IMAGE_FOCUSED="${{ steps.verify.outputs.image_focused }}"
+        BASE_REF="${{ inputs.base-ref }}"
+        BRANCH_NAME="${{ inputs.pr-ref }}"
+        DOCS_PATH="${{ inputs.docs-path }}"
+        
+        if [[ -z "$CHANGED_FILES" ]]; then
+          echo "No documentation files changed."
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          exit 0
+        else
+          echo "Found changed documentation files, proceeding with analysis."
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          
+          # Write file count to output
+          FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+          echo "changed_file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+        fi
+        
+        # Find the file with the most additions
+        echo "Analyzing files to find the one with most additions..."
+        MOST_CHANGED=""
+        MAX_ADDITIONS=0
+        MOST_SIGNIFICANT_IMAGE=""
+        
+        # First, check if this is an image-focused PR to prioritize images
+        if [[ "$IS_IMAGE_FOCUSED" == "true" ]]; then
+          echo "This is an image-focused PR, prioritizing image files in analysis"
+          
+          # Find the most significant image change
+          IMAGE_FILES=$(git diff --name-status origin/$BASE_REF..$DIFF_TARGET | grep -E ".(png|jpg|jpeg|gif|svg|webp)$" | awk '{print $2}')
+          
+          if [[ -n "$IMAGE_FILES" ]]; then
+            # Find the largest added/modified image by looking at file size
+            while IFS= read -r img_file; do
+              if [[ -f "$img_file" ]]; then
+                # Get file size in bytes (compatible with both macOS and Linux)
+                FILE_SIZE=$(stat -f "%z" "$img_file" 2>/dev/null || stat -c "%s" "$img_file" 2>/dev/null || echo "0")
+                
+                # Find containing markdown file to link to
+                # Look for filenames that include the image basename
+                IMAGE_BASENAME=$(basename "$img_file")
+                CONTAINING_MD=$(grep -l "$IMAGE_BASENAME" $(find $DOCS_PATH -name "*.md") 2>/dev/null | head -1)
+                
+                if [[ -n "$CONTAINING_MD" ]]; then
+                  echo "Found image $img_file ($FILE_SIZE bytes) referenced in $CONTAINING_MD"
+                  if [[ -z "$MOST_SIGNIFICANT_IMAGE" || $FILE_SIZE -gt $MAX_ADDITIONS ]]; then
+                    MOST_SIGNIFICANT_IMAGE="$img_file"
+                    MOST_CHANGED="$CONTAINING_MD"
+                    MAX_ADDITIONS=$FILE_SIZE
+                  fi
+                else
+                  echo "Found image $img_file ($FILE_SIZE bytes) but no matching markdown file"
+                  if [[ -z "$MOST_SIGNIFICANT_IMAGE" || $FILE_SIZE -gt $MAX_ADDITIONS ]]; then
+                    MOST_SIGNIFICANT_IMAGE="$img_file"
+                    MOST_CHANGED=""
+                    MAX_ADDITIONS=$FILE_SIZE
+                  fi
+                fi
+              fi
+            done <<< "$IMAGE_FILES"
+            
+            if [[ -n "$MOST_SIGNIFICANT_IMAGE" ]]; then
+              echo "Most significant image: $MOST_SIGNIFICANT_IMAGE ($MAX_ADDITIONS bytes)"
+              echo "most_significant_image=$MOST_SIGNIFICANT_IMAGE" >> $GITHUB_OUTPUT
+              
+              # If we found a containing markdown file, use that for the URL path
+              if [[ -n "$MOST_CHANGED" ]]; then
+                echo "Referenced in markdown file: $MOST_CHANGED"
+                
+                # Convert path to URL path by removing the file extension and default index files
+                URL_PATH=$(echo "$MOST_CHANGED" | sed -E 's/\.md$//' | sed -E 's/\/index$//')
+                echo "URL path for markdown file: $URL_PATH"
+                
+                echo "most_changed_file=$MOST_CHANGED" >> $GITHUB_OUTPUT
+                echo "most_changed_url_path=$URL_PATH" >> $GITHUB_OUTPUT
+                echo "most_changed_additions=$MAX_ADDITIONS" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
+          
+          # If we haven't found a significant image link, fall back to default behavior
+          if [[ -z "$MOST_CHANGED" ]]; then
+            echo "No significant image reference found, falling back to regular analysis"
+          else
+            # We've found our image connection, so we can exit this step
+            exit 0
+          fi
+        fi
+        
+        # Standard analysis for finding the most changed file if not already found
+        if [[ -z "$MOST_CHANGED" ]]; then
+          MAX_ADDITIONS=0
+          
+          while IFS= read -r file; do
+            if [[ -n "$file" ]]; then
+              # Get additions count for this file
+              if [[ -z "${{ inputs.files-changed }}" ]]; then
+                # Use git diff if comparing branches
+                ADDITIONS=$(git diff --numstat origin/$BASE_REF..$DIFF_TARGET -- "$file" | awk '{print $1}')
+              else
+                # Fallback to counting lines if just analyzing files
+                ADDITIONS=$(wc -l < "$file" | tr -d ' ')
+              fi
+              
+              if (( ADDITIONS > MAX_ADDITIONS && ADDITIONS > 0 )); then
+                MAX_ADDITIONS=$ADDITIONS
+                MOST_CHANGED=$file
+              fi
+            fi
+          done <<< "$CHANGED_FILES"
+          
+          if [[ -n "$MOST_CHANGED" ]]; then
+            echo "Most changed file: $MOST_CHANGED with $MAX_ADDITIONS additions"
+            
+            # Convert path to URL path by removing the file extension and default index files
+            URL_PATH=$(echo $MOST_CHANGED | sed -E 's/\.md$//' | sed -E 's/\/index$//')
+            echo "URL path for most changed file: $URL_PATH"
+            
+            echo "most_changed_file=$MOST_CHANGED" >> $GITHUB_OUTPUT
+            echo "most_changed_url_path=$URL_PATH" >> $GITHUB_OUTPUT
+            echo "most_changed_additions=$MAX_ADDITIONS" >> $GITHUB_OUTPUT
+          else
+            echo "Could not determine most changed file"
+          fi
+        fi
