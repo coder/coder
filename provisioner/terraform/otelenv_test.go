@@ -15,7 +15,7 @@ type testIDGenerator struct{}
 
 var _ sdktrace.IDGenerator = (*testIDGenerator)(nil)
 
-func (testIDGenerator) NewIDs(ctx context.Context) (trace.TraceID, trace.SpanID) {
+func (testIDGenerator) NewIDs(_ context.Context) (trace.TraceID, trace.SpanID) {
 	traceID, _ := trace.TraceIDFromHex("60d19e9e9abf2197c1d6d8f93e28ee2a")
 	spanID, _ := trace.SpanIDFromHex("a028bd951229a46f")
 	return traceID, spanID
