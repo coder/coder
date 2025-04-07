@@ -33,8 +33,8 @@ OPTIONS:
           unix-like shell. This flag forces the use of unix file paths (the
           forward slash '/').
 
-      --hostname-suffix string, $CODER_CONFIGSSH_HOST_SUFFIX
-          Override the default host suffix.
+      --hostname-suffix string, $CODER_CONFIGSSH_HOSTNAME_SUFFIX
+          Override the default hostname suffix.
 
       --ssh-config-file string, $CODER_SSH_CONFIG_FILE (default: ~/.ssh/config)
           Specifies the path to an SSH config.

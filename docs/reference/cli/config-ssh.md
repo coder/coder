@@ -81,12 +81,12 @@ Override the default host prefix.
 
 ### --hostname-suffix
 
-|             |                                           |
-|-------------|-------------------------------------------|
-| Type        | <code>string</code>                       |
-| Environment | <code>$CODER_CONFIGSSH_HOST_SUFFIX</code> |
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_CONFIGSSH_HOSTNAME_SUFFIX</code> |
 
-Override the default host suffix.
+Override the default hostname suffix.
 
 ### --wait
 

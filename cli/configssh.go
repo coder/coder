@@ -533,8 +533,8 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		},
 		{
 			Flag:        "hostname-suffix",
-			Env:         "CODER_CONFIGSSH_HOST_SUFFIX",
-			Description: "Override the default host suffix.",
+			Env:         "CODER_CONFIGSSH_HOSTNAME_SUFFIX",
+			Description: "Override the default hostname suffix.",
 			Value:       serpent.StringOf(&sshConfigOpts.hostnameSuffix),
 		},
 		{
