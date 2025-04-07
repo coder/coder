@@ -192,7 +192,12 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				}
 				// The 60 seconds here is intended to be longer than the
 				// test. The shutdown should propagate.
-				err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; echo start\"ed\"; sleep 60'")
+				if runtime.GOOS == "windows" {
+					// Best effort to at least partially test this in Windows.
+					err = sess.Start("echo start\"ed\" && sleep 60")
+				} else {
+					err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; echo start\"ed\"; sleep 60'")
+				}
 				assert.NoError(t, err)
 
 				pty.ExpectMatchContext(ctx, "started")
