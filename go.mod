@@ -94,7 +94,7 @@ require (
 	github.com/coder/quartz v0.1.2
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.3.1-0.20250407062000-ef92eea9d88a
+	github.com/coder/terraform-provider-coder/v2 v2.3.1-0.20250407072338-ead7863cc664
 	github.com/coder/websocket v1.8.12
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.13.0
@@ -483,4 +483,9 @@ require (
 
 require github.com/mark3labs/mcp-go v0.17.0
 
-require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+require (
+	github.com/hashicorp/go-plugin v1.6.2 // indirect
+	github.com/hashicorp/terraform-registry-address v0.2.4 // indirect
+	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+)
