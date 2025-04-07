@@ -96,7 +96,6 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 
 	// Check value of the status code
 	require.Equal(t, fieldsMap["status_code"], http.StatusOK, "status_code should be 200")
-
 }
 
 func TestLoggerMiddleware_WebSocket(t *testing.T) {
