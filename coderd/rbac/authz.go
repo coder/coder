@@ -66,6 +66,10 @@ type Subject struct {
 	// external workspace proxy or other service type actor.
 	FriendlyName string
 
+	// Email is entirely optional and is used for logging and debugging
+	// It is not used in any functional way.
+	Email string
+
 	ID     string
 	Roles  ExpandableRoles
 	Groups []string

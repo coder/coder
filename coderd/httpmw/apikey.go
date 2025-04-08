@@ -466,6 +466,7 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 
 	actor := rbac.Subject{
 		FriendlyName: roles.Username,
+		Email:        roles.Email,
 		ID:           userID.String(),
 		Roles:        rbacRoles,
 		Groups:       roles.Groups,

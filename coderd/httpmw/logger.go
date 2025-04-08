@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
@@ -98,6 +99,14 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 		slog.F("status_code", status),
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
+
+	subject, ok := dbauthz.ActorFromContext(ctx)
+	if ok {
+		logger = c.log.With(
+			slog.F("requestor_id", subject.ID),
+			slog.F("requestor_email", subject.Email),
+		)
+	}
 	// We already capture most of this information in the span (minus
 	// the response body which we don't want to capture anyways).
 	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
