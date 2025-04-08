@@ -92,7 +92,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 
 	select {
 	case <-ctx.Done():
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
 			Message: "Healthcheck is in progress and did not complete in time. Try again in a few seconds.",
 		})
 		return
