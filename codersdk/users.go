@@ -751,10 +751,8 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			if req.SearchQuery != "" {
 				params = append(params, req.SearchQuery)
 			}
-			if len(req.LoginType) > 0 {
-				for _, lt := range req.LoginType {
-					params = append(params, "login_type:"+string(lt))
-				}
+			for _, lt := range req.LoginType {
+				params = append(params, "login_type:"+string(lt))
 			}
 			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()
