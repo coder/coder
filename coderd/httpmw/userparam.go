@@ -56,7 +56,7 @@ func extractUserContext(ctx context.Context, db database.Store, rw http.Response
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "\"user\" must be provided.",
 		})
-		return database.User{}, true
+		return database.User{}, false
 	}
 
 	if userQuery == "me" {
