@@ -115,7 +115,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 		if !assert.NoError(t, err, "failed to accept websocket") {
 			return
 		}
-		defer conn.Close(websocket.StatusNormalClosure, "")
+		defer conn.Close(websocket.StatusGoingAway, "")
 
 		requestLgr := RequestLoggerFromContext(r.Context())
 		requestLgr.WriteLog(r.Context(), http.StatusSwitchingProtocols)
@@ -146,8 +146,10 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	newEntry := testutil.RequireRecvCtx(ctx, t, sink.newEntries)
 	require.Equal(t, newEntry.Message, "GET")
 
-	// Signal the websocket handler to return
+	// Signal the websocket handler to return (and read to handle the close frame)
 	wg.Done()
+	_, _, err = conn.Read(ctx)
+	require.ErrorAs(t, err, &websocket.CloseError{}, "websocket read should fail with close error")
 
 	// Wait for the request to finish completely and verify we only logged once
 	_ = testutil.RequireRecvCtx(ctx, t, done)
