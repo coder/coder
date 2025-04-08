@@ -245,6 +245,55 @@ func TestCreateWorkspace(t *testing.T) {
 func TestCreateUserWorkspace(t *testing.T) {
 	t.Parallel()
 
+	// Create a custom role that can create workspaces for another user.
+	t.Run("ForAnotherUser", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:  1,
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			DisplayName:    "Creator",
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionCreate},
+			}),
+		})
+		require.NoError(t, err)
+
+		// use admin for setting up test
+		admin, adminID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// try the test action with this user & custom role
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(), rbac.RoleIdentifier{
+			Name:           r.Name,
+			OrganizationID: first.OrganizationID,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, admin, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, admin, version.ID)
+		template := coderdtest.CreateTemplate(t, admin, first.OrganizationID, version.ID)
+
+		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
+
+		var _ = creator
+		_, err = owner.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.NoError(t, err)
+	})
+
 	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
 

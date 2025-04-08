@@ -81,7 +81,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 // Note that duplicate rbac calls are handled by the rbac.Cacher(), but
 // will be recorded twice. So AllCalls() returns calls regardless if they
 // were returned from the cached or not.
-func (a RBACAsserter) AllCalls() []AuthCall {
+func (a RBACAsserter) AllCalls() AuthCalls {
 	return a.Recorder.AllCalls(&a.Subject)
 }
 
@@ -140,9 +140,27 @@ func (a RBACAsserter) Reset() RBACAsserter {
 	return a
 }
 
+type AuthCalls []AuthCall
+
+func (c AuthCalls) Mutate(mut func(c AuthCall) AuthCall) AuthCalls {
+	for i := range c {
+		c[i] = mut(c[i])
+	}
+	return c
+}
+
+func (c AuthCalls) String() string {
+	var str strings.Builder
+	for _, call := range c {
+		str.WriteString(fmt.Sprintf("%s: %s.%s\n", call.Actor.FriendlyName, call.Action, call.Object.Type))
+	}
+	return str.String()
+}
+
 type AuthCall struct {
 	rbac.AuthCall
 
+	err      error
 	asserted bool
 	// callers is a small stack trace for debugging.
 	callers []string
@@ -252,7 +270,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 }
 
 // recordAuthorize is the internal method that records the Authorize() call.
-func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object) {
+func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object, err error) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -262,6 +280,7 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action polic
 			Action: action,
 			Object: object,
 		},
+		err: err,
 		callers: []string{
 			// This is a decent stack trace for debugging.
 			// Some dbauthz calls are a bit nested, so we skip a few.
@@ -288,11 +307,12 @@ func caller(skip int) string {
 }
 
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
-	r.recordAuthorize(subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
-	return r.Wrapped.Authorize(ctx, subject, action, object)
+	err := r.Wrapped.Authorize(ctx, subject, action, object)
+	r.recordAuthorize(subject, action, object, err)
+	return err
 }
 
 func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
@@ -339,10 +359,11 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	s.rw.Lock()
 	defer s.rw.Unlock()
 
+	err := s.prepped.Authorize(ctx, object)
 	if !s.usingSQL {
-		s.rec.recordAuthorize(s.subject, s.action, object)
+		s.rec.recordAuthorize(s.subject, s.action, object, err)
 	}
-	return s.prepped.Authorize(ctx, object)
+	return err
 }
 
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
