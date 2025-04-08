@@ -98,10 +98,9 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			retryCtx, retryCancel := context.WithTimeout(ctx, time.Hour)
 			defer retryCancel()
 			for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(retryCtx); {
-				lcCtx, lcCancel := context.WithTimeout(inv.Context(), time.Second*30)
+				lcCtx, lcCancel := context.WithTimeout(retryCtx, time.Second*30)
 				err = client.CheckLiveness(lcCtx)
 				lcCancel() // We shouldn't defer in loops.
-
 				if err == nil {
 					break
 				}
