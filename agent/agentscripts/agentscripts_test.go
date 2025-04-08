@@ -108,7 +108,7 @@ func TestTimeout(t *testing.T) {
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "sleep infinity",
-		Timeout:     time.Millisecond,
+		Timeout:     100 * time.Millisecond,
 	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 	require.ErrorIs(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts), agentscripts.ErrTimeout)
