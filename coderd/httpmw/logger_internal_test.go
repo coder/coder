@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -35,9 +36,9 @@ func TestRequestLogger_WriteLog(t *testing.T) {
 
 	require.Len(t, sink.entries, 1, "log was written twice")
 
-	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
+	require.Equal(t, sink.entries[0].Message, "GET")
 
-	require.Equal(t, sink.entries[0].Fields[0].Value, "custom_value", "custom_field should be custom_value")
+	require.Equal(t, sink.entries[0].Fields[0].Value, "custom_value")
 
 	// Attempt to write again (should be skipped).
 	logCtx.WriteLog(ctx, http.StatusInternalServerError)
@@ -67,9 +68,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 
 	// Create a test HTTP request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/test-path", nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
+	require.NoError(t, err, "failed to create request")
 
 	sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
 
@@ -78,7 +77,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 
 	require.Len(t, sink.entries, 1, "log was written twice")
 
-	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
+	require.Equal(t, sink.entries[0].Message, "GET")
 
 	fieldsMap := make(map[string]interface{})
 	for _, field := range sink.entries[0].Fields {
@@ -95,7 +94,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	require.Len(t, sink.entries[0].Fields, len(requiredFields), "log should contain only the required fields")
 
 	// Check value of the status code
-	require.Equal(t, fieldsMap["status_code"], http.StatusOK, "status_code should be 200")
+	require.Equal(t, fieldsMap["status_code"], http.StatusOK)
 }
 
 func TestLoggerMiddleware_WebSocket(t *testing.T) {
@@ -103,25 +102,25 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	sink := &fakeSink{}
+	sink := &fakeSink{
+		newEntries: make(chan slog.SinkEntry, 2),
+	}
 	logger := slog.Make(sink)
 	logger = logger.Leveled(slog.LevelDebug)
+	done := make(chan struct{})
 	wg := sync.WaitGroup{}
 	// Create a test handler to simulate a WebSocket connection
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(rw, r, nil)
-		if err != nil {
-			t.Errorf("failed to accept websocket: %v", err)
+		if !assert.NoError(t, err, "failed to accept websocket") {
 			return
 		}
-		requestLgr := RequestLoggerFromContext(r.Context())
-		requestLgr.WriteLog(r.Context(), http.StatusSwitchingProtocols)
-		wg.Done()
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		// Send a couple of messages for testing
-		_ = conn.Write(ctx, websocket.MessageText, []byte("ping"))
-		_ = conn.Write(ctx, websocket.MessageText, []byte("pong"))
+		requestLgr := RequestLoggerFromContext(r.Context())
+		requestLgr.WriteLog(r.Context(), http.StatusSwitchingProtocols)
+		// Block so we can be sure the end of the middleware isn't being called.
+		wg.Wait()
 	})
 
 	// Wrap the test handler with the Logger middleware
@@ -130,6 +129,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 
 	// RequestLogger expects the ResponseWriter to be *tracing.StatusWriter
 	customHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		defer close(done)
 		sw := &tracing.StatusWriter{ResponseWriter: rw}
 		wrappedHandler.ServeHTTP(sw, r)
 	})
@@ -139,22 +139,34 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	wg.Add(1)
 	// nolint: bodyclose
 	conn, _, err := websocket.Dial(ctx, srv.URL, nil)
-	if err != nil {
-		t.Fatalf("failed to create WebSocket connection: %v", err)
-	}
+	require.NoError(t, err, "failed to dial WebSocket")
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	wg.Wait()
-	require.Len(t, sink.entries, 1, "log was written twice")
 
-	require.Equal(t, sink.entries[0].Message, "GET", "log message should be GET")
+	// Wait for the log from within the handler
+	newEntry := testutil.RequireRecvCtx(ctx, t, sink.newEntries)
+	require.Equal(t, newEntry.Message, "GET")
+
+	// Signal the websocket handler to return
+	wg.Done()
+
+	// Wait for the request to finish completely and verify we only logged once
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+	require.Len(t, sink.entries, 1, "log was written twice")
 }
 
 type fakeSink struct {
-	entries []slog.SinkEntry
+	entries    []slog.SinkEntry
+	newEntries chan slog.SinkEntry
 }
 
 func (s *fakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	s.entries = append(s.entries, e)
+	if s.newEntries != nil {
+		select {
+		case s.newEntries <- e:
+		default:
+		}
+	}
 }
 
 func (*fakeSink) Sync() {}
