@@ -142,21 +142,6 @@ func (a RBACAsserter) Reset() RBACAsserter {
 
 type AuthCalls []AuthCall
 
-func (c AuthCalls) Mutate(mut func(c AuthCall) AuthCall) AuthCalls {
-	for i := range c {
-		c[i] = mut(c[i])
-	}
-	return c
-}
-
-func (c AuthCalls) String() string {
-	var str strings.Builder
-	for _, call := range c {
-		str.WriteString(fmt.Sprintf("%s: %s.%s\n", call.Actor.FriendlyName, call.Action, call.Object.Type))
-	}
-	return str.String()
-}
-
 type AuthCall struct {
 	rbac.AuthCall
 
