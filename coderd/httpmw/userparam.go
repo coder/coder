@@ -59,7 +59,7 @@ func ExtractUserParamOptional(db database.Store) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			user, ok := ExtractUserContext(ctx, db, &noopResponseWriter{}, r)
+			user, ok := ExtractUserContext(ctx, db, &httpapi.NoopResponseWriter{}, r)
 			if ok {
 				ctx = context.WithValue(ctx, userParamContextKey{}, user)
 			}
