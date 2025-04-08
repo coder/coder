@@ -219,6 +219,9 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	encoder := wsjson.NewEncoder[codersdk.GetInboxNotificationResponse](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
 
+	// Log the request immediately instead of after it completes.
+	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+
 	for {
 		select {
 		case <-ctx.Done():
