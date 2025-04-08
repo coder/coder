@@ -295,9 +295,9 @@ func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subjec
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
-	err := r.Wrapped.Authorize(ctx, subject, action, object)
-	r.recordAuthorize(subject, action, object, err)
-	return err
+	authzErr := r.Wrapped.Authorize(ctx, subject, action, object)
+	r.recordAuthorize(subject, action, object, authzErr)
+	return authzErr
 }
 
 func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
@@ -344,11 +344,11 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	s.rw.Lock()
 	defer s.rw.Unlock()
 
-	err := s.prepped.Authorize(ctx, object)
+	authzErr := s.prepped.Authorize(ctx, object)
 	if !s.usingSQL {
-		s.rec.recordAuthorize(s.subject, s.action, object, err)
+		s.rec.recordAuthorize(s.subject, s.action, object, authzErr)
 	}
-	return err
+	return authzErr
 }
 
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
