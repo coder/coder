@@ -18,8 +18,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -443,8 +441,6 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		cfg.PostAuthAdditionalHeadersFunc(actor, rw.Header())
 	}
 
-	AppendUserDataToLogger(ctx, actor)
-
 	return key, &actor, true
 }
 
@@ -475,18 +471,7 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 		Groups:       roles.Groups,
 		Scope:        scope,
 	}.WithCachedASTValue()
-
 	return actor, roles.Status, nil
-}
-
-func AppendUserDataToLogger(ctx context.Context, actor rbac.Subject) {
-	logger := RequestLoggerFromContext(ctx)
-	if logger != nil {
-		logger.WithFields(
-			slog.F("user_id", actor.ID),
-			slog.F("user_name", actor.FriendlyName),
-		)
-	}
 }
 
 // APITokenFromRequest returns the api token from the request.
