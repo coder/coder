@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -305,11 +307,16 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
+	mockLogger := loggermock.NewMockRequestLogger(ctrl)
+	mockLogger.EXPECT().WriteLog(gomock.Any(), http.StatusAccepted).Times(1)
+	ctx = httpmw.WithRequestLogger(ctx, mockLogger)
+
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		uut := newLogFollower(ctx, logger, mDB, ps, rw, r, job, 0)
 		uut.follow()
 	}))
+
 	defer srv.Close()
 
 	// job was incomplete when we create the logFollower, and still incomplete when it queries

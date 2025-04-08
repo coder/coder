@@ -1182,6 +1182,7 @@ jobs:
 
       - name: SBOM Generation and Attestation
         if: github.ref == 'refs/heads/main'
+        continue-on-error: true
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
@@ -1200,7 +1201,7 @@ jobs:
             syft "${IMAGE}" -o spdx-json > "${SBOM_FILE}"
 
             echo "Attesting SBOM to image: ${IMAGE}"
-            cosign clean "${IMAGE}"
+            cosign clean --force=true "${IMAGE}"
             cosign attest --type spdxjson \
               --predicate "${SBOM_FILE}" \
               --yes \
