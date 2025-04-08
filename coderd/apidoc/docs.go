@@ -10734,10 +10734,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AuditAction"
                 },
                 "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "description": {
                     "type": "string"
@@ -12017,6 +12014,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wildcard_access_url": {
+                    "type": "string"
+                },
+                "workspace_hostname_suffix": {
                     "type": "string"
                 },
                 "write_config": {
@@ -14751,6 +14751,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "hostname_prefix": {
+                    "description": "HostnamePrefix is the prefix we append to workspace names for SSH hostnames.\nDeprecated: use HostnameSuffix instead.",
+                    "type": "string"
+                },
+                "hostname_suffix": {
+                    "description": "HostnameSuffix is the suffix to append to workspace names for SSH hostnames.",
                     "type": "string"
                 },
                 "ssh_config_options": {
@@ -15595,6 +15600,19 @@ const docTemplate = `{
                 "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
+        "codersdk.TerminalFontName": {
+            "type": "string",
+            "enum": [
+                "",
+                "ibm-plex-mono",
+                "fira-code"
+            ],
+            "x-enum-varnames": [
+                "TerminalFontUnknown",
+                "TerminalFontIBMPlexMono",
+                "TerminalFontFiraCode"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -15768,9 +15786,13 @@ const docTemplate = `{
         "codersdk.UpdateUserAppearanceSettingsRequest": {
             "type": "object",
             "required": [
+                "terminal_font",
                 "theme_preference"
             ],
             "properties": {
+                "terminal_font": {
+                    "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
                 "theme_preference": {
                     "type": "string"
                 }
@@ -16062,6 +16084,9 @@ const docTemplate = `{
         "codersdk.UserAppearanceSettings": {
             "type": "object",
             "properties": {
+                "terminal_font": {
+                    "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
                 "theme_preference": {
                     "type": "string"
                 }

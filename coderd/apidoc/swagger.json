@@ -9543,10 +9543,7 @@
 					"$ref": "#/definitions/codersdk.AuditAction"
 				},
 				"additional_fields": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object"
 				},
 				"description": {
 					"type": "string"
@@ -10757,6 +10754,9 @@
 					"type": "string"
 				},
 				"wildcard_access_url": {
+					"type": "string"
+				},
+				"workspace_hostname_suffix": {
 					"type": "string"
 				},
 				"write_config": {
@@ -13381,6 +13381,11 @@
 			"type": "object",
 			"properties": {
 				"hostname_prefix": {
+					"description": "HostnamePrefix is the prefix we append to workspace names for SSH hostnames.\nDeprecated: use HostnameSuffix instead.",
+					"type": "string"
+				},
+				"hostname_suffix": {
+					"description": "HostnameSuffix is the suffix to append to workspace names for SSH hostnames.",
 					"type": "string"
 				},
 				"ssh_config_options": {
@@ -14180,6 +14185,15 @@
 			"enum": ["UNSUPPORTED_WORKSPACES"],
 			"x-enum-varnames": ["TemplateVersionWarningUnsupportedWorkspaces"]
 		},
+		"codersdk.TerminalFontName": {
+			"type": "string",
+			"enum": ["", "ibm-plex-mono", "fira-code"],
+			"x-enum-varnames": [
+				"TerminalFontUnknown",
+				"TerminalFontIBMPlexMono",
+				"TerminalFontFiraCode"
+			]
+		},
 		"codersdk.TimingStage": {
 			"type": "string",
 			"enum": [
@@ -14350,8 +14364,11 @@
 		},
 		"codersdk.UpdateUserAppearanceSettingsRequest": {
 			"type": "object",
-			"required": ["theme_preference"],
+			"required": ["terminal_font", "theme_preference"],
 			"properties": {
+				"terminal_font": {
+					"$ref": "#/definitions/codersdk.TerminalFontName"
+				},
 				"theme_preference": {
 					"type": "string"
 				}
@@ -14617,6 +14634,9 @@
 		"codersdk.UserAppearanceSettings": {
 			"type": "object",
 			"properties": {
+				"terminal_font": {
+					"$ref": "#/definitions/codersdk.TerminalFontName"
+				},
 				"theme_preference": {
 					"type": "string"
 				}

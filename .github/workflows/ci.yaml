@@ -1180,6 +1180,33 @@ jobs:
             done
           fi
 
+      - name: SBOM Generation and Attestation
+        if: github.ref == 'refs/heads/main'
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          set -euxo pipefail
+
+          # Define image base and tags
+          IMAGE_BASE="ghcr.io/coder/coder-preview"
+          TAGS=("${{ steps.build-docker.outputs.tag }}" "main" "latest")
+
+          # Generate and attest SBOM for each tag
+          for tag in "${TAGS[@]}"; do
+            IMAGE="${IMAGE_BASE}:${tag}"
+            SBOM_FILE="coder_sbom_${tag//[:\/]/_}.spdx.json"
+
+            echo "Generating SBOM for image: ${IMAGE}"
+            syft "${IMAGE}" -o spdx-json > "${SBOM_FILE}"
+
+            echo "Attesting SBOM to image: ${IMAGE}"
+            cosign clean "${IMAGE}"
+            cosign attest --type spdxjson \
+              --predicate "${SBOM_FILE}" \
+              --yes \
+              "${IMAGE}"
+          done
+
       # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
       # record that these images were built in GitHub Actions with specific inputs and environment.
       # This complements our existing cosign attestations which focus on SBOMs.

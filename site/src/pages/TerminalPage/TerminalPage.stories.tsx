@@ -17,6 +17,7 @@ import {
 	MockEntitlements,
 	MockExperiments,
 	MockUser,
+	MockUserAppearanceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
@@ -76,6 +77,7 @@ const meta = {
 				key: getAuthorizationKey({ checks: permissionChecks }),
 				data: { editWorkspaceProxies: true },
 			},
+			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
 		],
 		chromatic: { delay: 300 },
 	},
@@ -103,6 +105,38 @@ export const Starting: Story = {
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("starting")],
+	},
+};
+
+export const FontFiraCode: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				// Copied and pasted this from browser
+				data: "[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗",
+			},
+		],
+		queries: [
+			...meta.parameters.queries.filter(
+				(q) =>
+					!(
+						Array.isArray(q.key) &&
+						q.key[0] === "me" &&
+						q.key[1] === "appearance"
+					),
+			),
+			{
+				key: ["me", "appearance"],
+				data: {
+					...MockUserAppearanceSettings,
+					terminal_font: "fira-code",
+				},
+			},
+			createWorkspaceWithAgent("ready"),
+		],
 	},
 };
 

@@ -63,8 +63,11 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	client, store := coderdtest.NewWithDatabase(t, nil)
 	client.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, client)
-	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+	userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+		r.Username = "myuser"
+	})
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		Name:           "myworkspace",
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(mutations...).Do()
@@ -97,6 +100,46 @@ func TestSSH(t *testing.T) {
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+	t.Run("WorkspaceNameInput", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []string{
+			"myworkspace",
+			"myuser/myworkspace",
+			"myuser--myworkspace",
+			"myuser/myworkspace--dev",
+			"myuser/myworkspace.dev",
+			"myuser--myworkspace--dev",
+			"myuser--myworkspace.dev",
+		}
+
+		for _, tc := range cases {
+			t.Run(tc, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+				inv, root := clitest.New(t, "ssh", tc)
+				clitest.SetupConfig(t, client, root)
+				pty := ptytest.New(t).Attach(inv)
+
+				cmdDone := tGo(t, func() {
+					err := inv.WithContext(ctx).Run()
+					assert.NoError(t, err)
+				})
+				pty.ExpectMatch("Waiting")
+
+				_ = agenttest.New(t, client.URL, agentToken)
+				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+				// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+				pty.WriteLine("exit")
+				<-cmdDone
+			})
+		}
 	})
 	t.Run("StartStoppedWorkspace", func(t *testing.T) {
 		t.Parallel()
@@ -1647,67 +1690,85 @@ func TestSSH(t *testing.T) {
 		}
 	})
 
-	t.Run("SSHHostPrefix", func(t *testing.T) {
+	t.Run("SSHHost", func(t *testing.T) {
 		t.Parallel()
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		_, _ = tGoContext(t, func(ctx context.Context) {
-			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
-			_ = agenttest.New(t, client.URL, agentToken)
-			<-ctx.Done()
-		})
 
-		clientOutput, clientInput := io.Pipe()
-		serverOutput, serverInput := io.Pipe()
-		defer func() {
-			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
-				_ = c.Close()
-			}
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		user, err := client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, "ssh", "--stdio", "--ssh-host-prefix", "coder.dummy.com--", fmt.Sprintf("coder.dummy.com--%s--%s", user.Username, workspace.Name))
-		clitest.SetupConfig(t, client, root)
-		inv.Stdin = clientOutput
-		inv.Stdout = serverInput
-		inv.Stderr = io.Discard
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
-			Reader: serverOutput,
-			Writer: clientInput,
-		}, "", &ssh.ClientConfig{
-			// #nosec
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		sshClient := ssh.NewClient(conn, channels, requests)
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
-		defer session.Close()
-
-		command := "sh -c exit"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c exit"
+		testCases := []struct {
+			name, hostnameFormat string
+			flags                []string
+		}{
+			{"Prefix", "coder.dummy.com--%s--%s", []string{"--ssh-host-prefix", "coder.dummy.com--"}},
+			{"Suffix", "%s--%s.coder", []string{"--hostname-suffix", "coder"}},
+			{"Both", "%s--%s.coder", []string{"--hostname-suffix", "coder", "--ssh-host-prefix", "coder.dummy.com--"}},
 		}
-		err = session.Run(command)
-		require.NoError(t, err)
-		err = sshClient.Close()
-		require.NoError(t, err)
-		_ = clientOutput.Close()
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		<-cmdDone
+				client, workspace, agentToken := setupWorkspaceForAgent(t)
+				_, _ = tGoContext(t, func(ctx context.Context) {
+					// Run this async so the SSH command has to wait for
+					// the build and agent to connect!
+					_ = agenttest.New(t, client.URL, agentToken)
+					<-ctx.Done()
+				})
+
+				clientOutput, clientInput := io.Pipe()
+				serverOutput, serverInput := io.Pipe()
+				defer func() {
+					for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+						_ = c.Close()
+					}
+				}()
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				user, err := client.User(ctx, codersdk.Me)
+				require.NoError(t, err)
+
+				args := []string{"ssh", "--stdio"}
+				args = append(args, tc.flags...)
+				args = append(args, fmt.Sprintf(tc.hostnameFormat, user.Username, workspace.Name))
+				inv, root := clitest.New(t, args...)
+				clitest.SetupConfig(t, client, root)
+				inv.Stdin = clientOutput
+				inv.Stdout = serverInput
+				inv.Stderr = io.Discard
+
+				cmdDone := tGo(t, func() {
+					err := inv.WithContext(ctx).Run()
+					assert.NoError(t, err)
+				})
+
+				conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+					Reader: serverOutput,
+					Writer: clientInput,
+				}, "", &ssh.ClientConfig{
+					// #nosec
+					HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				})
+				require.NoError(t, err)
+				defer conn.Close()
+
+				sshClient := ssh.NewClient(conn, channels, requests)
+				session, err := sshClient.NewSession()
+				require.NoError(t, err)
+				defer session.Close()
+
+				command := "sh -c exit"
+				if runtime.GOOS == "windows" {
+					command = "cmd.exe /c exit"
+				}
+				err = session.Run(command)
+				require.NoError(t, err)
+				err = sshClient.Close()
+				require.NoError(t, err)
+				_ = clientOutput.Close()
+
+				<-cmdDone
+			})
+		}
 	})
 }
 
