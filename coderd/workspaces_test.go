@@ -423,42 +423,6 @@ func TestWorkspace(t *testing.T) {
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
-
-	// Asserting some authz calls when creating a workspace.
-	t.Run("AuthzStory", func(t *testing.T) {
-		t.Parallel()
-		owner, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		first := coderdtest.CreateFirstUser(t, owner)
-		authz := coderdtest.AssertRBAC(t, api, owner)
-
-		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
-		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
-		_, userID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Create a workspace with the current api.
-		authz.Reset() // Reset all previous checks done in setup.
-		_, err := owner.CreateUserWorkspace(ctx, userID.ID.String(), codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
-			Name:       "test-user",
-		})
-		require.NoError(t, err)
-
-		// Assert all authz properties
-		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) {
-			// Creating workspaces is an organization action. So organization
-			// permissions should be sufficient to complete the action.
-			for _, call := range authz.AllCalls() {
-				assert.Falsef(t, call.Object.OrgID == "",
-					"call %q for object %q has no organization set. Site authz calls not expected here",
-					call.Action, call.Object.String(),
-				)
-			}
-		})
-	})
 }
 
 func TestResolveAutostart(t *testing.T) {

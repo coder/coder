@@ -144,8 +144,8 @@ type AuthCalls []AuthCall
 
 type AuthCall struct {
 	rbac.AuthCall
+	Err error
 
-	err      error
 	asserted bool
 	// callers is a small stack trace for debugging.
 	callers []string
@@ -265,7 +265,7 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action polic
 			Action: action,
 			Object: object,
 		},
-		err: err,
+		Err: err,
 		callers: []string{
 			// This is a decent stack trace for debugging.
 			// Some dbauthz calls are a bit nested, so we skip a few.

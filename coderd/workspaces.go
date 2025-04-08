@@ -413,21 +413,64 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No middleware exists to fetch the user from. This endpoint needs to fetch
-	// the organization member, which requires the organization. Which can be
-	// sourced from the template.
+	var owner workspaceOwner
+	// This user fetch is an optimization path for the most common case of creating a
+	// workspace for 'Me'.
 	//
-	// TODO: This code gets called twice for each workspace build request.
-	//   This is inefficient and costs at most 2 extra RTTs to the DB.
-	//   This can be optimized. It exists as it is now for code simplicity.
-	template, ok := requestTemplate(ctx, rw, req, api.Database)
-	if !ok {
-		return
-	}
+	// This is also required to allow `owners` to create workspaces for users
+	// that are not in an organization.
+	user, ok := httpmw.UserParamOptional(r)
+	if ok {
+		owner = workspaceOwner{
+			ID:        user.ID,
+			Username:  user.Username,
+			AvatarURL: user.AvatarURL,
+		}
+	} else {
+		// A workspace can still be created if the caller can read the organization
+		// member. The organization is required, which can be sourced from the
+		// template.
+		//
+		// TODO: This code gets called twice for each workspace build request.
+		//   This is inefficient and costs at most 2 extra RTTs to the DB.
+		//   This can be optimized. It exists as it is now for code simplicity.
+		//   The most common case is to create a workspace for 'Me'. Which does
+		//   not enter this code branch.
+		template, ok := requestTemplate(ctx, rw, req, api.Database)
+		if !ok {
+			return
+		}
 
-	member, ok := httpmw.ExtractOrganizationMemberContext(rw, r, api.Database, template.OrganizationID)
-	if !ok {
-		return
+		// We need to fetch the original user as a system user to fetch the
+		// user_id. 'ExtractUserContext' handles all cases like usernames,
+		// 'Me', etc.
+		// nolint:gocritic // The user_id needs to be fetched. This handles all those cases.
+		user, ok := httpmw.ExtractUserContext(dbauthz.AsSystemRestricted(ctx), api.Database, rw, r)
+		if !ok {
+			return
+		}
+
+		organizationMember, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: template.OrganizationID,
+			UserID:         user.ID,
+			IncludeSystem:  false,
+		}))
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching organization member.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		owner = workspaceOwner{
+			ID:        organizationMember.OrganizationMember.UserID,
+			Username:  organizationMember.Username,
+			AvatarURL: organizationMember.AvatarURL,
+		}
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
@@ -436,17 +479,11 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		Request: r,
 		Action:  database.AuditActionCreate,
 		AdditionalFields: audit.AdditionalFields{
-			WorkspaceOwner: member.Username,
+			WorkspaceOwner: owner.Username,
 		},
 	})
 
 	defer commitAudit()
-
-	owner := workspaceOwner{
-		ID:        member.UserID,
-		Username:  member.Username,
-		AvatarURL: member.AvatarURL,
-	}
 	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
 }
 

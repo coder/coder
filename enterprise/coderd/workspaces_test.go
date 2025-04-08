@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -266,7 +267,8 @@ func TestCreateUserWorkspace(t *testing.T) {
 			OrganizationID: first.OrganizationID.String(),
 			DisplayName:    "Creator",
 			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionCreate},
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
 			}),
 		})
 		require.NoError(t, err)
@@ -286,15 +288,87 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
 
-		var _ = creator
-		_, err = owner.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
+		_, err = creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})
 		require.NoError(t, err)
 	})
 
+	// Asserting some authz calls when creating a workspace.
+	t.Run("AuthzStory", func(t *testing.T) {
+		t.Parallel()
+		owner, _, api, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:  1,
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2000)
+		defer cancel()
+
+		creatorRole, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+		_, userID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{
+			Name:           creatorRole.Name,
+			OrganizationID: first.OrganizationID,
+		})
+
+		// Create a workspace with the current api using an org admin.
+		authz := coderdtest.AssertRBAC(t, api.AGPL, creator)
+		authz.Reset() // Reset all previous checks done in setup.
+		_, err = creator.CreateUserWorkspace(ctx, userID.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "test-user",
+		})
+		require.NoError(t, err)
+
+		// Assert all authz properties
+		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) {
+			// Creating workspaces is an organization action. So organization
+			// permissions should be sufficient to complete the action.
+			for _, call := range authz.AllCalls() {
+				if call.Action == policy.ActionRead &&
+					call.Object.Equal(rbac.ResourceUser.WithOwner(userID.ID.String()).WithID(userID.ID)) {
+					// User read checks are called. If they fail, ignore them.
+					if call.Err != nil {
+						continue
+					}
+				}
+
+				if call.Object.Type == rbac.ResourceDeploymentConfig.Type {
+					continue // Ignore
+				}
+
+				assert.Falsef(t, call.Object.OrgID == "",
+					"call %q for object %q has no organization set. Site authz calls not expected here",
+					call.Action, call.Object.String(),
+				)
+			}
+		})
+	})
+
 	t.Run("NoTemplateAccess", func(t *testing.T) {
+		// NoTemplateAccess intentionally does not use provisioners. The template
+		// version will be stuck in 'pending' forever.
 		t.Parallel()
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
