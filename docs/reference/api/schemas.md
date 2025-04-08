@@ -629,9 +629,7 @@
 ```json
 {
   "action": "create",
-  "additional_fields": [
-    0
-  ],
+  "additional_fields": {},
   "description": "string",
   "diff": {
     "property1": {
@@ -695,7 +693,7 @@
 | Name                | Type                                                         | Required | Restrictions | Description                                  |
 |---------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------|
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)                 | false    |              |                                              |
-| `additional_fields` | array of integer                                             | false    |              |                                              |
+| `additional_fields` | object                                                       | false    |              |                                              |
 | `description`       | string                                                       | false    |              |                                              |
 | `diff`              | [codersdk.AuditDiff](#codersdkauditdiff)                     | false    |              |                                              |
 | `id`                | string                                                       | false    |              |                                              |
@@ -721,9 +719,7 @@
   "audit_logs": [
     {
       "action": "create",
-      "additional_fields": [
-        0
-      ],
+      "additional_fields": {},
       "description": "string",
       "diff": {
         "property1": {
@@ -6717,6 +6713,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|
 | `UNSUPPORTED_WORKSPACES` |
 
+## codersdk.TerminalFontName
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+|-----------------|
+| ``              |
+| `ibm-plex-mono` |
+| `fira-code`     |
+
 ## codersdk.TimingStage
 
 ```json
@@ -6914,15 +6926,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `theme_preference` | string | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
+| `theme_preference` | string                                                 | true     |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -7265,15 +7279,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `theme_preference` | string | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
+| `theme_preference` | string                                                 | false    |              |             |
 
 ## codersdk.UserLatency
 
