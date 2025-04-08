@@ -192,7 +192,8 @@ type ValidateUserPasswordResponse struct {
 // TerminalFontName is the name of supported terminal font
 type TerminalFontName string
 
-var TerminalFontNames = []TerminalFontName{TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
+var TerminalFontNames = []TerminalFontName{
+	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
 	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
 }
 
