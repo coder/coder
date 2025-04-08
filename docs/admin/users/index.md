@@ -190,7 +190,7 @@ to use the Coder's filter query:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
 - To find users who were created between January 1 and January 18, 2023:
   `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
-- To find users who login using github:
+- To find users who login using Github:
   `login_type:github`
 
 The following filters are supported:
