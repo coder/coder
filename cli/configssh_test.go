@@ -509,7 +509,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			},
 		},
 		{
-			name: "Start/End out of order",
+			name:    "Start/End out of order",
 			matches: []match{
 				// {match: "Continue?", write: "yes"},
 			},
@@ -524,7 +524,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Multiple sections",
+			name:    "Multiple sections",
 			matches: []match{
 				// {match: "Continue?", write: "yes"},
 			},
