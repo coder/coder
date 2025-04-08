@@ -15605,12 +15605,16 @@ const docTemplate = `{
             "enum": [
                 "",
                 "ibm-plex-mono",
-                "fira-code"
+                "fira-code",
+                "source-code-pro",
+                "jetbrains-mono"
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
                 "TerminalFontIBMPlexMono",
-                "TerminalFontFiraCode"
+                "TerminalFontFiraCode",
+                "TerminalFontSourceCodePro",
+                "TerminalFontJetBrainsMono"
             ]
         },
         "codersdk.TimingStage": {

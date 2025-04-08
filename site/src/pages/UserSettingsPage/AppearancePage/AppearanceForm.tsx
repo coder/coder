@@ -16,7 +16,11 @@ import { Stack } from "components/Stack/Stack";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC } from "react";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
-import { DEFAULT_TERMINAL_FONT, terminalFontLabels } from "theme/constants";
+import {
+	DEFAULT_TERMINAL_FONT,
+	terminalFontLabels,
+	terminalFonts,
+} from "theme/constants";
 import { Section } from "../Section";
 
 export interface AppearanceFormProps {
@@ -115,7 +119,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 								value={name}
 								control={<Radio />}
 								label={
-									<div css={{ fontFamily: terminalFontLabels[name] }}>
+									<div css={{ fontFamily: terminalFonts[name] }}>
 										{terminalFontLabels[name]}
 									</div>
 								}
