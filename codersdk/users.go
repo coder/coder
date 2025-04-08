@@ -192,12 +192,17 @@ type ValidateUserPasswordResponse struct {
 // TerminalFontName is the name of supported terminal font
 type TerminalFontName string
 
-var TerminalFontNames = []TerminalFontName{TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode}
+var TerminalFontNames = []TerminalFontName{
+	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
+	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+}
 
 const (
-	TerminalFontUnknown     TerminalFontName = ""
-	TerminalFontIBMPlexMono TerminalFontName = "ibm-plex-mono"
-	TerminalFontFiraCode    TerminalFontName = "fira-code"
+	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
+	TerminalFontFiraCode      TerminalFontName = "fira-code"
+	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"
+	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
 )
 
 type UserAppearanceSettings struct {

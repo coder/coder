@@ -2658,11 +2658,18 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 }
 
 // From codersdk/users.go
-export type TerminalFontName = "fira-code" | "ibm-plex-mono" | "";
+export type TerminalFontName =
+	| "fira-code"
+	| "ibm-plex-mono"
+	| "jetbrains-mono"
+	| "source-code-pro"
+	| "";
 
 export const TerminalFontNames: TerminalFontName[] = [
 	"fira-code",
 	"ibm-plex-mono",
+	"jetbrains-mono",
+	"source-code-pro",
 	"",
 ];
 
