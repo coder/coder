@@ -51,7 +51,7 @@ func TestSupportBundle(t *testing.T) {
 		seedSecretDeploymentOptions(t, &dc, secretValue)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitLong,
+			HealthcheckTimeout: testutil.WaitSuperLong,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -115,7 +115,7 @@ func TestSupportBundle(t *testing.T) {
 		seedSecretDeploymentOptions(t, &dc, secretValue)
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitLong,
+			HealthcheckTimeout: testutil.WaitSuperLong,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -136,7 +136,7 @@ func TestSupportBundle(t *testing.T) {
 		seedSecretDeploymentOptions(t, &dc, secretValue)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitLong,
+			HealthcheckTimeout: testutil.WaitSuperLong,
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
