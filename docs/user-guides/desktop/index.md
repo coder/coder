@@ -75,7 +75,17 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. Open the Desktop menu and select **Sign in**:
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   <div class="tabs">
+
+   ## macOS
+
+   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+
+   ## Windows
+
+   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+
+   </div>
 
 1. In the **Sign In** window, enter your Coder deployment's URL and select **Next**:
 
@@ -101,17 +111,19 @@ Before you can use Coder Desktop, you will need to sign in.
 
    <Image height="350px" src="../../images/user-guides/desktop/mac-allow-vpn.png" alt="Copy session token" align="center" />
 
-1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the CoderVPN toggle to start the VPN.
+1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the **Coder Connect** toggle to enable the connection.
+
+   ![Coder Desktop on Windows - enable Coder Connect](../../images/user-guides/desktop/coder-desktop-win-enable-coder-connect.png)
 
    This may take a few moments, as Coder Desktop will download the necessary components from the Coder server if they have been updated.
 
-1. macOS: You may be prompted to enter your password to allow CoderVPN to start.
+1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
 
-1. CoderVPN is now running!
+1. Coder Connect is now running!
 
-## CoderVPN
+## Coder Connect
 
-While active, CoderVPN will list your owned workspaces and configure your system to be able to connect to them over private IPv6 addresses and custom hostnames ending in `.coder`.
+While active, Coder Connect will list the workspaces you own and will configure your system to connect to them over private IPv6 addresses and custom hostnames ending in `.coder`.
 
 ![Coder Desktop list of workspaces](../../images/user-guides/desktop/coder-desktop-workspaces.png)
 
@@ -138,14 +150,14 @@ You can also connect to the SSH server in your workspace using any SSH client, s
    ```
 
 > [!NOTE]
-> Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the CoderVPN tunnel to connect to workspaces.
+> Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
 
 ## Accessing web apps in a secure browser context
 
 Some web applications require a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) to function correctly.
 A browser typically considers an origin secure if the connection is to `localhost`, or over `HTTPS`.
 
-As CoderVPN uses its own hostnames and does not provide TLS to the browser, Google Chrome and Firefox will not allow any web APIs that require a secure context.
+As Coder Connect uses its own hostnames and does not provide TLS to the browser, Google Chrome and Firefox will not allow any web APIs that require a secure context.
 
 > [!NOTE]
 > Despite the browser showing an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
@@ -184,7 +196,7 @@ We are planning some changes to Coder Desktop that will make accessing secure co
 
 1. Select **String** on the entry with the same name at the bottom of the list, then select the plus icon on the right.
 
-1. In the text field, enter the full workspace hostname, without the `http` scheme and port (e.g. `your-workspace.coder`), and then select the tick icon.
+1. In the text field, enter the full workspace hostname, without the `http` scheme and port: `your-workspace.coder`. Then select the tick icon.
 
    If you need to enter multiple URLs, use a comma to separate them.
 
