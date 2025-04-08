@@ -300,7 +300,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
 	// we don't have a cached plan available, we just use an empty one instead.
-	var plan json.RawMessage = []byte("{}")
+	plan := json.RawMessage("{}")
 	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 	if err == nil {
 		plan = tf.CachedPlan
