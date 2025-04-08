@@ -992,6 +992,17 @@ Type of auth to use when connecting to postgres. For AWS RDS, using IAM authenti
 
 Controls if the 'Secure' property is set on browser session cookies.
 
+### --samesite-auth-cookie
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>lax\|none</code>                     |
+| Environment | <code>$CODER_SAMESITE_AUTH_COOKIE</code>   |
+| YAML        | <code>networking.sameSiteAuthCookie</code> |
+| Default     | <code>lax</code>                           |
+
+Controls the 'SameSite' property is set on browser session cookies.
+
 ### --terms-of-service-url
 
 |             |                                          |

@@ -252,6 +252,9 @@ NETWORKING OPTIONS:
           Specifies whether to redirect requests that do not match the access
           URL host.
 
+      --samesite-auth-cookie lax|none, $CODER_SAMESITE_AUTH_COOKIE (default: lax)
+          Controls the 'SameSite' property is set on browser session cookies.
+
       --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
           Controls if the 'Secure' property is set on browser session cookies.
 

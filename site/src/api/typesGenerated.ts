@@ -649,7 +649,7 @@ export interface DeploymentValues {
 	readonly telemetry?: TelemetryConfig;
 	readonly tls?: TLSConfig;
 	readonly trace?: TraceConfig;
-	readonly secure_auth_cookie?: boolean;
+	readonly http_cookies?: HTTPCookieConfig;
 	readonly strict_transport_security?: number;
 	readonly strict_transport_security_options?: string;
 	readonly ssh_keygen_algorithm?: string;
@@ -974,6 +974,12 @@ export interface GroupSyncSettings {
 	readonly regex_filter: string | null;
 	readonly auto_create_missing_groups: boolean;
 	readonly legacy_group_name_mapping?: Record<string, string>;
+}
+
+// From codersdk/deployment.go
+export interface HTTPCookieConfig {
+	readonly secure_auth_cookie?: boolean;
+	readonly same_site?: string;
 }
 
 // From health/model.go

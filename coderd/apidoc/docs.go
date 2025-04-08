@@ -11902,6 +11902,9 @@ const docTemplate = `{
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
                     "type": "string"
                 },
+                "http_cookies": {
+                    "$ref": "#/definitions/codersdk.HTTPCookieConfig"
+                },
                 "in_memory_database": {
                     "type": "boolean"
                 },
@@ -11961,9 +11964,6 @@ const docTemplate = `{
                 },
                 "scim_api_key": {
                     "type": "string"
-                },
-                "secure_auth_cookie": {
-                    "type": "boolean"
                 },
                 "session_lifetime": {
                     "$ref": "#/definitions/codersdk.SessionLifetime"
@@ -12481,6 +12481,17 @@ const docTemplate = `{
                             "$ref": "#/definitions/regexp.Regexp"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.HTTPCookieConfig": {
+            "type": "object",
+            "properties": {
+                "same_site": {
+                    "type": "string"
+                },
+                "secure_auth_cookie": {
+                    "type": "boolean"
                 }
             }
         },
