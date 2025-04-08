@@ -262,6 +262,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 			},
 		})
 		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // using owner to setup roles
 		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:           "creator",
 			OrganizationID: first.OrganizationID.String(),
@@ -313,6 +314,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2000)
 		defer cancel()
 
+		//nolint:gocritic // using owner to setup roles
 		creatorRole, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:           "creator",
 			OrganizationID: first.OrganizationID.String(),
