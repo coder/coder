@@ -203,10 +203,15 @@ func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slo
 	return c.store.InTx(func(db database.Store) error {
 		start := c.clock.Now()
 
-		// TODO: use TryAcquireLock here and bail out early.
-		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
+		// Try to acquire the lock. If we can't get it, another replica is handling reconciliation.
+		acquired, err := db.TryAcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
 		if err != nil {
-			logger.Warn(ctx, "failed to acquire top-level reconciliation lock; likely running on another coderd replica", slog.Error(err))
+			// This is a real database error, not just lock contention
+			logger.Error(ctx, "failed to acquire reconciliation lock due to database error", slog.Error(err))
+			return err
+		}
+		if !acquired {
+			// Normal case: another replica has the lock
 			return nil
 		}
 
