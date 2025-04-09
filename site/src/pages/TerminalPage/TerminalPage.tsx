@@ -20,7 +20,11 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import themes from "theme";
-import { DEFAULT_TERMINAL_FONT, DEFAULT_TERMINAL_FONT_SIZE, terminalFonts } from "theme/constants";
+import {
+	DEFAULT_TERMINAL_FONT,
+	DEFAULT_TERMINAL_FONT_SIZE,
+	terminalFonts,
+} from "theme/constants";
 import { pageTitle } from "utils/page";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
@@ -109,7 +113,8 @@ const TerminalPage: FC = () => {
 	const currentTerminalFont =
 		appearanceSettingsQuery.data?.terminal_font || DEFAULT_TERMINAL_FONT;
 	const currentTerminalFontSize =
-		appearanceSettingsQuery.data?.terminal_font_size || DEFAULT_TERMINAL_FONT_SIZE;
+		appearanceSettingsQuery.data?.terminal_font_size ||
+		DEFAULT_TERMINAL_FONT_SIZE;
 
 	// Create the terminal!
 	const fitAddonRef = useRef<FitAddon>();

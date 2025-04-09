@@ -18,6 +18,10 @@ type Story = StoryObj<typeof AppearanceForm>;
 
 export const Example: Story = {
 	args: {
-		initialValues: { theme_preference: "", terminal_font: "", terminal_font_size: 16 },
+		initialValues: {
+			theme_preference: "",
+			terminal_font: "",
+			terminal_font_size: 16,
+		},
 	},
 };

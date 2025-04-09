@@ -4,6 +4,7 @@ import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
+import TextField from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
 import {
 	type TerminalFontName,
@@ -23,7 +24,6 @@ import {
 	terminalFonts,
 } from "theme/constants";
 import { Section } from "../Section";
-import { TextField } from "@mui/material";
 
 export interface AppearanceFormProps {
 	isUpdating?: boolean;
@@ -62,7 +62,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		await onSubmit({
 			theme_preference: currentTheme,
 			terminal_font: terminalFont,
-			terminal_font_size: currentTerminalFontSize
+			terminal_font_size: currentTerminalFontSize,
 		});
 	};
 
@@ -73,7 +73,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		await onSubmit({
 			theme_preference: currentTheme,
 			terminal_font: currentTerminalFont,
-			terminal_font_size: terminalFontSize
+			terminal_font_size: terminalFontSize,
 		});
 	};
 
@@ -165,14 +165,14 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					variant="outlined"
 					type="number"
 					size="small"
-					style={{ width: '110px' }}
+					style={{ width: "110px" }}
 					defaultValue={currentTerminalFontSize}
 					inputProps={{ min: 8, max: 32 }}
 					onBlur={(e) => {
-						onChangeTerminalFontSize(Number(e.target.value))
+						onChangeTerminalFontSize(Number(e.target.value));
 					}}
 					onKeyDown={(e) => {
-						if (e.key === 'Enter') {
+						if (e.key === "Enter") {
 							e.preventDefault(); // Prevent form submission
 						}
 					}}
