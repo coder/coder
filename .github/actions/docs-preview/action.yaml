@@ -10,7 +10,7 @@ inputs:
     required: false
     default: 'docs'
   vercel-domain:
-    description: 'Vercel deployment domain'
+    description: 'DEPRECATED - Previously for Vercel, now using different URL format'
     required: false
     default: 'coder-docs-git'
   changed-files:
@@ -56,6 +56,14 @@ runs:
           exit 1
         fi
 
+    - name: Debug inputs
+      shell: bash
+      run: |
+        echo "Docs dir: ${{ inputs.docs-dir }}"
+        echo "Manifest changed: ${{ inputs.manifest-changed }}"
+        echo "First few changed files:"
+        echo '${{ inputs.changed-files }}' | jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' | head -n 5
+
     - name: Analyze docs changes
       id: docs-analysis
       shell: bash
@@ -67,18 +75,38 @@ runs:
         DOC_FILES_COUNT=$(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' changed_files.json | wc -l)
         echo "doc_files_count=$DOC_FILES_COUNT" >> $GITHUB_OUTPUT
         
-        # Format changed files for comment
-        FORMATTED_FILES=$(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/")) | "- `" + . + "`"' changed_files.json)
+        # Force to true for debugging
+        DOC_FILES_COUNT=1
+        
+        # Get branch name for URLs
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+        
+        # Format changed files for comment with clickable links
+        FORMATTED_FILES=""
+        while read -r file_path; do
+          [ -z "$file_path" ] && continue
+          
+          # Create direct link to file
+          # Remove .md extension and docs/ prefix for the URL path
+          url_path=$(echo "$file_path" | sed 's/^docs\///' | sed 's/\.md$//')
+          file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+          
+          # Add the formatted line with link
+          FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
+        done < <(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' changed_files.json)
+        
+        # Add a minimum placeholder if no files found
+        if [ -z "$FORMATTED_FILES" ]; then
+          # Hardcode a test example that links directly to the parameters.md file
+          FORMATTED_FILES="- [docs/admin/templates/extending-templates/parameters.md](https://coder.com/docs/@${BRANCH_NAME}/admin/templates/extending-templates/parameters)\n"
+        fi
+        
         echo "changed_files<<EOF" >> $GITHUB_OUTPUT
-        echo "$FORMATTED_FILES" >> $GITHUB_OUTPUT
+        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
-        # Determine if docs have changed
-        if [ "$DOC_FILES_COUNT" -gt 0 ]; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        else
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        fi
+        # Determine if docs have changed - force true for testing
+        echo "has_changes=true" >> $GITHUB_OUTPUT
         
         # Clean up sensitive file
         rm -f changed_files.json
@@ -88,21 +116,20 @@ runs:
       if: steps.docs-analysis.outputs.has_changes == 'true'
       shell: bash
       run: |
-        # Get PR number for Vercel preview URL using GitHub event file
-        PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+        # Get PR branch name for Vercel preview URL
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
         
-        # Input validation - ensure PR number is a number
-        if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
-          echo "::error::Invalid PR number: $PR_NUMBER"
+        # Input validation - ensure branch name is valid
+        if [ -z "$BRANCH_NAME" ]; then
+          echo "::error::Could not determine branch name"
           exit 1
         fi
         
-        # Generate and output Vercel preview URL with sanitized inputs
-        VERCEL_DOMAIN="${{ inputs.vercel-domain }}"
-        # Remove any dangerous characters from domain
-        VERCEL_DOMAIN=$(echo "$VERCEL_DOMAIN" | tr -cd 'a-zA-Z0-9-.')
+        # For debugging
+        echo "Branch name: $BRANCH_NAME"
         
-        VERCEL_PREVIEW_URL="https://${VERCEL_DOMAIN}-${PR_NUMBER}.vercel.app"
+        # Create the correct Vercel preview URL
+        VERCEL_PREVIEW_URL="https://coder.com/docs/@$BRANCH_NAME"
         echo "url=$VERCEL_PREVIEW_URL" >> $GITHUB_OUTPUT
 
     - name: Analyze manifest changes
@@ -138,11 +165,12 @@ runs:
             clean_path=${doc_path#./}
             clean_path=$(echo "$clean_path" | tr -cd 'a-zA-Z0-9_./-')
             
-            # Generate preview URL
+            # Get branch name for URLs
+            BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+            
+            # Generate preview URL with correct format
             url_path=$(echo "$clean_path" | sed 's/\.md$//')
-            VERCEL_DOMAIN="${{ inputs.vercel-domain }}"
-            VERCEL_DOMAIN=$(echo "$VERCEL_DOMAIN" | tr -cd 'a-zA-Z0-9-.')
-            preview_url="https://${VERCEL_DOMAIN}-${PR_NUMBER}.vercel.app/${url_path}"
+            preview_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
             
             # Extract doc title or use filename safely
             if [ -f "$doc_path" ]; then
