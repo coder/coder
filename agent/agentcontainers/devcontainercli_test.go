@@ -110,8 +110,8 @@ func TestDevcontainerCLI_Up_ArgsAndParsing(t *testing.T) {
 			t.Setenv("TEST_DEVCONTAINER_WANT_ERROR", fmt.Sprintf("%v", tt.wantError))
 			t.Setenv("TEST_DEVCONTAINER_LOG_FILE", filepath.Join("testdata", "devcontainercli", "parse", tt.logFile))
 
-			cli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
-			containerID, err := cli.Up(ctx, tt.workspace, tt.config, tt.opts...)
+			dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+			containerID, err := dccli.Up(ctx, tt.workspace, tt.config, tt.opts...)
 			if tt.wantError {
 				assert.Error(t, err, "want error")
 				assert.Empty(t, containerID, "expected empty container ID")
