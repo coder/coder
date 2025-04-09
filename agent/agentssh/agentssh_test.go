@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -200,7 +201,11 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				}
 				assert.NoError(t, err)
 
+				// Allow the session to settle (i.e. reach echo).
 				pty.ExpectMatchContext(ctx, "started")
+				// Sleep a bit to ensure the sleep has started.
+				time.Sleep(testutil.IntervalMedium)
+
 				close(ch)
 
 				err = sess.Wait()
