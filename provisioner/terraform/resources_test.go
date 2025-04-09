@@ -828,6 +828,9 @@ func TestConvertResources(t *testing.T) {
 					Name:  "Sample",
 					Value: "A1B2C3",
 				}},
+				Prebuild: &proto.Prebuild{
+					Instances: 4,
+				},
 			}},
 		},
 		"devcontainer": {

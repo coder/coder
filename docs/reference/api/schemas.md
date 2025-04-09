@@ -629,9 +629,7 @@
 ```json
 {
   "action": "create",
-  "additional_fields": [
-    0
-  ],
+  "additional_fields": {},
   "description": "string",
   "diff": {
     "property1": {
@@ -695,7 +693,7 @@
 | Name                | Type                                                         | Required | Restrictions | Description                                  |
 |---------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------|
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)                 | false    |              |                                              |
-| `additional_fields` | array of integer                                             | false    |              |                                              |
+| `additional_fields` | object                                                       | false    |              |                                              |
 | `description`       | string                                                       | false    |              |                                              |
 | `diff`              | [codersdk.AuditDiff](#codersdkauditdiff)                     | false    |              |                                              |
 | `id`                | string                                                       | false    |              |                                              |
@@ -721,9 +719,7 @@
   "audit_logs": [
     {
       "action": "create",
-      "additional_fields": [
-        0
-      ],
+      "additional_fields": {},
       "description": "string",
       "diff": {
         "property1": {
@@ -1949,6 +1945,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "threshold_database": 0
     },
     "http_address": "string",
+    "http_cookies": {
+      "same_site": "string",
+      "secure_auth_cookie": true
+    },
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
@@ -2122,7 +2122,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "redirect_to_access_url": true,
     "scim_api_key": "string",
-    "secure_auth_cookie": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,
@@ -2204,6 +2203,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
+    "workspace_hostname_suffix": "string",
     "write_config": true
   },
   "options": [
@@ -2425,6 +2425,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "threshold_database": 0
   },
   "http_address": "string",
+  "http_cookies": {
+    "same_site": "string",
+    "secure_auth_cookie": true
+  },
   "in_memory_database": true,
   "job_hang_detector_interval": 0,
   "logging": {
@@ -2598,7 +2602,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "redirect_to_access_url": true,
   "scim_api_key": "string",
-  "secure_auth_cookie": true,
   "session_lifetime": {
     "default_duration": 0,
     "default_token_lifetime": 0,
@@ -2680,6 +2683,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
   "wildcard_access_url": "string",
+  "workspace_hostname_suffix": "string",
   "write_config": true
 }
 ```
@@ -2713,6 +2717,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
+| `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
 | `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
 | `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
@@ -2731,7 +2736,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                 | false    |              |                                                                    |
 | `redirect_to_access_url`             | boolean                                                                                              | false    |              |                                                                    |
 | `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
-| `secure_auth_cookie`                 | boolean                                                                                              | false    |              |                                                                    |
 | `session_lifetime`                   | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
 | `strict_transport_security`          | integer                                                                                              | false    |              |                                                                    |
@@ -2748,6 +2752,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
 | `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
+| `workspace_hostname_suffix`          | string                                                                                               | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp
@@ -3298,6 +3303,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `mapping`                    | object                         | false    |              | Mapping is a map from OIDC groups to Coder group IDs                                                                                                                                                                                                                                   |
 | » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
 | `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
+
+## codersdk.HTTPCookieConfig
+
+```json
+{
+  "same_site": "string",
+  "secure_auth_cookie": true
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `same_site`          | string  | false    |              |             |
+| `secure_auth_cookie` | boolean | false    |              |             |
 
 ## codersdk.Healthcheck
 
@@ -5745,6 +5766,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "hostname_prefix": "string",
+  "hostname_suffix": "string",
   "ssh_config_options": {
     "property1": "string",
     "property2": "string"
@@ -5754,11 +5776,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-|----------------------|--------|----------|--------------|-------------|
-| `hostname_prefix`    | string | false    |              |             |
-| `ssh_config_options` | object | false    |              |             |
-| » `[any property]`   | string | false    |              |             |
+| Name                 | Type   | Required | Restrictions | Description                                                                                                           |
+|----------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `hostname_prefix`    | string | false    |              | Hostname prefix is the prefix we append to workspace names for SSH hostnames. Deprecated: use HostnameSuffix instead. |
+| `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
+| `ssh_config_options` | object | false    |              |                                                                                                                       |
+| » `[any property]`   | string | false    |              |                                                                                                                       |
 
 ## codersdk.ServerSentEvent
 
@@ -6712,6 +6735,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|
 | `UNSUPPORTED_WORKSPACES` |
 
+## codersdk.TerminalFontName
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value             |
+|-------------------|
+| ``                |
+| `ibm-plex-mono`   |
+| `fira-code`       |
+| `source-code-pro` |
+| `jetbrains-mono`  |
+
 ## codersdk.TimingStage
 
 ```json
@@ -6909,15 +6950,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `theme_preference` | string | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
+| `theme_preference` | string                                                 | true     |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -7260,15 +7303,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "terminal_font": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `theme_preference` | string | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
+| `theme_preference` | string                                                 | false    |              |             |
 
 ## codersdk.UserLatency
 

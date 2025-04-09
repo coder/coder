@@ -6389,6 +6389,43 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 	return i, err
 }
 
+const getPresetParametersByPresetID = `-- name: GetPresetParametersByPresetID :many
+SELECT
+	tvpp.id, tvpp.template_version_preset_id, tvpp.name, tvpp.value
+FROM
+	template_version_preset_parameters tvpp
+WHERE
+	tvpp.template_version_preset_id = $1
+`
+
+func (q *sqlQuerier) GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]TemplateVersionPresetParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetParametersByPresetID, presetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionPresetParameter
+	for rows.Next() {
+		var i TemplateVersionPresetParameter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateVersionPresetID,
+			&i.Name,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPresetParametersByTemplateVersionID = `-- name: GetPresetParametersByTemplateVersionID :many
 SELECT
 	template_version_preset_parameters.id, template_version_preset_parameters.template_version_preset_id, template_version_preset_parameters.name, template_version_preset_parameters.value
@@ -12159,23 +12196,6 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
-const getUserAppearanceSettings = `-- name: GetUserAppearanceSettings :one
-SELECT
-	value as theme_preference
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'theme_preference'
-`
-
-func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserAppearanceSettings, userID)
-	var theme_preference string
-	err := row.Scan(&theme_preference)
-	return theme_preference, err
-}
-
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
@@ -12273,6 +12293,40 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserTerminalFont = `-- name: GetUserTerminalFont :one
+SELECT
+	value as terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'terminal_font'
+`
+
+func (q *sqlQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserTerminalFont, userID)
+	var terminal_font string
+	err := row.Scan(&terminal_font)
+	return terminal_font, err
+}
+
+const getUserThemePreference = `-- name: GetUserThemePreference :one
+SELECT
+	value as theme_preference
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'theme_preference'
+`
+
+func (q *sqlQuerier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserThemePreference, userID)
+	var theme_preference string
+	err := row.Scan(&theme_preference)
+	return theme_preference, err
+}
+
 const getUsers = `-- name: GetUsers :many
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, COUNT(*) OVER() AS count
@@ -12356,16 +12410,22 @@ WHERE
 			github_com_user_id = $10
 		ELSE true
 	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality($11 :: login_type[]) > 0 THEN
+			login_type = ANY($11 :: login_type[])
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $11
+	LOWER(username) ASC OFFSET $12
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($12 :: int, 0)
+	NULLIF($13 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -12379,6 +12439,7 @@ type GetUsersParams struct {
 	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
 	IncludeSystem   bool         `db:"include_system" json:"include_system"`
 	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType       []LoginType  `db:"login_type" json:"login_type"`
 	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
 }
@@ -12418,6 +12479,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.CreatedAfter,
 		arg.IncludeSystem,
 		arg.GithubComUserID,
+		pq.Array(arg.LoginType),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -12634,33 +12696,6 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateUserAppearanceSettings = `-- name: UpdateUserAppearanceSettings :one
-INSERT INTO
-	user_configs (user_id, key, value)
-VALUES
-	($1, 'theme_preference', $2)
-ON CONFLICT
-	ON CONSTRAINT user_configs_pkey
-DO UPDATE
-SET
-	value = $2
-WHERE user_configs.user_id = $1
-	AND user_configs.key = 'theme_preference'
-RETURNING user_id, key, value
-`
-
-type UpdateUserAppearanceSettingsParams struct {
-	UserID          uuid.UUID `db:"user_id" json:"user_id"`
-	ThemePreference string    `db:"theme_preference" json:"theme_preference"`
-}
-
-func (q *sqlQuerier) UpdateUserAppearanceSettings(ctx context.Context, arg UpdateUserAppearanceSettingsParams) (UserConfig, error) {
-	row := q.db.QueryRowContext(ctx, updateUserAppearanceSettings, arg.UserID, arg.ThemePreference)
-	var i UserConfig
-	err := row.Scan(&i.UserID, &i.Key, &i.Value)
-	return i, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
@@ -13007,6 +13042,60 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 	)
+	return i, err
+}
+
+const updateUserTerminalFont = `-- name: UpdateUserTerminalFont :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'terminal_font', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'terminal_font'
+RETURNING user_id, key, value
+`
+
+type UpdateUserTerminalFontParams struct {
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	TerminalFont string    `db:"terminal_font" json:"terminal_font"`
+}
+
+func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemePreference = `-- name: UpdateUserThemePreference :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_preference', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_preference'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemePreferenceParams struct {
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+	ThemePreference string    `db:"theme_preference" json:"theme_preference"`
+}
+
+func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemePreference, arg.UserID, arg.ThemePreference)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
 }
 

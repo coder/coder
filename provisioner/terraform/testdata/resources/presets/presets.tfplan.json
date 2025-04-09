@@ -21,6 +21,7 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +30,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -69,6 +71,7 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
+          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -79,12 +82,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -156,10 +161,18 @@
               "name": "My First Project",
               "parameters": {
                 "Sample": "A1B2C3"
-              }
+              },
+              "prebuilds": [
+                {
+                  "instances": 4
+                }
+              ]
             },
             "sensitive_values": {
-              "parameters": {}
+              "parameters": {},
+              "prebuilds": [
+                {}
+              ]
             }
           }
         ],
@@ -293,7 +306,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "2.1.3"
+        "version_constraint": "2.3.0-pre2"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -372,7 +385,14 @@
                 "data.coder_parameter.sample.name",
                 "data.coder_parameter.sample"
               ]
-            }
+            },
+            "prebuilds": [
+              {
+                "instances": {
+                  "constant_value": 4
+                }
+              }
+            ]
           },
           "schema_version": 0
         }

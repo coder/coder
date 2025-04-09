@@ -49,6 +49,14 @@ FROM
 WHERE
 	template_version_presets.template_version_id = @template_version_id;
 
+-- name: GetPresetParametersByPresetID :many
+SELECT
+	tvpp.*
+FROM
+	template_version_preset_parameters tvpp
+WHERE
+	tvpp.template_version_preset_id = @preset_id;
+
 -- name: GetPresetByID :one
 SELECT tvp.*, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp

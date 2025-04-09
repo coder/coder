@@ -40,9 +40,18 @@ importers:
       '@fontsource-variable/inter':
         specifier: 5.1.1
         version: 5.1.1
+      '@fontsource/fira-code':
+        specifier: 5.2.5
+        version: 5.2.5
       '@fontsource/ibm-plex-mono':
         specifier: 5.1.1
         version: 5.1.1
+      '@fontsource/jetbrains-mono':
+        specifier: 5.2.5
+        version: 5.2.5
+      '@fontsource/source-code-pro':
+        specifier: 5.2.5
+        version: 5.2.5
       '@monaco-editor/react':
         specifier: 4.6.0
         version: 4.6.0(monaco-editor@0.52.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1040,8 +1049,17 @@ packages:
   '@fontsource-variable/inter@5.1.1':
     resolution: {integrity: sha512-OpXFTmiH6tHkYijMvQTycFKBLK4X+SRV6tet1m4YOUH7SzIIlMqDja+ocDtiCA72UthBH/vF+3ZtlMr2rN/wIw==, tarball: https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.1.1.tgz}
 
+  '@fontsource/fira-code@5.2.5':
+    resolution: {integrity: sha512-Rn9PJoyfRr5D6ukEhZpzhpD+rbX2rtoz9QjkOuGxqFxrL69fQvhadMUBxQIOuTF4sTTkPRSKlAEpPjTKaI12QA==, tarball: https://registry.npmjs.org/@fontsource/fira-code/-/fira-code-5.2.5.tgz}
+
   '@fontsource/ibm-plex-mono@5.1.1':
     resolution: {integrity: sha512-1aayqPe/ZkD3MlvqpmOHecfA3f2B8g+fAEkgvcCd3lkPP0pS1T0xG5Zmn2EsJQqr1JURtugPUH+5NqvKyfFZMQ==, tarball: https://registry.npmjs.org/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.1.1.tgz}
+
+  '@fontsource/jetbrains-mono@5.2.5':
+    resolution: {integrity: sha512-TPZ9b/uq38RMdrlZZkl0RwN8Ju9JxuqMETrw76pUQFbGtE1QbwQaNsLlnUrACNNBNbd0NZRXiJJSkC8ajPgbew==, tarball: https://registry.npmjs.org/@fontsource/jetbrains-mono/-/jetbrains-mono-5.2.5.tgz}
+
+  '@fontsource/source-code-pro@5.2.5':
+    resolution: {integrity: sha512-1k7b9IdhVSdK/rJ8CkqqGFZ01C3NaXNynPZqKaTetODog/GPJiMYd6E8z+LTwSUTIX8dm2QZORDC+Uh91cjXSg==, tarball: https://registry.npmjs.org/@fontsource/source-code-pro/-/source-code-pro-5.2.5.tgz}
 
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==, tarball: https://registry.npmjs.org/@humanwhocodes/config-array/-/config-array-0.11.14.tgz}
@@ -7012,7 +7030,13 @@ snapshots:
 
   '@fontsource-variable/inter@5.1.1': {}
 
+  '@fontsource/fira-code@5.2.5': {}
+
   '@fontsource/ibm-plex-mono@5.1.1': {}
+
+  '@fontsource/jetbrains-mono@5.2.5': {}
+
+  '@fontsource/source-code-pro@5.2.5': {}
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:

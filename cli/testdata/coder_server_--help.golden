@@ -78,7 +78,7 @@ OPTIONS:
 
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
-Clients include the coder cli, vs code extension, and the web UI.
+Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 
       --cli-upgrade-message string, $CODER_CLI_UPGRADE_MESSAGE
           The upgrade message to display to users when a client/server mismatch
@@ -97,6 +97,11 @@ Clients include the coder cli, vs code extension, and the web UI.
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are
           'canvas', 'webgl', or 'dom'.
+
+      --workspace-hostname-suffix string, $CODER_WORKSPACE_HOSTNAME_SUFFIX (default: coder)
+          Workspace hostnames use this suffix in SSH config and Coder Connect on
+          Coder Desktop. By default it is coder, resulting in names like
+          myworkspace.coder.
 
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.
@@ -245,6 +250,9 @@ NETWORKING OPTIONS:
       --redirect-to-access-url bool, $CODER_REDIRECT_TO_ACCESS_URL
           Specifies whether to redirect requests that do not match the access
           URL host.
+
+      --samesite-auth-cookie lax|none, $CODER_SAMESITE_AUTH_COOKIE (default: lax)
+          Controls the 'SameSite' property is set on browser session cookies.
 
       --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
           Controls if the 'Secure' property is set on browser session cookies.
