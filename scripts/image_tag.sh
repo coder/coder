@@ -20,7 +20,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 arch=""
 version=""
-channel=""
 
 args="$(getopt -o "" -l arch:,version: -- "$@")"
 eval set -- "$args"
