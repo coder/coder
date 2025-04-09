@@ -314,9 +314,9 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
-	}
-	if buildinfo.IsDev() {
-		options.Authorizer = rbac.Recorder(options.Authorizer)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 
 	if options.AccessControlStore == nil {
