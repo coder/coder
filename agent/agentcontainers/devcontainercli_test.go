@@ -26,101 +26,102 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestDevcontainerCLIUp tests the Up method of the DevcontainerCLI implementation.
-//
 //nolint:paralleltest // This test is not parallel-safe due to t.Setenv.
-func TestDevcontainerCLI_Up_ArgsAndParsing(t *testing.T) {
+func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 	testExePath, err := os.Executable()
 	require.NoError(t, err, "get test executable path")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	testExecer := &testDevcontainerExecer{testExePath: testExePath}
 
-	tests := []struct {
-		name      string
-		logFile   string
-		workspace string
-		config    string
-		opts      []agentcontainers.DevcontainerCLIUpOptions
-		wantArgs  string
-		wantError bool
-	}{
-		{
-			name:      "success",
-			logFile:   "up.log",
-			workspace: "/test/workspace",
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-			wantError: false,
-		},
-		{
-			name:      "success with config",
-			logFile:   "up.log",
-			workspace: "/test/workspace",
-			config:    "/test/config.json",
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace --config /test/config.json",
-			wantError: false,
-		},
-		{
-			name:      "already exists",
-			logFile:   "up-already-exists.log",
-			workspace: "/test/workspace",
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-			wantError: false,
-		},
-		{
-			name:      "docker error",
-			logFile:   "up-error-docker.log",
-			workspace: "/test/workspace",
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-			wantError: true,
-		},
-		{
-			name:      "bad outcome",
-			logFile:   "up-error-bad-outcome.log",
-			workspace: "/test/workspace",
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-			wantError: true,
-		},
-		{
-			name:      "does not exist",
-			logFile:   "up-error-does-not-exist.log",
-			workspace: "/test/workspace",
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-			wantError: true,
-		},
-		{
-			name:      "with remove existing container",
-			logFile:   "up.log",
-			workspace: "/test/workspace",
-			opts: []agentcontainers.DevcontainerCLIUpOptions{
-				agentcontainers.WithRemoveExistingContainer(),
+	//nolint:paralleltest // This test is not parallel-safe due to t.Setenv.
+	t.Run("Up", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			logFile   string
+			workspace string
+			config    string
+			opts      []agentcontainers.DevcontainerCLIUpOptions
+			wantArgs  string
+			wantError bool
+		}{
+			{
+				name:      "success",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
+				wantError: false,
 			},
-			wantArgs:  "up --log-format json --workspace-folder /test/workspace --remove-existing-container",
-			wantError: false,
-		},
-	}
+			{
+				name:      "success with config",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				config:    "/test/config.json",
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace --config /test/config.json",
+				wantError: false,
+			},
+			{
+				name:      "already exists",
+				logFile:   "up-already-exists.log",
+				workspace: "/test/workspace",
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
+				wantError: false,
+			},
+			{
+				name:      "docker error",
+				logFile:   "up-error-docker.log",
+				workspace: "/test/workspace",
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
+				wantError: true,
+			},
+			{
+				name:      "bad outcome",
+				logFile:   "up-error-bad-outcome.log",
+				workspace: "/test/workspace",
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
+				wantError: true,
+			},
+			{
+				name:      "does not exist",
+				logFile:   "up-error-does-not-exist.log",
+				workspace: "/test/workspace",
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
+				wantError: true,
+			},
+			{
+				name:      "with remove existing container",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				opts: []agentcontainers.DevcontainerCLIUpOptions{
+					agentcontainers.WithRemoveExistingContainer(),
+				},
+				wantArgs:  "up --log-format json --workspace-folder /test/workspace --remove-existing-container",
+				wantError: false,
+			},
+		}
 
-	for _, tt := range tests {
-		//nolint:paralleltest // This test is not parallel-safe due t.Setenv.
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := testutil.Context(t, testutil.WaitShort)
+		for _, tt := range tests {
+			//nolint:paralleltest // This test is not parallel-safe due t.Setenv.
+			t.Run(tt.name, func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitShort)
 
-			// Set environment variables for the test helper.
-			t.Setenv("TEST_DEVCONTAINER_WANT_ARGS", tt.wantArgs)
-			t.Setenv("TEST_DEVCONTAINER_WANT_ERROR", fmt.Sprintf("%v", tt.wantError))
-			t.Setenv("TEST_DEVCONTAINER_LOG_FILE", filepath.Join("testdata", "devcontainercli", "parse", tt.logFile))
+				// Set environment variables for the test helper.
+				t.Setenv("TEST_DEVCONTAINER_WANT_ARGS", tt.wantArgs)
+				t.Setenv("TEST_DEVCONTAINER_WANT_ERROR", fmt.Sprintf("%v", tt.wantError))
+				t.Setenv("TEST_DEVCONTAINER_LOG_FILE", filepath.Join("testdata", "devcontainercli", "parse", tt.logFile))
 
-			dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
-			containerID, err := dccli.Up(ctx, tt.workspace, tt.config, tt.opts...)
-			if tt.wantError {
-				assert.Error(t, err, "want error")
-				assert.Empty(t, containerID, "expected empty container ID")
-			} else {
-				assert.NoError(t, err, "want no error")
-				assert.NotEmpty(t, containerID, "expected non-empty container ID")
-			}
-		})
-	}
+				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+				containerID, err := dccli.Up(ctx, tt.workspace, tt.config, tt.opts...)
+				if tt.wantError {
+					assert.Error(t, err, "want error")
+					assert.Empty(t, containerID, "expected empty container ID")
+				} else {
+					assert.NoError(t, err, "want no error")
+					assert.NotEmpty(t, containerID, "expected non-empty container ID")
+				}
+			})
+		}
+	})
 }
 
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.
