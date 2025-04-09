@@ -978,45 +978,93 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
-				Labels: map[string]string{
-					"template_name":         "bobby-first-template",
-					"template_display_name": "Bobby First Template",
-				},
+				Labels:       map[string]string{},
 				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
 				Data: map[string]any{
-					"failed_builds":    4.0,
-					"total_builds":     55.0,
 					"report_frequency": "week",
-					"template_versions": []map[string]any{
+					"templates": []map[string]any{
 						{
-							"template_version_name": "bobby-template-version-1",
-							"failed_count":          3.0,
-							"failed_builds": []map[string]any{
+							"name":          "bobby-first-template",
+							"display_name":  "Bobby First Template",
+							"failed_builds": 4.0,
+							"total_builds":  55.0,
+							"versions": []map[string]any{
 								{
-									"workspace_owner_username": "mtojek",
-									"workspace_name":           "workspace-1",
-									"build_number":             1234.0,
+									"template_version_name": "bobby-template-version-1",
+									"failed_count":          3.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "mtojek",
+											"workspace_name":           "workspace-1",
+											"build_number":             1234.0,
+										},
+										{
+											"workspace_owner_username": "johndoe",
+											"workspace_name":           "my-workspace-3",
+											"build_number":             5678.0,
+										},
+										{
+											"workspace_owner_username": "jack",
+											"workspace_name":           "workwork",
+											"build_number":             774.0,
+										},
+									},
 								},
 								{
-									"workspace_owner_username": "johndoe",
-									"workspace_name":           "my-workspace-3",
-									"build_number":             5678.0,
-								},
-								{
-									"workspace_owner_username": "jack",
-									"workspace_name":           "workwork",
-									"build_number":             774.0,
+									"template_version_count": "bobby-template-version-2",
+									"failed_count":           1.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "ben",
+											"workspace_name":           "cool-workspace",
+											"build_number":             8888.0,
+										},
+									},
 								},
 							},
 						},
 						{
-							"template_version_name": "bobby-template-version-2",
-							"failed_count":          1.0,
-							"failed_builds": []map[string]any{
+							"name":          "bobby-second-template",
+							"display_name":  "Bobby Second Template",
+							"failed_builds": 5.0,
+							"total_builds":  50.0,
+							"versions": []map[string]any{
 								{
-									"workspace_owner_username": "ben",
-									"workspace_name":           "cool-workspace",
-									"build_number":             8888.0,
+									"template_version_name": "bobby-template-version-1",
+									"failed_count":          3.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "daniellemaywood",
+											"workspace_name":           "workspace-9",
+											"build_number":             9234.0,
+										},
+										{
+											"workspace_owner_username": "johndoe",
+											"workspace_name":           "my-workspace-7",
+											"build_number":             8678.0,
+										},
+										{
+											"workspace_owner_username": "jack",
+											"workspace_name":           "workworkwork",
+											"build_number":             374.0,
+										},
+									},
+								},
+								{
+									"template_version_count": "bobby-template-version-2",
+									"failed_count":           2.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "ben",
+											"workspace_name":           "more-cool-workspace",
+											"build_number":             8878.0,
+										},
+										{
+											"workspace_owner_username": "ben",
+											"workspace_name":           "less-cool-workspace",
+											"build_number":             8848.0,
+										},
+									},
 								},
 							},
 						},

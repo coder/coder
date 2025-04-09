@@ -3,7 +3,7 @@
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
     "_version": "1.2",
-    "notification_name": "Report: Workspace Builds Failed For Template",
+    "notification_name": "Report: Workspace Builds Failed",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
     "user_email": "bobby@coder.com",
@@ -12,56 +12,104 @@
     "actions": [
       {
         "label": "View workspaces",
-        "url": "http://test.com/workspaces?filter=template%3Abobby-first-template"
+        "url": "http://test.com/workspaces?filter=template%3A\u003cno value\u003e"
       }
     ],
-    "labels": {
-      "template_display_name": "Bobby First Template",
-      "template_name": "bobby-first-template"
-    },
+    "labels": {},
     "data": {
-      "failed_builds": 4,
       "report_frequency": "week",
-      "template_versions": [
+      "templates": [
         {
-          "failed_builds": [
+          "display_name": "Bobby First Template",
+          "failed_builds": 4,
+          "name": "bobby-first-template",
+          "total_builds": 55,
+          "versions": [
             {
-              "build_number": 1234,
-              "workspace_name": "workspace-1",
-              "workspace_owner_username": "mtojek"
+              "failed_builds": [
+                {
+                  "build_number": 1234,
+                  "workspace_name": "workspace-1",
+                  "workspace_owner_username": "mtojek"
+                },
+                {
+                  "build_number": 5678,
+                  "workspace_name": "my-workspace-3",
+                  "workspace_owner_username": "johndoe"
+                },
+                {
+                  "build_number": 774,
+                  "workspace_name": "workwork",
+                  "workspace_owner_username": "jack"
+                }
+              ],
+              "failed_count": 3,
+              "template_version_name": "bobby-template-version-1"
             },
             {
-              "build_number": 5678,
-              "workspace_name": "my-workspace-3",
-              "workspace_owner_username": "johndoe"
-            },
-            {
-              "build_number": 774,
-              "workspace_name": "workwork",
-              "workspace_owner_username": "jack"
+              "failed_builds": [
+                {
+                  "build_number": 8888,
+                  "workspace_name": "cool-workspace",
+                  "workspace_owner_username": "ben"
+                }
+              ],
+              "failed_count": 1,
+              "template_version_count": "bobby-template-version-2"
             }
-          ],
-          "failed_count": 3,
-          "template_version_name": "bobby-template-version-1"
+          ]
         },
         {
-          "failed_builds": [
+          "display_name": "Bobby Second Template",
+          "failed_builds": 5,
+          "name": "bobby-second-template",
+          "total_builds": 50,
+          "versions": [
             {
-              "build_number": 8888,
-              "workspace_name": "cool-workspace",
-              "workspace_owner_username": "ben"
+              "failed_builds": [
+                {
+                  "build_number": 9234,
+                  "workspace_name": "workspace-9",
+                  "workspace_owner_username": "daniellemaywood"
+                },
+                {
+                  "build_number": 8678,
+                  "workspace_name": "my-workspace-7",
+                  "workspace_owner_username": "johndoe"
+                },
+                {
+                  "build_number": 374,
+                  "workspace_name": "workworkwork",
+                  "workspace_owner_username": "jack"
+                }
+              ],
+              "failed_count": 3,
+              "template_version_name": "bobby-template-version-1"
+            },
+            {
+              "failed_builds": [
+                {
+                  "build_number": 8878,
+                  "workspace_name": "more-cool-workspace",
+                  "workspace_owner_username": "ben"
+                },
+                {
+                  "build_number": 8848,
+                  "workspace_name": "less-cool-workspace",
+                  "workspace_owner_username": "ben"
+                }
+              ],
+              "failed_count": 2,
+              "template_version_count": "bobby-template-version-2"
             }
-          ],
-          "failed_count": 1,
-          "template_version_name": "bobby-template-version-2"
+          ]
         }
-      ],
-      "total_builds": 55
+      ]
     },
     "targets": null
   },
-  "title": "Workspace builds failed for template \"Bobby First Template\"",
-  "title_markdown": "Workspace builds failed for template \"Bobby First Template\"",
-  "body": "Template Bobby First Template has failed to build 4/55 times over the last week.\n\nReport:\n\nbobby-template-version-1 failed 3 times:\n\nmtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/builds/1234)\njohndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace-3/builds/5678)\njack / workwork / #774 (http://test.com/@jack/workwork/builds/774)\n\nbobby-template-version-2 failed 1 time:\n\nben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/builds/8888)\n\nWe recommend reviewing these issues to ensure future builds are successful.",
-  "body_markdown": "Template **Bobby First Template** has failed to build 4/55 times over the last week.\n\n**Report:**\n\n**bobby-template-version-1** failed 3 times:\n\n* [mtojek / workspace-1 / #1234](http://test.com/@mtojek/workspace-1/builds/1234)\n* [johndoe / my-workspace-3 / #5678](http://test.com/@johndoe/my-workspace-3/builds/5678)\n* [jack / workwork / #774](http://test.com/@jack/workwork/builds/774)\n\n**bobby-template-version-2** failed 1 time:\n\n* [ben / cool-workspace / #8888](http://test.com/@ben/cool-workspace/builds/8888)\n\nWe recommend reviewing these issues to ensure future builds are successful."
+  "title": "Failed workspace builds report",
+  "title_markdown": "Failed workspace builds report",
+  "body": "The following templates have had build failures over the last week:\n\nBobby First Template failed to build 4/55 times\nBobby Second Template failed to build 5/50 times\n\nReport:\n\nBobby First Template@bobby-template-version-1 failed 3 times:\n\nmtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/builds/1234)\njohndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace-3/builds/5678)\njack / workwork / #774 (http://test.com/@jack/workwork/builds/774)\n\nBobby First Template@ failed 1 time:\n\nben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/builds/8888)\n\nBobby Second Template@bobby-template-version-1 failed 3 times:\n\ndaniellemaywood / workspace-9 / #9234 (http://test.com/@daniellemaywood/workspace-9/builds/9234)\njohndoe / my-workspace-7 / #8678 (http://test.com/@johndoe/my-workspace-7/builds/8678)\njack / workworkwork / #374 (http://test.com/@jack/workworkwork/builds/374)\n\nBobby Second Template@ failed 2 times:\n\nben / more-cool-workspace / #8878 (http://test.com/@ben/more-cool-workspace/builds/8878)\nben / less-cool-workspace / #8848 (http://test.com/@ben/less-cool-workspace/builds/8848)\n\nWe recommend reviewing these issues to ensure future builds are successful.",
+  "body_markdown": "The following templates have had build failures over the last week:\n\n- **Bobby First Template** failed to build 4/55 times\n\n- **Bobby Second Template** failed to build 5/50 times\n\n\n**Report:**\n\n\n**Bobby First Template**@**bobby-template-version-1** failed 3 times:\n\n* [mtojek / workspace-1 / #1234](http://test.com/@mtojek/workspace-1/builds/1234)\n\n* [johndoe / my-workspace-3 / #5678](http://test.com/@johndoe/my-workspace-3/builds/5678)\n\n* [jack / workwork / #774](http://test.com/@jack/workwork/builds/774)\n\n\n**Bobby First Template**@**\u003cno value\u003e** failed 1 time:\n\n* [ben / cool-workspace / #8888](http://test.com/@ben/cool-workspace/builds/8888)\n\n\n\n\n**Bobby Second Template**@**bobby-template-version-1** failed 3 times:\n\n* [daniellemaywood / workspace-9 / #9234](http://test.com/@daniellemaywood/workspace-9/builds/9234)\n\n* [johndoe / my-workspace-7 / #8678](http://test.com/@johndoe/my-workspace-7/builds/8678)\n\n* [jack / workworkwork / #374](http://test.com/@jack/workworkwork/builds/374)\n\n\n**Bobby Second Template**@**\u003cno value\u003e** failed 2 times:\n\n* [ben / more-cool-workspace / #8878](http://test.com/@ben/more-cool-workspace/builds/8878)\n\n* [ben / less-cool-workspace / #8848](http://test.com/@ben/less-cool-workspace/builds/8848)\n\n\n\n\nWe recommend reviewing these issues to ensure future builds are successful."
 }
