@@ -1,4 +1,4 @@
-package httpmw
+package loggermw
 
 import (
 	"context"
@@ -79,7 +79,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 
 	require.Equal(t, sink.entries[0].Message, "GET")
 
-	fieldsMap := make(map[string]interface{})
+	fieldsMap := make(map[string]any)
 	for _, field := range sink.entries[0].Fields {
 		fieldsMap[field.Name] = field.Value
 	}

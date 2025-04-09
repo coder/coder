@@ -1,4 +1,4 @@
-package httpmw
+package loggermw
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -62,6 +63,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 type RequestLogger interface {
 	WithFields(fields ...slog.Field)
 	WriteLog(ctx context.Context, status int)
+	WithAuthContext(actor rbac.Subject)
 }
 
 type SlogRequestLogger struct {
@@ -69,6 +71,7 @@ type SlogRequestLogger struct {
 	written bool
 	message string
 	start   time.Time
+	actors  map[rbac.SubjectType]rbac.Subject
 }
 
 var _ RequestLogger = &SlogRequestLogger{}
@@ -79,11 +82,34 @@ func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestL
 		written: false,
 		message: message,
 		start:   start,
+		actors:  make(map[rbac.SubjectType]rbac.Subject),
 	}
 }
 
 func (c *SlogRequestLogger) WithFields(fields ...slog.Field) {
 	c.log = c.log.With(fields...)
+}
+
+func (c *SlogRequestLogger) WithAuthContext(actor rbac.Subject) {
+	c.actors[actor.Type] = actor
+}
+
+func (c *SlogRequestLogger) addAuthContextFields() {
+	usr, ok := c.actors[rbac.SubjectTypeUser]
+	if ok {
+		c.log = c.log.With(
+			slog.F("requestor_id", usr.ID),
+			slog.F("requestor_name", usr.FriendlyName),
+			slog.F("requestor_email", usr.Email),
+		)
+	} else if len(c.actors) > 0 {
+		for _, v := range c.actors {
+			c.log = c.log.With(
+				slog.F("requestor_name", v.FriendlyName),
+			)
+			break
+		}
+	}
 }
 
 func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
@@ -93,11 +119,16 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 	c.written = true
 	end := time.Now()
 
+	// Right before we write the log, we try to find the user in the actors
+	// and add the fields to the log.
+	c.addAuthContextFields()
+
 	logger := c.log.With(
 		slog.F("took", end.Sub(c.start)),
 		slog.F("status_code", status),
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
+
 	// We already capture most of this information in the span (minus
 	// the response body which we don't want to capture anyways).
 	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
