@@ -19,33 +19,34 @@ Bobby Second Template failed to build 5/50 times
 
 Report:
 
-Bobby First Template@bobby-template-version-1 failed 3 times:
+Bobby First Template
 
-mtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/builds/12=
-34)
-johndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace-3/b=
-uilds/5678)
-jack / workwork / #774 (http://test.com/@jack/workwork/builds/774)
+bobby-template-version-1 failed 3 times:
+    mtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/build=
+s/1234)
+    johndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace=
+-3/builds/5678)
+    jack / workwork / #774 (http://test.com/@jack/workwork/builds/774)
+bobby-template-version-2 failed 1 time:
+    ben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/build=
+s/8888)
 
-Bobby First Template@ failed 1 time:
 
-ben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/builds/88=
-88)
+Bobby Second Template
 
-Bobby Second Template@bobby-template-version-1 failed 3 times:
+bobby-template-version-1 failed 3 times:
+    daniellemaywood / workspace-9 / #9234 (http://test.com/@daniellemaywood=
+/workspace-9/builds/9234)
+    johndoe / my-workspace-7 / #8678 (http://test.com/@johndoe/my-workspace=
+-7/builds/8678)
+    jack / workworkwork / #374 (http://test.com/@jack/workworkwork/builds/3=
+74)
+bobby-template-version-2 failed 2 times:
+    ben / more-cool-workspace / #8878 (http://test.com/@ben/more-cool-works=
+pace/builds/8878)
+    ben / less-cool-workspace / #8848 (http://test.com/@ben/less-cool-works=
+pace/builds/8848)
 
-daniellemaywood / workspace-9 / #9234 (http://test.com/@daniellemaywood/wor=
-kspace-9/builds/9234)
-johndoe / my-workspace-7 / #8678 (http://test.com/@johndoe/my-workspace-7/b=
-uilds/8678)
-jack / workworkwork / #374 (http://test.com/@jack/workworkwork/builds/374)
-
-Bobby Second Template@ failed 2 times:
-
-ben / more-cool-workspace / #8878 (http://test.com/@ben/more-cool-workspace=
-/builds/8878)
-ben / less-cool-workspace / #8848 (http://test.com/@ben/less-cool-workspace=
-/builds/8848)
 
 We recommend reviewing these issues to ensure future builds are successful.
 
@@ -94,8 +95,10 @@ frasl;<sub>50</sub> times</p></li>
 
 <p><strong>Report:</strong></p>
 
-<p><strong>Bobby First Template</strong>@<strong>bobby-template-version-1</=
-strong> failed 3 times:</p>
+<p><strong>Bobby First Template</strong></p>
+
+<ul>
+<li><p><strong>bobby-template-version-1</strong> failed 3 times:</p>
 
 <ul>
 <li><p><a href=3D"http://test.com/@mtojek/workspace-1/builds/1234">mtojek /=
@@ -106,19 +109,21 @@ doe / my-workspace-3 / #5678</a></p></li>
 
 <li><p><a href=3D"http://test.com/@jack/workwork/builds/774">jack / workwor=
 k / #774</a></p></li>
-</ul>
+</ul></li>
 
-<p><strong>Bobby First Template</strong>@<strong></strong> failed 1 time:</=
-p>
+<li><p><strong>bobby-template-version-2</strong> failed 1 time:</p>
 
 <ul>
 <li><a href=3D"http://test.com/@ben/cool-workspace/builds/8888">ben / cool-=
 workspace / #8888</a><br>
 </li>
+</ul></li>
 </ul>
 
-<p><strong>Bobby Second Template</strong>@<strong>bobby-template-version-1<=
-/strong> failed 3 times:</p>
+<p><strong>Bobby Second Template</strong></p>
+
+<ul>
+<li><p><strong>bobby-template-version-1</strong> failed 3 times:</p>
 
 <ul>
 <li><p><a href=3D"http://test.com/@daniellemaywood/workspace-9/builds/9234"=
@@ -129,10 +134,9 @@ doe / my-workspace-7 / #8678</a></p></li>
 
 <li><p><a href=3D"http://test.com/@jack/workworkwork/builds/374">jack / wor=
 kworkwork / #374</a></p></li>
-</ul>
+</ul></li>
 
-<p><strong>Bobby Second Template</strong>@<strong></strong> failed 2 times:=
-</p>
+<li><p><strong>bobby-template-version-2</strong> failed 2 times:</p>
 
 <ul>
 <li><p><a href=3D"http://test.com/@ben/more-cool-workspace/builds/8878">ben=
@@ -140,6 +144,7 @@ kworkwork / #374</a></p></li>
 
 <li><p><a href=3D"http://test.com/@ben/less-cool-workspace/builds/8848">ben=
  / less-cool-workspace / #8848</a></p></li>
+</ul></li>
 </ul>
 
 <p>We recommend reviewing these issues to ensure future builds are successf=

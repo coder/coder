@@ -1011,8 +1011,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 									},
 								},
 								{
-									"template_version_count": "bobby-template-version-2",
-									"failed_count":           1.0,
+									"template_version_name": "bobby-template-version-2",
+									"failed_count":          1.0,
 									"failed_builds": []map[string]any{
 										{
 											"workspace_owner_username": "ben",
@@ -1051,8 +1051,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 									},
 								},
 								{
-									"template_version_count": "bobby-template-version-2",
-									"failed_count":           2.0,
+									"template_version_name": "bobby-template-version-2",
+									"failed_count":          2.0,
 									"failed_builds": []map[string]any{
 										{
 											"workspace_owner_username": "ben",

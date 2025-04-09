@@ -10,10 +10,11 @@ E'The following templates have had build failures over the last {{.Data.report_f
 
 **Report:**
 {{range $template := .Data.templates}}
+**{{$template.display_name}}**
 {{range $version := $template.versions}}
-**{{$template.display_name}}**@**{{$version.template_version_name}}** failed {{$version.failed_count}} time{{if gt $version.failed_count 1.0}}s{{end}}:
+- **{{$version.template_version_name}}** failed {{$version.failed_count}} time{{if gt $version.failed_count 1.0}}s{{end}}:
 {{range $build := $version.failed_builds}}
-* [{{$build.workspace_owner_username}} / {{$build.workspace_name}} / #{{$build.build_number}}]({{base_url}}/@{{$build.workspace_owner_username}}/{{$build.workspace_name}}/builds/{{$build.build_number}})
+   - [{{$build.workspace_owner_username}} / {{$build.workspace_name}} / #{{$build.build_number}}]({{base_url}}/@{{$build.workspace_owner_username}}/{{$build.workspace_name}}/builds/{{$build.build_number}})
 {{end}}
 {{end}}
 {{end}}
