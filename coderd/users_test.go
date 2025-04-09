@@ -2112,8 +2112,9 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// when
 		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
-			ThemePreference: "light",
-			TerminalFont:    "fira-code",
+			ThemePreference:  "light",
+			TerminalFont:     "fira-code",
+			TerminalFontSize: initial.TerminalFontSize,
 		})
 		require.NoError(t, err)
 
@@ -2138,8 +2139,9 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// when
 		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
-			ThemePreference: "light",
-			TerminalFont:    "foobar",
+			ThemePreference:  "light",
+			TerminalFont:     "foobar",
+			TerminalFontSize: initial.TerminalFontSize,
 		})
 
 		// then
@@ -2163,8 +2165,95 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// when
 		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
-			ThemePreference: "light",
-			TerminalFont:    "",
+			ThemePreference:  "light",
+			TerminalFont:     "",
+			TerminalFontSize: initial.TerminalFontSize,
+		})
+
+		// then
+		require.Error(t, err)
+	})
+}
+
+func TestUserTerminalFontSize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid font size", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// given
+		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
+		require.Equal(t, 14, initial.TerminalFontSize)
+
+		// when
+		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     "ibm-plex-mono",
+			TerminalFontSize: 16,
+		})
+		require.NoError(t, err)
+
+		// then
+		require.Equal(t, 16, updated.TerminalFontSize)
+	})
+
+	t.Run("font size is too small", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// given
+		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
+		require.Equal(t, 14, initial.TerminalFontSize)
+
+		// when
+		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     "ibm-plex-mono",
+			TerminalFontSize: 7,
+		})
+
+		// then
+		require.Error(t, err)
+	})
+
+	t.Run("font is too large", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// given
+		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
+		require.Equal(t, 14, initial.TerminalFontSize)
+
+		// when
+		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     "ibm-plex-mono",
+			TerminalFontSize: 33,
 		})
 
 		// then
