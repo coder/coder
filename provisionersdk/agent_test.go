@@ -141,7 +141,7 @@ func serveScript(t *testing.T, in string) string {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte(in))
+		_, _ = rw.Write([]byte(in))
 	}))
 	t.Cleanup(srv.Close)
 	srvURL, err := url.Parse(srv.URL)
