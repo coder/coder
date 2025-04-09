@@ -354,6 +354,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	return server, nil
 }
 
+// A FQDN to be mapped to `tsaddr.CoderServiceIPv6`. This address can be used
+// when you want to know if Coder Connect is running, but are not trying to
+// connect to a specific known workspace.
+const IsCoderConnectEnabledFQDNString = "is--coder--connect--enabled--right--now.coder."
+
 type ServicePrefix [6]byte
 
 var (
