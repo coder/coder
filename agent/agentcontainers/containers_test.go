@@ -137,35 +137,27 @@ func TestHandler(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Create router with URL parameter handling
+				// Setup router with the handler under test.
 				r := chi.NewRouter()
 				handler := agentcontainers.New(
 					agentcontainers.WithLister(tt.lister),
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
 				)
-
 				r.Post("/containers/{id}/recreate", handler.Recreate)
 
-				// Create test request
+				// Simulate HTTP request to the recreate endpoint.
 				req := httptest.NewRequest(http.MethodPost, "/containers/"+tt.containerID+"/recreate", nil)
 				rec := httptest.NewRecorder()
-
-				// Run the handler
 				r.ServeHTTP(rec, req)
 
-				// Check status code - use require to fail fast if this doesn't match
+				// Check the response status code and body.
 				require.Equal(t, tt.wantStatus, rec.Code, "status code mismatch")
-
-				// For non-empty expected responses, check the body contains the expected message
 				if tt.wantBody != "" {
-					// For error responses, contains is appropriate as we don't need to test the entire response
 					assert.Contains(t, rec.Body.String(), tt.wantBody, "response body mismatch")
 				} else if tt.wantStatus == http.StatusNoContent {
-					// For success cases, verify the body is actually empty
 					assert.Empty(t, rec.Body.String(), "expected empty response body")
 				}
 			})
