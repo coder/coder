@@ -56,6 +56,14 @@ runs:
           exit 1
         fi
 
+    - name: Debug inputs
+      shell: bash
+      run: |
+        echo "Docs dir: ${{ inputs.docs-dir }}"
+        echo "Manifest changed: ${{ inputs.manifest-changed }}"
+        echo "First few changed files:"
+        echo '${{ inputs.changed-files }}' | jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' | head -n 5
+
     - name: Analyze docs changes
       id: docs-analysis
       shell: bash
@@ -67,18 +75,23 @@ runs:
         DOC_FILES_COUNT=$(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' changed_files.json | wc -l)
         echo "doc_files_count=$DOC_FILES_COUNT" >> $GITHUB_OUTPUT
         
+        # Force to true for debugging
+        DOC_FILES_COUNT=1
+        
         # Format changed files for comment
         FORMATTED_FILES=$(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/")) | "- `" + . + "`"' changed_files.json)
+        
+        # Add a minimum placeholder if no files found
+        if [ -z "$FORMATTED_FILES" ]; then
+          FORMATTED_FILES="- Test file - debugging workflow"
+        fi
+        
         echo "changed_files<<EOF" >> $GITHUB_OUTPUT
         echo "$FORMATTED_FILES" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
-        # Determine if docs have changed
-        if [ "$DOC_FILES_COUNT" -gt 0 ]; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        else
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        fi
+        # Determine if docs have changed - force true for testing
+        echo "has_changes=true" >> $GITHUB_OUTPUT
         
         # Clean up sensitive file
         rm -f changed_files.json

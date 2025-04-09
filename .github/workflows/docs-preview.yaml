@@ -42,6 +42,11 @@ jobs:
           files: |
             docs/**
 
+      - name: Debug changed files
+        run: |
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "JSON format: ${{ steps.changed-files.outputs.all_changed_files_json }}"
+
       - name: Check if manifest changed
         id: manifest-check
         run: |
@@ -54,6 +59,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           changed-files: ${{ steps.changed-files.outputs.all_changed_files_json }}
           manifest-changed: ${{ steps.manifest-check.outputs.changed }}
+
+      - name: Debug outputs
+        run: |
+          echo "Has changes: ${{ steps.docs-preview.outputs.has_changes }}"
+          echo "URL: ${{ steps.docs-preview.outputs.url }}"
+          echo "Changed files:"
+          echo "${{ steps.docs-preview.outputs.changed_files }}"
 
       - name: Find existing comment
         if: steps.docs-preview.outputs.has_changes == 'true'
