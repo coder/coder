@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -1217,24 +1218,31 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			randPort := testutil.RandomPort(t)
-			inv, cfg := clitest.New(t,
+			inv, _ := clitest.New(t,
 				"server",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
 				"--prometheus-enable",
-				"--prometheus-address", ":"+strconv.Itoa(randPort),
+				"--prometheus-address", ":0",
 				// "--prometheus-collect-db-metrics", // disabled by default
 				"--cache-dir", t.TempDir(),
 			)
 
+			pty := ptytest.New(t)
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
+
 			clitest.Start(t, inv)
-			_ = waitAccessURL(t, cfg)
+
+			// Wait until we see the prometheus address in the logs.
+			addrMatchExpr := `http server listening\s+addr=(\S+)\s+name=prometheus`
+			lineMatch := pty.ExpectRegexMatchContext(ctx, addrMatchExpr)
+			promAddr := regexp.MustCompile(addrMatchExpr).FindStringSubmatch(lineMatch)[1]
 
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d/metrics", randPort), nil)
+				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/metrics", promAddr), nil)
 				if err != nil {
 					t.Logf("error creating request: %s", err.Error())
 					return false
@@ -1272,24 +1280,31 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			randPort := testutil.RandomPort(t)
-			inv, cfg := clitest.New(t,
+			inv, _ := clitest.New(t,
 				"server",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
 				"--prometheus-enable",
-				"--prometheus-address", ":"+strconv.Itoa(randPort),
+				"--prometheus-address", ":0",
 				"--prometheus-collect-db-metrics",
 				"--cache-dir", t.TempDir(),
 			)
 
+			pty := ptytest.New(t)
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
+
 			clitest.Start(t, inv)
-			_ = waitAccessURL(t, cfg)
+
+			// Wait until we see the prometheus address in the logs.
+			addrMatchExpr := `http server listening\s+addr=(\S+)\s+name=prometheus`
+			lineMatch := pty.ExpectRegexMatchContext(ctx, addrMatchExpr)
+			promAddr := regexp.MustCompile(addrMatchExpr).FindStringSubmatch(lineMatch)[1]
 
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d/metrics", randPort), nil)
+				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/metrics", promAddr), nil)
 				if err != nil {
 					t.Logf("error creating request: %s", err.Error())
 					return false
