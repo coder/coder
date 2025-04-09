@@ -130,14 +130,14 @@ type testDevcontainerExecer struct {
 
 // CommandContext returns a test binary command that simulates devcontainer responses.
 func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	// Only handle "devcontainer" commands
+	// Only handle "devcontainer" commands.
 	if name != "devcontainer" {
-		// For non-devcontainer commands, we use a standard execer
+		// For non-devcontainer commands, use a standard execer.
 		return agentexec.DefaultExecer.CommandContext(ctx, name, args...)
 	}
 
 	// Create a command that runs the test binary with special flags
-	// that tell it to simulate a devcontainer command
+	// that tell it to simulate a devcontainer command.
 	testArgs := []string{
 		"-test.run=TestDevcontainerHelperProcess",
 		"--",
@@ -147,7 +147,7 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 
 	//nolint:gosec // This is a test binary, so we don't need to worry about command injection.
 	cmd := exec.CommandContext(ctx, e.testExePath, testArgs...)
-	// Set this environment variable so the child process knows it's the helper
+	// Set this environment variable so the child process knows it's the helper.
 	cmd.Env = append(os.Environ(), "TEST_DEVCONTAINER_WANT_HELPER_PROCESS=1")
 
 	return cmd
@@ -155,7 +155,7 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 
 // PTYCommandContext returns a PTY command.
 func (*testDevcontainerExecer) PTYCommandContext(_ context.Context, name string, args ...string) *pty.Cmd {
-	// This method shouldn't be called for our devcontainer tests
+	// This method shouldn't be called for our devcontainer tests.
 	panic("PTYCommandContext not expected in devcontainer tests")
 }
 
@@ -164,7 +164,7 @@ func (*testDevcontainerExecer) PTYCommandContext(_ context.Context, name string,
 //
 //nolint:revive,paralleltest // This is a test helper function.
 func TestDevcontainerHelperProcess(t *testing.T) {
-	// If not called by the test as a helper process, run normally
+	// If not called by the test as a helper process, do nothing.
 	if os.Getenv("TEST_DEVCONTAINER_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
@@ -175,17 +175,15 @@ func TestDevcontainerHelperProcess(t *testing.T) {
 		os.Exit(2)
 	}
 
-	// Check if it's a devcontainer command
 	if helperArgs[0] != "devcontainer" {
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", helperArgs[0])
 		os.Exit(2)
 	}
 
-	// Verify arguments against expected arguments
+	// Verify arguments against expected arguments and skip
+	// "devcontainer", it's not included in the input args.
 	wantArgs := os.Getenv("TEST_DEVCONTAINER_WANT_ARGS")
-	// Get the actual arguments (skip "devcontainer").
 	gotArgs := strings.Join(helperArgs[1:], " ")
-
 	if gotArgs != wantArgs {
 		fmt.Fprintf(os.Stderr, "Arguments don't match.\nWant: %q\nGot:  %q\n",
 			wantArgs, gotArgs)
@@ -270,17 +268,17 @@ func TestDockerDevcontainerCLI(t *testing.T) {
 	})
 }
 
-// setupDevcontainerWorkspace creates a minimal devcontainer.json file
-// in the workspace directory and returns its path.
+// setupDevcontainerWorkspace prepares a test environment with a minimal
+// devcontainer.json configuration and returns the path to the config file.
 func setupDevcontainerWorkspace(t *testing.T, workspaceFolder string) string {
 	t.Helper()
 
-	// Create .devcontainer directory.
+	// Create the devcontainer directory structure.
 	devcontainerDir := filepath.Join(workspaceFolder, ".devcontainer")
 	err := os.MkdirAll(devcontainerDir, 0o755)
 	require.NoError(t, err, "create .devcontainer directory")
 
-	// Create a minimal devcontainer.json file with a test-specific label.
+	// Write a minimal configuration with test labels for identification.
 	configPath := filepath.Join(devcontainerDir, "devcontainer.json")
 	content := `{
 	"image": "alpine:latest",
@@ -295,8 +293,8 @@ func setupDevcontainerWorkspace(t *testing.T, workspaceFolder string) string {
 	return configPath
 }
 
-// findDevcontainerByID finds a container by ID and returns it along with a boolean
-// indicating whether it was found.
+// findDevcontainerByID locates a container by its ID and verifies it has our
+// test label. Returns the container and whether it was found.
 func findDevcontainerByID(t *testing.T, pool *dockertest.Pool, id string) (*docker.Container, bool) {
 	t.Helper()
 
@@ -310,7 +308,8 @@ func findDevcontainerByID(t *testing.T, pool *dockertest.Pool, id string) (*dock
 	return container, true
 }
 
-// removeDevcontainerByID removes the test devcontainer if it exists.
+// removeDevcontainerByID safely cleans up a test container by ID, verifying
+// it has our test label before removal to prevent accidental deletion.
 func removeDevcontainerByID(t *testing.T, pool *dockertest.Pool, id string) {
 	t.Helper()
 
