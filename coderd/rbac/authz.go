@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +24,9 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 )
 
 type AuthCall struct {
@@ -362,11 +365,11 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 	defer span.End()
 
 	err := a.authorize(ctx, subject, action, object)
-
-	span.SetAttributes(attribute.Bool("authorized", err == nil))
+	authorized := err == nil
+	span.SetAttributes(attribute.Bool("authorized", authorized))
 
 	dur := time.Since(start)
-	if err != nil {
+	if !authorized {
 		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
 		return err
 	}
@@ -740,4 +743,99 @@ func rbacTraceAttributes(actor Subject, action policy.Action, objectType string,
 			attribute.String("action", string(action)),
 			attribute.String("object_type", objectType),
 		)...)
+}
+
+type authRecorder struct {
+	authz Authorizer
+}
+
+// Recorder returns an Authorizer that records any authorization checks made
+// on the Context provided for the authorization check.
+//
+// Requires using the RecordAuthzChecks middleware.
+func Recorder(authz Authorizer) Authorizer {
+	return &authRecorder{authz: authz}
+}
+
+func (c *authRecorder) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
+	err := c.authz.Authorize(ctx, subject, action, object)
+	authorized := err == nil
+	recordAuthzCheck(ctx, action, object, authorized)
+	return err
+}
+
+func (c *authRecorder) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
+	return c.authz.Prepare(ctx, subject, action, objectType)
+}
+
+type authzCheckRecorderKey struct{}
+
+func WithAuthzCheckRecorder(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authzCheckRecorderKey{}, ptr.Ref(AuthzCheckRecorder{
+		checks: syncmap.Map[string, bool]{},
+	}))
+}
+
+type AuthzCheckRecorder struct {
+	// Checks is a map from preformatted authz check IDs to their authorization
+	// status (true => authorized, false => not authorized)
+	checks syncmap.Map[string, bool]
+}
+
+func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, authorized bool) {
+	r, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return
+	}
+
+	// We serialize the check using the following syntax
+	var b strings.Builder
+	if object.OrgID != "" {
+		_, err := fmt.Fprintf(&b, "organization:%v::", object.OrgID)
+		if err != nil {
+			return
+		}
+	}
+	if object.AnyOrgOwner {
+		_, err := fmt.Fprint(&b, "organization:any::")
+		if err != nil {
+			return
+		}
+	}
+	if object.Owner != "" {
+		_, err := fmt.Fprintf(&b, "owner:%v::", object.Owner)
+		if err != nil {
+			return
+		}
+	}
+	if object.ID != "" {
+		_, err := fmt.Fprintf(&b, "id:%v::", object.ID)
+		if err != nil {
+			return
+		}
+	}
+	_, err := fmt.Fprintf(&b, "%v.%v", object.RBACObject().Type, action)
+	if err != nil {
+		return
+	}
+
+	r.checks.Store(b.String(), authorized)
+}
+
+func GetAuthzCheckRecorder(ctx context.Context) (*AuthzCheckRecorder, bool) {
+	checks, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return nil, false
+	}
+
+	return checks, true
+}
+
+// String serializes all of the checks recorded, using the following syntax:
+func (r *AuthzCheckRecorder) String() string {
+	checks := make([]string, 0)
+	for check, result := range r.checks.Seq() {
+		checks = append(checks, fmt.Sprintf("%v=%v", check, result))
+	}
+	return strings.Join(checks, "; ")
 }

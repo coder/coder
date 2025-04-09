@@ -1,6 +1,9 @@
 package syncmap
 
-import "sync"
+import (
+	"iter"
+	"sync"
+)
 
 // Map is a type safe sync.Map
 type Map[K, V any] struct {
@@ -74,4 +77,10 @@ func (m *Map[K, V]) Range(f func(key K, value V) bool) {
 	m.m.Range(func(key, value interface{}) bool {
 		return f(key.(K), value.(V))
 	})
+}
+
+func (m *Map[K, V]) Seq() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		m.Range(yield)
+	}
 }
