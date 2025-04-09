@@ -12310,6 +12310,23 @@ func (q *sqlQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) 
 	return terminal_font, err
 }
 
+const getUserTerminalFontSize = `-- name: GetUserTerminalFontSize :one
+SELECT
+	value as terminal_font_size
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'terminal_font_size'
+`
+
+func (q *sqlQuerier) GetUserTerminalFontSize(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserTerminalFontSize, userID)
+	var terminal_font_size string
+	err := row.Scan(&terminal_font_size)
+	return terminal_font_size, err
+}
+
 const getUserThemePreference = `-- name: GetUserThemePreference :one
 SELECT
 	value as theme_preference
@@ -13067,6 +13084,33 @@ type UpdateUserTerminalFontParams struct {
 
 func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserTerminalFontSize = `-- name: UpdateUserTerminalFontSize :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'terminal_font_size', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'terminal_font_size'
+RETURNING user_id, key, value
+`
+
+type UpdateUserTerminalFontSizeParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	TerminalFontSize string    `db:"terminal_font_size" json:"terminal_font_size"`
+}
+
+func (q *sqlQuerier) UpdateUserTerminalFontSize(ctx context.Context, arg UpdateUserTerminalFontSizeParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTerminalFontSize, arg.UserID, arg.TerminalFontSize)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err

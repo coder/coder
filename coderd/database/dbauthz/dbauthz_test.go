@@ -1670,6 +1670,27 @@ func (s *MethodTestSuite) TestUser() {
 			TerminalFont: uc.Value,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
+	s.Run("GetUserTerminalFontSize", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		u := dbgen.User(s.T(), db, database.User{})
+		db.UpdateUserTerminalFontSize(ctx, database.UpdateUserTerminalFontSizeParams{
+			UserID:           u.ID,
+			TerminalFontSize: "14",
+		})
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("14")
+	}))
+	s.Run("UpdateUserTerminalFontSize", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		uc := database.UserConfig{
+			UserID: u.ID,
+			Key:    "terminal_font_size",
+			Value:  "14",
+		}
+		check.Args(database.UpdateUserTerminalFontSizeParams{
+			UserID:           u.ID,
+			TerminalFontSize: uc.Value,
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserStatusParams{

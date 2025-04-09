@@ -6951,16 +6951,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 8,
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
-| `theme_preference` | string                                                 | true     |              |             |
+| Name                 | Type                                                   | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
+| `terminal_font_size` | integer                                                | true     |              |             |
+| `theme_preference`   | string                                                 | true     |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -7304,16 +7306,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
-| `theme_preference` | string                                                 | false    |              |             |
+| Name                 | Type                                                   | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
+| `terminal_font_size` | integer                                                | false    |              |             |
+| `theme_preference`   | string                                                 | false    |              |             |
 
 ## codersdk.UserLatency
 

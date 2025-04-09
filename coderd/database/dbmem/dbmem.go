@@ -6674,6 +6674,20 @@ func (q *FakeQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID)
 	return "", sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetUserTerminalFontSize(ctx context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "terminal_font_size" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetUserThemePreference(_ context.Context, userID uuid.UUID) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -11388,6 +11402,33 @@ func (q *FakeQuerier) UpdateUserTerminalFont(ctx context.Context, arg database.U
 		UserID: arg.UserID,
 		Key:    "terminal_font",
 		Value:  arg.TerminalFont,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
+}
+
+func (q *FakeQuerier) UpdateUserTerminalFontSize(ctx context.Context, arg database.UpdateUserTerminalFontSizeParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "terminal_font_size" {
+			continue
+		}
+		uc.Value = arg.TerminalFontSize
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "terminal_font_size",
+		Value:  arg.TerminalFontSize,
 	}
 	q.userConfigs = append(q.userConfigs, uc)
 	return uc, nil

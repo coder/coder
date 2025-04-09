@@ -3304,6 +3304,21 @@ func (mr *MockStoreMockRecorder) GetUserTerminalFont(ctx, userID any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFont", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFont), ctx, userID)
 }
 
+// GetUserTerminalFontSize mocks base method.
+func (m *MockStore) GetUserTerminalFontSize(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserTerminalFontSize", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserTerminalFontSize indicates an expected call of GetUserTerminalFontSize.
+func (mr *MockStoreMockRecorder) GetUserTerminalFontSize(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFontSize", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFontSize), ctx, userID)
+}
+
 // GetUserThemePreference mocks base method.
 func (m *MockStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
@@ -6002,6 +6017,21 @@ func (m *MockStore) UpdateUserTerminalFont(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateUserTerminalFont(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTerminalFont", reflect.TypeOf((*MockStore)(nil).UpdateUserTerminalFont), ctx, arg)
+}
+
+// UpdateUserTerminalFontSize mocks base method.
+func (m *MockStore) UpdateUserTerminalFontSize(ctx context.Context, arg database.UpdateUserTerminalFontSizeParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserTerminalFontSize", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserTerminalFontSize indicates an expected call of UpdateUserTerminalFontSize.
+func (mr *MockStoreMockRecorder) UpdateUserTerminalFontSize(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTerminalFontSize", reflect.TypeOf((*MockStore)(nil).UpdateUserTerminalFontSize), ctx, arg)
 }
 
 // UpdateUserThemePreference mocks base method.

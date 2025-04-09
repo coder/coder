@@ -2813,6 +2813,7 @@ export interface UpdateTemplateMeta {
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+	readonly terminal_font_size: number;
 }
 
 // From codersdk/notifications.go
@@ -2930,6 +2931,7 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+	readonly terminal_font_size: number;
 }
 
 // From codersdk/insights.go
