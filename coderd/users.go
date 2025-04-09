@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -1004,9 +1005,32 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 		terminalFont = ""
 	}
 
+	terminalFontSizeStr, err := api.Database.GetUserTerminalFontSize(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		terminalFontSizeStr = "14"
+	}
+
+	terminalFontSize, err := strconv.Atoi(terminalFontSizeStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error converting terminal font size.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
-		ThemePreference: themePreference,
-		TerminalFont:    codersdk.TerminalFontName(terminalFont),
+		ThemePreference:  themePreference,
+		TerminalFont:     codersdk.TerminalFontName(terminalFont),
+		TerminalFontSize: terminalFontSize,
 	})
 }
 
@@ -1062,9 +1086,30 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	updatedTerminalFontSizeStr, err := api.Database.UpdateUserTerminalFontSize(ctx, database.UpdateUserTerminalFontSizeParams{
+		UserID:           user.ID,
+		TerminalFontSize: strconv.Itoa(params.TerminalFontSize),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user terminal font size.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updatedTerminalFontSize, err := strconv.Atoi(updatedTerminalFontSizeStr.Value)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user terminal font size.",
+			Detail:  err.Error(),
+		})
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
-		ThemePreference: updatedThemePreference.Value,
-		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
+		ThemePreference:  updatedThemePreference.Value,
+		TerminalFont:     codersdk.TerminalFontName(updatedTerminalFont.Value),
+		TerminalFontSize: updatedTerminalFontSize,
 	})
 }
 
