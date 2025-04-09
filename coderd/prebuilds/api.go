@@ -16,8 +16,8 @@ type ReconciliationOrchestrator interface {
 type Reconciler interface {
 	// SnapshotState MUST be called inside a repeatable-read tx.
 	SnapshotState(ctx context.Context, store database.Store) (*GlobalSnapshot, error)
-	// CalculateActions MUST be called inside a repeatable-read tx.
-	CalculateActions(ctx context.Context, state PresetSnapshot) (*ReconciliationActions, error)
 	// ReconcilePreset MUST be called inside a repeatable-read tx.
 	ReconcilePreset(ctx context.Context, snapshot PresetSnapshot) error
+	// CalculateActions MUST be called inside a repeatable-read tx.
+	CalculateActions(ctx context.Context, state PresetSnapshot) (*ReconciliationActions, error)
 }
