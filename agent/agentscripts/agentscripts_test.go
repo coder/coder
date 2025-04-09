@@ -102,6 +102,9 @@ func TestEnv(t *testing.T) {
 
 func TestTimeout(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "darwin" {
+		t.Skip("this test is flaky on macOS, see https://github.com/coder/internal/issues/329")
+	}
 	runner := setup(t, nil)
 	defer runner.Close()
 	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
