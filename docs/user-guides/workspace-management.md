@@ -34,6 +34,17 @@ coder create --template="<templateName>" <workspaceName>
 coder show <workspace-name>
 ```
 
+### Workspace name rules and restrictions
+
+Workspace names:
+
+- Must start with a letter or number
+- Can only contain letters, numbers, and hyphens
+- Cannot contain spaces or special characters
+- Cannot be named `new` or `create`
+- Must be unique within your workspaces
+- Maximum length of 32 characters
+
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or

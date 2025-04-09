@@ -207,6 +207,13 @@ type CreateTemplateRequest struct {
 // @Description CreateWorkspaceRequest provides options for creating a new workspace.
 // @Description Only one of TemplateID or TemplateVersionID can be specified, not both.
 // @Description If TemplateID is specified, the active version of the template will be used.
+// @Description Workspace names:
+// @Description - Must start with a letter or number
+// @Description - Can only contain letters, numbers, and hyphens
+// @Description - Cannot contain spaces or special characters
+// @Description - Cannot be named `new` or `create`
+// @Description - Must be unique within your workspaces
+// @Description - Maximum length of 32 characters
 type CreateWorkspaceRequest struct {
 	// TemplateID specifies which template should be used for creating the workspace.
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
