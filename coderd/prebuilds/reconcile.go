@@ -14,8 +14,11 @@ import (
 type ActionType int
 
 const (
+	// ActionTypeUndefined represents an uninitialized or invalid action type.
+	ActionTypeUndefined ActionType = iota
+
 	// ActionTypeCreate indicates that new prebuilds should be created.
-	ActionTypeCreate ActionType = iota
+	ActionTypeCreate
 
 	// ActionTypeDelete indicates that existing prebuilds should be deleted.
 	ActionTypeDelete
