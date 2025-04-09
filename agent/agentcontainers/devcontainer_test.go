@@ -255,7 +255,7 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			// Preprocess the devcontainer scripts to remove scripting part.
 			for i := range gotDevcontainerScripts {
 				gotDevcontainerScripts[i].Script = textGrep("devcontainer up", gotDevcontainerScripts[i].Script)
-				require.NotEmpty(t, gotDevcontainerScripts[i].Script, "devcontainer up --log-format json script not found")
+				require.NotEmpty(t, gotDevcontainerScripts[i].Script, "devcontainer up script not found")
 			}
 			if diff := cmp.Diff(tt.wantDevcontainerScripts, gotDevcontainerScripts); diff != "" {
 				t.Errorf("ExtractAndInitializeDevcontainerScripts() gotDevcontainerScripts mismatch (-want +got):\n%s", diff)
