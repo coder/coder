@@ -156,7 +156,6 @@ type Options struct {
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
-	SecureAuthCookie               bool
 	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
@@ -742,7 +741,7 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		Cookies:                  options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
@@ -830,7 +829,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		httpmw.CSRF(options.SecureAuthCookie),
+		httpmw.CSRF(options.DeploymentValues.HTTPCookies),
 	)
 
 	// This incurs a performance hit from the middleware, but is required to make sure
@@ -870,7 +869,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, nil),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -1126,14 +1125,14 @@ func New(options *Options) *API {
 					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams),
 					)
 					r.Get("/", api.userOIDC)
 				})

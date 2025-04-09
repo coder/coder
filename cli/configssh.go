@@ -356,9 +356,15 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				if sshConfigOpts.disableAutostart {
 					flags += " --disable-autostart=true"
 				}
+				if coderdConfig.HostnamePrefix != "" {
+					flags += " --ssh-host-prefix " + coderdConfig.HostnamePrefix
+				}
+				if coderdConfig.HostnameSuffix != "" {
+					flags += " --hostname-suffix " + coderdConfig.HostnameSuffix
+				}
 				defaultOptions = append(defaultOptions, fmt.Sprintf(
-					"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
-					escapedCoderBinary, rootFlags, flags, coderdConfig.HostnamePrefix,
+					"ProxyCommand %s %s ssh --stdio%s %%h",
+					escapedCoderBinary, rootFlags, flags,
 				))
 			}
 
@@ -391,7 +397,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 
 			hostBlock := []string{
-				"Host " + coderdConfig.HostnamePrefix + "*",
+				sshConfigHostLinePatterns(coderdConfig),
 			}
 			// Prefix with '\t'
 			for _, v := range configOptions.sshOptions {
@@ -836,4 +842,20 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		b = nil
 	}
 	return b, nil
+}
+
+func sshConfigHostLinePatterns(config codersdk.SSHConfigResponse) string {
+	builder := strings.Builder{}
+	// by inspection, WriteString always returns nil error
+	_, _ = builder.WriteString("Host")
+	if config.HostnamePrefix != "" {
+		_, _ = builder.WriteString(" ")
+		_, _ = builder.WriteString(config.HostnamePrefix)
+		_, _ = builder.WriteString("*")
+	}
+	if config.HostnameSuffix != "" {
+		_, _ = builder.WriteString(" *.")
+		_, _ = builder.WriteString(config.HostnameSuffix)
+	}
+	return builder.String()
 }

@@ -28,7 +28,8 @@ type UsersRequest struct {
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
-	Role string `json:"role,omitempty" typescript:"-"`
+	Role      string      `json:"role,omitempty" typescript:"-"`
+	LoginType []LoginType `json:"login_type,omitempty" typescript:"-"`
 
 	SearchQuery string `json:"q,omitempty"`
 	Pagination
@@ -192,12 +193,17 @@ type ValidateUserPasswordResponse struct {
 // TerminalFontName is the name of supported terminal font
 type TerminalFontName string
 
-var TerminalFontNames = []TerminalFontName{TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode}
+var TerminalFontNames = []TerminalFontName{
+	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
+	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+}
 
 const (
-	TerminalFontUnknown     TerminalFontName = ""
-	TerminalFontIBMPlexMono TerminalFontName = "ibm-plex-mono"
-	TerminalFontFiraCode    TerminalFontName = "fira-code"
+	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
+	TerminalFontFiraCode      TerminalFontName = "fira-code"
+	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"
+	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
 )
 
 type UserAppearanceSettings struct {
@@ -749,6 +755,9 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			}
 			if req.SearchQuery != "" {
 				params = append(params, req.SearchQuery)
+			}
+			for _, lt := range req.LoginType {
+				params = append(params, "login_type:"+string(lt))
 			}
 			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()
