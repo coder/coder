@@ -10,6 +10,67 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// ActionType represents the type of action needed to reconcile prebuilds.
+type ActionType int
+
+const (
+	// ActionTypeUndefined represents an uninitialized or invalid action type.
+	ActionTypeUndefined ActionType = iota
+
+	// ActionTypeCreate indicates that new prebuilds should be created.
+	ActionTypeCreate
+
+	// ActionTypeDelete indicates that existing prebuilds should be deleted.
+	ActionTypeDelete
+
+	// ActionTypeBackoff indicates that prebuild creation should be delayed.
+	ActionTypeBackoff
+)
+
+// PresetSnapshot is a filtered view of GlobalSnapshot focused on a single preset.
+// It contains the raw data needed to calculate the current state of a preset's prebuilds,
+// including running prebuilds, in-progress builds, and backoff information.
+type PresetSnapshot struct {
+	Preset     database.GetTemplatePresetsWithPrebuildsRow
+	Running    []database.GetRunningPrebuiltWorkspacesRow
+	InProgress []database.CountInProgressPrebuildsRow
+	Backoff    *database.GetPresetsBackoffRow
+}
+
+// ReconciliationState represents the processed state of a preset's prebuilds,
+// calculated from a PresetSnapshot. While PresetSnapshot contains raw data,
+// ReconciliationState contains derived metrics that are directly used to
+// determine what actions are needed (create, delete, or backoff).
+// For example, it calculates how many prebuilds are eligible, how many are
+// extraneous, and how many are in various transition states.
+type ReconciliationState struct {
+	Actual     int32 // Number of currently running prebuilds
+	Desired    int32 // Number of prebuilds desired as defined in the preset
+	Eligible   int32 // Number of prebuilds that are ready to be claimed
+	Extraneous int32 // Number of extra running prebuilds beyond the desired count
+
+	// Counts of prebuilds in various transition states
+	Starting int32
+	Stopping int32
+	Deleting int32
+}
+
+// ReconciliationActions represents a single action needed to reconcile the current state with the desired state.
+// Exactly one field will be set based on the ActionType.
+type ReconciliationActions struct {
+	// ActionType determines which field is set and what action should be taken
+	ActionType ActionType
+
+	// Create is set when ActionType is ActionTypeCreate and indicates the number of prebuilds to create
+	Create int32
+
+	// DeleteIDs is set when ActionType is ActionTypeDelete and contains the IDs of prebuilds to delete
+	DeleteIDs []uuid.UUID
+
+	// BackoffUntil is set when ActionType is ActionTypeBackoff and indicates when to retry creating prebuilds
+	BackoffUntil time.Time
+}
+
 // CalculateState computes the current state of prebuilds for a preset, including:
 // - Actual: Number of currently running prebuilds
 // - Desired: Number of prebuilds desired as defined in the preset
