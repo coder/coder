@@ -537,6 +537,7 @@ export const SuspendedMockUser: TypesGen.User = {
 export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_preference: "dark",
 	terminal_font: "",
+	terminal_font_size: 16,
 };
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {

@@ -34,6 +34,7 @@ export const AppearancePage: FC = () => {
 				initialValues={{
 					theme_preference: appearanceSettingsQuery.data.theme_preference,
 					terminal_font: appearanceSettingsQuery.data.terminal_font,
+					terminal_font_size: appearanceSettingsQuery.data.terminal_font_size,
 				}}
 				onSubmit={updateAppearanceSettingsMutation.mutateAsync}
 			/>

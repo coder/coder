@@ -18,6 +18,7 @@ import type { FC } from "react";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
 import {
 	DEFAULT_TERMINAL_FONT,
+	DEFAULT_TERMINAL_FONT_SIZE,
 	terminalFontLabels,
 	terminalFonts,
 } from "theme/constants";
@@ -39,6 +40,8 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
 	const currentTerminalFont =
 		initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
+	const currentTerminalFontSize =
+		initialValues.terminal_font_size || DEFAULT_TERMINAL_FONT_SIZE;
 
 	const onChangeTheme = async (theme: string) => {
 		if (isUpdating) {
@@ -47,6 +50,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		await onSubmit({
 			theme_preference: theme,
 			terminal_font: currentTerminalFont,
+			terminal_font_size: currentTerminalFontSize,
 		});
 	};
 
@@ -57,6 +61,18 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		await onSubmit({
 			theme_preference: currentTheme,
 			terminal_font: terminalFont,
+			terminal_font_size: currentTerminalFontSize
+		});
+	};
+
+	const onChangeTerminalFontSize = async (terminalFontSize: number) => {
+		if (isUpdating) {
+			return;
+		}
+		await onSubmit({
+			theme_preference: currentTheme,
+			terminal_font: currentTerminalFont,
+			terminal_font_size: terminalFontSize
 		});
 	};
 
@@ -127,6 +143,18 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						))}
 					</RadioGroup>
 				</FormControl>
+			</Section>
+			<div css={{ marginBottom: 48 }}></div>
+			<Section
+				title={
+					<Stack direction="row" alignItems="center">
+						<span>Terminal Font Size</span>
+						{isUpdating && <CircularProgress size={16} />}
+					</Stack>
+				}
+				layout="fluid"
+			>
+				TODO
 			</Section>
 		</form>
 	);

@@ -13,6 +13,7 @@ describe("appearance page", () => {
 			...MockUser,
 			theme_preference: "dark",
 			terminal_font: "fira-code",
+			terminal_font_size: 16,
 		});
 
 		const dark = await screen.findByText("Dark");
@@ -29,6 +30,7 @@ describe("appearance page", () => {
 			...MockUser,
 			terminal_font: "ibm-plex-mono",
 			theme_preference: "light",
+			terminal_font_size: 16,
 		});
 
 		const light = await screen.findByText("Light");
@@ -39,6 +41,7 @@ describe("appearance page", () => {
 		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
 			terminal_font: "ibm-plex-mono",
 			theme_preference: "light",
+			terminal_font_size: 16,
 		});
 	});
 
@@ -49,6 +52,7 @@ describe("appearance page", () => {
 			...MockUser,
 			terminal_font: "fira-code",
 			theme_preference: "dark",
+			terminal_font_size: 16,
 		});
 
 		const firaCode = await screen.findByText("Fira Code");
@@ -59,6 +63,7 @@ describe("appearance page", () => {
 		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
 			terminal_font: "fira-code",
 			theme_preference: "dark",
+			terminal_font_size: 16,
 		});
 	});
 
@@ -72,11 +77,13 @@ describe("appearance page", () => {
 				...MockUser,
 				terminal_font: "fira-code",
 				theme_preference: "dark",
+				terminal_font_size: 16,
 			})
 			.mockResolvedValueOnce({
 				...MockUser,
 				terminal_font: "ibm-plex-mono",
 				theme_preference: "dark",
+				terminal_font_size: 16,
 			});
 
 		// when
@@ -88,6 +95,7 @@ describe("appearance page", () => {
 		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
 			terminal_font: "fira-code",
 			theme_preference: "dark",
+			terminal_font_size: 16,
 		});
 
 		// when
@@ -99,6 +107,7 @@ describe("appearance page", () => {
 		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(2, {
 			terminal_font: "ibm-plex-mono",
 			theme_preference: "dark",
+			terminal_font_size: 16,
 		});
 	});
 });
