@@ -2621,6 +2621,54 @@ func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv
 	}
 }
 
+func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, error) {
+	// The index numbers must be in-order.
+	sort.Strings(environ)
+
+	var providers []codersdk.AIProviderConfig
+	for _, v := range serpent.ParseEnviron(environ, "CODER_AI_PROVIDER_") {
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", v.Name)
+		}
+
+		var provider codersdk.AIProviderConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				v.Name,
+			)
+		case len(providers) == providerNum:
+			// At the next next provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1:
+			// At the current provider.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "TYPE":
+			provider.Type = v.Value
+		case "API_KEY":
+			provider.APIKey = v.Value
+		case "BASE_URL":
+			provider.BaseURL = v.Value
+		case "MODELS":
+			provider.Models = strings.Split(v.Value, " ")
+		}
+		providers[providerNum] = provider
+	}
+	return providers, nil
+}
+
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with
 // the viper CLI.
 func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuthConfig, error) {

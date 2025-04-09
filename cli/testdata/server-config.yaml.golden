@@ -519,6 +519,10 @@ client:
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
+# Configure AI providers.
+# (default: <unset>, type: struct[codersdk.AIConfig])
+ai:
+  providers: []
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []

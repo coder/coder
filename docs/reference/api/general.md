@@ -161,6 +161,19 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "value": {
+        "providers": [
+          {
+            "base_url": "string",
+            "models": [
+              "string"
+            ],
+            "type": "string"
+          }
+        ]
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,

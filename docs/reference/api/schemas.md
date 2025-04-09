@@ -305,6 +305,48 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIConfig
+
+```json
+{
+  "providers": [
+    {
+      "base_url": "string",
+      "models": [
+        "string"
+      ],
+      "type": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                            | Required | Restrictions | Description |
+|-------------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `providers` | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig) | false    |              |             |
+
+## codersdk.AIProviderConfig
+
+```json
+{
+  "base_url": "string",
+  "models": [
+    "string"
+  ],
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description                                               |
+|------------|-----------------|----------|--------------|-----------------------------------------------------------|
+| `base_url` | string          | false    |              | Base URL is the base URL to use for the API provider.     |
+| `models`   | array of string | false    |              | Models is the list of models to use for the API provider. |
+| `type`     | string          | false    |              | Type is the type of the API provider.                     |
+
 ## codersdk.APIKey
 
 ```json
@@ -1812,6 +1854,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "value": {
+        "providers": [
+          {
+            "base_url": "string",
+            "models": [
+              "string"
+            ],
+            "type": "string"
+          }
+        ]
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2297,6 +2352,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
+  "ai": {
+    "value": {
+      "providers": [
+        {
+          "base_url": "string",
+          "models": [
+            "string"
+          ],
+          "type": "string"
+        }
+      ]
+    }
+  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2673,6 +2741,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `ai`                                 | [serpent.Struct-codersdk_AIConfig](#serpentstruct-codersdk_aiconfig)                                 | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -5354,6 +5423,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `assign_org_role`                  |
 | `assign_role`                      |
 | `audit_log`                        |
+| `chat`                             |
 | `crypto_key`                       |
 | `debug_info`                       |
 | `deployment_config`                |
@@ -11117,6 +11187,30 @@ None
 | Name    | Type                                                | Required | Restrictions | Description |
 |---------|-----------------------------------------------------|----------|--------------|-------------|
 | `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
+
+## serpent.Struct-codersdk_AIConfig
+
+```json
+{
+  "value": {
+    "providers": [
+      {
+        "base_url": "string",
+        "models": [
+          "string"
+        ],
+        "type": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name    | Type                                   | Required | Restrictions | Description |
+|---------|----------------------------------------|----------|--------------|-------------|
+| `value` | [codersdk.AIConfig](#codersdkaiconfig) | false    |              |             |
 
 ## serpent.URL
 

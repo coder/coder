@@ -31,6 +31,7 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
+const ChatPage = lazy(() => import("./pages/ChatPage/ChatPage"));
 const DeploymentConfigProvider = lazy(
 	() => import("./modules/management/DeploymentConfigProvider"),
 );
@@ -421,6 +422,8 @@ export const router = createBrowserRouter(
 					/>
 
 					<Route path="/audit" element={<AuditPage />} />
+
+					<Route path="/chat" element={<ChatPage />} />
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />

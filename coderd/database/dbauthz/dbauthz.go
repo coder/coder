@@ -1269,6 +1269,13 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteChat(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat.WithID(id)); err != nil {
+		return err
+	}
+	return q.db.DeleteChat(ctx, id)
+}
+
 func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1684,6 +1691,27 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithID(id)); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.GetChatByID(ctx, id)
+}
+
+func (q *querier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithID(chatID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesByChatID(ctx, chatID)
+}
+
+func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatsByOwnerID(ctx, ownerID)
 }
 
 func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
@@ -3315,6 +3343,14 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
+	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()), q.db.InsertChat)(ctx, arg)
+}
+
+func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+	return insert(q.log, q.auth, rbac.ResourceChat.WithID(arg.ChatID), q.db.InsertChatMessages)(ctx, arg)
+}
+
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3961,6 +3997,10 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {

@@ -10388,6 +10388,37 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIConfig": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIProviderConfig"
+                    }
+                }
+            }
+        },
+        "codersdk.AIProviderConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "description": "BaseURL is the base URL to use for the API provider.",
+                    "type": "string"
+                },
+                "models": {
+                    "description": "Models is the list of models to use for the API provider.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "description": "Type is the type of the API provider.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.APIKey": {
             "type": "object",
             "required": [
@@ -11741,6 +11772,9 @@ const docTemplate = `{
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
+                },
+                "ai": {
+                    "$ref": "#/definitions/serpent.Struct-codersdk_AIConfig"
                 },
                 "allow_workspace_renames": {
                     "type": "boolean"
@@ -14272,6 +14306,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "chat",
                 "crypto_key",
                 "debug_info",
                 "deployment_config",
@@ -14310,6 +14345,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceChat",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
                 "ResourceDeploymentConfig",
@@ -18247,6 +18283,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.LinkConfig"
                     }
+                }
+            }
+        },
+        "serpent.Struct-codersdk_AIConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "$ref": "#/definitions/codersdk.AIConfig"
                 }
             }
         },

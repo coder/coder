@@ -383,6 +383,7 @@ type DeploymentValues struct {
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
+	AI                              serpent.Struct[AIConfig]             `json:"ai,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
@@ -2661,6 +2662,15 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      false,
 		},
 		{
+			// Env handling is done in cli.ReadAIProvidersFromEnv
+			Name:        "AI",
+			Description: "Configure AI providers.",
+			YAML:        "ai",
+			Value:       &c.AI,
+			// Hidden because this is experimental.
+			Hidden: true,
+		},
+		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
@@ -3079,6 +3089,21 @@ Write out the current server config as YAML to stdout.`,
 	}
 
 	return opts
+}
+
+type AIProviderConfig struct {
+	// Type is the type of the API provider.
+	Type string `json:"type" yaml:"type"`
+	// APIKey is the API key to use for the API provider.
+	APIKey string `json:"-" yaml:"api_key"`
+	// Models is the list of models to use for the API provider.
+	Models []string `json:"models" yaml:"models"`
+	// BaseURL is the base URL to use for the API provider.
+	BaseURL string `json:"base_url" yaml:"base_url"`
+}
+
+type AIConfig struct {
+	Providers []AIProviderConfig `json:"providers" yaml:"providers"`
 }
 
 type SupportConfig struct {

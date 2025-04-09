@@ -142,6 +142,16 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
+func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
+	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:        takeFirst(seed.ID, uuid.New()),
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt: takeFirst(seed.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert chat")
+	return chat
+}
+
 func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
 	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
 		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),

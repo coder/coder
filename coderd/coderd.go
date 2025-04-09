@@ -998,6 +998,16 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.listChats)
+			r.Post("/", api.postChats)
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Get("/", api.chat)
+				r.Get("/messages", api.chatMessages)
+			})
+		})
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
