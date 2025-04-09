@@ -78,16 +78,31 @@ runs:
         # Force to true for debugging
         DOC_FILES_COUNT=1
         
-        # Format changed files for comment
-        FORMATTED_FILES=$(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/")) | "- `" + . + "`"' changed_files.json)
+        # Get branch name for URLs
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+        
+        # Format changed files for comment with clickable links
+        FORMATTED_FILES=""
+        while read -r file_path; do
+          [ -z "$file_path" ] && continue
+          
+          # Create direct link to file
+          # Remove .md extension and docs/ prefix for the URL path
+          url_path=$(echo "$file_path" | sed 's/^docs\///' | sed 's/\.md$//')
+          file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+          
+          # Add the formatted line with link
+          FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
+        done < <(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' changed_files.json)
         
         # Add a minimum placeholder if no files found
         if [ -z "$FORMATTED_FILES" ]; then
-          FORMATTED_FILES="- Test file - debugging workflow"
+          # Hardcode a test example that links directly to the parameters.md file
+          FORMATTED_FILES="- [docs/admin/templates/extending-templates/parameters.md](https://coder.com/docs/@${BRANCH_NAME}/admin/templates/extending-templates/parameters)\n"
         fi
         
         echo "changed_files<<EOF" >> $GITHUB_OUTPUT
-        echo "$FORMATTED_FILES" >> $GITHUB_OUTPUT
+        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
         # Determine if docs have changed - force true for testing

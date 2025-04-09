@@ -89,7 +89,7 @@ jobs:
             ## 📚 Docs Preview
 
             Your documentation changes are available for preview at:
-            **🔗 [Vercel Preview](${{ steps.docs-preview.outputs.url }})**
+            **🔗 [Documentation Preview](${{ steps.docs-preview.outputs.url }})**
 
             ### Changed Documentation Files
             ${{ steps.docs-preview.outputs.changed_files }}
