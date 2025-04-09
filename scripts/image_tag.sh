@@ -46,7 +46,7 @@ done
 
 # Remove the "v" prefix because we don't want to add it twice.
 version="${version#v}"
-if [[ "$version" == "" ]] && [[ "$channel" == "" ]]; then
+if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
