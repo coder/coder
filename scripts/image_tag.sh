@@ -11,7 +11,7 @@
 # If no version is specified, defaults to the version from ./version.sh. If the
 # supplied version is "latest", no `v` prefix will be added to the tag.
 #
-# The --channel parameter indecates the specific release channel, it's conflicts
+# The --channel parameter indicates the specific release channel, it conflicts
 # with --version parameter.
 #
 # The returned tag will be sanitized to remove invalid characters like the plus
