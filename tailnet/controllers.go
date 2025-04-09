@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
+	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
@@ -1265,6 +1266,11 @@ func (t *tunnelUpdater) updateDNSNamesLocked() map[dnsname.FQDN][]netip.Addr {
 			}
 		}
 	}
+	fqdn, err := dnsname.ToFQDN("is.coder.connect.enabled.right.now--.coder.")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create static FQDN: %v", err))
+	}
+	names[fqdn] = []netip.Addr{tsaddr.CoderServiceIPv6()}
 	return names
 }
 
