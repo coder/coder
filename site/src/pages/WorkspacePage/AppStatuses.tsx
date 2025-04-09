@@ -165,7 +165,8 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 		})),
 	);
 
-	// 2. Sort statuses chronologically (newest first)
+	// 2. Sort statuses chronologically (newest first) - mutating the value is
+	// fine since it's not an outside parameter
 	allStatuses.sort(
 		(a, b) =>
 			new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
