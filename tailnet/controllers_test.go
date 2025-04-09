@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
+	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/util/dnsname"
@@ -1570,6 +1571,7 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 		"w2a1.w2.testy.coder.": {w2a1IP},
 		"w2a2.w2.testy.coder.": {w2a2IP},
 		"w1.coder.":            {ws1a1IP},
+		"is--coder--connect--enabled--right--now.coder.": {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1664,6 +1666,7 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		"w1a1.w1.testy.coder.": {ws1a1IP},
 		"w1a1.w1.me.coder.":    {ws1a1IP},
 		"w1.coder.":            {ws1a1IP},
+		"is--coder--connect--enabled--right--now.coder.": {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1719,6 +1722,7 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		"w1a2.w1.testy.coder.": {ws1a2IP},
 		"w1a2.w1.me.coder.":    {ws1a2IP},
 		"w1.coder.":            {ws1a2IP},
+		"is--coder--connect--enabled--right--now.coder.": {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall = testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1801,6 +1805,7 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 		"w1a1.w1.me.coder.":    {ws1a1IP},
 		"w1a1.w1.testy.coder.": {ws1a1IP},
 		"w1.coder.":            {ws1a1IP},
+		"is--coder--connect--enabled--right--now.coder.": {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)

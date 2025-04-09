@@ -1266,7 +1266,7 @@ func (t *tunnelUpdater) updateDNSNamesLocked() map[dnsname.FQDN][]netip.Addr {
 			}
 		}
 	}
-	fqdn, err := dnsname.ToFQDN("is.coder.connect.enabled.right.now--.coder.")
+	fqdn, err := dnsname.ToFQDN("is--coder--connect--enabled--right--now.coder.")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create static FQDN: %v", err))
 	}
