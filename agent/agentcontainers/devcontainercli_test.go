@@ -103,7 +103,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 		for _, tt := range tests {
 			//nolint:paralleltest // This test is not parallel-safe due t.Setenv.
 			t.Run(tt.name, func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitShort)
+				ctx := testutil.Context(t, testutil.WaitMedium)
 
 				// Set environment variables for the test helper.
 				t.Setenv("TEST_DEVCONTAINER_WANT_ARGS", tt.wantArgs)
