@@ -255,7 +255,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 }
 
 // recordAuthorize is the internal method that records the Authorize() call.
-func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object, err error) {
+func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object, authzErr error) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -265,7 +265,7 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action polic
 			Action: action,
 			Object: object,
 		},
-		Err: err,
+		Err: authzErr,
 		callers: []string{
 			// This is a decent stack trace for debugging.
 			// Some dbauthz calls are a bit nested, so we skip a few.
