@@ -9,10 +9,7 @@
 # the image tag for the multi-arch image will be returned instead.
 #
 # If no version is specified, defaults to the version from ./version.sh. If the
-# supplied version is "latest", no `v` prefix will be added to the tag.
-#
-# The --channel parameter indicates the specific release channel, it conflicts
-# with --version parameter.
+# supplied version is one of "latest", "mainline", "stable", no `v` prefix will be added to the tag.
 #
 # The returned tag will be sanitized to remove invalid characters like the plus
 # sign.
@@ -25,7 +22,7 @@ arch=""
 version=""
 channel=""
 
-args="$(getopt -o "" -l arch:,version:,channel: -- "$@")"
+args="$(getopt -o "" -l arch:,version: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -37,10 +34,6 @@ while true; do
 		version="$2"
 		shift 2
 		;;
-    --channel)
-        channel="$2"
-        shift 2
-        ;;
 	--)
 		shift
 		break
@@ -64,12 +57,8 @@ tag_prefix="${CODER_IMAGE_TAG_PREFIX:-}"
 
 tag="${tag_prefix:+$tag_prefix-}v$version"
 
-if [[ "$version" == "latest" ]]; then
-	tag="latest"
-fi
-
-if [[ "$channel" != "" ]]; then
-    tag="$channel"
+if [[ "$version" == "latest" ]] || [[ "$version" == "mainline" ]] || [[ "$version" == "stable" ]]; then
+	tag="$version"
 fi
 
 if [[ "$arch" != "" ]]; then
