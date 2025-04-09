@@ -1266,11 +1266,7 @@ func (t *tunnelUpdater) updateDNSNamesLocked() map[dnsname.FQDN][]netip.Addr {
 			}
 		}
 	}
-	fqdn, err := dnsname.ToFQDN(IsCoderConnectEnabledFQDNString)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create static FQDN: %v", err))
-	}
-	names[fqdn] = []netip.Addr{tsaddr.CoderServiceIPv6()}
+	names[IsCoderConnectEnabledFQDN] = []netip.Addr{tsaddr.CoderServiceIPv6()}
 	return names
 }
 

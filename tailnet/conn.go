@@ -359,6 +359,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 // connect to a specific known workspace.
 const IsCoderConnectEnabledFQDNString = "is--coder--connect--enabled--right--now.coder."
 
+var IsCoderConnectEnabledFQDN, _ = dnsname.ToFQDN(IsCoderConnectEnabledFQDNString)
+
 type ServicePrefix [6]byte
 
 var (
