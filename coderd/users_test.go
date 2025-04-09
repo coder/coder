@@ -1902,6 +1902,126 @@ func TestGetUsers(t *testing.T) {
 		require.Len(t, res.Users, 1)
 		require.Equal(t, res.Users[0].ID, first.UserID)
 	})
+
+	t.Run("LoginTypeNoneFilter", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "bob@email.com",
+			Username:        "bob",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeNone)
+	})
+
+	t.Run("LoginTypeMultipleFilter", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		filtered := make([]codersdk.User, 0)
+
+		bob, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "bob@email.com",
+			Username:        "bob",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+		filtered = append(filtered, bob)
+
+		charlie, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "charlie@email.com",
+			Username:        "charlie",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+		filtered = append(filtered, charlie)
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone, codersdk.LoginTypeGithub},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 2)
+		require.ElementsMatch(t, filtered, res.Users)
+	})
+
+	t.Run("DormantUserWithLoginTypeNone", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "bob@email.com",
+			Username:        "bob",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateUserStatus(ctx, "bob", codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			Status:    codersdk.UserStatusSuspended,
+			LoginType: []codersdk.LoginType{codersdk.LoginTypeNone, codersdk.LoginTypeGithub},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].Username, "bob")
+		require.Equal(t, res.Users[0].Status, codersdk.UserStatusSuspended)
+		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeNone)
+	})
+
+	t.Run("LoginTypeOidcFromMultipleUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: &coderd.OIDCConfig{
+				AllowSignups: true,
+			},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "bob@email.com",
+			Username:        "bob",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+
+		for i := range 5 {
+			_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+				Email:           fmt.Sprintf("%d@coder.com", i),
+				Username:        fmt.Sprintf("user%d", i),
+				OrganizationIDs: []uuid.UUID{first.OrganizationID},
+				UserLoginType:   codersdk.LoginTypeNone,
+			})
+			require.NoError(t, err)
+		}
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			LoginType: []codersdk.LoginType{codersdk.LoginTypeOIDC},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].Username, "bob")
+		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeOIDC)
+	})
 }
 
 func TestGetUsersPagination(t *testing.T) {
