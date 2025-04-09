@@ -36,14 +36,14 @@ coder show <workspace-name>
 
 ### Workspace name rules and restrictions
 
-Workspace names:
-
-- Must start with a letter or number
-- Can only contain letters, numbers, and hyphens
-- Cannot contain spaces or special characters
-- Cannot be named `new` or `create`
-- Must be unique within your workspaces
-- Maximum length of 32 characters
+| Constraint | Rule |
+|------------|------|
+| Start/end with | Must start and end with a letter or number |
+| Character types | Letters, numbers, and hyphens only |
+| Length | 1-32 characters |
+| Case sensitivity | Case-insensitive (lowercase recommended) |
+| Reserved names | Cannot use `new` or `create` |
+| Uniqueness | Must be unique within your workspaces |
 
 ## Workspace filtering
 
