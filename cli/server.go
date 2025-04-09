@@ -61,6 +61,7 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
+	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -610,6 +611,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
+			aiProviders, err := ReadAIProvidersFromEnv(os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read ai providers from env: %w", err)
+			}
+			vals.AI.Value.Providers = append(vals.AI.Value.Providers, aiProviders...)
+			for _, provider := range aiProviders {
+				logger.Debug(
+					ctx, "loaded ai provider",
+					slog.F("type", provider.Type),
+				)
+			}
+			languageModels, err := ai.ModelsFromConfig(ctx, vals.AI.Value.Providers)
+			if err != nil {
+				return xerrors.Errorf("create language models: %w", err)
+			}
+
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
@@ -640,6 +657,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
+				LanguageModels:              languageModels,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -2665,6 +2683,29 @@ func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, erro
 			provider.Models = strings.Split(v.Value, " ")
 		}
 		providers[providerNum] = provider
+	}
+	for _, envVar := range environ {
+		tokens := strings.SplitN(envVar, "=", 2)
+		if len(tokens) != 2 {
+			continue
+		}
+		switch tokens[0] {
+		case "OPENAI_API_KEY":
+			providers = append(providers, codersdk.AIProviderConfig{
+				Type:   "openai",
+				APIKey: tokens[1],
+			})
+		case "ANTHROPIC_API_KEY":
+			providers = append(providers, codersdk.AIProviderConfig{
+				Type:   "anthropic",
+				APIKey: tokens[1],
+			})
+		case "GOOGLE_API_KEY":
+			providers = append(providers, codersdk.AIProviderConfig{
+				Type:   "google",
+				APIKey: tokens[1],
+			})
+		}
 	}
 	return providers, nil
 }

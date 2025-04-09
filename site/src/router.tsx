@@ -23,6 +23,8 @@ import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import { ChatLayout } from "pages/ChatPage/ChatLayout";
+import { ChatMessages } from "pages/ChatPage/ChatMessages";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -31,7 +33,7 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
-const ChatPage = lazy(() => import("./pages/ChatPage/ChatPage"));
+const ChatLanding = lazy(() => import("./pages/ChatPage/ChatLanding"));
 const DeploymentConfigProvider = lazy(
 	() => import("./modules/management/DeploymentConfigProvider"),
 );
@@ -423,7 +425,10 @@ export const router = createBrowserRouter(
 
 					<Route path="/audit" element={<AuditPage />} />
 
-					<Route path="/chat" element={<ChatPage />} />
+					<Route path="/chat" element={<ChatLayout />}>
+						<Route index element={<ChatLanding />} />
+						<Route path=":chatID" element={<ChatMessages />} />
+					</Route>
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />

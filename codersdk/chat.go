@@ -60,7 +60,7 @@ func (c *Client) Chat(ctx context.Context, id uuid.UUID) (Chat, error) {
 }
 
 // ChatMessages returns the messages of a chat.
-func (c *Client) ChatMessages(ctx context.Context, id uuid.UUID) ([]aisdk.Message, error) {
+func (c *Client) ChatMessages(ctx context.Context, id uuid.UUID) ([]ChatMessage, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/messages", id), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
@@ -69,15 +69,23 @@ func (c *Client) ChatMessages(ctx context.Context, id uuid.UUID) ([]aisdk.Messag
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var messages []aisdk.Message
+	var messages []ChatMessage
 	return messages, json.NewDecoder(res.Body).Decode(&messages)
+}
+
+type ChatMessage = aisdk.Message
+
+type CreateChatMessageRequest struct {
+	Model    string      `json:"model"`
+	Message  ChatMessage `json:"message"`
+	Thinking bool        `json:"thinking"`
 }
 
 // CreateChatMessage creates a new chat message and streams the response.
 // If the provided message has a conflicting ID with an existing message,
 // it will be overwritten.
-func (c *Client) CreateChatMessage(ctx context.Context, id uuid.UUID, message aisdk.Message) (<-chan aisdk.DataStreamPart, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/messages", id), message)
+func (c *Client) CreateChatMessage(ctx context.Context, id uuid.UUID, req CreateChatMessageRequest) (<-chan aisdk.DataStreamPart, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/messages", id), req)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}

@@ -827,6 +827,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getDeploymentLLMs = async (): Promise<TypesGen.LanguageModelConfig> => {
+		const response = await this.axios.get<TypesGen.LanguageModelConfig>(
+			"/api/v2/deployment/llms",
+		);
+		return response.data;
+	};
+
 	getOrganizationIdpSyncClaimFieldValues = async (
 		organization: string,
 		field: string,
@@ -2489,6 +2496,21 @@ class ApiMethods {
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
+
+	createChat = async () => {
+		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
+		return res.data;
+	}
+
+	getChats = async () => {
+		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		return res.data;
+	}
+
+	getChatMessages = async (chatId: string) => {
+		const res = await this.axios.get<TypesGen.ChatMessage[]>(`/api/v2/chats/${chatId}/messages`);
+		return res.data;
+	}
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

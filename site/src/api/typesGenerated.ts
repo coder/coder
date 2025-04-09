@@ -311,6 +311,20 @@ export interface Chat {
 	readonly title: string;
 }
 
+// From codersdk/chat.go
+export interface ChatMessage {
+	readonly id: string;
+	readonly createdAt?: Record<string, string>;
+	readonly content: string;
+	readonly role: string;
+	// external type "github.com/kylecarbs/aisdk-go.Part", to include this type the package must be explicitly included in the parsing
+	readonly parts?: readonly unknown[];
+	// empty interface{} type, falling back to unknown
+	readonly annotations?: readonly unknown[];
+	// external type "github.com/kylecarbs/aisdk-go.Attachment", to include this type the package must be explicitly included in the parsing
+	readonly experimental_attachments?: readonly unknown[];
+}
+
 // From codersdk/client.go
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
@@ -330,6 +344,14 @@ export const ContentTypeZip = "application/zip";
 export interface ConvertLoginRequest {
 	readonly to_type: LoginType;
 	readonly password: string;
+}
+
+// From codersdk/chat.go
+export interface CreateChatMessageRequest {
+	readonly model: string;
+	// embedded anonymous struct, please fix by naming it
+	readonly message: unknown;
+	readonly thinking: boolean;
 }
 
 // From codersdk/users.go
@@ -1206,6 +1228,18 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
+
+// From codersdk/deployment.go
+export interface LanguageModel {
+	readonly id: string;
+	readonly display_name: string;
+	readonly provider: string;
+}
+
+// From codersdk/deployment.go
+export interface LanguageModelConfig {
+	readonly models: readonly LanguageModel[];
+}
 
 // From codersdk/licenses.go
 export interface License {

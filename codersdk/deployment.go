@@ -3542,6 +3542,32 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
 }
 
+type LanguageModelConfig struct {
+	Models []LanguageModel `json:"models"`
+}
+
+// LanguageModel is a language model that can be used for chat.
+type LanguageModel struct {
+	// ID is used by the provider to identify the LLM.
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	// Provider is the provider of the LLM. e.g. openai, anthropic, etc.
+	Provider string `json:"provider"`
+}
+
+func (c *Client) LanguageModelConfig(ctx context.Context) (LanguageModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/llms", nil)
+	if err != nil {
+		return LanguageModelConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return LanguageModelConfig{}, ReadBodyAsError(res)
+	}
+	var llms LanguageModelConfig
+	return llms, json.NewDecoder(res.Body).Decode(&llms)
+}
+
 type CryptoKeyFeature string
 
 const (

@@ -904,16 +904,16 @@ SELECT
     $2 :: timestamptz AS created_at,
     $3 :: VARCHAR(127) AS model,
     $4 :: VARCHAR(127) AS provider,
-    unnest($5 :: jsonb [ ]) AS content
+    jsonb_array_elements($5 :: jsonb) AS content
 RETURNING chat_messages.id, chat_messages.chat_id, chat_messages.created_at, chat_messages.model, chat_messages.provider, chat_messages.content
 `
 
 type InsertChatMessagesParams struct {
-	ChatID    uuid.UUID         `db:"chat_id" json:"chat_id"`
-	CreatedAt time.Time         `db:"created_at" json:"created_at"`
-	Model     string            `db:"model" json:"model"`
-	Provider  string            `db:"provider" json:"provider"`
-	Content   []json.RawMessage `db:"content" json:"content"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Model     string          `db:"model" json:"model"`
+	Provider  string          `db:"provider" json:"provider"`
+	Content   json.RawMessage `db:"content" json:"content"`
 }
 
 func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
@@ -922,7 +922,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		arg.CreatedAt,
 		arg.Model,
 		arg.Provider,
-		pq.Array(arg.Content),
+		arg.Content,
 	)
 	if err != nil {
 		return nil, err

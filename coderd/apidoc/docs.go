@@ -343,6 +343,110 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "List chats",
+                "operationId": "list-chats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Chat"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Create a chat",
+                "operationId": "post-chat",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Get a chat",
+                "operationId": "get-chat",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/messages": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Get chat messages",
+                "operationId": "get-chat-messages",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/aisdk.Message"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -654,6 +758,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.DeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/deployment/llms": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get language models",
+                "operationId": "get-language-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.LanguageModelConfig"
                         }
                     }
                 }
@@ -10297,6 +10426,187 @@ const docTemplate = `{
                 }
             }
         },
+        "aisdk.Attachment": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "aisdk.Message": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "array",
+                    "items": {}
+                },
+                "content": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "experimental_attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/aisdk.Attachment"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/aisdk.Part"
+                    }
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "aisdk.Part": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/aisdk.ReasoningDetail"
+                    }
+                },
+                "mimeType": {
+                    "description": "Type: \"file\"",
+                    "type": "string"
+                },
+                "reasoning": {
+                    "description": "Type: \"reasoning\"",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Type: \"source\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/aisdk.SourceInfo"
+                        }
+                    ]
+                },
+                "text": {
+                    "description": "Type: \"text\"",
+                    "type": "string"
+                },
+                "toolInvocation": {
+                    "description": "Type: \"tool-invocation\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/aisdk.ToolInvocation"
+                        }
+                    ]
+                },
+                "type": {
+                    "$ref": "#/definitions/aisdk.PartType"
+                }
+            }
+        },
+        "aisdk.PartType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "reasoning",
+                "tool-invocation",
+                "source",
+                "file",
+                "step-start"
+            ],
+            "x-enum-varnames": [
+                "PartTypeText",
+                "PartTypeReasoning",
+                "PartTypeToolInvocation",
+                "PartTypeSource",
+                "PartTypeFile",
+                "PartTypeStepStart"
+            ]
+        },
+        "aisdk.ReasoningDetail": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "aisdk.SourceInfo": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "aisdk.ToolInvocation": {
+            "type": "object",
+            "properties": {
+                "args": {},
+                "result": {},
+                "state": {
+                    "$ref": "#/definitions/aisdk.ToolInvocationState"
+                },
+                "step": {
+                    "type": "integer"
+                },
+                "toolCallId": {
+                    "type": "string"
+                },
+                "toolName": {
+                    "type": "string"
+                }
+            }
+        },
+        "aisdk.ToolInvocationState": {
+            "type": "string",
+            "enum": [
+                "call",
+                "partial-call",
+                "result"
+            ],
+            "x-enum-varnames": [
+                "ToolInvocationStateCall",
+                "ToolInvocationStatePartialCall",
+                "ToolInvocationStateResult"
+            ]
+        },
         "coderd.SCIMUser": {
             "type": "object",
             "properties": {
@@ -11000,6 +11310,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.Chat": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }
@@ -12571,6 +12898,33 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "RequiredTemplateVariables"
             ]
+        },
+        "codersdk.LanguageModel": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is used by the provider to identify the LLM.",
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Provider is the provider of the LLM. e.g. openai, anthropic, etc.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.LanguageModelConfig": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LanguageModel"
+                    }
+                }
+            }
         },
         "codersdk.License": {
             "type": "object",

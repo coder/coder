@@ -8474,7 +8474,14 @@ func (q *FakeQuerier) InsertChatMessages(ctx context.Context, arg database.Inser
 	}
 
 	messages := make([]database.ChatMessage, 0)
-	for _, content := range arg.Content {
+
+	rawMessages := make([]json.RawMessage, 0)
+	err = json.Unmarshal(arg.Content, &rawMessages)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, content := range rawMessages {
 		id++
 		_ = content
 		messages = append(messages, database.ChatMessage{

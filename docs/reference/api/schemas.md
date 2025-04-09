@@ -182,6 +182,246 @@
 | `icon`         | string | false    |              |                                                                                                                                                                                                |
 | `id`           | string | false    |              | ID is a unique identifier for the log source. It is scoped to a workspace agent, and can be statically defined inside code to prevent duplicate sources from being created for the same agent. |
 
+## aisdk.Attachment
+
+```json
+{
+  "contentType": "string",
+  "name": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `contentType` | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `url`         | string | false    |              |             |
+
+## aisdk.Message
+
+```json
+{
+  "annotations": [
+    null
+  ],
+  "content": "string",
+  "createdAt": [
+    0
+  ],
+  "experimental_attachments": [
+    {
+      "contentType": "string",
+      "name": "string",
+      "url": "string"
+    }
+  ],
+  "id": "string",
+  "parts": [
+    {
+      "data": "string",
+      "details": [
+        {
+          "data": "string",
+          "signature": "string",
+          "text": "string",
+          "type": "string"
+        }
+      ],
+      "mimeType": "string",
+      "reasoning": "string",
+      "source": {
+        "contentType": "string",
+        "data": "string",
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "uri": "string"
+      },
+      "text": "string",
+      "toolInvocation": {
+        "args": null,
+        "result": null,
+        "state": "call",
+        "step": 0,
+        "toolCallId": "string",
+        "toolName": "string"
+      },
+      "type": "text"
+    }
+  ],
+  "role": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type                                          | Required | Restrictions | Description |
+|----------------------------|-----------------------------------------------|----------|--------------|-------------|
+| `annotations`              | array of undefined                            | false    |              |             |
+| `content`                  | string                                        | false    |              |             |
+| `createdAt`                | array of integer                              | false    |              |             |
+| `experimental_attachments` | array of [aisdk.Attachment](#aisdkattachment) | false    |              |             |
+| `id`                       | string                                        | false    |              |             |
+| `parts`                    | array of [aisdk.Part](#aisdkpart)             | false    |              |             |
+| `role`                     | string                                        | false    |              |             |
+
+## aisdk.Part
+
+```json
+{
+  "data": "string",
+  "details": [
+    {
+      "data": "string",
+      "signature": "string",
+      "text": "string",
+      "type": "string"
+    }
+  ],
+  "mimeType": "string",
+  "reasoning": "string",
+  "source": {
+    "contentType": "string",
+    "data": "string",
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "uri": "string"
+  },
+  "text": "string",
+  "toolInvocation": {
+    "args": null,
+    "result": null,
+    "state": "call",
+    "step": 0,
+    "toolCallId": "string",
+    "toolName": "string"
+  },
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name             | Type                                                    | Required | Restrictions | Description             |
+|------------------|---------------------------------------------------------|----------|--------------|-------------------------|
+| `data`           | string                                                  | false    |              |                         |
+| `details`        | array of [aisdk.ReasoningDetail](#aisdkreasoningdetail) | false    |              |                         |
+| `mimeType`       | string                                                  | false    |              | Type: "file"            |
+| `reasoning`      | string                                                  | false    |              | Type: "reasoning"       |
+| `source`         | [aisdk.SourceInfo](#aisdksourceinfo)                    | false    |              | Type: "source"          |
+| `text`           | string                                                  | false    |              | Type: "text"            |
+| `toolInvocation` | [aisdk.ToolInvocation](#aisdktoolinvocation)            | false    |              | Type: "tool-invocation" |
+| `type`           | [aisdk.PartType](#aisdkparttype)                        | false    |              |                         |
+
+## aisdk.PartType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value             |
+|-------------------|
+| `text`            |
+| `reasoning`       |
+| `tool-invocation` |
+| `source`          |
+| `file`            |
+| `step-start`      |
+
+## aisdk.ReasoningDetail
+
+```json
+{
+  "data": "string",
+  "signature": "string",
+  "text": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `data`      | string | false    |              |             |
+| `signature` | string | false    |              |             |
+| `text`      | string | false    |              |             |
+| `type`      | string | false    |              |             |
+
+## aisdk.SourceInfo
+
+```json
+{
+  "contentType": "string",
+  "data": "string",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "uri": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `contentType`      | string | false    |              |             |
+| `data`             | string | false    |              |             |
+| `metadata`         | object | false    |              |             |
+| » `[any property]` | any    | false    |              |             |
+| `uri`              | string | false    |              |             |
+
+## aisdk.ToolInvocation
+
+```json
+{
+  "args": null,
+  "result": null,
+  "state": "call",
+  "step": 0,
+  "toolCallId": "string",
+  "toolName": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                   | Required | Restrictions | Description |
+|--------------|--------------------------------------------------------|----------|--------------|-------------|
+| `args`       | any                                                    | false    |              |             |
+| `result`     | any                                                    | false    |              |             |
+| `state`      | [aisdk.ToolInvocationState](#aisdktoolinvocationstate) | false    |              |             |
+| `step`       | integer                                                | false    |              |             |
+| `toolCallId` | string                                                 | false    |              |             |
+| `toolName`   | string                                                 | false    |              |             |
+
+## aisdk.ToolInvocationState
+
+```json
+"call"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `call`         |
+| `partial-call` |
+| `result`       |
+
 ## coderd.SCIMUser
 
 ```json
@@ -1079,6 +1319,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`             | string | true     |              |             |
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
+
+## codersdk.Chat
+
+```json
+{
+  "created_at": "string",
+  "id": "string",
+  "title": "string",
+  "updated_at": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `title`      | string | false    |              |             |
+| `updated_at` | string | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -3514,6 +3774,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value                         |
 |-------------------------------|
 | `REQUIRED_TEMPLATE_VARIABLES` |
+
+## codersdk.LanguageModel
+
+```json
+{
+  "display_name": "string",
+  "id": "string",
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                       |
+|----------------|--------|----------|--------------|-------------------------------------------------------------------|
+| `display_name` | string | false    |              |                                                                   |
+| `id`           | string | false    |              | ID is used by the provider to identify the LLM.                   |
+| `provider`     | string | false    |              | Provider is the provider of the LLM. e.g. openai, anthropic, etc. |
+
+## codersdk.LanguageModelConfig
+
+```json
+{
+  "models": [
+    {
+      "display_name": "string",
+      "id": "string",
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                      | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------|----------|--------------|-------------|
+| `models` | array of [codersdk.LanguageModel](#codersdklanguagemodel) | false    |              |             |
 
 ## codersdk.License
 

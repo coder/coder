@@ -24,7 +24,7 @@ SELECT
     @created_at :: timestamptz AS created_at,
     @model :: VARCHAR(127) AS model,
     @provider :: VARCHAR(127) AS provider,
-    unnest(@content :: jsonb [ ]) AS content
+    jsonb_array_elements(@content :: jsonb) AS content
 RETURNING chat_messages.*;
 
 -- name: GetChatMessagesByChatID :many
