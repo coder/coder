@@ -293,10 +293,11 @@ data "coder_parameter" "instances" {
 }
 ```
 
-**NOTE:** as of
-[`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
-`options` can be specified in `number` parameters; this also works with
-validations such as `monotonic`.
+> [!NOTE]
+> As of
+> [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
+> `options` can be specified in `number` parameters; this also works with
+> validations such as `monotonic`.
 
 ### String
 
