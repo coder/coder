@@ -101,12 +101,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"workspace1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"workspace2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace2\"",
 					RunOnStart: false,
 				},
 			},
@@ -136,12 +136,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"workspace1\" --config \"workspace1/config1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace1\" --config \"workspace1/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"workspace2\" --config \"workspace2/config2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace2\" --config \"workspace2/config2\"",
 					RunOnStart: false,
 				},
 			},
@@ -174,12 +174,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace1\" --config \"/home/workspace1/config1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace1\" --config \"/home/workspace1/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace2\" --config \"/home/workspace2/config2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace2\" --config \"/home/workspace2/config2\"",
 					RunOnStart: false,
 				},
 			},
@@ -216,12 +216,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace1\" --config \"/home/config1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace1\" --config \"/home/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace2\" --config \"/config2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace2\" --config \"/config2\"",
 					RunOnStart: false,
 				},
 			},
@@ -255,7 +255,7 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			// Preprocess the devcontainer scripts to remove scripting part.
 			for i := range gotDevcontainerScripts {
 				gotDevcontainerScripts[i].Script = textGrep("devcontainer up", gotDevcontainerScripts[i].Script)
-				require.NotEmpty(t, gotDevcontainerScripts[i].Script, "devcontainer up script not found")
+				require.NotEmpty(t, gotDevcontainerScripts[i].Script, "devcontainer up --log-format json script not found")
 			}
 			if diff := cmp.Diff(tt.wantDevcontainerScripts, gotDevcontainerScripts); diff != "" {
 				t.Errorf("ExtractAndInitializeDevcontainerScripts() gotDevcontainerScripts mismatch (-want +got):\n%s", diff)
