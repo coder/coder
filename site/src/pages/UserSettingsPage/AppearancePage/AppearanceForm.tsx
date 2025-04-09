@@ -23,6 +23,7 @@ import {
 	terminalFonts,
 } from "theme/constants";
 import { Section } from "../Section";
+import { TextField } from "@mui/material";
 
 export interface AppearanceFormProps {
 	isUpdating?: boolean;
@@ -78,8 +79,12 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 
 	return (
 		<form>
-			{Boolean(error) && <ErrorAlert error={error} />}
-
+			{Boolean(error) && (
+				<>
+					<ErrorAlert error={error} />
+					<div css={{ marginBottom: 48 }}></div>
+				</>
+			)}
 			<Section
 				title={
 					<Stack direction="row" alignItems="center">
@@ -154,7 +159,24 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 				}
 				layout="fluid"
 			>
-				TODO
+				<TextField
+					disabled={isUpdating}
+					label="Font size (px)"
+					variant="outlined"
+					type="number"
+					size="small"
+					style={{ width: '110px' }}
+					defaultValue={currentTerminalFontSize}
+					inputProps={{ min: 8, max: 32 }}
+					onBlur={(e) => {
+						onChangeTerminalFontSize(Number(e.target.value))
+					}}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault(); // Prevent form submission
+						}
+					}}
+				/>
 			</Section>
 		</form>
 	);
