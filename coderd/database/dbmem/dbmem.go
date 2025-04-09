@@ -259,6 +259,7 @@ type data struct {
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
 	workspaceAgentDevcontainers          []database.WorkspaceAgentDevcontainer
 	workspaceApps                        []database.WorkspaceApp
+	workspaceAppStatuses                 []database.WorkspaceAppStatus
 	workspaceAppAuditSessions            []database.WorkspaceAppAuditSession
 	workspaceAppStatsLastInsertID        int64
 	workspaceAppStats                    []database.WorkspaceAppStat
@@ -3334,6 +3335,30 @@ func (q *FakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 	return database.File{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, v := range q.templateVersions {
+		if v.ID == templateVersionID {
+			jobID := v.JobID
+			for _, j := range q.provisionerJobs {
+				if j.ID == jobID {
+					if j.StorageMethod == database.ProvisionerStorageMethodFile {
+						return j.FileID, nil
+					}
+					// We found the right job id but it wasn't a proper match.
+					break
+				}
+			}
+			// We found the right template version but it wasn't a proper match.
+			break
+		}
+	}
+
+	return uuid.Nil, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3703,6 +3728,34 @@ func (q *FakeQuerier) GetLatestCryptoKeyByFeature(_ context.Context, feature dat
 		return database.CryptoKey{}, sql.ErrNoRows
 	}
 	return latestKey, nil
+}
+
+func (q *FakeQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Map to track latest status per workspace ID
+	latestByWorkspace := make(map[uuid.UUID]database.WorkspaceAppStatus)
+
+	// Find latest status for each workspace ID
+	for _, appStatus := range q.workspaceAppStatuses {
+		if !slices.Contains(ids, appStatus.WorkspaceID) {
+			continue
+		}
+
+		current, exists := latestByWorkspace[appStatus.WorkspaceID]
+		if !exists || appStatus.CreatedAt.After(current.CreatedAt) {
+			latestByWorkspace[appStatus.WorkspaceID] = appStatus
+		}
+	}
+
+	// Convert map to slice
+	appStatuses := make([]database.WorkspaceAppStatus, 0, len(latestByWorkspace))
+	for _, status := range latestByWorkspace {
+		appStatuses = append(appStatuses, status)
+	}
+
+	return appStatuses, nil
 }
 
 func (q *FakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -4222,6 +4275,21 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 	return database.TemplateVersionPreset{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, presetID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	parameters := make([]database.TemplateVersionPresetParameter, 0)
+	for _, parameter := range q.presetParameters {
+		if parameter.TemplateVersionPresetID != presetID {
+			continue
+		}
+		parameters = append(parameters, parameter)
+	}
+
+	return parameters, nil
+}
+
 func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4240,7 +4308,6 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 				continue
 			}
 			parameters = append(parameters, parameter)
-			break
 		}
 	}
 
@@ -6049,6 +6116,19 @@ func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, tvtv := range q.templateVersionTerraformValues {
+		if tvtv.TemplateVersionID == templateVersionID {
+			return tvtv, nil
+		}
+	}
+
+	return database.TemplateVersionTerraformValue{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6368,20 +6448,6 @@ func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.Ge
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetUserAppearanceSettings(_ context.Context, userID uuid.UUID) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, uc := range q.userConfigs {
-		if uc.UserID != userID || uc.Key != "theme_preference" {
-			continue
-		}
-		return uc.Value, nil
-	}
-
-	return "", sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -6594,6 +6660,34 @@ func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUse
 	return result, nil
 }
 
+func (q *FakeQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "terminal_font" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetUserThemePreference(_ context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "theme_preference" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6728,6 +6822,18 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 			}
 		}
 		users = usersFilteredByRole
+	}
+
+	if len(params.LoginType) > 0 {
+		usersFilteredByLoginType := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.ContainsCompare(params.LoginType, user.LoginType, func(a, b database.LoginType) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
+				usersFilteredByLoginType = append(usersFilteredByLoginType, users[i])
+			}
+		}
+		users = usersFilteredByLoginType
 	}
 
 	if !params.CreatedBefore.IsZero() {
@@ -7548,6 +7654,21 @@ func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg d
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, arg)
+}
+
+func (q *FakeQuerier) GetWorkspaceAppStatusesByAppIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	statuses := make([]database.WorkspaceAppStatus, 0)
+	for _, status := range q.workspaceAppStatuses {
+		for _, id := range ids {
+			if status.AppID == id {
+				statuses = append(statuses, status)
+			}
+		}
+	}
+	return statuses, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -8773,6 +8894,11 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
+		DesiredInstances:  arg.DesiredInstances,
+		InvalidateAfterSecs: sql.NullInt32{
+			Int32: 0,
+			Valid: true,
+		},
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -9644,6 +9770,31 @@ InsertWorkspaceAppStatsLoop:
 	}
 
 	return nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAppStatus(_ context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	status := database.WorkspaceAppStatus{
+		ID:                 arg.ID,
+		CreatedAt:          arg.CreatedAt,
+		WorkspaceID:        arg.WorkspaceID,
+		AgentID:            arg.AgentID,
+		AppID:              arg.AppID,
+		NeedsUserAttention: arg.NeedsUserAttention,
+		State:              arg.State,
+		Message:            arg.Message,
+		Uri:                arg.Uri,
+		Icon:               arg.Icon,
+	}
+	q.workspaceAppStatuses = append(q.workspaceAppStatuses, status)
+	return status, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {
@@ -10890,33 +11041,6 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	return nil
 }
 
-func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.UserConfig{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, uc := range q.userConfigs {
-		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
-			continue
-		}
-		uc.Value = arg.ThemePreference
-		q.userConfigs[i] = uc
-		return uc, nil
-	}
-
-	uc := database.UserConfig{
-		UserID: arg.UserID,
-		Key:    "theme_preference",
-		Value:  arg.ThemePreference,
-	}
-	q.userConfigs = append(q.userConfigs, uc)
-	return uc, nil
-}
-
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -11240,6 +11364,60 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserTerminalFont(ctx context.Context, arg database.UpdateUserTerminalFontParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "terminal_font" {
+			continue
+		}
+		uc.Value = arg.TerminalFont
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "terminal_font",
+		Value:  arg.TerminalFont,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
+}
+
+func (q *FakeQuerier) UpdateUserThemePreference(_ context.Context, arg database.UpdateUserThemePreferenceParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
+			continue
+		}
+		uc.Value = arg.ThemePreference
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "theme_preference",
+		Value:  arg.ThemePreference,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
 }
 
 func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg database.UpdateVolumeResourceMonitorParams) error {

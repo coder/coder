@@ -496,6 +496,39 @@ jobs:
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
+      - name: SBOM Generation and Attestation
+        if: ${{ !inputs.dry_run }}
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          set -euxo pipefail
+
+          # Generate SBOM for multi-arch image with version in filename
+          echo "Generating SBOM for multi-arch image: ${{ steps.build_docker.outputs.multiarch_image }}"
+          syft "${{ steps.build_docker.outputs.multiarch_image }}" -o spdx-json > coder_${{ steps.version.outputs.version }}_sbom.spdx.json
+
+          # Attest SBOM to multi-arch image
+          echo "Attesting SBOM to multi-arch image: ${{ steps.build_docker.outputs.multiarch_image }}"
+          cosign clean --force=true "${{ steps.build_docker.outputs.multiarch_image }}"
+          cosign attest --type spdxjson \
+            --predicate coder_${{ steps.version.outputs.version }}_sbom.spdx.json \
+            --yes \
+            "${{ steps.build_docker.outputs.multiarch_image }}"
+
+          # If latest tag was created, also attest it
+          if [[ "${{ steps.build_docker.outputs.created_latest_tag }}" == "true" ]]; then
+            latest_tag="$(./scripts/image_tag.sh --version latest)"
+            echo "Generating SBOM for latest image: ${latest_tag}"
+            syft "${latest_tag}" -o spdx-json > coder_latest_sbom.spdx.json
+
+            echo "Attesting SBOM to latest image: ${latest_tag}"
+            cosign clean --force=true "${latest_tag}"
+            cosign attest --type spdxjson \
+              --predicate coder_latest_sbom.spdx.json \
+              --yes \
+              "${latest_tag}"
+          fi
+
       - name: GitHub Attestation for Docker image
         id: attest_main
         if: ${{ !inputs.dry_run }}
@@ -612,16 +645,27 @@ jobs:
           fi
           declare -p publish_args
 
+          # Build the list of files to publish
+          files=(
+            ./build/*_installer.exe
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.tgz
+            ./build/*.apk
+            ./build/*.deb
+            ./build/*.rpm
+            ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
+          )
+
+          # Only include the latest SBOM file if it was created
+          if [[ "${{ steps.build_docker.outputs.created_latest_tag }}" == "true" ]]; then
+            files+=(./coder_latest_sbom.spdx.json)
+          fi
+
           ./scripts/release/publish.sh \
             "${publish_args[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
-            ./build/*_installer.exe \
-            ./build/*.zip \
-            ./build/*.tar.gz \
-            ./build/*.tgz \
-            ./build/*.apk \
-            ./build/*.deb \
-            ./build/*.rpm
+            "${files[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
@@ -663,6 +707,15 @@ jobs:
             ./build/*.apk
             ./build/*.deb
             ./build/*.rpm
+            ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
+          retention-days: 7
+
+      - name: Upload latest sbom artifact to actions (if dry-run)
+        if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: latest-sbom-artifact
+          path: ./coder_latest_sbom.spdx.json
           retention-days: 7
 
       - name: Send repository-dispatch event

@@ -1734,6 +1734,34 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 		{
+			name: "one preset, no parameters, requesting prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "one preset with multiple parameters, requesting 0 prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 0,
+					},
+				},
+			},
+		},
+		{
 			name: "one preset with multiple parameters",
 			givenPresets: []*sdkproto.Preset{
 				{
@@ -1752,6 +1780,27 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 		{
+			name: "one preset, multiple parameters, requesting prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
+					},
+				},
+			},
+		},
+		{
 			name: "multiple presets with parameters",
 			givenPresets: []*sdkproto.Preset{
 				{
@@ -1765,6 +1814,9 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 							Name:  "param2",
 							Value: "value2",
 						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
 					},
 				},
 				{
@@ -1794,6 +1846,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			db, ps := dbtestutil.NewDB(t)
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
+
 			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				Type:           database.ProvisionerJobTypeWorkspaceBuild,
 				OrganizationID: org.ID,
@@ -1820,42 +1873,37 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			require.Len(t, gotPresets, len(c.givenPresets))
 
 			for _, givenPreset := range c.givenPresets {
-				foundMatch := false
+				var foundPreset *database.TemplateVersionPreset
 				for _, gotPreset := range gotPresets {
 					if givenPreset.Name == gotPreset.Name {
-						foundMatch = true
+						foundPreset = &gotPreset
 						break
 					}
 				}
-				require.True(t, foundMatch, "preset %s not found in parameters", givenPreset.Name)
-			}
+				require.NotNil(t, foundPreset, "preset %s not found in parameters", givenPreset.Name)
 
-			gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
-			require.NoError(t, err)
+				gotPresetParameters, err := db.GetPresetParametersByPresetID(ctx, foundPreset.ID)
+				require.NoError(t, err)
+				require.Len(t, gotPresetParameters, len(givenPreset.Parameters))
 
-			for _, givenPreset := range c.givenPresets {
 				for _, givenParameter := range givenPreset.Parameters {
 					foundMatch := false
 					for _, gotParameter := range gotPresetParameters {
 						nameMatches := givenParameter.Name == gotParameter.Name
 						valueMatches := givenParameter.Value == gotParameter.Value
-
-						// ensure that preset parameters are matched to the correct preset:
-						var gotPreset database.TemplateVersionPreset
-						for _, preset := range gotPresets {
-							if preset.ID == gotParameter.TemplateVersionPresetID {
-								gotPreset = preset
-								break
-							}
-						}
-						presetMatches := gotPreset.Name == givenPreset.Name
-
-						if nameMatches && valueMatches && presetMatches {
+						if nameMatches && valueMatches {
 							foundMatch = true
 							break
 						}
 					}
-					require.True(t, foundMatch, "preset parameter %s not found in presets", givenParameter.Name)
+					require.True(t, foundMatch, "preset parameter %s not found in parameters", givenParameter.Name)
+				}
+				if givenPreset.Prebuild == nil {
+					require.False(t, foundPreset.DesiredInstances.Valid)
+				}
+				if givenPreset.Prebuild != nil {
+					require.True(t, foundPreset.DesiredInstances.Valid)
+					require.Equal(t, givenPreset.Prebuild.Instances, foundPreset.DesiredInstances.Int32)
 				}
 			}
 		})

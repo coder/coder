@@ -79,6 +79,15 @@ Specifies whether or not to keep options from previous run of config-ssh.
 
 Override the default host prefix.
 
+### --hostname-suffix
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_CONFIGSSH_HOSTNAME_SUFFIX</code> |
+
+Override the default hostname suffix.
+
 ### --wait
 
 |             |                                    |

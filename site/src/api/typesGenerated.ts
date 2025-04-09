@@ -651,7 +651,7 @@ export interface DeploymentValues {
 	readonly telemetry?: TelemetryConfig;
 	readonly tls?: TLSConfig;
 	readonly trace?: TraceConfig;
-	readonly secure_auth_cookie?: boolean;
+	readonly http_cookies?: HTTPCookieConfig;
 	readonly strict_transport_security?: number;
 	readonly strict_transport_security_options?: string;
 	readonly ssh_keygen_algorithm?: string;
@@ -687,6 +687,7 @@ export interface DeploymentValues {
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
+	readonly workspace_hostname_suffix?: string;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -752,6 +753,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "auto-fill-parameters"
+	| "dynamic-parameters"
 	| "example"
 	| "notifications"
 	| "web-push"
@@ -980,6 +982,12 @@ export interface GroupSyncSettings {
 	readonly legacy_group_name_mapping?: Record<string, string>;
 }
 
+// From codersdk/deployment.go
+export interface HTTPCookieConfig {
+	readonly secure_auth_cookie?: boolean;
+	readonly same_site?: string;
+}
+
 // From health/model.go
 export type HealthCode =
 	| "EACS03"
@@ -1117,6 +1125,18 @@ export interface InboxNotificationAction {
 	readonly label: string;
 	readonly url: string;
 }
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconAccount = "DEFAULT_ICON_ACCOUNT";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconOther = "DEFAULT_ICON_OTHER";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
@@ -2218,6 +2238,7 @@ export interface SSHConfig {
 // From codersdk/deployment.go
 export interface SSHConfigResponse {
 	readonly hostname_prefix: string;
+	readonly hostname_suffix: string;
 	readonly ssh_config_options: Record<string, string>;
 }
 
@@ -2655,6 +2676,22 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 	readonly include_archived: boolean;
 }
 
+// From codersdk/users.go
+export type TerminalFontName =
+	| "fira-code"
+	| "ibm-plex-mono"
+	| "jetbrains-mono"
+	| "source-code-pro"
+	| "";
+
+export const TerminalFontNames: TerminalFontName[] = [
+	"fira-code",
+	"ibm-plex-mono",
+	"jetbrains-mono",
+	"source-code-pro",
+	"",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -2788,6 +2825,7 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/notifications.go
@@ -2904,6 +2942,7 @@ export interface UserActivityInsightsResponse {
 // From codersdk/users.go
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/insights.go
@@ -3061,6 +3100,7 @@ export interface Workspace {
 	readonly template_active_version_id: string;
 	readonly template_require_active_version: boolean;
 	readonly latest_build: WorkspaceBuild;
+	readonly latest_app_status: WorkspaceAppStatus | null;
 	readonly outdated: boolean;
 	readonly name: string;
 	readonly autostart_schedule?: string;
@@ -3308,6 +3348,7 @@ export interface WorkspaceApp {
 	readonly health: WorkspaceAppHealth;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
+	readonly statuses: readonly WorkspaceAppStatus[];
 }
 
 // From codersdk/workspaceapps.go
@@ -3336,6 +3377,29 @@ export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
 	"authenticated",
 	"owner",
 	"public",
+];
+
+// From codersdk/workspaceapps.go
+export interface WorkspaceAppStatus {
+	readonly id: string;
+	readonly created_at: string;
+	readonly workspace_id: string;
+	readonly agent_id: string;
+	readonly app_id: string;
+	readonly state: WorkspaceAppStatusState;
+	readonly needs_user_attention: boolean;
+	readonly message: string;
+	readonly uri: string;
+	readonly icon: string;
+}
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppStatusState = "complete" | "failure" | "working";
+
+export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
+	"complete",
+	"failure",
+	"working",
 ];
 
 // From codersdk/workspacebuilds.go

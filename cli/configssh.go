@@ -45,8 +45,10 @@ const (
 // sshConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
-	waitEnum         string
+	waitEnum string
+	// Deprecated: moving away from prefix to hostnameSuffix
 	userHostPrefix   string
+	hostnameSuffix   string
 	sshOptions       []string
 	disableAutostart bool
 	header           []string
@@ -97,7 +99,11 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	if !slicesSortedEqual(o.header, other.header) {
 		return false
 	}
-	return o.waitEnum == other.waitEnum && o.userHostPrefix == other.userHostPrefix && o.disableAutostart == other.disableAutostart && o.headerCommand == other.headerCommand
+	return o.waitEnum == other.waitEnum &&
+		o.userHostPrefix == other.userHostPrefix &&
+		o.disableAutostart == other.disableAutostart &&
+		o.headerCommand == other.headerCommand &&
+		o.hostnameSuffix == other.hostnameSuffix
 }
 
 // slicesSortedEqual compares two slices without side-effects or regard to order.
@@ -118,6 +124,9 @@ func (o sshConfigOptions) asList() (list []string) {
 	}
 	if o.userHostPrefix != "" {
 		list = append(list, fmt.Sprintf("ssh-host-prefix: %s", o.userHostPrefix))
+	}
+	if o.hostnameSuffix != "" {
+		list = append(list, fmt.Sprintf("hostname-suffix: %s", o.hostnameSuffix))
 	}
 	if o.disableAutostart {
 		list = append(list, fmt.Sprintf("disable-autostart: %v", o.disableAutostart))
@@ -314,6 +323,10 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				// Override with user flag.
 				coderdConfig.HostnamePrefix = sshConfigOpts.userHostPrefix
 			}
+			if sshConfigOpts.hostnameSuffix != "" {
+				// Override with user flag.
+				coderdConfig.HostnameSuffix = sshConfigOpts.hostnameSuffix
+			}
 
 			// Write agent configuration.
 			defaultOptions := []string{
@@ -343,9 +356,15 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				if sshConfigOpts.disableAutostart {
 					flags += " --disable-autostart=true"
 				}
+				if coderdConfig.HostnamePrefix != "" {
+					flags += " --ssh-host-prefix " + coderdConfig.HostnamePrefix
+				}
+				if coderdConfig.HostnameSuffix != "" {
+					flags += " --hostname-suffix " + coderdConfig.HostnameSuffix
+				}
 				defaultOptions = append(defaultOptions, fmt.Sprintf(
-					"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
-					escapedCoderBinary, rootFlags, flags, coderdConfig.HostnamePrefix,
+					"ProxyCommand %s %s ssh --stdio%s %%h",
+					escapedCoderBinary, rootFlags, flags,
 				))
 			}
 
@@ -378,7 +397,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 
 			hostBlock := []string{
-				"Host " + coderdConfig.HostnamePrefix + "*",
+				sshConfigHostLinePatterns(coderdConfig),
 			}
 			// Prefix with '\t'
 			for _, v := range configOptions.sshOptions {
@@ -519,6 +538,12 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Value:       serpent.StringOf(&sshConfigOpts.userHostPrefix),
 		},
 		{
+			Flag:        "hostname-suffix",
+			Env:         "CODER_CONFIGSSH_HOSTNAME_SUFFIX",
+			Description: "Override the default hostname suffix.",
+			Value:       serpent.StringOf(&sshConfigOpts.hostnameSuffix),
+		},
+		{
 			Flag:        "wait",
 			Env:         "CODER_CONFIGSSH_WAIT", // Not to be mixed with CODER_SSH_WAIT.
 			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
@@ -568,6 +593,9 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	if o.userHostPrefix != "" {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-host-prefix", o.userHostPrefix)
 	}
+	if o.hostnameSuffix != "" {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "hostname-suffix", o.hostnameSuffix)
+	}
 	if o.disableAutostart {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%v\n", "disable-autostart", o.disableAutostart)
 	}
@@ -607,6 +635,8 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				o.waitEnum = parts[1]
 			case "ssh-host-prefix":
 				o.userHostPrefix = parts[1]
+			case "hostname-suffix":
+				o.hostnameSuffix = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
 			case "disable-autostart":
@@ -812,4 +842,20 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		b = nil
 	}
 	return b, nil
+}
+
+func sshConfigHostLinePatterns(config codersdk.SSHConfigResponse) string {
+	builder := strings.Builder{}
+	// by inspection, WriteString always returns nil error
+	_, _ = builder.WriteString("Host")
+	if config.HostnamePrefix != "" {
+		_, _ = builder.WriteString(" ")
+		_, _ = builder.WriteString(config.HostnamePrefix)
+		_, _ = builder.WriteString("*")
+	}
+	if config.HostnameSuffix != "" {
+		_, _ = builder.WriteString(" *.")
+		_, _ = builder.WriteString(config.HostnameSuffix)
+	}
+	return builder.String()
 }

@@ -252,7 +252,7 @@ jobs:
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
-          go install golang.org/x/tools/cmd/goimports@latest
+          go install golang.org/x/tools/cmd/goimports@v0.31.0
           go install github.com/mikefarah/yq/v4@v4.44.3
           go install go.uber.org/mock/mockgen@v0.5.0
 
@@ -298,6 +298,9 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
+
+      - name: Check Go version
+        run: IGNORE_NIX=true ./scripts/check_go_versions.sh
 
       # Use default Go version
       - name: Setup Go
@@ -674,8 +677,8 @@ jobs:
         variant:
           - premium: false
             name: test-e2e
-          - premium: true
-            name: test-e2e-premium
+          #- premium: true
+          #  name: test-e2e-premium
     # Skip test-e2e on forks as they don't have access to CI secrets
     if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && !(github.event.pull_request.head.repo.fork)
     timeout-minutes: 20
@@ -860,7 +863,7 @@ jobs:
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
-          go install golang.org/x/tools/cmd/goimports@latest
+          go install golang.org/x/tools/cmd/goimports@v0.31.0
           go install github.com/mikefarah/yq/v4@v4.44.3
           go install go.uber.org/mock/mockgen@v0.5.0
 
@@ -1176,6 +1179,34 @@ jobs:
                     $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
             done
           fi
+
+      - name: SBOM Generation and Attestation
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          set -euxo pipefail
+
+          # Define image base and tags
+          IMAGE_BASE="ghcr.io/coder/coder-preview"
+          TAGS=("${{ steps.build-docker.outputs.tag }}" "main" "latest")
+
+          # Generate and attest SBOM for each tag
+          for tag in "${TAGS[@]}"; do
+            IMAGE="${IMAGE_BASE}:${tag}"
+            SBOM_FILE="coder_sbom_${tag//[:\/]/_}.spdx.json"
+
+            echo "Generating SBOM for image: ${IMAGE}"
+            syft "${IMAGE}" -o spdx-json > "${SBOM_FILE}"
+
+            echo "Attesting SBOM to image: ${IMAGE}"
+            cosign clean --force=true "${IMAGE}"
+            cosign attest --type spdxjson \
+              --predicate "${SBOM_FILE}" \
+              --yes \
+              "${IMAGE}"
+          done
 
       # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
       # record that these images were built in GitHub Actions with specific inputs and environment.

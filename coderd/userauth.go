@@ -204,7 +204,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		Value:    token,
 		Expires:  claims.Expiry.Time(),
-		Secure:   api.SecureAuthCookie,
+		Secure:   api.DeploymentValues.HTTPCookies.Secure.Value(),
 		HttpOnly: true,
 		// Must be SameSite to work on the redirected auth flow from the
 		// oauth provider.
@@ -1913,13 +1913,12 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				slog.F("user_id", user.ID),
 			)
 		}
-		cookies = append(cookies, &http.Cookie{
+		cookies = append(cookies, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 			Name:     codersdk.SessionTokenCookie,
 			Path:     "/",
 			MaxAge:   -1,
-			Secure:   api.SecureAuthCookie,
 			HttpOnly: true,
-		})
+		}))
 		// This is intentional setting the key to the deleted old key,
 		// as the user needs to be forced to log back in.
 		key = *oldKey
