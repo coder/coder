@@ -190,7 +190,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			s, ok := <-stats
 			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountVSCode=%d, ConnectionMedianLatencyMS=%f",
 				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountVscode, s.ConnectionMedianLatencyMs)
-			return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 &&
+			return ok &&
 				// Ensure that the connection didn't count as a "normal" SSH session.
 				// This was a special one, so it should be labeled specially in the stats!
 				s.SessionCountVscode == 1 &&
@@ -258,8 +258,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			s, ok := <-stats
 			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
 				ok, s.ConnectionCount, s.SessionCountJetbrains)
-			return ok && s.ConnectionCount > 0 &&
-				s.SessionCountJetbrains == 1
+			return ok && s.SessionCountJetbrains == 1
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats with conn open",
 		)

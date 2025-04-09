@@ -301,7 +301,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 
-## Multiple External Providers (Enterprise)(Premium)
+## Multiple External Providers (Premium)
 
 Below is an example configuration with multiple providers:
 

@@ -22,7 +22,7 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
-import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
 import type { PostWorkspaceUsageRequest } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
@@ -223,7 +223,10 @@ export const watchWorkspaceAgentLogs = (
 	agentId: string,
 	{ after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
 ) => {
-	const searchParams = new URLSearchParams({ after: after.toString() });
+	const searchParams = new URLSearchParams({
+		follow: "true",
+		after: after.toString(),
+	});
 
 	/**
 	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
@@ -396,6 +399,11 @@ export class MissingBuildParameters extends Error {
 		this.versionId = versionId;
 	}
 }
+
+export type GetProvisionerJobsParams = {
+	status?: TypesGen.ProvisionerJobStatus;
+	limit?: number;
+};
 
 /**
  * This is the container for all API methods. It's split off to make it more
@@ -2392,9 +2400,13 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getProvisionerJobs = async (orgId: string) => {
+	getProvisionerJobs = async (
+		orgId: string,
+		params: GetProvisionerJobsParams = {},
+	) => {
 		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
 			`/api/v2/organizations/${orgId}/provisionerjobs`,
+			{ params },
 		);
 		return res.data;
 	};

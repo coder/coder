@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspaceBuildLogs } from "testHelpers/entities";
+import type { Line } from "./LogLine";
 import { Logs } from "./Logs";
 
 const meta: Meta<typeof Logs> = {
@@ -8,7 +9,8 @@ const meta: Meta<typeof Logs> = {
 	parameters: { chromatic },
 	component: Logs,
 	args: {
-		lines: MockWorkspaceBuildLogs.map((log) => ({
+		lines: MockWorkspaceBuildLogs.map<Line>((log) => ({
+			id: log.id,
 			level: log.log_level,
 			time: log.created_at,
 			output: log.output,

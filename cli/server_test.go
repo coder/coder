@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -1208,7 +1209,7 @@ func TestServer(t *testing.T) {
 				}
 			}
 			return htmlFirstServedFound
-		}, testutil.WaitMedium, testutil.IntervalFast, "no html_first_served telemetry item")
+		}, testutil.WaitLong, testutil.IntervalSlow, "no html_first_served telemetry item")
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
@@ -1216,106 +1217,120 @@ func TestServer(t *testing.T) {
 		t.Run("DBMetricsDisabled", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			randPort := testutil.RandomPort(t)
-			inv, cfg := clitest.New(t,
+			ctx := testutil.Context(t, testutil.WaitLong)
+			inv, _ := clitest.New(t,
 				"server",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
 				"--prometheus-enable",
-				"--prometheus-address", ":"+strconv.Itoa(randPort),
+				"--prometheus-address", ":0",
 				// "--prometheus-collect-db-metrics", // disabled by default
 				"--cache-dir", t.TempDir(),
 			)
 
-			clitest.Start(t, inv)
-			_ = waitAccessURL(t, cfg)
+			pty := ptytest.New(t)
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
 
-			var res *http.Response
-			require.Eventually(t, func() bool {
-				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randPort), nil)
-				assert.NoError(t, err)
-				// nolint:bodyclose
-				res, err = http.DefaultClient.Do(req)
+			clitest.Start(t, inv)
+
+			// Wait until we see the prometheus address in the logs.
+			addrMatchExpr := `http server listening\s+addr=(\S+)\s+name=prometheus`
+			lineMatch := pty.ExpectRegexMatchContext(ctx, addrMatchExpr)
+			promAddr := regexp.MustCompile(addrMatchExpr).FindStringSubmatch(lineMatch)[1]
+
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/metrics", promAddr), nil)
 				if err != nil {
+					t.Logf("error creating request: %s", err.Error())
+					return false
+				}
+				// nolint:bodyclose
+				res, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Logf("error hitting prometheus endpoint: %s", err.Error())
 					return false
 				}
 				defer res.Body.Close()
-
 				scanner := bufio.NewScanner(res.Body)
-				hasActiveUsers := false
+				var activeUsersFound bool
+				var scannedOnce bool
 				for scanner.Scan() {
+					line := scanner.Text()
+					if !scannedOnce {
+						t.Logf("scanned: %s", line) // avoid spamming logs
+						scannedOnce = true
+					}
+					if strings.HasPrefix(line, "coderd_db_query_latencies_seconds") {
+						t.Errorf("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
+					}
 					// This metric is manually registered to be tracked in the server. That's
 					// why we test it's tracked here.
-					if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
-						hasActiveUsers = true
-						continue
+					if strings.HasPrefix(line, "coderd_api_active_users_duration_hour") {
+						activeUsersFound = true
 					}
-					if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
-						t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
-					}
-					t.Logf("scanned %s", scanner.Text())
 				}
-				if scanner.Err() != nil {
-					t.Logf("scanner err: %s", scanner.Err().Error())
-					return false
-				}
-
-				return hasActiveUsers
-			}, testutil.WaitShort, testutil.IntervalFast, "didn't find coderd_api_active_users_duration_hour in time")
+				return activeUsersFound
+			}, testutil.IntervalSlow, "didn't find coderd_api_active_users_duration_hour in time")
 		})
 
 		t.Run("DBMetricsEnabled", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			randPort := testutil.RandomPort(t)
-			inv, cfg := clitest.New(t,
+			ctx := testutil.Context(t, testutil.WaitLong)
+			inv, _ := clitest.New(t,
 				"server",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
 				"--prometheus-enable",
-				"--prometheus-address", ":"+strconv.Itoa(randPort),
+				"--prometheus-address", ":0",
 				"--prometheus-collect-db-metrics",
 				"--cache-dir", t.TempDir(),
 			)
 
-			clitest.Start(t, inv)
-			_ = waitAccessURL(t, cfg)
+			pty := ptytest.New(t)
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
 
-			var res *http.Response
-			require.Eventually(t, func() bool {
-				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randPort), nil)
-				assert.NoError(t, err)
-				// nolint:bodyclose
-				res, err = http.DefaultClient.Do(req)
+			clitest.Start(t, inv)
+
+			// Wait until we see the prometheus address in the logs.
+			addrMatchExpr := `http server listening\s+addr=(\S+)\s+name=prometheus`
+			lineMatch := pty.ExpectRegexMatchContext(ctx, addrMatchExpr)
+			promAddr := regexp.MustCompile(addrMatchExpr).FindStringSubmatch(lineMatch)[1]
+
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/metrics", promAddr), nil)
 				if err != nil {
+					t.Logf("error creating request: %s", err.Error())
+					return false
+				}
+				// nolint:bodyclose
+				res, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Logf("error hitting prometheus endpoint: %s", err.Error())
 					return false
 				}
 				defer res.Body.Close()
-
 				scanner := bufio.NewScanner(res.Body)
-				hasDBMetrics := false
+				var dbMetricsFound bool
+				var scannedOnce bool
 				for scanner.Scan() {
-					if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
-						hasDBMetrics = true
+					line := scanner.Text()
+					if !scannedOnce {
+						t.Logf("scanned: %s", line) // avoid spamming logs
+						scannedOnce = true
 					}
-					t.Logf("scanned %s", scanner.Text())
+					if strings.HasPrefix(line, "coderd_db_query_latencies_seconds") {
+						dbMetricsFound = true
+					}
 				}
-				if scanner.Err() != nil {
-					t.Logf("scanner err: %s", scanner.Err().Error())
-					return false
-				}
-				return hasDBMetrics
-			}, testutil.WaitShort, testutil.IntervalFast, "didn't find coderd_db_query_latencies_seconds in time")
+				return dbMetricsFound
+			}, testutil.IntervalSlow, "didn't find coderd_db_query_latencies_seconds in time")
 		})
 	})
 	t.Run("GitHubOAuth", func(t *testing.T) {

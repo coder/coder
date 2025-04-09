@@ -82,7 +82,8 @@ export class OneWayWebSocket<TData = unknown>
 	implements OneWayWebSocketApi<TData>
 {
 	readonly #socket: WebSocket;
-	readonly #messageCallbackWrappers = new Map<
+	readonly #errorListeners = new Set<(e: Event) => void>();
+	readonly #messageListenerWrappers = new Map<
 		OneWayEventCallback<TData, "message">,
 		WebSocketMessageCallback
 	>();
@@ -98,7 +99,7 @@ export class OneWayWebSocket<TData = unknown>
 		} = init;
 
 		if (!apiRoute.startsWith("/api/v2/")) {
-			throw new Error(`API route '${apiRoute}' does not begin with a slash`);
+			throw new Error(`API route '${apiRoute}' does not begin with '/api/v2/'`);
 		}
 
 		const formattedParams =
@@ -122,6 +123,10 @@ export class OneWayWebSocket<TData = unknown>
 		event: TEvent,
 		callback: OneWayEventCallback<TData, TEvent>,
 	): void {
+		if (this.#socket.readyState === WebSocket.CLOSED) {
+			return;
+		}
+
 		// Not happy about all the type assertions, but there are some nasty
 		// type contravariance issues if you try to resolve the function types
 		// properly. This is actually the lesser of two evils
@@ -130,11 +135,16 @@ export class OneWayWebSocket<TData = unknown>
 			WebSocketEventType
 		>;
 
-		if (this.#messageCallbackWrappers.has(looseCallback)) {
+		// WebSockets automatically handle de-duping callbacks, but we have to
+		// do a separate check for the wrappers
+		if (this.#messageListenerWrappers.has(looseCallback)) {
 			return;
 		}
 		if (event !== "message") {
 			this.#socket.addEventListener(event, looseCallback);
+			if (event === "error") {
+				this.#errorListeners.add(looseCallback);
+			}
 			return;
 		}
 
@@ -161,7 +171,7 @@ export class OneWayWebSocket<TData = unknown>
 		};
 
 		this.#socket.addEventListener(event as "message", wrapped);
-		this.#messageCallbackWrappers.set(looseCallback, wrapped);
+		this.#messageListenerWrappers.set(looseCallback, wrapped);
 	}
 
 	removeEventListener<TEvent extends WebSocketEventType>(
@@ -175,13 +185,16 @@ export class OneWayWebSocket<TData = unknown>
 
 		if (event !== "message") {
 			this.#socket.removeEventListener(event, looseCallback);
+			if (event === "error") {
+				this.#errorListeners.delete(looseCallback);
+			}
 			return;
 		}
-		if (!this.#messageCallbackWrappers.has(looseCallback)) {
+		if (!this.#messageListenerWrappers.has(looseCallback)) {
 			return;
 		}
 
-		const wrapper = this.#messageCallbackWrappers.get(looseCallback);
+		const wrapper = this.#messageListenerWrappers.get(looseCallback);
 		if (wrapper === undefined) {
 			throw new Error(
 				`Cannot unregister callback for event ${event}. This is likely an issue with the browser itself.`,
@@ -189,10 +202,20 @@ export class OneWayWebSocket<TData = unknown>
 		}
 
 		this.#socket.removeEventListener(event as "message", wrapper);
-		this.#messageCallbackWrappers.delete(looseCallback);
+		this.#messageListenerWrappers.delete(looseCallback);
 	}
 
 	close(closeCode?: number, reason?: string): void {
+		// Eject all error event listeners, mainly for ergonomics in React dev
+		// mode. React's StrictMode will create additional connections to ensure
+		// there aren't any render bugs, but manually closing a connection via a
+		// cleanup function sometimes causes error events to get dispatched for
+		// a connection that is no longer wired up to the UI
+		for (const cb of this.#errorListeners) {
+			this.#socket.removeEventListener("error", cb);
+			this.#errorListeners.delete(cb);
+		}
+
 		this.#socket.close(closeCode, reason);
 	}
 }
