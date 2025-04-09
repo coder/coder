@@ -44,7 +44,7 @@ func TestAsNoActor(t *testing.T) {
 		require.False(t, dbauthz.IsNotAuthorizedError(nil), "no error")
 	})
 
-	t.Run("AsRemoveActor", func(t *testing.T) {
+	t.Run("AsNoActor", func(t *testing.T) {
 		t.Parallel()
 		_, ok := dbauthz.ActorFromContext(context.Background())
 		require.False(t, ok, "no actor should be present")
@@ -55,19 +55,6 @@ func TestAsNoActor(t *testing.T) {
 		ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
 		_, ok := dbauthz.ActorFromContext(ctx)
 		require.True(t, ok, "actor present")
-	})
-
-	t.Run("DeleteActor", func(t *testing.T) {
-		t.Parallel()
-		// First set an actor
-		ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
-		_, ok := dbauthz.ActorFromContext(ctx)
-		require.True(t, ok, "actor present")
-
-		// Delete the actor
-		ctx = dbauthz.As(ctx, dbauthz.AsRemoveActor)
-		_, ok = dbauthz.ActorFromContext(ctx)
-		require.False(t, ok, "actor should be deleted")
 	})
 }
 

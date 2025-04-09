@@ -443,21 +443,12 @@ func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectPrebuildsOrchestrator)
 }
 
-var AsRemoveActor = rbac.Subject{
-	ID: "remove-actor",
-}
-
 // As returns a context with the given actor stored in the context.
 // This is used for cases where the actor touching the database is not the
 // actor stored in the context.
 // When you use this function, be sure to add a //nolint comment
 // explaining why it is necessary.
 func As(ctx context.Context, actor rbac.Subject) context.Context {
-	if actor.Equal(AsRemoveActor) {
-		// AsRemoveActor is a special case that is used to indicate that the actor
-		// should be removed from the context.
-		return context.WithValue(ctx, authContextKey{}, nil)
-	}
 	return context.WithValue(ctx, authContextKey{}, actor)
 }
 
