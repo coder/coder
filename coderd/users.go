@@ -1015,7 +1015,7 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		terminalFontSizeStr = "14"
+		terminalFontSizeStr = "16" // default font size if undefined
 	}
 
 	terminalFontSize, err := strconv.Atoi(terminalFontSizeStr)
