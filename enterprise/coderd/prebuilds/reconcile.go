@@ -230,16 +230,6 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 	var state prebuilds.GlobalSnapshot
 
 	err := store.InTx(func(db database.Store) error {
-		start := c.clock.Now()
-
-		// TODO: per-template ID lock?
-		err := db.AcquireLock(ctx, database.LockIDDeterminePrebuildsState)
-		if err != nil {
-			return xerrors.Errorf("failed to acquire state determination lock: %w", err)
-		}
-
-		c.logger.Debug(ctx, "acquired state determination lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
-
 		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{}) // TODO: implement template-specific reconciliations later
 		if err != nil {
 			return xerrors.Errorf("failed to get template presets with prebuilds: %w", err)
