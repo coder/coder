@@ -26,13 +26,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-//nolint:paralleltest // This test is not parallel-safe due to t.Setenv.
 func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
+	t.Parallel()
+
 	testExePath, err := os.Executable()
 	require.NoError(t, err, "get test executable path")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	testExecer := &testDevcontainerExecer{testExePath: testExePath}
 
 	//nolint:paralleltest // This test is not parallel-safe due to t.Setenv.
 	t.Run("Up", func(t *testing.T) {
@@ -101,14 +101,19 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			//nolint:paralleltest // This test is not parallel-safe due t.Setenv.
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
 				ctx := testutil.Context(t, testutil.WaitMedium)
 
-				// Set environment variables for the test helper.
-				t.Setenv("TEST_DEVCONTAINER_WANT_ARGS", tt.wantArgs)
-				t.Setenv("TEST_DEVCONTAINER_WANT_ERROR", fmt.Sprintf("%v", tt.wantError))
-				t.Setenv("TEST_DEVCONTAINER_LOG_FILE", filepath.Join("testdata", "devcontainercli", "parse", tt.logFile))
+				testExecer := &testDevcontainerExecer{
+					testExePath: testExePath,
+					extraEnv: []string{
+						"TEST_DEVCONTAINER_WANT_ARGS=" + tt.wantArgs,
+						"TEST_DEVCONTAINER_WANT_ERROR=" + fmt.Sprintf("%v", tt.wantError),
+						"TEST_DEVCONTAINER_LOG_FILE=" + filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
+					},
+				}
 
 				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
 				containerID, err := dccli.Up(ctx, tt.workspace, tt.config, tt.opts...)
@@ -127,6 +132,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.
 type testDevcontainerExecer struct {
 	testExePath string
+	extraEnv    []string
 }
 
 // CommandContext returns a test binary command that simulates devcontainer responses.
@@ -148,8 +154,9 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 
 	//nolint:gosec // This is a test binary, so we don't need to worry about command injection.
 	cmd := exec.CommandContext(ctx, e.testExePath, testArgs...)
-	// Set this environment variable so the child process knows it's the helper.
-	cmd.Env = append(os.Environ(), "TEST_DEVCONTAINER_WANT_HELPER_PROCESS=1")
+	cmd.Env = append(os.Environ(), e.extraEnv...)
+	// Set this environment va[riable so the child process knows it's the helper.
+	cmd.Env = append(cmd.Env, "TEST_DEVCONTAINER_WANT_HELPER_PROCESS=1")
 
 	return cmd
 }
