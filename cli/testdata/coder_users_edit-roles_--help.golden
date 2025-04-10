@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder users edit-roles <username | user_id> [roles...]
+
+  Edit a member's roles
+
+  Aliases: edit-role
+
+———
+Run `coder --help` for a list of global options.
