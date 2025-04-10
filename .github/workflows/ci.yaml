@@ -419,6 +419,14 @@ jobs:
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast
 
+      - name: ls
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ls R:\go
+          ls R:\go\pkg
+          ls R:\go\pkg\mod
+
       - name: Upload test stats to Datadog
         timeout-minutes: 1
         continue-on-error: true
@@ -475,14 +483,6 @@ jobs:
           PARALLEL_FLAG=""
 
           make test-postgres
-
-      - name: ls
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          ls R:\go
-          ls R:\go\pkg
-          ls R:\go\pkg\mod
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
