@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"cdr.dev/slog"
@@ -71,6 +72,7 @@ type SlogRequestLogger struct {
 	written bool
 	message string
 	start   time.Time
+	mu      sync.RWMutex
 	actors  map[rbac.SubjectType]rbac.Subject
 }
 
@@ -91,10 +93,15 @@ func (c *SlogRequestLogger) WithFields(fields ...slog.Field) {
 }
 
 func (c *SlogRequestLogger) WithAuthContext(actor rbac.Subject) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.actors[actor.Type] = actor
 }
 
 func (c *SlogRequestLogger) addAuthContextFields() {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	usr, ok := c.actors[rbac.SubjectTypeUser]
 	if ok {
 		c.log = c.log.With(
