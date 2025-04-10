@@ -360,6 +360,8 @@ jobs:
           # Create a symbolic link from the old path to the new path. You can't
           # just update RUNNER_TEMP because it gets overridden by the runner.
           New-Item -ItemType SymbolicLink -Path $env:RUNNER_TEMP -Target $runnerTemp -Force
+          Write-Output "RUNNER_TEMP: $env:RUNNER_TEMP -> $((Get-Item $env:RUNNER_TEMP).Target)"
+          ls $env:RUNNER_TEMP
 
           # Move the toolcache directory to .old since the current contents
           # don't matter.
@@ -368,6 +370,8 @@ jobs:
           New-Item -ItemType Directory -Path $toolCache -Force
           # RUNNER_TOOL_CACHE also gets overridden by the runner, so symlink.
           New-Item -ItemType SymbolicLink -Path $env:RUNNER_TOOL_CACHE -Target $toolCache -Force
+          Write-Output "RUNNER_TOOL_CACHE: $env:RUNNER_TOOL_CACHE -> $((Get-Item $env:RUNNER_TOOL_CACHE).Target)"
+          ls $env:RUNNER_TOOL_CACHE
 
           # Update the GOPATH to the ramdisk. We don't care about the contents
           # since we haven't installed anything yet.
