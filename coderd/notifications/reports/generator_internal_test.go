@@ -231,15 +231,15 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 					"versions": []map[string]any{
 						{
 							"failed_builds": []map[string]any{
-								{"build_number": int32(7), "workspace_name": w3.Name, "workspace_owner_username": user1.Username},
-								{"build_number": int32(1), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+								{"build_number": int32(7), "workspace_name": w3.Name, "workspace_id": w3.ID, "workspace_owner_username": user1.Username},
+								{"build_number": int32(1), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
 							},
 							"failed_count":          2,
 							"template_version_name": t1v1.Name,
 						},
 						{
 							"failed_builds": []map[string]any{
-								{"build_number": int32(3), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+								{"build_number": int32(3), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
 							},
 							"failed_count":          1,
 							"template_version_name": t1v2.Name,
@@ -254,15 +254,15 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 					"versions": []map[string]any{
 						{
 							"failed_builds": []map[string]any{
-								{"build_number": int32(8), "workspace_name": w4.Name, "workspace_owner_username": user2.Username},
+								{"build_number": int32(8), "workspace_name": w4.Name, "workspace_id": w4.ID, "workspace_owner_username": user2.Username},
 							},
 							"failed_count":          1,
 							"template_version_name": t2v1.Name,
 						},
 						{
 							"failed_builds": []map[string]any{
-								{"build_number": int32(6), "workspace_name": w2.Name, "workspace_owner_username": user2.Username},
-								{"build_number": int32(5), "workspace_name": w2.Name, "workspace_owner_username": user2.Username},
+								{"build_number": int32(6), "workspace_name": w2.Name, "workspace_id": w2.ID, "workspace_owner_username": user2.Username},
+								{"build_number": int32(5), "workspace_name": w2.Name, "workspace_id": w2.ID, "workspace_owner_username": user2.Username},
 							},
 							"failed_count":          2,
 							"template_version_name": t2v2.Name,
@@ -319,7 +319,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 					"versions": []map[string]any{
 						{
 							"failed_builds": []map[string]any{
-								{"build_number": int32(77), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+								{"build_number": int32(77), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
 							},
 							"failed_count":          1,
 							"template_version_name": t1v2.Name,
@@ -412,32 +412,32 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 				"versions": []map[string]any{
 					{
 						"failed_builds": []map[string]any{
-							{"build_number": int32(23), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(22), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(21), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(20), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(19), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(18), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(17), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(16), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(15), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(14), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+							{"build_number": int32(23), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(22), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(21), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(20), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(19), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(18), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(17), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(16), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(15), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(14), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
 						},
 						"failed_count":          23,
 						"template_version_name": t1v1.Name,
 					},
 					{
 						"failed_builds": []map[string]any{
-							{"build_number": int32(123), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(122), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(121), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(120), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(119), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(118), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(117), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(116), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(115), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
-							{"build_number": int32(114), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+							{"build_number": int32(123), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(122), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(121), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(120), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(119), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(118), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(117), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(116), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(115), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
+							{"build_number": int32(114), "workspace_name": w1.Name, "workspace_id": w1.ID, "workspace_owner_username": user1.Username},
 						},
 						"failed_count":          23,
 						"template_version_name": t1v2.Name,

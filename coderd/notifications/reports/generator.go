@@ -249,6 +249,7 @@ func buildDataForReportFailedWorkspaceBuilds(reports []adminReport) map[string]a
 						{
 							"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
 							"workspace_name":           failedBuild.WorkspaceName,
+							"workspace_id":             failedBuild.WorkspaceID,
 							"build_number":             failedBuild.WorkspaceBuildNumber,
 						},
 					},
@@ -267,6 +268,7 @@ func buildDataForReportFailedWorkspaceBuilds(reports []adminReport) map[string]a
 				builds = append(builds, map[string]any{
 					"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
 					"workspace_name":           failedBuild.WorkspaceName,
+					"workspace_id":             failedBuild.WorkspaceID,
 					"build_number":             failedBuild.WorkspaceBuildNumber,
 				})
 				tv["failed_builds"] = builds
