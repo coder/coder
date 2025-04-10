@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
@@ -250,7 +251,8 @@ func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler
 				}
 			}
 
-			app, err := db.GetOAuth2ProviderAppByID(ctx, appID)
+			// nolint:gocritic // Load the provider app so we can use it in the handler.
+			app, err := db.GetOAuth2ProviderAppByID(dbauthz.AsSystemRestricted(ctx), appID)
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return

@@ -883,7 +883,7 @@ func New(options *Options) *API {
 			api.oAuth2ProviderMiddleware,
 			// Fetch the app as system because in the /tokens route there will be no
 			// authenticated user.
-			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+			httpmw.ExtractOAuth2ProviderApp(options.Database),
 		)
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(apiKeyMiddlewareRedirect)

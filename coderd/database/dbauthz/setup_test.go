@@ -249,7 +249,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 }
 
 func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) ([]reflect.Value, error)) {
-	s.Run("AsRemoveActor", func() {
+	s.Run("AsNoActor", func() {
 		// Call without any actor
 		_, err := callMethod(context.Background())
 		s.ErrorIs(err, dbauthz.ErrNoActor, "method should return NoActorError error when no actor is provided")
