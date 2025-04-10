@@ -26,6 +26,8 @@ func (r *RootCmd) users() *serpent.Command {
 	return cmd
 }
 
+// An alias for `organization members edit-roles` for single-organization
+// deployments.
 func (r *RootCmd) userEditRoles() *serpent.Command {
 	orgContext := NewOrganizationContext()
 	cmd := r.assignOrganizationRoles(orgContext)
