@@ -17,6 +17,7 @@ import { Loader } from "components/Loader/Loader";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import { ChatToolInvocation } from "./ChatToolInvocation";
 
 const fadeIn = keyframes`
 	from {
@@ -259,7 +260,7 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 								case "tool-invocation":
 									return (
 										<div key={partIndex}>
-											{renderToolInvocation(part.toolInvocation, theme)}
+                                            <ChatToolInvocation toolInvocation={part.toolInvocation as any} />
 										</div>
 									);
 								case "reasoning":
