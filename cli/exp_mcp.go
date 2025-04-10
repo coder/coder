@@ -6,19 +6,19 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	codermcp "github.com/coder/coder/v2/mcp"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/serpent"
 )
 
@@ -365,6 +365,8 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
 
+	fs := afero.NewOsFs()
+
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
 		cliui.Errorf(inv.Stderr, "Failed to log in to the Coder deployment.")
@@ -397,40 +399,36 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		server.WithInstructions(instructions),
 	)
 
-	// Create a separate logger for the tools.
-	toolLogger := slog.Make(sloghuman.Sink(invStderr))
-
-	toolDeps := codermcp.ToolDeps{
-		Client:        client,
-		Logger:        &toolLogger,
-		AppStatusSlug: appStatusSlug,
-		AgentClient:   agentsdk.New(client.URL),
-	}
-
+	// Create a new context for the tools with all relevant information.
+	clientCtx := toolsdk.WithClient(ctx, client)
 	// Get the workspace agent token from the environment.
-	agentToken, ok := os.LookupEnv("CODER_AGENT_TOKEN")
-	if ok && agentToken != "" {
-		toolDeps.AgentClient.SetSessionToken(agentToken)
+	if agentToken, err := getAgentToken(fs); err == nil && agentToken != "" {
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agentToken)
+		clientCtx = toolsdk.WithAgentClient(clientCtx, agentClient)
 	} else {
 		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
 	}
-	if appStatusSlug == "" {
+	if appStatusSlug != "" {
 		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
+	} else {
+		clientCtx = toolsdk.WithWorkspaceAppStatusSlug(clientCtx, appStatusSlug)
 	}
 
 	// Register tools based on the allowlist (if specified)
-	reg := codermcp.AllTools()
-	if len(allowedTools) > 0 {
-		reg = reg.WithOnlyAllowed(allowedTools...)
+	for _, tool := range toolsdk.All {
+		if len(allowedTools) == 0 || slices.ContainsFunc(allowedTools, func(t string) bool {
+			return t == tool.Tool.Name
+		}) {
+			mcpSrv.AddTools(mcpFromSDK(tool))
+		}
 	}
-
-	reg.Register(mcpSrv, toolDeps)
 
 	srv := server.NewStdioServer(mcpSrv)
 	done := make(chan error)
 	go func() {
 		defer close(done)
-		srvErr := srv.Listen(ctx, invStdin, invStdout)
+		srvErr := srv.Listen(clientCtx, invStdin, invStdout)
 		done <- srvErr
 	}()
 
@@ -674,7 +672,7 @@ func indexOf(s, substr string) int {
 
 func getAgentToken(fs afero.Fs) (string, error) {
 	token, ok := os.LookupEnv("CODER_AGENT_TOKEN")
-	if ok {
+	if ok && token != "" {
 		return token, nil
 	}
 	tokenFile, ok := os.LookupEnv("CODER_AGENT_TOKEN_FILE")
@@ -686,4 +684,45 @@ func getAgentToken(fs afero.Fs) (string, error) {
 		return "", xerrors.Errorf("failed to read agent token file: %w", err)
 	}
 	return string(bs), nil
+}
+
+// mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
+// It assumes that the tool responds with a valid JSON object.
+func mcpFromSDK(sdkTool toolsdk.Tool[any]) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.Tool{
+			Name:        sdkTool.Tool.Name,
+			Description: sdkTool.Description,
+			InputSchema: mcp.ToolInputSchema{
+				Type:       "object", // Default of mcp.NewTool()
+				Properties: sdkTool.Schema.Properties,
+				Required:   sdkTool.Schema.Required,
+			},
+		},
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			result, err := sdkTool.Handler(ctx, request.Params.Arguments)
+			if err != nil {
+				return nil, err
+			}
+			var sb strings.Builder
+			if err := json.NewEncoder(&sb).Encode(result); err == nil {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						mcp.NewTextContent(sb.String()),
+					},
+				}, nil
+			}
+			// If the result is not JSON, return it as a string.
+			// This is a fallback for tools that return non-JSON data.
+			resultStr, ok := result.(string)
+			if !ok {
+				return nil, xerrors.Errorf("tool call result is neither valid JSON or a string, got: %T", result)
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.NewTextContent(resultStr),
+				},
+			}, nil
+		},
+	}
 }
