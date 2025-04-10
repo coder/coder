@@ -1741,6 +1741,10 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
+func (q *FakeQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	return database.ClaimPrebuiltWorkspaceRow{}, ErrUnimplemented
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
@@ -1751,6 +1755,10 @@ func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
 
 func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
@@ -3283,6 +3291,7 @@ func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, 
 		}
 
 		workspaceBuildStats = append(workspaceBuildStats, database.GetFailedWorkspaceBuildsByTemplateIDRow{
+			WorkspaceID:            w.ID,
 			WorkspaceName:          w.Name,
 			WorkspaceOwnerUsername: workspaceOwner.Username,
 			TemplateVersionName:    templateVersion.Name,
@@ -3325,6 +3334,30 @@ func (q *FakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 		}
 	}
 	return database.File{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, v := range q.templateVersions {
+		if v.ID == templateVersionID {
+			jobID := v.JobID
+			for _, j := range q.provisionerJobs {
+				if j.ID == jobID {
+					if j.StorageMethod == database.ProvisionerStorageMethodFile {
+						return j.FileID, nil
+					}
+					// We found the right job id but it wasn't a proper match.
+					break
+				}
+			}
+			// We found the right template version but it wasn't a proper match.
+			break
+		}
+	}
+
+	return uuid.Nil, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
@@ -4188,6 +4221,44 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	empty := database.GetPresetByIDRow{}
+
+	// Create an index for faster lookup
+	versionMap := make(map[uuid.UUID]database.TemplateVersionTable)
+	for _, tv := range q.templateVersions {
+		versionMap[tv.ID] = tv
+	}
+
+	for _, preset := range q.presets {
+		if preset.ID == presetID {
+			tv, ok := versionMap[preset.TemplateVersionID]
+			if !ok {
+				return empty, fmt.Errorf("template version %v does not exist", preset.TemplateVersionID)
+			}
+			return database.GetPresetByIDRow{
+				ID:                  preset.ID,
+				TemplateVersionID:   preset.TemplateVersionID,
+				Name:                preset.Name,
+				CreatedAt:           preset.CreatedAt,
+				DesiredInstances:    preset.DesiredInstances,
+				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				TemplateID:          tv.TemplateID,
+				OrganizationID:      tv.OrganizationID,
+			}, nil
+		}
+	}
+
+	return empty, fmt.Errorf("preset %v does not exist", presetID)
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4203,6 +4274,21 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 		}
 	}
 	return database.TemplateVersionPreset{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, presetID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	parameters := make([]database.TemplateVersionPresetParameter, 0)
+	for _, parameter := range q.presetParameters {
+		if parameter.TemplateVersionPresetID != presetID {
+			continue
+		}
+		parameters = append(parameters, parameter)
+	}
+
+	return parameters, nil
 }
 
 func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
@@ -4223,11 +4309,14 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 				continue
 			}
 			parameters = append(parameters, parameter)
-			break
 		}
 	}
 
 	return parameters, nil
+}
+
+func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -4891,6 +4980,10 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5932,6 +6025,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6018,6 +6115,19 @@ func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		return strings.ToLower(parameters[i].Name) < strings.ToLower(parameters[j].Name)
 	})
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, tvtv := range q.templateVersionTerraformValues {
+		if tvtv.TemplateVersionID == templateVersionID {
+			return tvtv, nil
+		}
+	}
+
+	return database.TemplateVersionTerraformValue{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
@@ -6339,20 +6449,6 @@ func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.Ge
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetUserAppearanceSettings(_ context.Context, userID uuid.UUID) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, uc := range q.userConfigs {
-		if uc.UserID != userID || uc.Key != "theme_preference" {
-			continue
-		}
-		return uc.Value, nil
-	}
-
-	return "", sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -6388,6 +6484,10 @@ func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64
 		}
 		if !u.Deleted {
 			existing++
+		}
+
+		if !includeSystem && u.IsSystem {
+			continue
 		}
 	}
 	return existing, nil
@@ -6561,6 +6661,34 @@ func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUse
 	return result, nil
 }
 
+func (q *FakeQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "terminal_font" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetUserThemePreference(_ context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "theme_preference" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6695,6 +6823,18 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 			}
 		}
 		users = usersFilteredByRole
+	}
+
+	if len(params.LoginType) > 0 {
+		usersFilteredByLoginType := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.ContainsCompare(params.LoginType, user.LoginType, func(a, b database.LoginType) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
+				usersFilteredByLoginType = append(usersFilteredByLoginType, users[i])
+			}
+		}
+		users = usersFilteredByLoginType
 	}
 
 	if !params.CreatedBefore.IsZero() {
@@ -8755,6 +8895,11 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
+		DesiredInstances:  arg.DesiredInstances,
+		InvalidateAfterSecs: sql.NullInt32{
+			Int32: 0,
+			Valid: true,
+		},
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -10897,33 +11042,6 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	return nil
 }
 
-func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.UserConfig{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, uc := range q.userConfigs {
-		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
-			continue
-		}
-		uc.Value = arg.ThemePreference
-		q.userConfigs[i] = uc
-		return uc, nil
-	}
-
-	uc := database.UserConfig{
-		UserID: arg.UserID,
-		Key:    "theme_preference",
-		Value:  arg.ThemePreference,
-	}
-	q.userConfigs = append(q.userConfigs, uc)
-	return uc, nil
-}
-
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -11247,6 +11365,60 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserTerminalFont(ctx context.Context, arg database.UpdateUserTerminalFontParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "terminal_font" {
+			continue
+		}
+		uc.Value = arg.TerminalFont
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "terminal_font",
+		Value:  arg.TerminalFont,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
+}
+
+func (q *FakeQuerier) UpdateUserThemePreference(_ context.Context, arg database.UpdateUserThemePreferenceParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
+			continue
+		}
+		uc.Value = arg.ThemePreference
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "theme_preference",
+		Value:  arg.ThemePreference,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
 }
 
 func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg database.UpdateVolumeResourceMonitorParams) error {

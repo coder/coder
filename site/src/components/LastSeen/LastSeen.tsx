@@ -2,6 +2,7 @@ import { useTheme } from "@emotion/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 
 dayjs.extend(relativeTime);
 
@@ -11,7 +12,7 @@ interface LastSeenProps
 	"data-chromatic"?: string; // prevents a type error in the stories
 }
 
-export const LastSeen: FC<LastSeenProps> = ({ at, ...attrs }) => {
+export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 	const theme = useTheme();
 	const t = dayjs(at);
 	const now = dayjs();
@@ -35,7 +36,12 @@ export const LastSeen: FC<LastSeenProps> = ({ at, ...attrs }) => {
 	}
 
 	return (
-		<span data-chromatic="ignore" css={{ color }} {...attrs}>
+		<span
+			data-chromatic="ignore"
+			css={{ color }}
+			{...attrs}
+			className={cn(["whitespace-nowrap", className])}
+		>
 			{message}
 		</span>
 	);

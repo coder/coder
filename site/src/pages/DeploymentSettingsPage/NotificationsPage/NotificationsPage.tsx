@@ -56,11 +56,7 @@ export const NotificationsPage: FC = () => {
 					/>
 				}
 			>
-				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="beta" size="lg" />}
-				>
-					Notifications
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Control delivery methods for notifications on this deployment.
 				</SettingsHeaderDescription>

@@ -620,6 +620,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
 			}
 
+			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
+			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
+			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
+			// 'en.coder' but not 'encoder'.
+			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
+				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
+					vals.WorkspaceHostnameSuffix.String())
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -632,7 +641,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
-				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
@@ -653,6 +661,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
+					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				Entitlements:          entitlements.New(),

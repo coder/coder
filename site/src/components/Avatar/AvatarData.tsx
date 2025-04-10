@@ -1,6 +1,4 @@
-import { useTheme } from "@emotion/react";
 import { Avatar } from "components/Avatar/Avatar";
-import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 
 export interface AvatarDataProps {
@@ -26,10 +24,10 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	imgFallbackText,
 	avatar,
 }) => {
-	const theme = useTheme();
 	if (!avatar) {
 		avatar = (
 			<Avatar
+				size="lg"
 				src={src}
 				fallback={(typeof title === "string" ? title : imgFallbackText) || "-"}
 			/>
@@ -37,31 +35,19 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	}
 
 	return (
-		<Stack spacing={1} direction="row" className="w-full">
+		<div className="flex items-center w-full gap-3">
 			{avatar}
 
-			<Stack spacing={0} className="w-full">
-				<span
-					css={{
-						color: theme.palette.text.primary,
-						fontWeight: 600,
-					}}
-				>
+			<div className="flex flex-col w-full">
+				<span className="text-sm font-semibold text-content-primary">
 					{title}
 				</span>
 				{subtitle && (
-					<span
-						css={{
-							fontSize: 13,
-							color: theme.palette.text.secondary,
-							lineHeight: 1.5,
-							maxWidth: 540,
-						}}
-					>
+					<span className="text-content-secondary text-xs font-medium">
 						{subtitle}
 					</span>
 				)}
-			</Stack>
-		</Stack>
+			</div>
+		</div>
 	);
 };

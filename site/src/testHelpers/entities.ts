@@ -536,6 +536,7 @@ export const SuspendedMockUser: TypesGen.User = {
 
 export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_preference: "dark",
+	terminal_font: "",
 };
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -3032,6 +3033,7 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
 	hostname_prefix: " coder.",
 	ssh_config_options: {},
+	hostname_suffix: "coder",
 };
 
 export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
