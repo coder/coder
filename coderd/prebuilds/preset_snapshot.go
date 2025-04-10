@@ -55,7 +55,7 @@ type ReconciliationState struct {
 	Deleting int32
 }
 
-// ReconciliationActions represents a single action needed to reconcile the current state with the desired state.
+// ReconciliationActions represents actions needed to reconcile the current state with the desired state.
 // Exactly one field will be set based on the ActionType.
 type ReconciliationActions struct {
 	// ActionType determines which field is set and what action should be taken
@@ -222,7 +222,7 @@ func (p PresetSnapshot) countEligible() int32 {
 // These counts are tracked at the template level, so all presets sharing the same template see the same values.
 func (p PresetSnapshot) countInProgress() (int32, int32, int32) {
 	var starting, stopping, deleting int32
-	
+
 	for _, progress := range p.InProgress {
 		num := progress.Count
 		switch progress.Transition {
