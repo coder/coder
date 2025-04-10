@@ -340,6 +340,19 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup ImDisk
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/setup-imdisk
+
+      - name: Test
+        if: runner.os == 'Windows'
+	  	shell: bash
+		run: |
+			echo "RUNNER_TEMP=R:\\tmp" >> $GITHUB_ENV
+			echo "RUNNER_TOOL_CACHE=R:\\toolcache" >> $GITHUB_ENV
+			echo "GOPATH=R:\\go" >> $GITHUB_ENV
+			echo "R:\\go\\bin" >> $GITHUB_PATH
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
