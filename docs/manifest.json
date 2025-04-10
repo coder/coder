@@ -670,61 +670,61 @@
 		{
 			"title": "Run AI Coding Agents in Coder",
 			"description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
-			"path": "./coder-ai/index.md",
+			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
 			"state": ["early access"],
 			"children": [
 				{
 					"title": "Learn about coding agents",
 					"description": "Learn about the different AI agents and their tradeoffs",
-					"path": "./coder-ai/agents.md"
+					"path": "./ai-coder/agents.md"
 				},
 				{
 					"title": "Create a Coder template for agents",
 					"description": "Create a purpose-built template for your AI agents",
-					"path": "./coder-ai/create-template.md",
+					"path": "./ai-coder/create-template.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Integrate with your issue tracker",
 					"description": "Assign tickets to AI agents and interact via code reviews",
-					"path": "./coder-ai/issue-tracker.md",
+					"path": "./ai-coder/issue-tracker.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Model Context Protocols (MCP) and adding AI tools",
 					"description": "Improve results by adding tools to your AI agents",
-					"path": "./coder-ai/best-practices.md",
+					"path": "./ai-coder/best-practices.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Supervise agents via Coder UI",
 					"description": "Interact with agents via the Coder UI",
-					"path": "./coder-ai/coder-dashboard.md",
+					"path": "./ai-coder/coder-dashboard.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Supervise agents via the IDE",
 					"description": "Interact with agents via VS Code or Cursor",
-					"path": "./coder-ai/ide-integration.md",
+					"path": "./ai-coder/ide-integration.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Programmatically manage agents",
 					"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
-					"path": "./coder-ai/headless.md",
+					"path": "./ai-coder/headless.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Securing agents in Coder",
 					"description": "Learn how to secure agents with boundaries",
-					"path": "./coder-ai/securing.md",
+					"path": "./ai-coder/securing.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Custom agents",
 					"description": "Learn how to use custom agents with Coder",
-					"path": "./coder-ai/custom-agents.md",
+					"path": "./ai-coder/custom-agents.md",
 					"state": ["early access"]
 				}
 			]
