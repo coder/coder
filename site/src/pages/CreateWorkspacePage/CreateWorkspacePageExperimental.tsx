@@ -38,6 +38,10 @@ import {
 } from "./permissions";
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
+const serverAddress = "localhost:8100";
+const urlTestdata = "demo";
+const wsUrl = `ws://${serverAddress}/ws/${encodeURIComponent(urlTestdata)}`;
+
 const CreateWorkspacePageExperimental: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
