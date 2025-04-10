@@ -192,40 +192,6 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	return err
 }
 
-func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slog.Logger, fn func(ctx context.Context, db database.Store) error) error {
-	// This tx holds a global lock, which prevents any other coderd replica from starting a reconciliation and
-	// possibly getting an inconsistent view of the state.
-	//
-	// The lock MUST be held until ALL modifications have been effected.
-	//
-	// It is run with RepeatableRead isolation, so it's effectively snapshotting the data at the start of the tx.
-	//
-	// This is a read-only tx, so returning an error (i.e. causing a rollback) has no impact.
-	return c.store.InTx(func(db database.Store) error {
-		start := c.clock.Now()
-
-		// Try to acquire the lock. If we can't get it, another replica is handling reconciliation.
-		acquired, err := db.TryAcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
-		if err != nil {
-			// This is a real database error, not just lock contention
-			logger.Error(ctx, "failed to acquire reconciliation lock due to database error", slog.Error(err))
-			return err
-		}
-		if !acquired {
-			// Normal case: another replica has the lock
-			return nil
-		}
-
-		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
-
-		return fn(ctx, db)
-	}, &database.TxOptions{
-		Isolation:    sql.LevelRepeatableRead,
-		ReadOnly:     true,
-		TxIdentifier: "template_prebuilds",
-	})
-}
-
 // SnapshotState determines the current state of prebuilds & the presets which define them.
 // An application-level lock is used
 func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Store) (*prebuilds.GlobalSnapshot, error) {
@@ -267,14 +233,6 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 	})
 
 	return &state, err
-}
-
-func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) (*prebuilds.ReconciliationActions, error) {
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-
-	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.PresetSnapshot) error {
@@ -354,6 +312,48 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	default:
 		return xerrors.Errorf("unknown action type: %s", actions.ActionType)
 	}
+}
+
+func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) (*prebuilds.ReconciliationActions, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
+}
+
+func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slog.Logger, fn func(ctx context.Context, db database.Store) error) error {
+	// This tx holds a global lock, which prevents any other coderd replica from starting a reconciliation and
+	// possibly getting an inconsistent view of the state.
+	//
+	// The lock MUST be held until ALL modifications have been effected.
+	//
+	// It is run with RepeatableRead isolation, so it's effectively snapshotting the data at the start of the tx.
+	//
+	// This is a read-only tx, so returning an error (i.e. causing a rollback) has no impact.
+	return c.store.InTx(func(db database.Store) error {
+		start := c.clock.Now()
+
+		// Try to acquire the lock. If we can't get it, another replica is handling reconciliation.
+		acquired, err := db.TryAcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
+		if err != nil {
+			// This is a real database error, not just lock contention
+			logger.Error(ctx, "failed to acquire reconciliation lock due to database error", slog.Error(err))
+			return err
+		}
+		if !acquired {
+			// Normal case: another replica has the lock
+			return nil
+		}
+
+		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
+
+		return fn(ctx, db)
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     true,
+		TxIdentifier: "template_prebuilds",
+	})
 }
 
 func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
