@@ -222,11 +222,7 @@ func (p PresetSnapshot) countEligible() int32 {
 // These counts are tracked at the template level, so all presets sharing the same template see the same values.
 func (p PresetSnapshot) countInProgress() (int32, int32, int32) {
 	var starting, stopping, deleting int32
-
-	// In-progress builds are tracked at the template level, not per preset.
-	// This means all presets sharing the same template will see the same counts
-	// for starting, stopping, and deleting prebuilds.
-	// TODO(yevhenii): is it correct behavior?
+	
 	for _, progress := range p.InProgress {
 		num := progress.Count
 		switch progress.Transition {
