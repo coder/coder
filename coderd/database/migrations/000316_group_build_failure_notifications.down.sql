@@ -17,5 +17,5 @@ We recommend reviewing these issues to ensure future builds are successful.',
             "label": "View workspaces",
             "url": "{{ base_url }}/workspaces?filter=template%3A{{.Labels.template_name}}"
         }
-    ]'::jsonb)
+    ]'::jsonb
 WHERE id = '34a20db2-e9cc-4a93-b0e4-8569699d7a00';
