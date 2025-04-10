@@ -156,6 +156,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		}
 
 		var eg errgroup.Group
+		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
 			ps, err := snapshot.FilterByPreset(preset.ID)
 			if err != nil {
@@ -182,6 +183,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			})
 		}
 
+		// Release lock only when all preset reconciliation goroutines are finished.
 		return eg.Wait()
 	})
 	if err != nil {
@@ -191,8 +193,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	return err
 }
 
-// SnapshotState determines the current state of prebuilds & the presets which define them.
-// An application-level lock is used
+// SnapshotState captures the current state of all prebuilds across templates.
 func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Store) (*prebuilds.GlobalSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
