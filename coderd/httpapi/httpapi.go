@@ -210,8 +210,6 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 		//   configured on server startup for development and testing builds.
 		// - If this header is missing from a response, make sure the response is
 		//   being written by calling `httpapi.Write`!
-		// - An empty x-authz-checks header can be valid! Some requests don't
-		//   require authorization.
 		rw.Header().Set("x-authz-checks", rec.String())
 	}
 
@@ -231,7 +229,7 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	defer span.End()
 
 	if rec, ok := rbac.GetAuthzCheckRecorder(ctx); ok {
-		rw.Header().Set("x-dbauthz-checks", rec.String())
+		rw.Header().Set("x-authz-checks", rec.String())
 	}
 
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")

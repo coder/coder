@@ -1,7 +1,6 @@
 package syncmap
 
 import (
-	"iter"
 	"sync"
 )
 
@@ -77,10 +76,4 @@ func (m *Map[K, V]) Range(f func(key K, value V) bool) {
 	m.m.Range(func(key, value interface{}) bool {
 		return f(key.(K), value.(V))
 	})
-}
-
-func (m *Map[K, V]) Seq() iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		m.Range(yield)
-	}
 }

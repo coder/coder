@@ -24,9 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/util/syncmap"
 )
 
 type AuthCall struct {
@@ -770,16 +768,21 @@ func (c *authRecorder) Prepare(ctx context.Context, subject Subject, action poli
 
 type authzCheckRecorderKey struct{}
 
-func WithAuthzCheckRecorder(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authzCheckRecorderKey{}, ptr.Ref(AuthzCheckRecorder{
-		checks: syncmap.Map[string, bool]{},
-	}))
+type AuthzCheckRecorder struct {
+	// lock guards checks
+	lock sync.Mutex
+	// checks is a list preformatted authz check IDs and their result
+	checks []recordedCheck
 }
 
-type AuthzCheckRecorder struct {
-	// Checks is a map from preformatted authz check IDs to their authorization
-	// status (true => authorized, false => not authorized)
-	checks syncmap.Map[string, bool]
+type recordedCheck struct {
+	name string
+	// true => authorized, false => not authorized
+	result bool
+}
+
+func WithAuthzCheckRecorder(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authzCheckRecorderKey{}, &AuthzCheckRecorder{})
 }
 
 func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, authorized bool) {
@@ -819,7 +822,9 @@ func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, 
 		return
 	}
 
-	r.checks.Store(b.String(), authorized)
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.checks = append(r.checks, recordedCheck{name: b.String(), result: authorized})
 }
 
 func GetAuthzCheckRecorder(ctx context.Context) (*AuthzCheckRecorder, bool) {
@@ -833,8 +838,15 @@ func GetAuthzCheckRecorder(ctx context.Context) (*AuthzCheckRecorder, bool) {
 
 // String serializes all of the checks recorded, using the following syntax:
 func (r *AuthzCheckRecorder) String() string {
-	checks := make([]string, 0)
-	for check, result := range r.checks.Seq() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if len(r.checks) == 0 {
+		return "nil"
+	}
+
+	checks := make([]string, 0, len(r.checks))
+	for check, result := range r.checks {
 		checks = append(checks, fmt.Sprintf("%v=%v", check, result))
 	}
 	return strings.Join(checks, "; ")
