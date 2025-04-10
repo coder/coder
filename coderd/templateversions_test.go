@@ -619,7 +619,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create a template version from the archive
-				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				tvName := testutil.GetRandomNameHyphenated(t)
 				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
 					Name:            tvName,
 					StorageMethod:   codersdk.ProvisionerStorageMethodFile,

@@ -99,7 +99,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 
 				{!isLoading && licenses && licenses?.length > 0 && (
 					<Stack spacing={4} className="licenses">
-						{licenses
+						{[...(licenses ?? [])]
 							?.sort(
 								(a, b) =>
 									new Date(b.claims.license_expires).valueOf() -
