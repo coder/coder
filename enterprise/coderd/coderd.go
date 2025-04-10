@@ -71,6 +71,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 	if options.ReplicaErrorGracePeriod == 0 {
 		// This will prevent the error from being shown for a minute

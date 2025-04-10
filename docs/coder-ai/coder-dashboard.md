@@ -1,6 +1,7 @@
 > [!NOTE]
 >
-> This functionality is in early access and still evolving.
+> This functionality is in early access and is evolving rapidly.
+>
 > For now, we recommend testing it in a demo or staging environment,
 > rather than deploying to production.
 >
@@ -17,9 +18,9 @@
 Once you have an agent running and reporting activity to Coder, you can view
 status and switch between workspaces from the Coder dashboard.
 
-![Coder Dashboard](../../images/guides/ai-agents/workspaces-list.png)
+![Coder Dashboard](../images/guides/ai-agents/workspaces-list.png)
 
-![Workspace Details](../../images/guides/ai-agents/workspace-details.png)
+![Workspace Details](../images/guides/ai-agents/workspace-details.png)
 
 ## Next Steps
 

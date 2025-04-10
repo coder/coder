@@ -1,6 +1,8 @@
 package syncmap
 
-import "sync"
+import (
+	"sync"
+)
 
 // Map is a type safe sync.Map
 type Map[K, V any] struct {
