@@ -283,6 +283,10 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 
 	// Check that the job has completed successfully
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -292,7 +296,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	}
 	if !job.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
-			Message: "Job hasn't completed!",
+			Message: "Template version job has not finished",
 		})
 		return
 	}
@@ -309,7 +313,8 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	input := preview.Input{
 		PlanJSON:        plan,
 		ParameterValues: map[string]string{},
-		// TODO: fill this out
+		// TODO: write a db query that fetches all of the data needed to fill out
+		// this owner value
 		Owner: previewtypes.WorkspaceOwner{
 			Groups: []string{"Everyone"},
 		},
@@ -357,7 +362,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	if result != nil {
 		response.Parameters = result.Parameters
 	}
-	_ = stream.Send(response)
+	err = stream.Send(response)
+	if err != nil {
+		stream.Drop()
+		return
+	}
 
 	// As the user types into the form, reprocess the state using their input,
 	// and respond with updates.
@@ -367,7 +376,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		case <-ctx.Done():
 			stream.Close(websocket.StatusGoingAway)
 			return
-		case update := <-updates:
+		case update, ok := <-updates:
+			if !ok {
+				// The connection has been closed, so there is no one to write to
+				return
+			}
 			input.ParameterValues = update.Inputs
 			result, diagnostics := preview.Preview(ctx, input, fs)
 			response := codersdk.DynamicParametersResponse{
@@ -377,7 +390,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 			if result != nil {
 				response.Parameters = result.Parameters
 			}
-			_ = stream.Send(response)
+			err = stream.Send(response)
+			if err != nil {
+				stream.Drop()
+				return
+			}
 		}
 	}
 }
@@ -404,7 +421,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 	}
 	if !job.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
-			Message: "Job hasn't completed!",
+			Message: "Template version job has not finished",
 		})
 		return
 	}
@@ -544,7 +561,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 	}
 	if !job.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Job hasn't completed!",
+			Message: "Template version job has not finished",
 		})
 		return
 	}

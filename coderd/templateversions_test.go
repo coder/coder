@@ -2294,10 +2294,11 @@ func TestTemplateVersionDynamicParameters(t *testing.T) {
 	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
 
 	// Send a new value, and see it reflected
-	stream.Send(codersdk.DynamicParametersRequest{
+	err = stream.Send(codersdk.DynamicParametersRequest{
 		ID:     1,
 		Inputs: map[string]string{"group": "Bloob"},
 	})
+	require.NoError(t, err)
 	preview = testutil.RequireRecvCtx(ctx, t, previews)
 	require.Equal(t, 1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
@@ -2306,10 +2307,11 @@ func TestTemplateVersionDynamicParameters(t *testing.T) {
 	require.Equal(t, "Bloob", preview.Parameters[0].Value.Value.AsString())
 
 	// Back to default
-	stream.Send(codersdk.DynamicParametersRequest{
+	err = stream.Send(codersdk.DynamicParametersRequest{
 		ID:     3,
 		Inputs: map[string]string{},
 	})
+	require.NoError(t, err)
 	preview = testutil.RequireRecvCtx(ctx, t, previews)
 	require.Equal(t, 3, preview.ID)
 	require.Empty(t, preview.Diagnostics)
