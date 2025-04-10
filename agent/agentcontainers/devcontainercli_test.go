@@ -35,6 +35,8 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	t.Run("Up", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []struct {
 			name      string
 			logFile   string
