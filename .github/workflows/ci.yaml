@@ -348,11 +348,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
           $files = Get-ChildItem -Path $env:RUNNER_TEMP -Recurse -File
           $files | Select-Object FullName, Length
           $files | Measure-Object -Property Length -Sum | Select-Object Sum
-          throw "done"
           Move-Item -Path $env:RUNNER_TOOL_CACHE -Destination "$env:RUNNER_TOOL_CACHE.old" -Force -ErrorAction SilentlyContinue
           Move-Item -Path $env:RUNNER_TEMP -Destination "$env:RUNNER_TEMP.old" -Force -ErrorAction SilentlyContinue
           "RUNNER_TEMP=R:\tmp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
