@@ -124,9 +124,6 @@ func (s Subject) WithCachedASTValue() Subject {
 }
 
 func (s Subject) Equal(b Subject) bool {
-	if s.Type != b.Type {
-		return false
-	}
 	if s.ID != b.ID {
 		return false
 	}
