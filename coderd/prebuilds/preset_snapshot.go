@@ -56,7 +56,7 @@ type ReconciliationState struct {
 }
 
 // ReconciliationActions represents actions needed to reconcile the current state with the desired state.
-// Exactly one field will be set based on the ActionType.
+// Based on ActionType, exactly one of Create, DeleteIDs, or BackoffUntil will be set.
 type ReconciliationActions struct {
 	// ActionType determines which field is set and what action should be taken
 	ActionType ActionType
