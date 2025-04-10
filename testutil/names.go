@@ -26,7 +26,7 @@ func GetRandomName(t testing.TB) string {
 	return incSuffix(name, n.Add(1), maxNameLen)
 }
 
-// GetRandomnameHyphenated is as GetRandomName but uses a hyphen "-" instead of
+// GetRandomNameHyphenated is as GetRandomName but uses a hyphen "-" instead of
 // an underscore.
 func GetRandomNameHyphenated(t testing.TB) string {
 	t.Helper()
