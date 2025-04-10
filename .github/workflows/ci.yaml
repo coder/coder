@@ -341,15 +341,15 @@ jobs:
           fetch-depth: 1
 
       - name: Setup ImDisk
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && github.repository_owner == 'coder'
         uses: ./.github/actions/setup-imdisk
 
       - name: Setup Windows paths
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Remove-Item -Path $env:RUNNER_TOOL_CACHE -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path $env:RUNNER_TEMP -Recurse -Force -ErrorAction SilentlyContinue
+          Move-Item -Path $env:RUNNER_TOOL_CACHE -Destination "$env:RUNNER_TOOL_CACHE.old" -Force -ErrorAction SilentlyContinue
+          Move-Item -Path $env:RUNNER_TEMP -Destination "$env:RUNNER_TEMP.old" -Force -ErrorAction SilentlyContinue
           "RUNNER_TEMP=R:\tmp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           # "RUNNER_TOOL_CACHE=R:\toolcache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           New-Item -ItemType Directory -Path "R:\toolcache" -Force -ErrorAction SilentlyContinue
@@ -358,8 +358,6 @@ jobs:
           New-Item -ItemType SymbolicLink -Path $env:RUNNER_TEMP -Target "R:\tmp" -Force
           "GOPATH=R:\go" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "R:\go\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -390,60 +388,6 @@ jobs:
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast
-
-      - name: Upload test stats to Datadog
-        timeout-minutes: 1
-        continue-on-error: true
-        uses: ./.github/actions/upload-datadog
-        if: success() || failure()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
-
-  # We don't run the full test-suite for Windows & MacOS, so we just run the CLI tests on every PR.
-  # We run the test suite in test-go-pg, including CLI.
-  test-cli:
-    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
-    needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    strategy:
-      matrix:
-        os:
-          - macos-latest
-          - windows-2022
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 1
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
-      - name: Setup ImDisk
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/setup-imdisk
-
-      - name: Test CLI
-        env:
-          TS_DEBUG_DISCO: "true"
-          LC_CTYPE: "en_US.UTF-8"
-          LC_ALL: "en_US.UTF-8"
-        shell: bash
-        run: |
-          # By default Go will use the number of logical CPUs, which
-          # is a fine default.
-          PARALLEL_FLAG=""
-
-          make test-cli
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
