@@ -61,8 +61,10 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		reconciliationInterval = 5 * time.Minute
 	}
 
-	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval),
-		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()), slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
+	c.logger.Info(ctx, "starting reconciler",
+		slog.F("interval", reconciliationInterval),
+		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()),
+		slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
 
 	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
