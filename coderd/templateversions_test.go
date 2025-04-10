@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -2134,143 +2135,27 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed)+1, "remaining versions")
 }
 
-const dynamicParametersTerraformSource = `
-terraform {
-  required_providers {
-    coder = {
-      source = "coder/coder"
-    }
-  }
-}
-
-data coder_workspace_owner "me" {}
-
-output "groups" {
-  value = data.coder_workspace_owner.me.groups
-}
-
-data "coder_parameter" "group" {
-  name = "group"
-  default = try(data.coder_workspace_owner.me.groups[0], "")
-  dynamic "option" {
-    for_each = data.coder_workspace_owner.me.groups
-    content {
-      name  = option.value
-      value = option.value
-    }
-  }
-}
-`
-
-const dynamicParametersTerraformPlan = `
-{
-  "terraform_version": "1.11.2",
-  "format_version": "1.2",
-  "checks": [],
-  "complete": true,
-  "timestamp": "2025-04-02T01:29:59Z",
-  "variables": {},
-  "prior_state": {
-    "values": {
-      "root_module": {
-        "resources": [
-          {
-            "mode": "data",
-            "name": "me",
-            "type": "coder_workspace_owner",
-            "address": "data.coder_workspace_owner.me",
-            "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
-            "values": {
-              "id": "25e81ec3-0eb9-4ee3-8b6d-738b8552f7a9",
-              "name": "default",
-              "email": "default@example.com",
-              "groups": [],
-              "full_name": "default",
-              "login_type": null,
-              "rbac_roles": [],
-              "session_token": "",
-              "ssh_public_key": "",
-              "ssh_private_key": "",
-              "oidc_access_token": ""
-            },
-            "sensitive_values": {
-              "groups": [],
-              "rbac_roles": [],
-              "ssh_private_key": true
-            }
-          }
-        ],
-        "child_modules": []
-      }
-    },
-    "format_version": "1.0",
-    "terraform_version": "1.11.2"
-  },
-  "configuration": {
-    "root_module": {
-      "resources": [
-        {
-          "mode": "data",
-          "name": "me",
-          "type": "coder_workspace_owner",
-          "address": "data.coder_workspace_owner.me",
-          "schema_version": 0,
-          "provider_config_key": "coder"
-        }
-      ],
-      "variables": {},
-      "module_calls": {}
-    },
-    "provider_config": {
-      "coder": {
-        "name": "coder",
-        "full_name": "registry.terraform.io/coder/coder"
-      }
-    }
-  },
-  "planned_values": {
-    "root_module": {
-      "resources": [],
-      "child_modules": []
-    }
-  },
-  "resource_changes": [],
-  "relevant_attributes": [
-    {
-      "resource": "data.coder_workspace_owner.me",
-      "attribute": ["full_name"]
-    },
-    {
-      "resource": "data.coder_workspace_owner.me",
-      "attribute": ["email"]
-    },
-    {
-      "resource": "data.coder_workspace_owner.me",
-      "attribute": ["id"]
-    },
-    {
-      "resource": "data.coder_workspace_owner.me",
-      "attribute": ["name"]
-    }
-  ]
-}
-`
-
 func TestTemplateVersionDynamicParameters(t *testing.T) {
 	t.Parallel()
 
-	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	cfg := coderdtest.DeploymentValues(t)
+	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
+	dynamicParametersTerraformSource, err := os.ReadFile("testdata/dynamicparameters/groups/main.tf")
+	require.NoError(t, err)
+	dynamicParametersTerraformPlan, err := os.ReadFile("testdata/dynamicparameters/groups/plan.json")
+	require.NoError(t, err)
+
 	files := echo.WithExtraFiles(map[string][]byte{
-		"main.tf": []byte(dynamicParametersTerraformSource),
+		"main.tf": dynamicParametersTerraformSource,
 	})
 	files.ProvisionPlan = []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{
-				Plan: []byte(dynamicParametersTerraformPlan),
+				Plan: dynamicParametersTerraformPlan,
 			},
 		},
 	}}
