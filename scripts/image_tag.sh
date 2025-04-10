@@ -9,7 +9,8 @@
 # the image tag for the multi-arch image will be returned instead.
 #
 # If no version is specified, defaults to the version from ./version.sh. If the
-# supplied version is one of "latest", "mainline", "stable", no `v` prefix will be added to the tag.
+# supplied version is one of "latest", "mainline", "stable", no `v` prefix will
+# be added to the tag.
 #
 # The returned tag will be sanitized to remove invalid characters like the plus
 # sign.
