@@ -156,7 +156,6 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			return nil
 		}
 
-		// TODO: bounded concurrency? probably not but consider
 		var eg errgroup.Group
 		for _, preset := range snapshot.Presets {
 			ps, err := snapshot.FilterByPreset(preset.ID)
