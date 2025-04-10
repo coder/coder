@@ -354,7 +354,7 @@ jobs:
           # because it contains some important files for the workflow.
           $runnerTemp = "R:\tmp"
           New-Item -ItemType Directory -Path $runnerTemp -Force
-          Copy-Item -Path $env:RUNNER_TEMP -Destination $runnerTemp -Force -Recurse
+          Copy-Item -Path "$($env:RUNNER_TEMP)\*" -Destination $runnerTemp -Force -Recurse
           # Move to .old so we don't need to waste I/O deleting it.
           Move-Item -Path $env:RUNNER_TEMP -Destination "$($env:RUNNER_TEMP).old" -Force
           # Create a symbolic link from the old path to the new path. You can't
