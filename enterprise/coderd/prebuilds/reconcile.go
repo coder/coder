@@ -133,7 +133,6 @@ func (c *StoreReconciler) isStopped() bool {
 // be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
 // simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
 // extraneous instance and delete it.
-// TODO: make this unexported?
 func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	logger := c.logger.With(slog.F("reconcile_context", "all"))
 
