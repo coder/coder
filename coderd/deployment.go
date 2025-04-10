@@ -4,11 +4,12 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/kylecarbs/aisdk-go"
+
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/kylecarbs/aisdk-go"
 )
 
 // @Summary Get deployment config

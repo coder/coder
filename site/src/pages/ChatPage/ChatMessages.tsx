@@ -49,7 +49,7 @@ const renderToolInvocation = (toolInvocation: any, theme: Theme) => (
 	>
 		<div
 			css={{
-				color: theme.palette.info.dark,
+				color: theme.palette.info.light,
 				fontStyle: "italic",
 				fontWeight: 500,
 				marginBottom: theme.spacing(0.5),
@@ -247,6 +247,11 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 											key={partIndex}
 											remarkPlugins={[remarkGfm]}
 											rehypePlugins={[rehypeRaw]}
+                                            css={{
+                                                "& pre": {
+                                                    backgroundColor: theme.palette.background.default,
+                                                },
+                                            }}
 										>
 											{part.text}
 										</ReactMarkdown>

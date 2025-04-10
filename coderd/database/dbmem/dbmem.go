@@ -8447,13 +8447,7 @@ func (q *FakeQuerier) InsertChat(ctx context.Context, arg database.InsertChatPar
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	chat := database.Chat{
-		ID:        arg.ID,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		OwnerID:   arg.OwnerID,
-		Title:     arg.Title,
-	}
+	chat := database.Chat(arg)
 	q.chats = append(q.chats, chat)
 
 	return chat, nil

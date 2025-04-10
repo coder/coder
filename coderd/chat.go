@@ -2,8 +2,12 @@ package coderd
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/kylecarbs/aisdk-go"
 
 	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/database"
@@ -12,11 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	codermcp "github.com/coder/coder/v2/mcp"
-	"github.com/google/uuid"
-	"github.com/kylecarbs/aisdk-go"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
 
 // postChats creates a new chat.
@@ -142,9 +142,10 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			Message: "Failed to get chat messages",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
-	messages := make([]aisdk.Message, len(dbMessages))
+	messages := make([]aisdk.Message, 0, len(dbMessages))
 	for i, message := range dbMessages {
 		err = json.Unmarshal(message.Content, &messages[i])
 		if err != nil {
@@ -157,31 +158,17 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	messages = append(messages, req.Message)
 
-	toolMap := codermcp.AllTools()
-	toolsByName := make(map[string]server.ToolHandlerFunc)
 	client := codersdk.New(api.AccessURL)
 	client.SetSessionToken(httpmw.APITokenFromRequest(r))
-	toolDeps := codermcp.ToolDeps{
-		Client: client,
-		Logger: &api.Logger,
-	}
-	for _, tool := range toolMap {
-		toolsByName[tool.Tool.Name] = tool.MakeHandler(toolDeps)
-	}
-	convertedTools := make([]aisdk.Tool, len(toolMap))
-	for i, tool := range toolMap {
-		schema := aisdk.Schema{
-			Required:   tool.Tool.InputSchema.Required,
-			Properties: tool.Tool.InputSchema.Properties,
+
+	tools := make([]aisdk.Tool, len(toolsdk.All))
+	handlers := map[string]toolsdk.GenericHandlerFunc{}
+	for i, tool := range toolsdk.All {
+		if tool.Tool.Schema.Required == nil {
+			tool.Tool.Schema.Required = []string{}
 		}
-		if tool.Tool.InputSchema.Required == nil {
-			schema.Required = []string{}
-		}
-		convertedTools[i] = aisdk.Tool{
-			Name:        tool.Tool.Name,
-			Description: tool.Tool.Description,
-			Schema:      schema,
-		}
+		tools[i] = tool.Tool
+		handlers[tool.Tool.Name] = tool.Handler
 	}
 
 	provider, ok := api.LanguageModels[req.Model]
@@ -190,6 +177,44 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			Message: "Model not found",
 		})
 		return
+	}
+
+	// If it's the user's first message, generate a title for the chat.
+	if len(messages) == 1 {
+		var acc aisdk.DataStreamAccumulator
+		stream, err := provider.StreamFunc(ctx, ai.StreamOptions{
+			Model: req.Model,
+			SystemPrompt: `- You will generate a short title based on the user's message.
+- It should be maximum of 40 characters.
+- Do not use quotes, colons, special characters, or emojis.`,
+			Messages: messages,
+			Tools:    tools,
+		})
+		if err != nil {
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to create stream",
+				Detail:  err.Error(),
+			})
+		}
+		stream = stream.WithAccumulator(&acc)
+		err = stream.Pipe(io.Discard)
+		if err != nil {
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to pipe stream",
+				Detail:  err.Error(),
+			})
+		}
+		err = api.Database.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+			ID:    chat.ID,
+			Title: acc.Messages()[0].Content,
+		})
+		if err != nil {
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat title",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	// Write headers for the data stream!
@@ -219,12 +244,20 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	deps := toolsdk.Deps{
+		CoderClient: client,
+	}
+
 	for {
 		var acc aisdk.DataStreamAccumulator
 		stream, err := provider.StreamFunc(ctx, ai.StreamOptions{
 			Model:    req.Model,
 			Messages: messages,
-			Tools:    convertedTools,
+			Tools:    tools,
+			SystemPrompt: `You are a chat assistant for Coder. You will attempt to resolve the user's
+request to the maximum utilization of your tools.
+
+Try your best to not ask the user for help - solve the task with your tools!`,
 		})
 		if err != nil {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
@@ -234,28 +267,21 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		stream = stream.WithToolCalling(func(toolCall aisdk.ToolCall) any {
-			tool, ok := toolsByName[toolCall.Name]
+			tool, ok := handlers[toolCall.Name]
 			if !ok {
 				return nil
 			}
-			result, err := tool(ctx, mcp.CallToolRequest{
-				Params: struct {
-					Name      string                 "json:\"name\""
-					Arguments map[string]interface{} "json:\"arguments,omitempty\""
-					Meta      *struct {
-						ProgressToken mcp.ProgressToken "json:\"progressToken,omitempty\""
-					} "json:\"_meta,omitempty\""
-				}{
-					Name:      toolCall.Name,
-					Arguments: toolCall.Args,
-				},
-			})
+			toolArgs, err := json.Marshal(toolCall.Args)
+			if err != nil {
+				return nil
+			}
+			result, err := tool(ctx, deps, toolArgs)
 			if err != nil {
 				return map[string]any{
 					"error": err.Error(),
 				}
 			}
-			return result.Content
+			return result
 		}).WithAccumulator(&acc)
 
 		err = stream.Pipe(w)
