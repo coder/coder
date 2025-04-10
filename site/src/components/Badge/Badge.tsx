@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/badge}
  */
-import { type VariantProps, cva } from "class-variance-authority";
-import  { forwardRef } from "react";
 import { Slot } from "@radix-ui/react-slot";
+import { type VariantProps, cva } from "class-variance-authority";
+import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
 export const badgeVariants = cva(
@@ -34,12 +34,12 @@ export const badgeVariants = cva(
 export interface BadgeProps
 	extends React.HTMLAttributes<HTMLDivElement>,
 		VariantProps<typeof badgeVariants> {
-			asChild?: boolean;
-		}
+	asChild?: boolean;
+}
 
 export const Badge = forwardRef<HTMLDivElement, BadgeProps>(
 	({ className, variant, size, asChild = false, ...props }, ref) => {
-		const Comp = asChild ? Slot : "div"
+		const Comp = asChild ? Slot : "div";
 
 		return (
 			<Comp
