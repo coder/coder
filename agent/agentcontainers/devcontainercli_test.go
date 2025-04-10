@@ -109,11 +109,9 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 
 				testExecer := &testDevcontainerExecer{
 					testExePath: testExePath,
-					extraEnv: []string{
-						"TEST_DEVCONTAINER_WANT_ARGS=" + tt.wantArgs,
-						"TEST_DEVCONTAINER_WANT_ERROR=" + fmt.Sprintf("%v", tt.wantError),
-						"TEST_DEVCONTAINER_LOG_FILE=" + filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
-					},
+					wantArgs:    tt.wantArgs,
+					wantError:   tt.wantError,
+					logFile:     filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
 				}
 
 				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
@@ -133,7 +131,9 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.
 type testDevcontainerExecer struct {
 	testExePath string
-	extraEnv    []string
+	wantArgs    string
+	wantError   bool
+	logFile     string
 }
 
 // CommandContext returns a test binary command that simulates devcontainer responses.
@@ -155,9 +155,13 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 
 	//nolint:gosec // This is a test binary, so we don't need to worry about command injection.
 	cmd := exec.CommandContext(ctx, e.testExePath, testArgs...)
-	cmd.Env = append(os.Environ(), e.extraEnv...)
-	// Set this environment va[riable so the child process knows it's the helper.
-	cmd.Env = append(cmd.Env, "TEST_DEVCONTAINER_WANT_HELPER_PROCESS=1")
+	// Set this environment variable so the child process knows it's the helper.
+	cmd.Env = append(os.Environ(),
+		"TEST_DEVCONTAINER_WANT_HELPER_PROCESS=1",
+		"TEST_DEVCONTAINER_WANT_ARGS="+e.wantArgs,
+		"TEST_DEVCONTAINER_WANT_ERROR="+fmt.Sprintf("%v", e.wantError),
+		"TEST_DEVCONTAINER_LOG_FILE="+e.logFile,
+	)
 
 	return cmd
 }
