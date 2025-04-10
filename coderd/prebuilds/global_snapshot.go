@@ -45,13 +45,8 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return prebuild.CurrentPresetID.UUID == preset.ID
 	})
 
-	// These aren't preset-specific, but they need to inhibit all presets of this template from operating since they could
-	// be in-progress builds which might impact another preset. For example, if a template goes from no defined prebuilds to defined prebuilds
-	// and back, or a template is updated from one version to another.
-	// We group by the template so that all prebuilds being provisioned for a prebuild are inhibited if any prebuild for
-	// any preset in that template are in progress, to prevent clobbering.
 	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
-		return prebuild.TemplateID == preset.TemplateID
+		return prebuild.PresetID == preset.ID
 	})
 
 	var backoffPtr *database.GetPresetsBackoffRow
@@ -60,6 +55,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	})
 	if found {
 		backoffPtr = &backoff
+
 	}
 
 	return &PresetSnapshot{

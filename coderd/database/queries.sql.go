@@ -6002,7 +6002,7 @@ func (q *sqlQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebui
 }
 
 const countInProgressPrebuilds = `-- name: CountInProgressPrebuilds :many
-SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
+SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count, tvp.id as preset_id
 FROM workspace_latest_builds wlb
 		INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		-- We only need these counts for active template versions.
@@ -6012,8 +6012,9 @@ FROM workspace_latest_builds wlb
 		-- running prebuilds for inactive template versions, and we ignore
 		-- prebuilds that are still building.
 		INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
+        INNER JOIN template_version_presets tvp ON wlb.template_version_preset_id = tvp.id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
-GROUP BY t.id, wpb.template_version_id, wpb.transition
+GROUP BY t.id, wpb.template_version_id, wpb.transition, tvp.id
 `
 
 type CountInProgressPrebuildsRow struct {
@@ -6021,6 +6022,7 @@ type CountInProgressPrebuildsRow struct {
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	Count             int32               `db:"count" json:"count"`
+	PresetID          uuid.UUID           `db:"preset_id" json:"preset_id"`
 }
 
 // CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
@@ -6039,6 +6041,7 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 			&i.TemplateVersionID,
 			&i.Transition,
 			&i.Count,
+			&i.PresetID,
 		); err != nil {
 			return nil, err
 		}

@@ -63,64 +63,6 @@ var opts = map[uint]options{
 	},
 }
 
-func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
-	t.Parallel()
-
-	templateID := uuid.New()
-	templateVersionID := uuid.New()
-	presetOpts1 := options{
-		templateID:        templateID,
-		templateVersionID: templateVersionID,
-		presetID:          uuid.New(),
-		presetName:        "my-preset-1",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds1",
-	}
-	presetOpts2 := options{
-		templateID:        templateID,
-		templateVersionID: templateVersionID,
-		presetID:          uuid.New(),
-		presetName:        "my-preset-2",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds2",
-	}
-
-	clock := quartz.NewMock(t)
-
-	presets := []database.GetTemplatePresetsWithPrebuildsRow{
-		preset(true, 0, presetOpts1),
-		preset(true, 0, presetOpts2),
-	}
-
-	inProgress := []database.CountInProgressPrebuildsRow{
-		{
-			TemplateID:        templateID,
-			TemplateVersionID: templateVersionID,
-			Transition:        database.WorkspaceTransitionStart,
-			Count:             1,
-		},
-	}
-
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, inProgress, nil)
-
-	for _, presetID := range []uuid.UUID{presetOpts1.presetID, presetOpts2.presetID} {
-		ps, err := snapshot.FilterByPreset(presetID)
-		require.NoError(t, err)
-
-		state := ps.CalculateState()
-		actions, err := ps.CalculateActions(clock, backoffInterval)
-		require.NoError(t, err)
-
-		validateState(t, prebuilds.ReconciliationState{
-			Starting: 1,
-		}, *state)
-		validateActions(t, prebuilds.ReconciliationActions{
-			ActionType: prebuilds.ActionTypeCreate,
-			Create:     0,
-		}, *actions)
-	}
-}
-
 // A new template version with a preset without prebuilds configured should result in no prebuilds being created.
 func TestNoPrebuilds(t *testing.T) {
 	t.Parallel()
@@ -414,8 +356,9 @@ func TestInProgressActions(t *testing.T) {
 			t.Parallel()
 
 			// GIVEN: a preset.
+			defaultPreset := preset(true, tc.desired, current)
 			presets := []database.GetTemplatePresetsWithPrebuildsRow{
-				preset(true, tc.desired, current),
+				defaultPreset,
 			}
 
 			// GIVEN: a running prebuild for the preset.
@@ -441,6 +384,7 @@ func TestInProgressActions(t *testing.T) {
 					TemplateVersionID: current.templateVersionID,
 					Transition:        tc.transition,
 					Count:             tc.inProgress,
+					PresetID:          defaultPreset.ID,
 				},
 			}
 
@@ -626,6 +570,86 @@ func TestLatestBuildFailed(t *testing.T) {
 		Create:       1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
 		BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
+}
+
+func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
+	t.Parallel()
+
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	presetOpts1 := options{
+		templateID:        templateID,
+		templateVersionID: templateVersionID,
+		presetID:          uuid.New(),
+		presetName:        "my-preset-1",
+		prebuildID:        uuid.New(),
+		workspaceName:     "prebuilds1",
+	}
+	presetOpts2 := options{
+		templateID:        templateID,
+		templateVersionID: templateVersionID,
+		presetID:          uuid.New(),
+		presetName:        "my-preset-2",
+		prebuildID:        uuid.New(),
+		workspaceName:     "prebuilds2",
+	}
+
+	clock := quartz.NewMock(t)
+
+	presets := []database.GetTemplatePresetsWithPrebuildsRow{
+		preset(true, 1, presetOpts1),
+		preset(true, 1, presetOpts2),
+	}
+
+	inProgress := []database.CountInProgressPrebuildsRow{
+		{
+			TemplateID:        templateID,
+			TemplateVersionID: templateVersionID,
+			Transition:        database.WorkspaceTransitionStart,
+			Count:             1,
+			PresetID:          presetOpts1.presetID,
+		},
+	}
+
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, inProgress, nil)
+
+	// Nothing has to be created for preset 1.
+	{
+		ps, err := snapshot.FilterByPreset(presetOpts1.presetID)
+		require.NoError(t, err)
+
+		state := ps.CalculateState()
+		actions, err := ps.CalculateActions(clock, backoffInterval)
+		require.NoError(t, err)
+
+		validateState(t, prebuilds.ReconciliationState{
+			Starting: 1,
+			Desired:  1,
+		}, *state)
+		validateActions(t, prebuilds.ReconciliationActions{
+			ActionType: prebuilds.ActionTypeCreate,
+			Create:     0,
+		}, *actions)
+	}
+
+	// One prebuild has to be created for preset 2. Make sure preset 1 doesn't block preset 2.
+	{
+		ps, err := snapshot.FilterByPreset(presetOpts2.presetID)
+		require.NoError(t, err)
+
+		state := ps.CalculateState()
+		actions, err := ps.CalculateActions(clock, backoffInterval)
+		require.NoError(t, err)
+
+		validateState(t, prebuilds.ReconciliationState{
+			Starting: 0,
+			Desired:  1,
+		}, *state)
+		validateActions(t, prebuilds.ReconciliationActions{
+			ActionType: prebuilds.ActionTypeCreate,
+			Create:     1,
+		}, *actions)
+	}
 }
 
 func preset(active bool, instances int32, opts options, muts ...func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {

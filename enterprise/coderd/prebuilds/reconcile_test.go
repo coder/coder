@@ -131,93 +131,6 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.Empty(t, jobs)
 }
 
-func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
-	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
-	prebuildLatestTransition := database.WorkspaceTransitionStart
-	prebuildJobStatus := database.ProvisionerJobStatusRunning
-	templateDeleted := false
-
-	clock := quartz.NewMock(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	cfg := codersdk.PrebuildsConfig{}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
-	db, pubsub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
-
-	ownerID := uuid.New()
-	dbgen.User(t, db, database.User{
-		ID: ownerID,
-	})
-	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
-	templateVersionID := setupTestDBTemplateVersion(
-		ctx,
-		t,
-		clock,
-		db,
-		pubsub,
-		org.ID,
-		ownerID,
-		template.ID,
-	)
-	preset := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		4,
-		uuid.New().String(),
-	)
-	preset2 := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		10,
-		uuid.New().String(),
-	)
-	prebuildIDs := make([]uuid.UUID, 0)
-	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
-		prebuild := setupTestDBPrebuild(
-			t,
-			clock,
-			db,
-			pubsub,
-			prebuildLatestTransition,
-			prebuildJobStatus,
-			org.ID,
-			preset,
-			template.ID,
-			templateVersionID,
-		)
-		prebuildIDs = append(prebuildIDs, prebuild.ID)
-	}
-
-	// Run the reconciliation multiple times to ensure idempotency
-	// 8 was arbitrary, but large enough to reasonably trust the result
-	// TODO(yevhenii): replace to 8
-	for i := 1; i <= 1; i++ {
-		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
-
-		newPrebuildCount := 0
-		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
-		require.NoError(t, err)
-		for _, workspace := range workspaces {
-			if slice.Contains(prebuildIDs, workspace.ID) {
-				continue
-			}
-			newPrebuildCount++
-		}
-
-		// TODO(yevhenii): preset1 block creation of instances in preset2, is it expected?
-		require.Equal(t, preset2.DesiredInstances.Int32-preset.DesiredInstances.Int32, int32(newPrebuildCount))
-	}
-}
-
 func TestPrebuildReconciliation(t *testing.T) {
 	t.Parallel()
 
@@ -484,6 +397,92 @@ func TestPrebuildReconciliation(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	prebuildLatestTransition := database.WorkspaceTransitionStart
+	prebuildJobStatus := database.ProvisionerJobStatusRunning
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubsub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(
+		ctx,
+		t,
+		clock,
+		db,
+		pubsub,
+		org.ID,
+		ownerID,
+		template.ID,
+	)
+	preset := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		4,
+		uuid.New().String(),
+	)
+	preset2 := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		10,
+		uuid.New().String(),
+	)
+	prebuildIDs := make([]uuid.UUID, 0)
+	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
+		prebuild := setupTestDBPrebuild(
+			t,
+			clock,
+			db,
+			pubsub,
+			prebuildLatestTransition,
+			prebuildJobStatus,
+			org.ID,
+			preset,
+			template.ID,
+			templateVersionID,
+		)
+		prebuildIDs = append(prebuildIDs, prebuild.ID)
+	}
+
+	// Run the reconciliation multiple times to ensure idempotency
+	// 8 was arbitrary, but large enough to reasonably trust the result
+	for i := 1; i <= 8; i++ {
+		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+
+		newPrebuildCount := 0
+		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+		require.NoError(t, err)
+		for _, workspace := range workspaces {
+			if slice.Contains(prebuildIDs, workspace.ID) {
+				continue
+			}
+			newPrebuildCount++
+		}
+
+		// NOTE: preset1 doesn't block creation of instances in preset2
+		require.Equal(t, preset2.DesiredInstances.Int32, int32(newPrebuildCount))
 	}
 }
 
