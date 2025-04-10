@@ -406,8 +406,72 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		ctx     = r.Context()
 		apiKey  = httpmw.APIKey(r)
 		auditor = api.Auditor.Load()
-		user    = httpmw.UserParam(r)
 	)
+
+	var req codersdk.CreateWorkspaceRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var owner workspaceOwner
+	// This user fetch is an optimization path for the most common case of creating a
+	// workspace for 'Me'.
+	//
+	// This is also required to allow `owners` to create workspaces for users
+	// that are not in an organization.
+	user, ok := httpmw.UserParamOptional(r)
+	if ok {
+		owner = workspaceOwner{
+			ID:        user.ID,
+			Username:  user.Username,
+			AvatarURL: user.AvatarURL,
+		}
+	} else {
+		// A workspace can still be created if the caller can read the organization
+		// member. The organization is required, which can be sourced from the
+		// template.
+		//
+		// TODO: This code gets called twice for each workspace build request.
+		//   This is inefficient and costs at most 2 extra RTTs to the DB.
+		//   This can be optimized. It exists as it is now for code simplicity.
+		//   The most common case is to create a workspace for 'Me'. Which does
+		//   not enter this code branch.
+		template, ok := requestTemplate(ctx, rw, req, api.Database)
+		if !ok {
+			return
+		}
+
+		// We need to fetch the original user as a system user to fetch the
+		// user_id. 'ExtractUserContext' handles all cases like usernames,
+		// 'Me', etc.
+		// nolint:gocritic // The user_id needs to be fetched. This handles all those cases.
+		user, ok := httpmw.ExtractUserContext(dbauthz.AsSystemRestricted(ctx), api.Database, rw, r)
+		if !ok {
+			return
+		}
+
+		organizationMember, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: template.OrganizationID,
+			UserID:         user.ID,
+			IncludeSystem:  false,
+		}))
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching organization member.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		owner = workspaceOwner{
+			ID:        organizationMember.OrganizationMember.UserID,
+			Username:  organizationMember.Username,
+			AvatarURL: organizationMember.AvatarURL,
+		}
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
 		Audit:   *auditor,
@@ -415,22 +479,11 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		Request: r,
 		Action:  database.AuditActionCreate,
 		AdditionalFields: audit.AdditionalFields{
-			WorkspaceOwner: user.Username,
+			WorkspaceOwner: owner.Username,
 		},
 	})
 
 	defer commitAudit()
-
-	var req codersdk.CreateWorkspaceRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	owner := workspaceOwner{
-		ID:        user.ID,
-		Username:  user.Username,
-		AvatarURL: user.AvatarURL,
-	}
 	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
 }
 
@@ -450,65 +503,8 @@ func createWorkspace(
 	rw http.ResponseWriter,
 	r *http.Request,
 ) {
-	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
-	templateID := req.TemplateID
-	if templateID == uuid.Nil {
-		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
-		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
-				Validations: []codersdk.ValidationError{{
-					Field:  "template_version_id",
-					Detail: "template not found",
-				}},
-			})
-			return
-		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching template version.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if templateVersion.Archived {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Archived template versions cannot be used to make a workspace.",
-				Validations: []codersdk.ValidationError{
-					{
-						Field:  "template_version_id",
-						Detail: "template version archived",
-					},
-				},
-			})
-			return
-		}
-
-		templateID = templateVersion.TemplateID.UUID
-	}
-
-	template, err := api.Database.GetTemplateByID(ctx, templateID)
-	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q doesn't exist.", templateID.String()),
-			Validations: []codersdk.ValidationError{{
-				Field:  "template_id",
-				Detail: "template not found",
-			}},
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if template.Deleted {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
-		})
+	template, ok := requestTemplate(ctx, rw, req, api.Database)
+	if !ok {
 		return
 	}
 
@@ -774,6 +770,72 @@ func createWorkspace(
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, w)
+}
+
+func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, bool) {
+	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
+	templateID := req.TemplateID
+
+	if templateID == uuid.Nil {
+		templateVersion, err := db.GetTemplateVersionByID(ctx, req.TemplateVersionID)
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Template version %q doesn't exist.", req.TemplateVersionID),
+				Validations: []codersdk.ValidationError{{
+					Field:  "template_version_id",
+					Detail: "template not found",
+				}},
+			})
+			return database.Template{}, false
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version.",
+				Detail:  err.Error(),
+			})
+			return database.Template{}, false
+		}
+		if templateVersion.Archived {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Archived template versions cannot be used to make a workspace.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "template_version_id",
+						Detail: "template version archived",
+					},
+				},
+			})
+			return database.Template{}, false
+		}
+
+		templateID = templateVersion.TemplateID.UUID
+	}
+
+	template, err := db.GetTemplateByID(ctx, templateID)
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q doesn't exist.", templateID),
+			Validations: []codersdk.ValidationError{{
+				Field:  "template_id",
+				Detail: "template not found",
+			}},
+		})
+		return database.Template{}, false
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template.",
+			Detail:  err.Error(),
+		})
+		return database.Template{}, false
+	}
+	if template.Deleted {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return database.Template{}, false
+	}
+	return template, true
 }
 
 func (api *API) notifyWorkspaceCreated(
