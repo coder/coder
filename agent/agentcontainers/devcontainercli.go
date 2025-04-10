@@ -79,8 +79,8 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
 
 	var stdout bytes.Buffer
-	cmd.Stdout = io.MultiWriter(&stdout, &devcontainerCLIWriterLogger{ctx: ctx, logger: logger.With(slog.F("stdout", true))})
-	cmd.Stderr = &devcontainerCLIWriterLogger{ctx: ctx, logger: logger.With(slog.F("stderr", true))}
+	cmd.Stdout = io.MultiWriter(&stdout, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))})
+	cmd.Stderr = &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}
 
 	if err := cmd.Run(); err != nil {
 		if _, err2 := parseDevcontainerCLILastLine(ctx, logger, stdout.Bytes()); err2 != nil {
@@ -157,14 +157,14 @@ type devcontainerCLIJSONLogLine struct {
 	// More fields can be added here as needed.
 }
 
-// devcontainerCLIWriterLogger splits on newlines and logs each line
+// devcontainerCLILogWriter splits on newlines and logs each line
 // separately.
-type devcontainerCLIWriterLogger struct {
+type devcontainerCLILogWriter struct {
 	ctx    context.Context
 	logger slog.Logger
 }
 
-func (l *devcontainerCLIWriterLogger) Write(p []byte) (n int, err error) {
+func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 	s := bufio.NewScanner(bytes.NewReader(p))
 	for s.Scan() {
 		line := s.Bytes()
