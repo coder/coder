@@ -270,9 +270,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	}
 	levelFn(ctx, "reconciliation actions for preset are calculated", fields...)
 
-	// TODO: add quartz
-	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
-
 	switch actions.ActionType {
 	case prebuilds.ActionTypeBackoff:
 		// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
