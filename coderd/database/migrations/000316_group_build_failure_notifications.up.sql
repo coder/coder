@@ -19,5 +19,11 @@ E'The following templates have had build failures over the last {{.Data.report_f
 {{end}}
 {{end}}
 
-We recommend reviewing these issues to ensure future builds are successful.'
+We recommend reviewing these issues to ensure future builds are successful.',
+	actions = '[
+        {
+            "label": "View workspaces",
+            "url": "{{ base_url }}/workspaces?filter={{$first := true}}{{range $template := .Data.templates}}{{range $version := $template.versions}}{{range $build := $version.failed_builds}}{{if not $first}}+{{else}}{{$first = false}}{{end}}id%3A{{$build.workspace_id}}{{end}}{{end}}{{end}}"
+        }
+    ]'::jsonb
 WHERE id = '34a20db2-e9cc-4a93-b0e4-8569699d7a00';

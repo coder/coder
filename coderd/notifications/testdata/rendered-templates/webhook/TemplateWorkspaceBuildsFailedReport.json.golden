@@ -12,7 +12,7 @@
     "actions": [
       {
         "label": "View workspaces",
-        "url": "http://test.com/workspaces?filter=template%3A\u003cno value\u003e"
+        "url": "http://test.com/workspaces?filter=id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000+id%3A00000000-0000-0000-0000-000000000000"
       }
     ],
     "labels": {},
@@ -29,16 +29,19 @@
               "failed_builds": [
                 {
                   "build_number": 1234,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "workspace-1",
                   "workspace_owner_username": "mtojek"
                 },
                 {
                   "build_number": 5678,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "my-workspace-3",
                   "workspace_owner_username": "johndoe"
                 },
                 {
                   "build_number": 774,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "workwork",
                   "workspace_owner_username": "jack"
                 }
@@ -50,6 +53,7 @@
               "failed_builds": [
                 {
                   "build_number": 8888,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "cool-workspace",
                   "workspace_owner_username": "ben"
                 }
@@ -69,16 +73,19 @@
               "failed_builds": [
                 {
                   "build_number": 9234,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "workspace-9",
                   "workspace_owner_username": "daniellemaywood"
                 },
                 {
                   "build_number": 8678,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "my-workspace-7",
                   "workspace_owner_username": "johndoe"
                 },
                 {
                   "build_number": 374,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "workworkwork",
                   "workspace_owner_username": "jack"
                 }
@@ -90,11 +97,13 @@
               "failed_builds": [
                 {
                   "build_number": 8878,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "more-cool-workspace",
                   "workspace_owner_username": "ben"
                 },
                 {
                   "build_number": 8848,
+                  "workspace_id": "00000000-0000-0000-0000-000000000000",
                   "workspace_name": "less-cool-workspace",
                   "workspace_owner_username": "ben"
                 }

@@ -51,7 +51,12 @@ pace/builds/8848)
 We recommend reviewing these issues to ensure future builds are successful.
 
 
-View workspaces: http://test.com/workspaces?filter=3Dtemplate%3A<no value>
+View workspaces: http://test.com/workspaces?filter=3Did%3A24f5bd8f-1566-437=
+4-9734-c3efa0454dc7+id%3A372a194b-dcde-43f1-b7cf-8a2f3d3114a0+id%3A1386d294=
+-19c1-4351-89e2-6cae1afb9bfe+id%3A86fd99b1-1b6e-4b7e-b58e-0aee6e35c159+id%3=
+Acd469690-b6eb-4123-b759-980be7a7b278+id%3Ac447d472-0800-4529-a836-788754d5=
+e27d+id%3A919db6df-48f0-4dc1-b357-9036a2c40f86+id%3Ac8fb0652-9290-4bf2-a711=
+-71b910243ac2+id%3A703d718d-2234-4990-9a02-5b1df6cf462a
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -152,10 +157,14 @@ ul.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/workspaces?filter=3Dtemplate%3A<no value=
->" style=3D"display: inline-block; padding: 13px 24px; background-color: #0=
-20617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0=
- 4px;">
+        <a href=3D"http://test.com/workspaces?filter=3Did%3A24f5bd8f-1566-4=
+374-9734-c3efa0454dc7+id%3A372a194b-dcde-43f1-b7cf-8a2f3d3114a0+id%3A1386d2=
+94-19c1-4351-89e2-6cae1afb9bfe+id%3A86fd99b1-1b6e-4b7e-b58e-0aee6e35c159+id=
+%3Acd469690-b6eb-4123-b759-980be7a7b278+id%3Ac447d472-0800-4529-a836-788754=
+d5e27d+id%3A919db6df-48f0-4dc1-b357-9036a2c40f86+id%3Ac8fb0652-9290-4bf2-a7=
+11-71b910243ac2+id%3A703d718d-2234-4990-9a02-5b1df6cf462a" style=3D"display=
+: inline-block; padding: 13px 24px; background-color: #020617; color: #f8fa=
+fc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
           View workspaces
         </a>
        =20
