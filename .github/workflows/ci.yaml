@@ -344,14 +344,22 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/setup-imdisk
 
-      - name: Test
+      - name: Setup Windows paths
         if: runner.os == 'Windows'
-        shell: bash
+        shell: pwsh
         run: |
-          echo "RUNNER_TEMP=R:\\tmp" >> $GITHUB_ENV
-          echo "RUNNER_TOOL_CACHE=R:\\toolcache" >> $GITHUB_ENV
-          echo "GOPATH=R:\\go" >> $GITHUB_ENV
-          echo "R:\\go\\bin" >> $GITHUB_PATH
+          Remove-Item -Path $env:RUNNER_TOOL_CACHE -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path $env:RUNNER_TEMP -Recurse -Force -ErrorAction SilentlyContinue
+          "RUNNER_TEMP=R:\tmp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # "RUNNER_TOOL_CACHE=R:\toolcache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          New-Item -ItemType Directory -Path "R:\toolcache" -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path "R:\tmp" -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType SymbolicLink -Path $env:RUNNER_TOOL_CACHE -Target "R:\toolcache" -Force
+          New-Item -ItemType SymbolicLink -Path $env:RUNNER_TEMP -Target "R:\tmp" -Force
+          "GOPATH=R:\go" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "R:\go\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
