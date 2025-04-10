@@ -178,7 +178,6 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (*ReconciliationActions, e
 func (p PresetSnapshot) handleInactiveTemplateVersion() (*ReconciliationActions, error) {
 	state := p.CalculateState()
 
-	// TODO(yevhenii): is it correct behavior? What if we choose prebuild IDs that are already being deleted?
 	prebuildsToDelete := max(len(p.Running)-int(state.Deleting), 0)
 	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
 

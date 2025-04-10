@@ -420,7 +420,15 @@ func (c *StoreReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UU
 	})
 }
 
-func (c *StoreReconciler) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
+func (c *StoreReconciler) provision(
+	ctx context.Context,
+	db database.Store,
+	prebuildID uuid.UUID,
+	template database.Template,
+	presetID uuid.UUID,
+	transition database.WorkspaceTransition,
+	workspace database.Workspace,
+) error {
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return xerrors.Errorf("fetch preset details: %w", err)
