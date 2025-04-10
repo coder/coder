@@ -71,6 +71,44 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	startPollingExternalAuth: () => void;
 }
 
+// const getInitialParameterValues = (
+// 	params: Parameter[],
+// 	autofillParams?: AutofillBuildParameter[],
+// ): WorkspaceBuildParameter[] => {
+// 	return params.map((parameter) => {
+// 		// Short-circuit for ephemeral parameters, which are always reset to
+// 		// the template-defined default.
+// 		if (parameter.ephemeral) {
+// 			return {
+// 				name: parameter.name,
+// 				value: parameter.default_value,
+// 			};
+// 		}
+
+// 		const autofillParam = autofillParams?.find(
+// 			({ name }) => name === parameter.name,
+// 		);
+
+// 		return {
+// 			name: parameter.name,
+// 			value:
+// 				autofillParam &&
+// 				// isValidValue(parameter, autofillParam) &&
+// 				autofillParam.source !== "user_history"
+// 					? autofillParam.value
+// 					: parameter.default_value,
+// 		};
+// 	});
+// };
+
+const getInitialParameterValues = (parameters: Parameter[]) => {
+	return parameters.map((parameter) => {
+		return {
+			name: parameter.name,
+			value: parameter.default_value.valid ? parameter.default_value.value : "",
+		};
+	});
+};
 export const CreateWorkspacePageViewExperimental: FC<
 	CreateWorkspacePageViewExperimentalProps
 > = ({
