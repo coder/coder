@@ -314,6 +314,9 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 
 	if options.AccessControlStore == nil {
@@ -456,8 +459,14 @@ func New(options *Options) *API {
 		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+	// We add this middleware early, to make sure that authorization checks made
+	// by other middleware get recorded.
+	if buildinfo.IsDev() {
+		r.Use(httpmw.RecordAuthzChecks)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// nolint:gocritic // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
