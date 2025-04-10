@@ -525,8 +525,8 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	if !ok {
 		mcpServers = make(map[string]any)
 	}
-	for name, mcp := range cfg.MCPServers {
-		mcpServers[name] = mcp
+	for name, cfgmcp := range cfg.MCPServers {
+		mcpServers[name] = cfgmcp
 	}
 	project["mcpServers"] = mcpServers
 	// Prevents Claude from asking the user to complete the project onboarding.
