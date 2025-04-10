@@ -489,7 +489,7 @@ require (
 
 require (
 	github.com/coder/preview v0.0.0-20250409162646-62939c63c71a
-	github.com/mark3labs/mcp-go v0.17.0
+	github.com/mark3labs/mcp-go v0.19.0
 )
 
 require (
