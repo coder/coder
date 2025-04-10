@@ -34,7 +34,6 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	//nolint:paralleltest // This test is not parallel-safe due to t.Setenv.
 	t.Run("Up", func(t *testing.T) {
 		tests := []struct {
 			name      string
