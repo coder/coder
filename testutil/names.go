@@ -31,8 +31,7 @@ func GetRandomName(t testing.TB) string {
 func GetRandomNameHyphenated(t testing.TB) string {
 	t.Helper()
 	name := namesgenerator.GetRandomName(0)
-	name = strings.ReplaceAll(name, "_", "-")
-	return incSuffix(name, n.Add(1), maxNameLen)
+	return strings.ReplaceAll(name, "_", "-")
 }
 
 func incSuffix(s string, num int64, maxLen int) string {
