@@ -1089,7 +1089,10 @@ func New(options *Options) *API {
 			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
 			r.Get("/schema", templateVersionSchemaDeprecated)
 			r.Get("/parameters", templateVersionParametersDeprecated)
-			r.Get("/dynamic-parameters", api.templateVersionDynamicParameters)
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters))
+				r.Get("/dynamic-parameters", api.templateVersionDynamicParameters)
+			})
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
