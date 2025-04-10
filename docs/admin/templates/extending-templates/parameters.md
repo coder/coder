@@ -384,10 +384,15 @@ For example:
 
 ```hcl
 ...(more example here)
-	prebuilds {
-	instances = 1
+  prebuilds {
+  instances = 1
   }
 ```
+
+- How to update user-specific data/resources after its assigned?
+- Can existing templates be updated?
+- Schedule workspaces?
+- Do pre-builds in the pool go stale?
 
 ## Create Autofill
 
