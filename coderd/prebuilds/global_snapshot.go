@@ -42,8 +42,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		if !prebuild.CurrentPresetID.Valid {
 			return false
 		}
-		return prebuild.CurrentPresetID.UUID == preset.ID &&
-			prebuild.TemplateVersionID == preset.TemplateVersionID // Not strictly necessary since presets are 1:1 with template versions, but no harm in being extra safe.
+		return prebuild.CurrentPresetID.UUID == preset.ID
 	})
 
 	// These aren't preset-specific, but they need to inhibit all presets of this template from operating since they could
