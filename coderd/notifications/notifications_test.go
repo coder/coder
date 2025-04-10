@@ -978,6 +978,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
+				Labels:       map[string]string{},
 				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
 				Data: map[string]any{
 					"report_frequency": "week",
