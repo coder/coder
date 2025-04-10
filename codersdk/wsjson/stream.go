@@ -40,5 +40,5 @@ func (s *Stream[R, W]) Close(c websocket.StatusCode) error {
 }
 
 func (s *Stream[R, W]) Drop() {
-	_ = s.conn.CloseNow()
+	_ = s.conn.Close(websocket.StatusInternalError, "dropping connection")
 }
