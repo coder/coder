@@ -846,8 +846,8 @@ func (r *AuthzCheckRecorder) String() string {
 	}
 
 	checks := make([]string, 0, len(r.checks))
-	for check, result := range r.checks {
-		checks = append(checks, fmt.Sprintf("%v=%v", check, result))
+	for _, check := range r.checks {
+		checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
 	}
 	return strings.Join(checks, "; ")
 }
