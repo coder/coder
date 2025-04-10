@@ -54,18 +54,18 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return prebuild.TemplateID == preset.TemplateID
 	})
 
-	var backoff *database.GetPresetsBackoffRow
-	backoffs := slice.Filter(s.Backoffs, func(row database.GetPresetsBackoffRow) bool {
+	var backoffPtr *database.GetPresetsBackoffRow
+	backoff, found := slice.Find(s.Backoffs, func(row database.GetPresetsBackoffRow) bool {
 		return row.PresetID == preset.ID
 	})
-	if len(backoffs) == 1 {
-		backoff = &backoffs[0]
+	if found {
+		backoffPtr = &backoff
 	}
 
 	return &PresetSnapshot{
 		Preset:     preset,
 		Running:    running,
 		InProgress: inProgress,
-		Backoff:    backoff,
+		Backoff:    backoffPtr,
 	}, nil
 }
