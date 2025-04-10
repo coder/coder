@@ -1,6 +1,7 @@
 > [!NOTE]
 >
-> This functionality is in early access and still evolving.
+> This functionality is in early access and is evolving rapidly.
+>
 > For now, we recommend testing it in a demo or staging environment,
 > rather than deploying to production.
 >
@@ -44,12 +45,12 @@ coder exp mcp configure cursor # Configure Cursor to interact with Coder
 ## Coder CLI
 
 Workspaces can be created, started, and stopped via the Coder CLI. See the
-[CLI docs](../../reference/cli/) for more information.
+[CLI docs](../reference/cli/index.md) for more information.
 
 ## REST API
 
 The Coder REST API can be used to manage workspaces and agents. See the
-[API docs](../../reference/api/) for more information.
+[API docs](../reference/api/index.md) for more information.
 
 ## Next Steps
 

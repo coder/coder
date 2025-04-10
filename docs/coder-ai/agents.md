@@ -2,9 +2,10 @@
 
 > [!NOTE]
 >
-> This page is not exhaustive and the landscape is evolving rapidly. Please
-> [open an issue](https://github.com/coder/coder/issues/new) or submit a pull
-> request if you'd like to see your favorite agent added or updated.
+> This page is not exhaustive and the landscape is evolving rapidly.
+>
+> Please [open an issue](https://github.com/coder/coder/issues/new) or submit a
+> pull request if you'd like to see your favorite agent added or updated.
 
 There are several types of coding agents emerging:
 
