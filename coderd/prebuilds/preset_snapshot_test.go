@@ -566,9 +566,9 @@ func TestLatestBuildFailed(t *testing.T) {
 		Actual: 0, Desired: 1,
 	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType:   prebuilds.ActionTypeCreate,
-		Create:       1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
-		BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+		ActionType: prebuilds.ActionTypeCreate,
+		Create:     1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
+
 	}, *actions)
 }
 
@@ -705,5 +705,6 @@ func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState)
 func validateActions(t *testing.T, expected, actual prebuilds.ReconciliationActions) bool {
 	return assert.EqualValuesf(t, expected.ActionType, actual.ActionType, "'ActionType' did not match expectation") &&
 		assert.EqualValuesf(t, expected.DeleteIDs, actual.DeleteIDs, "'deleteIDs' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Create, actual.Create, "'create' did not match expectation")
+		assert.EqualValuesf(t, expected.Create, actual.Create, "'create' did not match expectation") &&
+		assert.EqualValuesf(t, expected.BackoffUntil, actual.BackoffUntil, "'BackoffUntil' did not match expectation")
 }
