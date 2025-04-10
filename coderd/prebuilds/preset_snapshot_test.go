@@ -336,16 +336,12 @@ func TestInProgressActions(t *testing.T) {
 				expectedActions := prebuilds.ReconciliationActions{
 					ActionType: prebuilds.ActionTypeDelete,
 				}
-				return assert.EqualValuesf(t, expectedActions.ActionType, actions.ActionType, "'ActionType' did not match expectation") &&
+
+				return validateState(t, expectedState, state) &&
+					assert.EqualValuesf(t, expectedActions.ActionType, actions.ActionType, "'ActionType' did not match expectation") &&
 					assert.Len(t, actions.DeleteIDs, 2, "'deleteIDs' did not match expectation") &&
 					assert.EqualValuesf(t, expectedActions.Create, actions.Create, "'create' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Desired, state.Desired, "'desired' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Actual, state.Actual, "'actual' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Eligible, state.Eligible, "'eligible' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Extraneous, state.Extraneous, "'extraneous' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Starting, state.Starting, "'starting' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Stopping, state.Stopping, "'stopping' did not match expectation") &&
-					assert.EqualValuesf(t, expectedState.Deleting, state.Deleting, "'deleting' did not match expectation")
+					assert.EqualValuesf(t, expectedActions.BackoffUntil, actions.BackoffUntil, "'BackoffUntil' did not match expectation")
 			},
 		},
 	}
