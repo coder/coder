@@ -277,7 +277,7 @@ func TestContainersHandler(t *testing.T) {
 					ctrl       = gomock.NewController(t)
 					mockLister = acmock.NewMockLister(ctrl)
 					now        = time.Now().UTC()
-					ch         = devcontainersHandler{
+					ch         = Handler{
 						cacheDuration: tc.cacheDur,
 						cl:            mockLister,
 						clock:         clk,

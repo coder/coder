@@ -38,7 +38,8 @@ func (a *agent) apiHandler() http.Handler {
 	}
 	ch := agentcontainers.New(agentcontainers.WithLister(a.lister))
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
-	r.Get("/api/v0/containers", ch.ServeHTTP)
+	r.Get("/api/v0/containers", ch.List)
+	r.Post("/api/v0/containers/{id}/recreate", ch.Recreate)
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Post("/api/v0/list-directory", a.HandleLS)

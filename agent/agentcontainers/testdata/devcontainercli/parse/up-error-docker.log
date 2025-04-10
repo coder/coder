@@ -1,0 +1,13 @@
+{"type":"text","level":3,"timestamp":1744102042893,"text":"@devcontainers/cli 0.75.0. Node.js v23.9.0. darwin 24.4.0 arm64."}
+{"type":"start","level":2,"timestamp":1744102042893,"text":"Run: docker buildx version"}
+{"type":"stop","level":2,"timestamp":1744102042941,"text":"Run: docker buildx version","startTimestamp":1744102042893}
+{"type":"text","level":2,"timestamp":1744102042941,"text":"github.com/docker/buildx v0.21.2 1360a9e8d25a2c3d03c2776d53ae62e6ff0a843d\r\n"}
+{"type":"text","level":2,"timestamp":1744102042941,"text":"\u001b[1m\u001b[31m\u001b[39m\u001b[22m\r\n"}
+{"type":"start","level":2,"timestamp":1744102042941,"text":"Run: docker -v"}
+{"type":"stop","level":2,"timestamp":1744102042950,"text":"Run: docker -v","startTimestamp":1744102042941}
+{"type":"start","level":2,"timestamp":1744102042950,"text":"Resolving Remote"}
+{"type":"start","level":2,"timestamp":1744102042952,"text":"Run: git rev-parse --show-cdup"}
+{"type":"stop","level":2,"timestamp":1744102042957,"text":"Run: git rev-parse --show-cdup","startTimestamp":1744102042952}
+{"type":"start","level":2,"timestamp":1744102042957,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json"}
+{"type":"stop","level":2,"timestamp":1744102042967,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json","startTimestamp":1744102042957}
+{"outcome":"error","message":"Command failed: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json","description":"An error occurred setting up the container."}
