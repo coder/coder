@@ -143,7 +143,7 @@ type AgentConnectionInfo struct {
 	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
 	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
-	HostnameSuffix           string           `json:"hostname_suffix"`
+	HostnameSuffix           string           `json:"hostname_suffix,omitempty"`
 }
 
 func (c *Client) AgentConnectionInfoGeneric(ctx context.Context) (AgentConnectionInfo, error) {
