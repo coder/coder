@@ -307,7 +307,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		return multiErr.ErrorOrNil()
 
 	default:
-		return xerrors.Errorf("unknown action type: %s", actions.ActionType)
+		return xerrors.Errorf("unknown action type: %v", actions.ActionType)
 	}
 }
 
