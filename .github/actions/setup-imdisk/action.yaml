@@ -22,8 +22,7 @@ runs:
         if ((Get-FileHash $path -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
           throw "Failed to verify osfmount.exe"
         }
-        & $path /silent /norestart
-        if ($LASTEXITCODE -ne 0) { throw "Failed to install osfmount.exe" }
+        Start-Process -FilePath $path -ArgumentList "/silent /norestart" -Wait
       env:
         OSFMOUNT_URL: https://storage.googleapis.com/coder-osfmount-binaries/osfmount-v3.1.1003.exe
         OSFMOUNT_SHA256: 9fe0738b7c2d29a7414e67f53aea359f3801d1c37b44f1b4fed5d02cb7536369
