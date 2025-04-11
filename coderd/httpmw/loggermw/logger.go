@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -135,6 +137,21 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 		slog.F("status_code", status),
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
+
+	if chiCtx := chi.RouteContext(ctx); chiCtx != nil {
+		urlParams := chiCtx.URLParams
+		routeParamsFields := make([]slog.Field, 0, len(urlParams.Keys))
+
+		for k, v := range urlParams.Keys {
+			if urlParams.Values[k] != "" {
+				routeParamsFields = append(routeParamsFields, slog.F(v, urlParams.Values[k]))
+			}
+		}
+
+		if len(routeParamsFields) > 0 {
+			logger = logger.With(routeParamsFields...)
+		}
+	}
 
 	// We already capture most of this information in the span (minus
 	// the response body which we don't want to capture anyways).

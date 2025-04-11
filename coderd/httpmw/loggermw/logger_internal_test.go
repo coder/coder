@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -154,6 +155,54 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	// Wait for the request to finish completely and verify we only logged once
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 	require.Len(t, sink.entries, 1, "log was written twice")
+}
+
+func TestRequestLogger_HTTPRouteParams(t *testing.T) {
+	t.Parallel()
+
+	sink := &fakeSink{}
+	logger := slog.Make(sink)
+	logger = logger.Leveled(slog.LevelDebug)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	chiCtx := chi.NewRouteContext()
+	chiCtx.URLParams.Add("workspace", "test-workspace")
+	chiCtx.URLParams.Add("agent", "test-agent")
+
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, chiCtx)
+
+	// Create a test handler to simulate an HTTP request
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte("OK"))
+	})
+
+	// Wrap the test handler with the Logger middleware
+	loggerMiddleware := Logger(logger)
+	wrappedHandler := loggerMiddleware(testHandler)
+
+	// Create a test HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/test-path/}", nil)
+	require.NoError(t, err, "failed to create request")
+
+	sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+
+	// Serve the request
+	wrappedHandler.ServeHTTP(sw, req)
+
+	fieldsMap := make(map[string]any)
+	for _, field := range sink.entries[0].Fields {
+		fieldsMap[field.Name] = field.Value
+	}
+
+	// Check that the log contains the expected fields
+	requiredFields := []string{"workspace", "agent"}
+	for _, field := range requiredFields {
+		_, exists := fieldsMap[field]
+		require.True(t, exists, "field %q is missing in log fields", field)
+	}
 }
 
 type fakeSink struct {
