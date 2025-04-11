@@ -25,7 +25,7 @@ to learn more about Gateway.
 Gateway can connect to a Coder workspace using Coder's Gateway plugin or through a
 manually configured SSH connection.
 
-You can [pre-install the JetBrains Gateway backend](./jetbrains-pre-install.md) in a template to help JetBrains load faster in workspaces.
+You can [pre-install the JetBrains Gateway backend](../../../admin/templates/extending-templates/jetbrains-gateway.md) in a template to help JetBrains load faster in workspaces.
 
 ### How to use the plugin
 
@@ -208,7 +208,8 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
 ## Using an existing JetBrains installation in the workspace
 
-For JetBrains IDEs, you can use an existing installation in the workspace. Please ask you administrator to install the JetBrains Gateway backend in the workspace by following the [pre-install guide](./jetbrains-pre-install.md).
+For JetBrains IDEs, you can use an existing installation in the workspace.
+Please ask your administrator to install the JetBrains Gateway backend in the workspace by following the [pre-install guide](../../../admin/templates/extending-templates/jetbrains-gateway.md).
 
 > [!NOTE]
 > Gateway only works with paid versions of JetBrains IDEs so the script will not

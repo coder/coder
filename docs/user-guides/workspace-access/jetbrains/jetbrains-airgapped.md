@@ -161,4 +161,4 @@ respectively.
 
 ## Next steps
 
-- [Pre install the JetBrains IDEs backend in your workspace](./jetbrains-pre-install.md)
+- [Pre-install the JetBrains IDEs backend in your workspace](../../../admin/templates/extending-templates/jetbrains-gateway.md)
