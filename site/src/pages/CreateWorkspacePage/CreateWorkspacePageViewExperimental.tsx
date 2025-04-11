@@ -1,5 +1,9 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { Diagnostics, Parameter, Request } from "api/typesParameter";
+import type {
+	DynamicParametersRequest,
+	PreviewDiagnostics,
+	PreviewParameter,
+} from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -17,6 +21,7 @@ import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
 import {
 	DynamicParameter,
+	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
@@ -38,24 +43,19 @@ import type {
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-export const Language = {
-	duplicationWarning:
-		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
-} as const;
-
 export interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
-	diagnostics: Diagnostics;
+	diagnostics: PreviewDiagnostics;
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
 	externalAuthPollingState: ExternalAuthPollingState;
 	hasAllRequiredExternalAuth: boolean;
 	mode: CreateWorkspaceMode;
-	parameters: Parameter[];
+	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
 	presets: TypesGen.Preset[];
 	template: TypesGen.Template;
@@ -66,49 +66,11 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Request) => void;
+	sendMessage: (message: DynamicParametersRequest) => void;
 	setWSResponseId: (value: React.SetStateAction<number>) => void;
 	startPollingExternalAuth: () => void;
 }
 
-// const getInitialParameterValues1 = (
-// 	params: Parameter[],
-// 	autofillParams?: AutofillBuildParameter[],
-// ): WorkspaceBuildParameter[] => {
-// 	return params.map((parameter) => {
-// 		// Short-circuit for ephemeral parameters, which are always reset to
-// 		// the template-defined default.
-// 		if (parameter.ephemeral) {
-// 			return {
-// 				name: parameter.name,
-// 				value: parameter.default_value,
-// 			};
-// 		}
-
-// 		const autofillParam = autofillParams?.find(
-// 			({ name }) => name === parameter.name,
-// 		);
-
-// 		return {
-// 			name: parameter.name,
-// 			value:
-// 				autofillParam &&
-// 				isValidValue(parameter, autofillParam) &&
-// 				autofillParam.source !== "user_history"
-// 					? autofillParam.value
-// 					: parameter.default_value,
-// 		};
-// 	});
-// };
-
-const getInitialParameterValues = (parameters: Parameter[]) => {
-	return parameters.map((parameter) => {
-		return {
-			name: parameter.name,
-			value: parameter.default_value.valid ? parameter.default_value.value : "",
-		};
-	});
-};
 export const CreateWorkspacePageViewExperimental: FC<
 	CreateWorkspacePageViewExperimentalProps
 > = ({
@@ -150,7 +112,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 			initialValues: {
 				name: defaultName ?? "",
 				template_id: template.id,
-				rich_parameter_values: getInitialParameterValues(parameters),
+				rich_parameter_values: getInitialParameterValues(
+					parameters,
+					autofillParameters,
+				),
 			},
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
@@ -251,7 +216,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	const handleChange = async (
 		value: string,
 		parameterField: string,
-		parameter: Parameter,
+		parameter: PreviewParameter,
 	) => {
 		// Update form value immediately for all types
 		await form.setFieldValue(parameterField, {
@@ -275,7 +240,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 			setWSResponseId((prevId) => {
 				const newId = prevId + 1;
-				const request: Request = {
+				const request: DynamicParametersRequest = {
 					id: newId,
 					inputs: newInputs,
 				};
@@ -309,6 +274,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		};
 	}, [debouncedTimer]);
 
+	// TODO: display top level diagnostics
 	return (
 		<>
 			<div className="absolute sticky top-5 ml-10">
@@ -354,7 +320,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 							dismissible
 							data-testid="duplication-warning"
 						>
-							{Language.duplicationWarning}
+							Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.
 						</Alert>
 					)}
 
@@ -541,7 +507,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
-											// parameterAutofill={autofillByName[parameter.name]}
+											// parameterAutofill={autofillByName[parameter.name]} TODO: handle autofill
 										/>
 									);
 								})}

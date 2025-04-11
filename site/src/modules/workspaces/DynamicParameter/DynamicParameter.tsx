@@ -1,9 +1,8 @@
-import type { WorkspaceBuildParameter } from "api/typesGenerated";
 import type {
-	Parameter,
-	ParameterOption,
-	ParameterValidation,
-} from "api/typesParameter";
+	PreviewParameter,
+	PreviewParameterOption,
+	WorkspaceBuildParameter,
+} from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Checkbox } from "components/Checkbox/Checkbox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -31,10 +30,11 @@ import {
 } from "components/Tooltip/Tooltip";
 import { Info, Settings, TriangleAlert } from "lucide-react";
 import { type FC, useId } from "react";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
 export interface DynamicParameterProps {
-	parameter: Parameter;
+	parameter: PreviewParameter;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
@@ -68,7 +68,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 };
 
 interface ParameterLabelProps {
-	parameter: Parameter;
+	parameter: PreviewParameter;
 	isPreset?: boolean;
 }
 
@@ -144,7 +144,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 };
 
 interface ParameterFieldProps {
-	parameter: Parameter;
+	parameter: PreviewParameter;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
@@ -173,26 +173,35 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						<SelectValue placeholder="Select option" />
 					</SelectTrigger>
 					<SelectContent>
-						{parameter.options.map((option) => (
-							<SelectItem key={option.value.value} value={option.value.value}>
-								<OptionDisplay option={option} />
-							</SelectItem>
-						))}
+						{parameter.options
+							.filter(
+								(option): option is NonNullable<typeof option> =>
+									option !== null,
+							)
+							.map((option) => (
+								<SelectItem key={option.value.value} value={option.value.value}>
+									<OptionDisplay option={option} />
+								</SelectItem>
+							))}
 					</SelectContent>
 				</Select>
 			);
 
 		case "multi-select": {
 			// Map parameter options to MultiSelectCombobox options format
-			const comboboxOptions: Option[] = parameter.options.map((opt) => ({
-				value: opt.value.value,
-				label: opt.name,
-				disable: false,
-			}));
+			const comboboxOptions: Option[] = parameter.options
+				.filter((opt): opt is NonNullable<typeof opt> => opt !== null)
+				.map((opt) => ({
+					value: opt.value.value,
+					label: opt.name,
+					disable: false,
+				}));
 
 			const defaultOptions: Option[] = JSON.parse(defaultValue).map(
 				(val: string) => {
-					const option = parameter.options.find((o) => o.value.value === val);
+					const option = parameter.options
+						.filter((o): o is NonNullable<typeof o> => o !== null)
+						.find((o) => o.value.value === val);
 					return {
 						value: val,
 						label: option?.name || val,
@@ -242,20 +251,24 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					disabled={disabled}
 					defaultValue={defaultValue}
 				>
-					{parameter.options.map((option) => (
-						<div
-							key={option.value.value}
-							className="flex items-center space-x-2"
-						>
-							<RadioGroupItem
-								id={option.value.value}
-								value={option.value.value}
-							/>
-							<Label htmlFor={option.value.value} className="cursor-pointer">
-								<OptionDisplay option={option} />
-							</Label>
-						</div>
-					))}
+					{parameter.options
+						.filter(
+							(option): option is NonNullable<typeof option> => option !== null,
+						)
+						.map((option) => (
+							<div
+								key={option.value.value}
+								className="flex items-center space-x-2"
+							>
+								<RadioGroupItem
+									id={option.value.value}
+									value={option.value.value}
+								/>
+								<Label htmlFor={option.value.value} className="cursor-pointer">
+									<OptionDisplay option={option} />
+								</Label>
+							</div>
+						))}
 				</RadioGroup>
 			);
 
@@ -281,7 +294,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const inputProps: Record<string, unknown> = {};
 
 			if (parameter.type === "number") {
-				const validations = parameter.validations[0] || {};
+				const validations =
+					parameter.validations.filter(
+						(v): v is NonNullable<typeof v> => v !== null,
+					)[0] || {};
 				const { validation_min, validation_max } = validations;
 
 				if (validation_min !== null) {
@@ -310,7 +326,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 };
 
 interface OptionDisplayProps {
-	option: ParameterOption;
+	option: PreviewParameterOption;
 }
 
 const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
@@ -341,7 +357,7 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 };
 
 interface ParameterDiagnosticsProps {
-	diagnostics: Parameter["diagnostics"];
+	diagnostics: PreviewParameter["diagnostics"];
 }
 
 const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
@@ -349,25 +365,76 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-2">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs px-1 ${
-						diagnostic.severity === "error"
-							? "text-content-destructive"
-							: "text-content-warning"
-					}`}
-				>
-					<div className="font-medium">{diagnostic.summary}</div>
-					{diagnostic.detail && <div>{diagnostic.detail}</div>}
-				</div>
-			))}
+			{diagnostics
+				.filter(
+					(diagnostic): diagnostic is NonNullable<typeof diagnostic> =>
+						diagnostic !== null,
+				)
+				.map((diagnostic, index) => (
+					<div
+						key={`diagnostic-${diagnostic.summary}-${index}`}
+						className={`text-xs px-1 ${
+							diagnostic.severity === "error"
+								? "text-content-destructive"
+								: "text-content-warning"
+						}`}
+					>
+						<div className="font-medium">{diagnostic.summary}</div>
+						{diagnostic.detail && <div>{diagnostic.detail}</div>}
+					</div>
+				))}
 		</div>
 	);
 };
 
+export const getInitialParameterValues = (
+	params: PreviewParameter[],
+	autofillParams?: AutofillBuildParameter[],
+): WorkspaceBuildParameter[] => {
+	return params.map((parameter) => {
+		// Short-circuit for ephemeral parameters, which are always reset to
+		// the template-defined default.
+		if (parameter.ephemeral) {
+			return {
+				name: parameter.name,
+				value: parameter.default_value.valid
+					? parameter.default_value.value
+					: "",
+			};
+		}
+
+		const autofillParam = autofillParams?.find(
+			({ name }) => name === parameter.name,
+		);
+
+		return {
+			name: parameter.name,
+			value:
+				autofillParam &&
+				isValidValue(parameter, autofillParam) &&
+				autofillParam.value
+					? autofillParam.value
+					: "",
+		};
+	});
+};
+
+const isValidValue = (
+	previewParam: PreviewParameter,
+	buildParam: WorkspaceBuildParameter,
+) => {
+	if (previewParam.options.length > 0) {
+		const validValues = previewParam.options
+			.filter((option): option is NonNullable<typeof option> => option !== null)
+			.map((option) => option.value.value);
+		return validValues.includes(buildParam.value);
+	}
+
+	return true;
+};
+
 export const useValidationSchemaForDynamicParameters = (
-	parameters?: Parameter[],
+	parameters?: PreviewParameter[],
 	lastBuildParameters?: WorkspaceBuildParameter[],
 ): Yup.AnySchema => {
 	if (!parameters) {
@@ -387,15 +454,16 @@ export const useValidationSchemaForDynamicParameters = (
 						if (parameter) {
 							switch (parameter.type) {
 								case "number": {
-									const minValidation = parameter.validations.find(
-										(v) => v.validation_min !== null,
-									);
-									const maxValidation = parameter.validations.find(
-										(v) => v.validation_max !== null,
-									);
+									const minValidation = parameter.validations
+										.filter((v): v is NonNullable<typeof v> => v !== null)
+										.find((v) => v.validation_min !== null);
+									const maxValidation = parameter.validations
+										.filter((v): v is NonNullable<typeof v> => v !== null)
+										.find((v) => v.validation_max !== null);
 
 									if (
-										minValidation?.validation_min &&
+										minValidation &&
+										minValidation.validation_min !== null &&
 										!maxValidation &&
 										Number(val) < minValidation.validation_min
 									) {
@@ -409,7 +477,8 @@ export const useValidationSchemaForDynamicParameters = (
 
 									if (
 										!minValidation &&
-										maxValidation?.validation_max &&
+										maxValidation &&
+										maxValidation.validation_max !== null &&
 										Number(val) > maxValidation.validation_max
 									) {
 										return ctx.createError({
@@ -421,8 +490,10 @@ export const useValidationSchemaForDynamicParameters = (
 									}
 
 									if (
-										minValidation?.validation_min &&
-										maxValidation?.validation_max &&
+										minValidation &&
+										minValidation.validation_min !== null &&
+										maxValidation &&
+										maxValidation.validation_max !== null &&
 										(Number(val) < minValidation.validation_min ||
 											Number(val) > maxValidation.validation_max)
 									) {
@@ -434,18 +505,20 @@ export const useValidationSchemaForDynamicParameters = (
 										});
 									}
 
-									const monotonicValidation = parameter.validations.find(
-										(v) => v.validation_monotonic !== null,
-									);
-									if (
-										monotonicValidation?.validation_monotonic &&
-										lastBuildParameters
-									) {
+									const monotonic = parameter.validations
+										.filter((v): v is NonNullable<typeof v> => v !== null)
+										.find(
+											(v) =>
+												v.validation_monotonic !== null &&
+												v.validation_monotonic !== "",
+										);
+
+									if (monotonic && lastBuildParameters) {
 										const lastBuildParameter = lastBuildParameters.find(
 											(last: { name: string }) => last.name === name,
 										);
 										if (lastBuildParameter) {
-											switch (monotonicValidation.validation_monotonic) {
+											switch (monotonic.validation_monotonic) {
 												case "increasing":
 													if (Number(lastBuildParameter.value) > Number(val)) {
 														return ctx.createError({
@@ -468,17 +541,18 @@ export const useValidationSchemaForDynamicParameters = (
 									break;
 								}
 								case "string": {
-									const regexValidation = parameter.validations.find(
-										(v) => v.validation_regex !== null,
-									);
-									if (!regexValidation?.validation_regex) {
+									const regex = parameter.validations
+										.filter((v): v is NonNullable<typeof v> => v !== null)
+										.find(
+											(v) =>
+												v.validation_regex !== null &&
+												v.validation_regex !== "",
+										);
+									if (!regex || !regex.validation_regex) {
 										return true;
 									}
 
-									if (
-										val &&
-										!new RegExp(regexValidation.validation_regex).test(val)
-									) {
+									if (val && !new RegExp(regex.validation_regex).test(val)) {
 										return ctx.createError({
 											path: ctx.path,
 											message: parameterError(parameter, val),
@@ -496,18 +570,18 @@ export const useValidationSchemaForDynamicParameters = (
 };
 
 const parameterError = (
-	parameter: Parameter,
+	parameter: PreviewParameter,
 	value?: string,
 ): string | undefined => {
-	const validation_error = parameter.validations.find(
-		(v) => v.validation_error !== null,
-	);
-	const minValidation = parameter.validations.find(
-		(v) => v.validation_min !== null,
-	);
-	const maxValidation = parameter.validations.find(
-		(v) => v.validation_max !== null,
-	);
+	const validation_error = parameter.validations
+		.filter((v): v is NonNullable<typeof v> => v !== null)
+		.find((v) => v.validation_error !== null);
+	const minValidation = parameter.validations
+		.filter((v): v is NonNullable<typeof v> => v !== null)
+		.find((v) => v.validation_min !== null);
+	const maxValidation = parameter.validations
+		.filter((v): v is NonNullable<typeof v> => v !== null)
+		.find((v) => v.validation_max !== null);
 
 	if (!validation_error || !value) {
 		return;
