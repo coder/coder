@@ -569,7 +569,7 @@ export interface DERPRegionReport {
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
 	readonly region: TailDERPRegion | null;
-	readonly node_reports: readonly (DERPNodeReport | null)[];
+	readonly node_reports: readonly DERPNodeReport[];
 }
 
 // From codersdk/deployment.go
@@ -1707,7 +1707,7 @@ export interface PresetParameter {
 export type PreviewDiagnosticSeverityString = string;
 
 // From types/diagnostics.go
-export type PreviewDiagnostics = readonly (FriendlyDiagnostic | null)[];
+export type PreviewDiagnostics = readonly FriendlyDiagnostic[];
 
 // From types/parameter.go
 export interface PreviewParameter extends PreviewParameterData {
@@ -1728,8 +1728,8 @@ export interface PreviewParameterData {
 	readonly mutable: boolean;
 	readonly default_value: NullHCLString;
 	readonly icon: string;
-	readonly options: readonly (PreviewParameterOption | null)[];
-	readonly validations: readonly (PreviewParameterValidation | null)[];
+	readonly options: readonly PreviewParameterOption[];
+	readonly validations: readonly PreviewParameterValidation[];
 	readonly required: boolean;
 	readonly order: number;
 	readonly ephemeral: boolean;
@@ -2463,7 +2463,7 @@ export interface TailDERPRegion {
 	readonly RegionCode: string;
 	readonly RegionName: string;
 	readonly Avoid?: boolean;
-	readonly Nodes: readonly (TailDERPNode | null)[];
+	readonly Nodes: readonly TailDERPNode[];
 }
 
 // From codersdk/deployment.go

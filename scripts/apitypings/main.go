@@ -79,6 +79,8 @@ func TsMutations(ts *guts.Typescript) {
 		// Omitempty + null is just '?' in golang json marshal
 		// number?: number | null --> number?: number
 		config.SimplifyOmitEmpty,
+		// TsType: (string | null)[] --> (string)[]
+		config.NullUnionSlices,
 	)
 }
 
