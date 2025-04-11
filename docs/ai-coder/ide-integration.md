@@ -1,6 +1,7 @@
 > [!NOTE]
 >
-> This functionality is in early access and still evolving.
+> This functionality is in early access and is evolving rapidly.
+>
 > For now, we recommend testing it in a demo or staging environment,
 > rather than deploying to production.
 >
@@ -21,7 +22,7 @@ Once you have an agent running and reporting activity to Coder, you can view the
 status and switch between workspaces from the IDE. This can be very helpful for
 reviewing code, working along with the agent, and more.
 
-![IDE Integration](../../images/guides/ai-agents/ide-integration.png)
+![IDE Integration](../images/guides/ai-agents/ide-integration.png)
 
 ## Next Steps
 

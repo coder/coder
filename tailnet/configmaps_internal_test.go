@@ -34,7 +34,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
@@ -93,7 +93,7 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	// Given: addresses already set
@@ -123,7 +123,7 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	p1ID := uuid.UUID{1}
@@ -193,7 +193,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	uut.clock = mClock
@@ -237,7 +237,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	uut.clock = mClock
@@ -308,7 +308,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	uut.clock = mClock
@@ -379,7 +379,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	uut.clock = mClock
@@ -437,7 +437,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	// Then: we don't configure
@@ -496,7 +496,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	p1ID := uuid.UUID{1}
@@ -564,7 +564,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	start := mClock.Now()
@@ -649,7 +649,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	start := mClock.Now()
@@ -734,7 +734,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 	mClock := quartz.NewMock(t)
 	start := mClock.Now()
@@ -820,7 +820,7 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
@@ -864,7 +864,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
@@ -907,7 +907,7 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	derpMap := &tailcfg.DERPMap{
@@ -948,7 +948,7 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	// Given: DERP Map already set
@@ -1017,7 +1017,7 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 	defer uut.close()
 
 	// Given: DERP Map and peer already set
@@ -1125,7 +1125,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 			nodePrivateKey := key.NewNode()
 			nodeID := tailcfg.NodeID(5)
 			discoKey := key.NewDisco()
-			uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+			uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
 			defer uut.close()
 
 			// Then: we don't configure
@@ -1166,7 +1166,8 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	suffix := dnsname.FQDN("test.")
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), suffix)
 	defer uut.close()
 
 	addr1 := CoderServicePrefix.AddrFromUUID(uuid.New())
@@ -1190,8 +1191,10 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	req := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
 	require.Equal(t, req.dnsCfg, &dns.Config{
 		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
-			CoderDNSSuffix: nil,
+			suffix: nil,
 		},
+		// Note that host names and Routes are independent --- so we faithfully reproduce the hosts, even though
+		// they don't match the route.
 		Hosts: map[dnsname.FQDN][]netip.Addr{
 			"agent.myws.me.coder.": {
 				addr1,
@@ -1219,7 +1222,7 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
 	require.Equal(t, req.dnsCfg, &dns.Config{
 		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
-			CoderDNSSuffix: nil,
+			suffix: nil,
 		},
 		Hosts: map[dnsname.FQDN][]netip.Addr{
 			"newagent.myws.me.coder.": {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestTemplateVersion(t *testing.T) {
@@ -617,7 +619,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create a template version from the archive
-				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				tvName := testutil.GetRandomNameHyphenated(t)
 				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
 					Name:            tvName,
 					StorageMethod:   codersdk.ProvisionerStorageMethodFile,
@@ -1207,7 +1209,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusTooEarly, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -2056,11 +2058,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some unused versions
 	for i := 0; i < 2; i++ {
-		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		expArchived = append(expArchived, unused.ID)
@@ -2069,11 +2067,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some used template versions
 	for i := 0; i < 2; i++ {
-		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
@@ -2139,4 +2133,74 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	})
 	require.NoError(t, err, "fetch all versions")
 	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed)+1, "remaining versions")
+}
+
+func TestTemplateVersionDynamicParameters(t *testing.T) {
+	t.Parallel()
+
+	cfg := coderdtest.DeploymentValues(t)
+	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	dynamicParametersTerraformSource, err := os.ReadFile("testdata/dynamicparameters/groups/main.tf")
+	require.NoError(t, err)
+	dynamicParametersTerraformPlan, err := os.ReadFile("testdata/dynamicparameters/groups/plan.json")
+	require.NoError(t, err)
+
+	files := echo.WithExtraFiles(map[string][]byte{
+		"main.tf": dynamicParametersTerraformSource,
+	})
+	files.ProvisionPlan = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Plan: dynamicParametersTerraformPlan,
+			},
+		},
+	}}
+
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
+	require.NoError(t, err)
+	defer stream.Close(websocket.StatusGoingAway)
+
+	previews := stream.Chan()
+
+	// Should automatically send a form state with all defaulted/empty values
+	preview := testutil.RequireRecvCtx(ctx, t, previews)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
+
+	// Send a new value, and see it reflected
+	err = stream.Send(codersdk.DynamicParametersRequest{
+		ID:     1,
+		Inputs: map[string]string{"group": "Bloob"},
+	})
+	require.NoError(t, err)
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 1, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Bloob", preview.Parameters[0].Value.Value.AsString())
+
+	// Back to default
+	err = stream.Send(codersdk.DynamicParametersRequest{
+		ID:     3,
+		Inputs: map[string]string{},
+	})
+	require.NoError(t, err)
+	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	require.Equal(t, 3, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+	require.Equal(t, "group", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "Everyone", preview.Parameters[0].Value.Value.AsString())
 }

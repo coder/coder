@@ -120,6 +120,9 @@ type Options struct {
 	// WireguardMonitor is optional, and is passed to the underlying wireguard
 	// engine.
 	WireguardMonitor *netmon.Monitor
+	// DNSMatchDomain is the DNS suffix to use as a match domain. Only relevant for TUN connections that configure the
+	// OS DNS resolver.
+	DNSMatchDomain string
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -267,12 +270,21 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		netStack.ProcessLocalIPs = true
 	}
 
+	if options.DNSMatchDomain == "" {
+		options.DNSMatchDomain = CoderDNSSuffix
+	}
+	matchDomain, err := dnsname.ToFQDN(options.DNSMatchDomain + ".")
+	if err != nil {
+		return nil, xerrors.Errorf("convert hostname suffix (%s) to fully-qualified domain: %w",
+			options.DNSMatchDomain, err)
+	}
 	cfgMaps := newConfigMaps(
 		options.Logger,
 		wireguardEngine,
 		nodeID,
 		nodePrivateKey,
 		magicConn.DiscoPublicKey(),
+		matchDomain,
 	)
 	cfgMaps.setAddresses(options.Addresses)
 	if options.DERPMap != nil {
@@ -353,6 +365,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	return server, nil
 }
+
+// A FQDN to be mapped to `tsaddr.CoderServiceIPv6`. This address can be used
+// when you want to know if Coder Connect is running, but are not trying to
+// connect to a specific known workspace.
+const IsCoderConnectEnabledFmtString = "is.coder--connect--enabled--right--now.%s."
 
 type ServicePrefix [6]byte
 
