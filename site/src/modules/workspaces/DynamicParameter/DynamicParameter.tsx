@@ -172,29 +172,26 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						<SelectValue placeholder="Select option" />
 					</SelectTrigger>
 					<SelectContent>
-						{parameter.options
-							.map((option) => (
-								<SelectItem key={option.value.value} value={option.value.value}>
-									<OptionDisplay option={option} />
-								</SelectItem>
-							))}
+						{parameter.options.map((option) => (
+							<SelectItem key={option.value.value} value={option.value.value}>
+								<OptionDisplay option={option} />
+							</SelectItem>
+						))}
 					</SelectContent>
 				</Select>
 			);
 
 		case "multi-select": {
 			// Map parameter options to MultiSelectCombobox options format
-			const comboboxOptions: Option[] = parameter.options
-				.map((opt) => ({
-					value: opt.value.value,
-					label: opt.name,
-					disable: false,
-				}));
+			const comboboxOptions: Option[] = parameter.options.map((opt) => ({
+				value: opt.value.value,
+				label: opt.name,
+				disable: false,
+			}));
 
 			const defaultOptions: Option[] = JSON.parse(defaultValue).map(
 				(val: string) => {
-					const option = parameter.options
-						.find((o) => o.value.value === val);
+					const option = parameter.options.find((o) => o.value.value === val);
 					return {
 						value: val,
 						label: option?.name || val,
@@ -244,21 +241,20 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					disabled={disabled}
 					defaultValue={defaultValue}
 				>
-					{parameter.options
-						.map((option) => (
-							<div
-								key={option.value.value}
-								className="flex items-center space-x-2"
-							>
-								<RadioGroupItem
-									id={option.value.value}
-									value={option.value.value}
-								/>
-								<Label htmlFor={option.value.value} className="cursor-pointer">
-									<OptionDisplay option={option} />
-								</Label>
-							</div>
-						))}
+					{parameter.options.map((option) => (
+						<div
+							key={option.value.value}
+							className="flex items-center space-x-2"
+						>
+							<RadioGroupItem
+								id={option.value.value}
+								value={option.value.value}
+							/>
+							<Label htmlFor={option.value.value} className="cursor-pointer">
+								<OptionDisplay option={option} />
+							</Label>
+						</div>
+					))}
 				</RadioGroup>
 			);
 
@@ -352,20 +348,19 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-2">
-			{diagnostics
-				.map((diagnostic, index) => (
-					<div
-						key={`diagnostic-${diagnostic.summary}-${index}`}
-						className={`text-xs px-1 ${
-							diagnostic.severity === "error"
-								? "text-content-destructive"
-								: "text-content-warning"
-						}`}
-					>
-						<div className="font-medium">{diagnostic.summary}</div>
-						{diagnostic.detail && <div>{diagnostic.detail}</div>}
-					</div>
-				))}
+			{diagnostics.map((diagnostic, index) => (
+				<div
+					key={`diagnostic-${diagnostic.summary}-${index}`}
+					className={`text-xs px-1 ${
+						diagnostic.severity === "error"
+							? "text-content-destructive"
+							: "text-content-warning"
+					}`}
+				>
+					<div className="font-medium">{diagnostic.summary}</div>
+					{diagnostic.detail && <div>{diagnostic.detail}</div>}
+				</div>
+			))}
 		</div>
 	);
 };
@@ -439,10 +434,12 @@ export const useValidationSchemaForDynamicParameters = (
 						if (parameter) {
 							switch (parameter.type) {
 								case "number": {
-									const minValidation = parameter.validations
-										.find((v) => v.validation_min !== null);
-									const maxValidation = parameter.validations
-										.find((v) => v.validation_max !== null);
+									const minValidation = parameter.validations.find(
+										(v) => v.validation_min !== null,
+									);
+									const maxValidation = parameter.validations.find(
+										(v) => v.validation_max !== null,
+									);
 
 									if (
 										minValidation &&
@@ -551,12 +548,15 @@ const parameterError = (
 	parameter: PreviewParameter,
 	value?: string,
 ): string | undefined => {
-	const validation_error = parameter.validations
-		.find((v) => v.validation_error !== null);
-	const minValidation = parameter.validations
-		.find((v) => v.validation_min !== null);
-	const maxValidation = parameter.validations
-		.find((v) => v.validation_max !== null);
+	const validation_error = parameter.validations.find(
+		(v) => v.validation_error !== null,
+	);
+	const minValidation = parameter.validations.find(
+		(v) => v.validation_min !== null,
+	);
+	const maxValidation = parameter.validations.find(
+		(v) => v.validation_max !== null,
+	);
 
 	if (!validation_error || !value) {
 		return;
