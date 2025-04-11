@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	markdown "github.com/coder/coder/v2/coderd/render"
@@ -220,7 +221,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	defer encoder.Close(websocket.StatusNormalClosure)
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	for {
 		select {

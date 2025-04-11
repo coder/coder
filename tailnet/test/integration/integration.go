@@ -33,7 +33,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -200,7 +200,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			})
 		},
 		tracing.StatusWriterMiddleware,
-		httpmw.Logger(logger),
+		loggermw.Logger(logger),
 	)
 
 	r.Route("/derp", func(r chi.Router) {
