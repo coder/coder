@@ -34,6 +34,17 @@ coder create --template="<templateName>" <workspaceName>
 coder show <workspace-name>
 ```
 
+### Workspace name rules and restrictions
+
+| Constraint       | Rule                                       |
+|------------------|--------------------------------------------|
+| Start/end with   | Must start and end with a letter or number |
+| Character types  | Letters, numbers, and hyphens only         |
+| Length           | 1-32 characters                            |
+| Case sensitivity | Case-insensitive (lowercase recommended)   |
+| Reserved names   | Cannot use `new` or `create`               |
+| Uniqueness       | Must be unique within your workspaces      |
+
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or
