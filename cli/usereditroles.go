@@ -1,7 +1,6 @@
 package cli
 
 import (
-	// "fmt"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
