@@ -294,6 +294,7 @@ message Metadata {
     string workspace_owner_login_type =  18;
     repeated Role workspace_owner_rbac_roles = 19;
     bool is_prebuild = 20;
+    string running_workspace_agent_token = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
