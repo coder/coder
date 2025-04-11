@@ -6,7 +6,11 @@ import {
 	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import type { Template, Workspace } from "api/typesGenerated";
+import type {
+	DynamicParametersResponse,
+	Template,
+	Workspace,
+} from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -27,7 +31,6 @@ import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import type { Response } from "api/typesParameter";
 import { useWebSocket } from "hooks/useWebsocket";
 import {
 	type CreateWorkspacePermissions,
@@ -46,14 +49,11 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 
-	const [currentResponse, setCurrentResponse] = useState<Response | null>(null);
+	const [currentResponse, setCurrentResponse] =
+		useState<DynamicParametersResponse | null>(null);
 	const [wsResponseId, setWSResponseId] = useState<number>(0);
-	const { message: webSocketResponse, sendMessage } = useWebSocket<Response>(
-		wsUrl,
-		urlTestdata,
-		"",
-		"",
-	);
+	const { message: webSocketResponse, sendMessage } =
+		useWebSocket<DynamicParametersResponse>(wsUrl, urlTestdata, "", "");
 
 	useEffect(() => {
 		if (webSocketResponse && webSocketResponse.id >= wsResponseId) {

@@ -320,7 +320,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 							dismissible
 							data-testid="duplication-warning"
 						>
-							Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.
+							Duplicating a workspace only copies its parameters. No state from
+							the old workspace is copied over.
 						</Alert>
 					)}
 
