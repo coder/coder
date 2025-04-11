@@ -14,14 +14,14 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/maps"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/agent/agentcontainers/dcspec"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/xerrors"
 )
 
 // DockerCLILister is a ContainerLister that lists containers using the docker CLI
