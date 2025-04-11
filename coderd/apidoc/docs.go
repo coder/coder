@@ -6431,6 +6431,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/oidc-logout": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user OIDC logout URL",
+                "operationId": "get-user-oidc-logout-url",
+                "responses": {
+                    "200": {
+                        "description": "Returns a map containing the OIDC logout URL",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OIDCLogoutResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/oidc/callback": {
             "get": {
                 "security": [
@@ -13273,6 +13298,12 @@ const docTemplate = `{
                 "issuer_url": {
                     "type": "string"
                 },
+                "logout_endpoint": {
+                    "type": "string"
+                },
+                "logout_redirect_uri": {
+                    "type": "string"
+                },
                 "name_field": {
                     "type": "string"
                 },
@@ -13317,6 +13348,14 @@ const docTemplate = `{
                     }
                 },
                 "username_field": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OIDCLogoutResponse": {
+            "type": "object",
+            "properties": {
+                "oidc_logout_url": {
                     "type": "string"
                 }
             }
