@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/agent"
@@ -56,8 +57,7 @@ func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
 	defer cancel()
 
 	// Connect through the ServerTailnet
-	agents, serverTailnet := setupServerTailnetAgent(t, 1,
-		tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1, withDERPAndStunOptions(tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded))
 	a := agents[0]
 
 	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
@@ -340,7 +340,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		agents, serverTailnet := setupServerTailnetAgent(t, 1, tailnettest.DisableSTUN)
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, withDERPAndStunOptions(tailnettest.DisableSTUN))
 		a := agents[0]
 
 		require.True(t, serverTailnet.Conn().GetBlockEndpoints(), "expected BlockEndpoints to be set")
@@ -362,6 +362,43 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
+}
+
+func TestServerTailnet_Healthcheck(t *testing.T) {
+	t.Parallel()
+
+	// Verifies that a non-nil healthcheck which returns a non-error response behaves as expected.
+	t.Run("Passing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		fn := func(ctx context.Context) error { return nil }
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthcheckFn(fn))
+
+		a := agents[0]
+		conn, release, err := serverTailnet.AgentConn(ctx, a.id)
+		t.Cleanup(release)
+		require.NoError(t, err)
+		assert.True(t, conn.AwaitReachable(ctx))
+	})
+
+	// If the healthcheck fails, we have no insight into this at this level.
+	// The dial against the control plane is retried, so we wait for the context to timeout as an indication that the
+	// healthcheck is performing as expected.
+	t.Run("Failing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		fn := func(ctx context.Context) error { return xerrors.Errorf("oops, db gone") }
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthcheckFn(fn))
+
+		a := agents[0]
+		_, release, err := serverTailnet.AgentConn(ctx, a.id)
+		require.Nil(t, release)
+		require.ErrorContains(t, err, "agent is unreachable")
 	})
 }
 
@@ -389,9 +426,36 @@ type agentWithID struct {
 	agent.Agent
 }
 
-func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
+type serverOption struct {
+	HealthcheckFn      func(ctx context.Context) error
+	DERPAndStunOptions []tailnettest.DERPAndStunOption
+}
+
+func withHealthcheckFn(fn func(ctx context.Context) error) serverOption {
+	return serverOption{
+		HealthcheckFn: fn,
+	}
+}
+
+func withDERPAndStunOptions(opts ...tailnettest.DERPAndStunOption) serverOption {
+	return serverOption{
+		DERPAndStunOptions: opts,
+	}
+}
+
+func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...serverOption) ([]agentWithID, *coderd.ServerTailnet) {
 	logger := testutil.Logger(t)
-	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, opts...)
+
+	var healthcheckFn func(ctx context.Context) error
+	var derpAndStunOptions []tailnettest.DERPAndStunOption
+	for _, opt := range opts {
+		derpAndStunOptions = append(derpAndStunOptions, opt.DERPAndStunOptions...)
+		if opt.HealthcheckFn != nil {
+			healthcheckFn = opt.HealthcheckFn
+		}
+	}
+
+	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, derpAndStunOptions...)
 
 	coord := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
@@ -431,10 +495,11 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 	}
 
 	dialer := &coderd.InmemTailnetDialer{
-		CoordPtr: &coordPtr,
-		DERPFn:   func() *tailcfg.DERPMap { return derpMap },
-		Logger:   logger,
-		ClientID: uuid.UUID{5},
+		CoordPtr:              &coordPtr,
+		DERPFn:                func() *tailcfg.DERPMap { return derpMap },
+		Logger:                logger,
+		ClientID:              uuid.UUID{5},
+		DatabaseHealthcheckFn: healthcheckFn,
 	}
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),

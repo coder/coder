@@ -679,6 +679,10 @@ func New(options *Options) *API {
 		DERPFn:   api.DERPMap,
 		Logger:   options.Logger,
 		ClientID: uuid.New(),
+		DatabaseHealthcheckFn: func(ctx context.Context) error {
+			_, err := api.Database.Ping(ctx)
+			return err
+		},
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,

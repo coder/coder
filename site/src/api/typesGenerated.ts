@@ -589,6 +589,9 @@ export interface DangerousConfig {
 	readonly allow_all_cors: boolean;
 }
 
+// From codersdk/database.go
+export const DatabaseNotReachable = "database not reachable";
+
 // From healthsdk/healthsdk.go
 export interface DatabaseReport extends BaseReport {
 	readonly healthy: boolean;
