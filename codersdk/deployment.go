@@ -791,6 +791,12 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	ReconciliationInterval        serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"

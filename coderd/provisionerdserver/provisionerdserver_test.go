@@ -164,6 +164,7 @@ func TestAcquireJob(t *testing.T) {
 			_, err = tc.acquire(ctx, srv)
 			require.ErrorContains(t, err, "sql: no rows in result set")
 		})
+
 		for _, prebuiltWorkspace := range []bool{false, true} {
 			prebuiltWorkspace := prebuiltWorkspace
 			t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
