@@ -87,6 +87,8 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 				c.logger.Error(context.Background(), "reconciliation failed", slog.Error(err))
 			}
 		case <-ctx.Done():
+			// nolint:gocritic // it's okay to use slog.F() for an error in this case
+			// because we want to differentiate two different types of errors: ctx.Err() and context.Cause()
 			c.logger.Warn(context.Background(), "reconciliation loop exited", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
 			return
 		}
@@ -95,7 +97,7 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 
 func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	if cause != nil {
-		c.logger.Error(context.Background(), "stopping reconciler due to an error", slog.F("cause", cause))
+		c.logger.Error(context.Background(), "stopping reconciler due to an error", slog.Error(cause))
 	} else {
 		c.logger.Info(context.Background(), "gracefully stopping reconciler")
 	}
