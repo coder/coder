@@ -1,14 +1,10 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # users edit-roles
 
-Edit a member's roles
-
-Aliases:
-
-* edit-role
+Edit a user's roles by username or id
 
 ## Usage
 
 ```console
-coder users edit-roles <username | user_id> [roles...]
+coder users edit-roles <username|user_id>
 ```

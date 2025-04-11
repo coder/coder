@@ -12,7 +12,7 @@ SUBCOMMANDS:
                   interact with the platform
     create        
     delete        Delete a user by username or user_id.
-    edit-roles    Edit a member's roles
+    edit-roles    Edit a user's roles by username or id
     list          
     show          Show a single user. Use 'me' to indicate the currently
                   authenticated user.

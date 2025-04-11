@@ -1594,7 +1594,7 @@
 						},
 						{
 							"title": "users edit-roles",
-							"description": "Edit a member's roles",
+							"description": "Edit a user's roles by username or id",
 							"path": "reference/cli/users_edit-roles.md"
 						},
 						{
