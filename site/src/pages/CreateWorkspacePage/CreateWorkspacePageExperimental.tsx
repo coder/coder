@@ -32,7 +32,6 @@ import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import type { Response } from "api/typesParameter";
 import { useWebSocket } from "hooks/useWebsocket";
 import {
 	type CreateWorkspacePermissions,
