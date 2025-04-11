@@ -173,10 +173,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					</SelectTrigger>
 					<SelectContent>
 						{parameter.options
-							.filter(
-								(option): option is NonNullable<typeof option> =>
-									option !== null,
-							)
 							.map((option) => (
 								<SelectItem key={option.value.value} value={option.value.value}>
 									<OptionDisplay option={option} />
@@ -189,7 +185,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		case "multi-select": {
 			// Map parameter options to MultiSelectCombobox options format
 			const comboboxOptions: Option[] = parameter.options
-				.filter((opt): opt is NonNullable<typeof opt> => opt !== null)
 				.map((opt) => ({
 					value: opt.value.value,
 					label: opt.name,
@@ -199,7 +194,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const defaultOptions: Option[] = JSON.parse(defaultValue).map(
 				(val: string) => {
 					const option = parameter.options
-						.filter((o): o is NonNullable<typeof o> => o !== null)
 						.find((o) => o.value.value === val);
 					return {
 						value: val,
@@ -251,9 +245,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					defaultValue={defaultValue}
 				>
 					{parameter.options
-						.filter(
-							(option): option is NonNullable<typeof option> => option !== null,
-						)
 						.map((option) => (
 							<div
 								key={option.value.value}
@@ -293,10 +284,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const inputProps: Record<string, unknown> = {};
 
 			if (parameter.type === "number") {
-				const validations =
-					parameter.validations.filter(
-						(v): v is NonNullable<typeof v> => v !== null,
-					)[0] || {};
+				const validations = parameter.validations[0] || {};
 				const { validation_min, validation_max } = validations;
 
 				if (validation_min !== null) {
@@ -365,10 +353,6 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 	return (
 		<div className="flex flex-col gap-2">
 			{diagnostics
-				.filter(
-					(diagnostic): diagnostic is NonNullable<typeof diagnostic> =>
-						diagnostic !== null,
-				)
 				.map((diagnostic, index) => (
 					<div
 						key={`diagnostic-${diagnostic.summary}-${index}`}
@@ -456,10 +440,8 @@ export const useValidationSchemaForDynamicParameters = (
 							switch (parameter.type) {
 								case "number": {
 									const minValidation = parameter.validations
-										.filter((v): v is NonNullable<typeof v> => v !== null)
 										.find((v) => v.validation_min !== null);
 									const maxValidation = parameter.validations
-										.filter((v): v is NonNullable<typeof v> => v !== null)
 										.find((v) => v.validation_max !== null);
 
 									if (
@@ -570,13 +552,10 @@ const parameterError = (
 	value?: string,
 ): string | undefined => {
 	const validation_error = parameter.validations
-		.filter((v): v is NonNullable<typeof v> => v !== null)
 		.find((v) => v.validation_error !== null);
 	const minValidation = parameter.validations
-		.filter((v): v is NonNullable<typeof v> => v !== null)
 		.find((v) => v.validation_min !== null);
 	const maxValidation = parameter.validations
-		.filter((v): v is NonNullable<typeof v> => v !== null)
 		.find((v) => v.validation_max !== null);
 
 	if (!validation_error || !value) {
