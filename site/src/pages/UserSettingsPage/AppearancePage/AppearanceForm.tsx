@@ -4,6 +4,7 @@ import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
+import TextField from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
 import {
 	type TerminalFontName,
@@ -18,6 +19,7 @@ import type { FC } from "react";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
 import {
 	DEFAULT_TERMINAL_FONT,
+	DEFAULT_TERMINAL_FONT_SIZE,
 	terminalFontLabels,
 	terminalFonts,
 } from "theme/constants";
@@ -39,6 +41,8 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
 	const currentTerminalFont =
 		initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
+	const currentTerminalFontSize =
+		initialValues.terminal_font_size || DEFAULT_TERMINAL_FONT_SIZE;
 
 	const onChangeTheme = async (theme: string) => {
 		if (isUpdating) {
@@ -47,6 +51,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		await onSubmit({
 			theme_preference: theme,
 			terminal_font: currentTerminalFont,
+			terminal_font_size: currentTerminalFontSize,
 		});
 	};
 
@@ -57,13 +62,29 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		await onSubmit({
 			theme_preference: currentTheme,
 			terminal_font: terminalFont,
+			terminal_font_size: currentTerminalFontSize,
+		});
+	};
+
+	const onChangeTerminalFontSize = async (terminalFontSize: number) => {
+		if (isUpdating) {
+			return;
+		}
+		await onSubmit({
+			theme_preference: currentTheme,
+			terminal_font: currentTerminalFont,
+			terminal_font_size: terminalFontSize,
 		});
 	};
 
 	return (
 		<form>
-			{Boolean(error) && <ErrorAlert error={error} />}
-
+			{Boolean(error) && (
+				<>
+					<ErrorAlert error={error} />
+					<div css={{ marginBottom: 48 }}></div>
+				</>
+			)}
 			<Section
 				title={
 					<Stack direction="row" alignItems="center">
@@ -127,6 +148,35 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						))}
 					</RadioGroup>
 				</FormControl>
+			</Section>
+			<div css={{ marginBottom: 48 }}></div>
+			<Section
+				title={
+					<Stack direction="row" alignItems="center">
+						<span>Terminal Font Size</span>
+						{isUpdating && <CircularProgress size={16} />}
+					</Stack>
+				}
+				layout="fluid"
+			>
+				<TextField
+					disabled={isUpdating}
+					label="Font size (px)"
+					variant="outlined"
+					type="number"
+					size="small"
+					style={{ width: "110px" }}
+					defaultValue={currentTerminalFontSize}
+					inputProps={{ min: 8, max: 32 }}
+					onBlur={(e) => {
+						onChangeTerminalFontSize(Number(e.target.value));
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault(); // Prevent form submission
+						}
+					}}
+				/>
 			</Section>
 		</form>
 	);

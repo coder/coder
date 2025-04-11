@@ -1579,6 +1579,13 @@ func (m queryMetricsStore) GetUserTerminalFont(ctx context.Context, userID uuid.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserTerminalFontSize(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserTerminalFontSize(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserTerminalFontSize").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserThemePreference(ctx, userID)
@@ -2836,6 +2843,13 @@ func (m queryMetricsStore) UpdateUserTerminalFont(ctx context.Context, arg datab
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserTerminalFont(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserTerminalFont").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserTerminalFontSize(ctx context.Context, arg database.UpdateUserTerminalFontSizeParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserTerminalFontSize(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserTerminalFontSize").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

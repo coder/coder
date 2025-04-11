@@ -2804,6 +2804,17 @@ func (q *querier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (st
 	return q.db.GetUserTerminalFont(ctx, userID)
 }
 
+func (q *querier) GetUserTerminalFontSize(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return "", err
+	}
+	return q.db.GetUserTerminalFontSize(ctx, userID)
+}
+
 func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -4478,6 +4489,17 @@ func (q *querier) UpdateUserTerminalFont(ctx context.Context, arg database.Updat
 		return database.UserConfig{}, err
 	}
 	return q.db.UpdateUserTerminalFont(ctx, arg)
+}
+
+func (q *querier) UpdateUserTerminalFontSize(ctx context.Context, arg database.UpdateUserTerminalFontSizeParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpdateUserTerminalFontSize(ctx, arg)
 }
 
 func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.UserConfig, error) {

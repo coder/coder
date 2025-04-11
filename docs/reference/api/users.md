@@ -502,6 +502,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_preference": "string"
 }
 ```
@@ -533,6 +534,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 8,
   "theme_preference": "string"
 }
 ```
@@ -551,6 +553,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_preference": "string"
 }
 ```

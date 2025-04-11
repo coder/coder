@@ -15765,11 +15765,17 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "terminal_font",
+                "terminal_font_size",
                 "theme_preference"
             ],
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
                 },
                 "theme_preference": {
                     "type": "string"
@@ -16064,6 +16070,9 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "type": "integer"
                 },
                 "theme_preference": {
                     "type": "string"

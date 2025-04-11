@@ -207,13 +207,15 @@ const (
 )
 
 type UserAppearanceSettings struct {
-	ThemePreference string           `json:"theme_preference"`
-	TerminalFont    TerminalFontName `json:"terminal_font"`
+	ThemePreference  string           `json:"theme_preference"`
+	TerminalFont     TerminalFontName `json:"terminal_font"`
+	TerminalFontSize int              `json:"terminal_font_size"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
-	ThemePreference string           `json:"theme_preference" validate:"required"`
-	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
+	ThemePreference  string           `json:"theme_preference" validate:"required"`
+	TerminalFont     TerminalFontName `json:"terminal_font" validate:"required"`
+	TerminalFontSize int              `json:"terminal_font_size" validate:"required,min=8,max=32"`
 }
 
 type UpdateUserPasswordRequest struct {
