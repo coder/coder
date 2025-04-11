@@ -69,7 +69,7 @@ FROM workspace_latest_builds wlb
 		-- running prebuilds for inactive template versions, and we ignore
 		-- prebuilds that are still building.
 		INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-        INNER JOIN template_version_presets tvp ON wlb.template_version_preset_id = tvp.id
+		INNER JOIN template_version_presets tvp ON wlb.template_version_preset_id = tvp.id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition, tvp.id;
 

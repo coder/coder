@@ -452,7 +452,7 @@ func (c *StoreReconciler) provision(
 		Initiator(prebuilds.SystemUserID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
-		Prebuild().
+		MarkPrebuild().
 		TemplateVersionPresetID(presetID)
 
 	// We only inject the required params when the prebuild is being created.
