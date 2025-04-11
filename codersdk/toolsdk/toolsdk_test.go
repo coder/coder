@@ -288,7 +288,10 @@ func TestTools(t *testing.T) {
 		ctx = toolsdk.WithClient(ctx, client)
 
 		// Create a new template version for use here.
-		tv := dbfake.TemplateVersion(t, store).SkipCreateTemplate().Do()
+		tv := dbfake.TemplateVersion(t, store).
+			// nolint:gocritic // This is in a test package and does not end up in the build
+			Seed(database.TemplateVersion{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID}).
+			SkipCreateTemplate().Do()
 
 		// We're going to re-use the pre-existing template version
 		_, err := testTool(ctx, t, toolsdk.CreateTemplate, map[string]any{
@@ -342,7 +345,7 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	if len(untested) > 0 {
+	if len(untested) > 0 && code == 0 {
 		println("The following tools were not tested:")
 		for _, tool := range untested {
 			println(" - " + tool)
