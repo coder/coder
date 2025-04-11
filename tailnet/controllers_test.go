@@ -1637,7 +1637,7 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 	fUH := newFakeUpdateHandler(ctx, t)
 	fDNS := newFakeDNSSetter(ctx, t)
 	coordC, updateC, updateCtrl := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger,
-		tailnet.WithDNS(fDNS, "testy", tailnet.DNSNameOptions{Suffix: "coder"}),
+		tailnet.WithDNS(fDNS, "testy", tailnet.DNSNameOptions{Suffix: tailnet.CoderDNSSuffix}),
 		tailnet.WithHandler(fUH),
 	)
 
@@ -1664,7 +1664,8 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 	require.Equal(t, w1a1ID[:], coordCall.req.GetAddTunnel().GetId())
 	testutil.RequireSendCtx(ctx, t, coordCall.err, nil)
 
-	expectedCoderConnectFQDN, err := dnsname.ToFQDN(fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, "coder"))
+	expectedCoderConnectFQDN, err := dnsname.ToFQDN(
+		fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, tailnet.CoderDNSSuffix))
 	require.NoError(t, err)
 
 	// DNS for w1a1
@@ -1785,7 +1786,7 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 	fConn := &fakeCoordinatee{}
 	tsc := tailnet.NewTunnelSrcCoordController(logger, fConn)
 	uut := tailnet.NewTunnelAllWorkspaceUpdatesController(logger, tsc,
-		tailnet.WithDNS(fDNS, "testy", tailnet.DNSNameOptions{Suffix: "coder"}),
+		tailnet.WithDNS(fDNS, "testy", tailnet.DNSNameOptions{Suffix: tailnet.CoderDNSSuffix}),
 	)
 
 	updateC := newFakeWorkspaceUpdateClient(ctx, t)
@@ -1806,7 +1807,8 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 	upRecvCall := testutil.RequireRecvCtx(ctx, t, updateC.recv)
 	testutil.RequireSendCtx(ctx, t, upRecvCall.resp, initUp)
 
-	expectedCoderConnectFQDN, err := dnsname.ToFQDN(fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, "coder"))
+	expectedCoderConnectFQDN, err := dnsname.ToFQDN(
+		fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, tailnet.CoderDNSSuffix))
 	require.NoError(t, err)
 
 	// DNS for w1a1
