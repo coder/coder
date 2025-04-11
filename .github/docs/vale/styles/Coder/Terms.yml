@@ -5,11 +5,44 @@ message: "Use '%s' instead of '%s'."
 level: warning
 ignorecase: true
 swap:
-  'VM': 'virtual machine'
-  'K8s': 'Kubernetes'
+  # Capitalization and product names - relaxed for documentation style
+  # Allow both forms of these terms - depends on context  
+  # 'vm': 'virtual machine'
+  # 'VM': 'virtual machine'
+  # Allow K8s as shorthand for Kubernetes
+  # 'k8s': 'Kubernetes'
+  # 'K8s': 'Kubernetes'
   'kubernetes': 'Kubernetes'
-  'AWS EC2': 'Amazon EC2'
+  # Allow both forms - AWS EC2 and Amazon EC2 are both acceptable
+  # 'aws ec2': 'Amazon EC2'
+  # 'AWS EC2': 'Amazon EC2'
+  'terraform': 'Terraform'
+  'docker': 'Docker'
+  'github': 'GitHub'
+  'oauth': 'OAuth'
+  'oidc': 'OIDC'
+  
+  # UI and documentation terms
   'CLI tool': 'CLI'
   'web UI': 'dashboard'
   'web ui': 'dashboard'
   'WebUI': 'dashboard'
+  'UI interface': 'user interface'
+  'user-interface': 'user interface'
+  
+  # Technical terminology - allow informal usage
+  'workspace instance': 'workspace'
+  # Allow 'dev environment' as informal shorthand
+  # 'dev environment': 'development environment'
+  # 'developer environment': 'development environment'
+  'cloud-instance': 'cloud instance'
+  # Allow 'dev container' as it's widely used in docs
+  # 'dev container': 'development container'
+  # 'dev-container': 'development container'
+  
+  # Consistency in product features
+  'workspace template': 'template'
+  'remote-development': 'remote development'
+  'self-hosted': 'self-hosted'
+  'on-prem': 'self-hosted'
+  'on-premise': 'self-hosted'
