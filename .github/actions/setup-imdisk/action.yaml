@@ -46,7 +46,7 @@ runs:
         $before = Get-Disk
 
         # Create the uninitialized disk.
-        & "C:\Program Files\OSFmount\OSFMount.com" -a -t vm -s 4096M -o physical
+        & "C:\Program Files\OSFmount\OSFMount.com" -a -t vm -s 48G -o physical
         if ($LASTEXITCODE -ne 0) { throw "Failed to create RAM disk" }
 
         # List disks after creating the RAM disk and find the new one.
