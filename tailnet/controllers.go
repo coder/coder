@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
+	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
@@ -1265,6 +1266,7 @@ func (t *tunnelUpdater) updateDNSNamesLocked() map[dnsname.FQDN][]netip.Addr {
 			}
 		}
 	}
+	names[IsCoderConnectEnabledFQDN] = []netip.Addr{tsaddr.CoderServiceIPv6()}
 	return names
 }
 

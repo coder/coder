@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
+	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/util/dnsname"
@@ -1563,13 +1564,14 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 
 	// Also triggers setting DNS hosts
 	expectedDNS := map[dnsname.FQDN][]netip.Addr{
-		"w1a1.w1.me.coder.":    {ws1a1IP},
-		"w2a1.w2.me.coder.":    {w2a1IP},
-		"w2a2.w2.me.coder.":    {w2a2IP},
-		"w1a1.w1.testy.coder.": {ws1a1IP},
-		"w2a1.w2.testy.coder.": {w2a1IP},
-		"w2a2.w2.testy.coder.": {w2a2IP},
-		"w1.coder.":            {ws1a1IP},
+		"w1a1.w1.me.coder.":                     {ws1a1IP},
+		"w2a1.w2.me.coder.":                     {w2a1IP},
+		"w2a2.w2.me.coder.":                     {w2a2IP},
+		"w1a1.w1.testy.coder.":                  {ws1a1IP},
+		"w2a1.w2.testy.coder.":                  {w2a1IP},
+		"w2a2.w2.testy.coder.":                  {w2a2IP},
+		"w1.coder.":                             {ws1a1IP},
+		tailnet.IsCoderConnectEnabledFQDNString: {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1661,9 +1663,10 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 
 	// DNS for w1a1
 	expectedDNS := map[dnsname.FQDN][]netip.Addr{
-		"w1a1.w1.testy.coder.": {ws1a1IP},
-		"w1a1.w1.me.coder.":    {ws1a1IP},
-		"w1.coder.":            {ws1a1IP},
+		"w1a1.w1.testy.coder.":                  {ws1a1IP},
+		"w1a1.w1.me.coder.":                     {ws1a1IP},
+		"w1.coder.":                             {ws1a1IP},
+		tailnet.IsCoderConnectEnabledFQDNString: {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1716,9 +1719,10 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 
 	// DNS contains only w1a2
 	expectedDNS = map[dnsname.FQDN][]netip.Addr{
-		"w1a2.w1.testy.coder.": {ws1a2IP},
-		"w1a2.w1.me.coder.":    {ws1a2IP},
-		"w1.coder.":            {ws1a2IP},
+		"w1a2.w1.testy.coder.":                  {ws1a2IP},
+		"w1a2.w1.me.coder.":                     {ws1a2IP},
+		"w1.coder.":                             {ws1a2IP},
+		tailnet.IsCoderConnectEnabledFQDNString: {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall = testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1798,9 +1802,10 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 
 	// DNS for w1a1
 	expectedDNS := map[dnsname.FQDN][]netip.Addr{
-		"w1a1.w1.me.coder.":    {ws1a1IP},
-		"w1a1.w1.testy.coder.": {ws1a1IP},
-		"w1.coder.":            {ws1a1IP},
+		"w1a1.w1.me.coder.":                     {ws1a1IP},
+		"w1a1.w1.testy.coder.":                  {ws1a1IP},
+		"w1.coder.":                             {ws1a1IP},
+		tailnet.IsCoderConnectEnabledFQDNString: {tsaddr.CoderServiceIPv6()},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
