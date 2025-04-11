@@ -22,7 +22,14 @@ runs:
         if ((Get-FileHash $path -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
           throw "Failed to verify osfmount.exe"
         }
-        Start-Process -FilePath $path -ArgumentList "/silent /norestart" -Wait
+        # We can't just use -Wait here or it will block when the installer
+        # launches the GUI afterwards, and there's no way to turn that off.
+        $proc = Start-Process -FilePath $path -ArgumentList "/silent /norestart" -PassThru
+        $proc.WaitForExit()
+        if ($proc.ExitCode -ne 0) { throw "Failed to install osfmount.exe" }
+        # Close the GUI and delete the installer.
+        Get-Process -Name "OSFMount" -ErrorAction SilentlyContinue | Stop-Process -Force
+        Remove-Item $path
       env:
         OSFMOUNT_URL: https://storage.googleapis.com/coder-osfmount-binaries/osfmount-v3.1.1003.exe
         OSFMOUNT_SHA256: 9fe0738b7c2d29a7414e67f53aea359f3801d1c37b44f1b4fed5d02cb7536369
