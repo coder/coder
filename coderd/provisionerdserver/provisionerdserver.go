@@ -27,6 +27,8 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -46,7 +48,6 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/quartz"
 )
 
 const (
@@ -635,6 +636,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
+					IsPrebuild:                    input.IsPrebuild,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -2460,6 +2462,7 @@ type TemplateVersionImportJob struct {
 type WorkspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	DryRun           bool      `json:"dry_run"`
+	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
 	LogLevel         string    `json:"log_level,omitempty"`
 }
 

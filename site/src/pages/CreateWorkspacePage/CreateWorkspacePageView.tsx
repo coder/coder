@@ -369,6 +369,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														option?.value,
+													);
 												}}
 												placeholder="Select a preset"
 												selectedOption={presetOptions[selectedPresetIndex]}

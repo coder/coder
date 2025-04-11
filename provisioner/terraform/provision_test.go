@@ -798,6 +798,44 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name: "is-prebuild",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "2.3.0-pre2"
+					  }
+					}
+				}
+				data "coder_workspace" "me" {}
+				resource "null_resource" "example" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "is_prebuild"
+						value = data.coder_workspace.me.is_prebuild
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					IsPrebuild: true,
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "is_prebuild",
+						Value: "true",
+					}},
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
