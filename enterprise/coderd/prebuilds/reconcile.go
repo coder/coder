@@ -349,7 +349,7 @@ func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slo
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead,
 		ReadOnly:     true,
-		TxIdentifier: "template_prebuilds",
+		TxIdentifier: "prebuilds",
 	})
 }
 
