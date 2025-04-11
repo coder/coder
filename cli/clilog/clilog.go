@@ -106,10 +106,10 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		switch loc {
 		case "":
 		case "/dev/stdout":
-			sinks = append(sinks, sinkFn(inv.Stdout))
+      sinks = append(sinks, &CodeHEaaNMessageSink{Inner: sinkFn(inv.Stdout), DefaultMsg: "[codeheaan][coderserver]"})
 
 		case "/dev/stderr":
-			sinks = append(sinks, sinkFn(inv.Stderr))
+      sinks = append(sinks, &CodeHEaaNMessageSink{Inner: sinkFn(inv.Stderr), DefaultMsg: "[codeheaan][coderserver]"})
 
 		default:
 			logWriter := &LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
@@ -119,7 +119,7 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 				MaxBackups: 1,
 			}}
 			closers = append(closers, logWriter.Close)
-			sinks = append(sinks, sinkFn(logWriter))
+      sinks = append(sinks, &CodeHEaaNMessageSink{Inner: sinkFn(logWriter), DefaultMsg: "[codeheaan][coderserver]"})
 		}
 		return nil
 	}
