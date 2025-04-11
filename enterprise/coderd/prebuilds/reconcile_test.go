@@ -316,8 +316,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 							logger := slogtest.Make(
 								t, &slogtest.Options{IgnoreErrors: true},
 							).Leveled(slog.LevelDebug)
-							db, pubsub := dbtestutil.NewDB(t)
-							controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
+							db, pubSub := dbtestutil.NewDB(t)
+							controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
 
 							ownerID := uuid.New()
 							dbgen.User(t, db, database.User{
@@ -329,7 +329,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								t,
 								clock,
 								db,
-								pubsub,
+								pubSub,
 								org.ID,
 								ownerID,
 								template.ID,
@@ -345,7 +345,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								t,
 								clock,
 								db,
-								pubsub,
+								pubSub,
 								prebuildLatestTransition,
 								prebuildJobStatus,
 								org.ID,
@@ -357,7 +357,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 							if !templateVersionActive {
 								// Create a new template version and mark it as active
 								// This marks the template version that we care about as inactive
-								setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
+								setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
 							}
 
 							// Run the reconciliation multiple times to ensure idempotency
@@ -418,8 +418,8 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	logger := slogtest.Make(
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
-	db, pubsub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -431,7 +431,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		t,
 		clock,
 		db,
-		pubsub,
+		pubSub,
 		org.ID,
 		ownerID,
 		template.ID,
@@ -456,7 +456,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			t,
 			clock,
 			db,
-			pubsub,
+			pubSub,
 			prebuildLatestTransition,
 			prebuildJobStatus,
 			org.ID,
@@ -510,8 +510,8 @@ func TestRunLoop(t *testing.T) {
 	logger := slogtest.Make(
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
-	db, pubsub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, clock)
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -523,7 +523,7 @@ func TestRunLoop(t *testing.T) {
 		t,
 		clock,
 		db,
-		pubsub,
+		pubSub,
 		org.ID,
 		ownerID,
 		template.ID,
@@ -548,7 +548,7 @@ func TestRunLoop(t *testing.T) {
 			t,
 			clock,
 			db,
-			pubsub,
+			pubSub,
 			prebuildLatestTransition,
 			prebuildJobStatus,
 			org.ID,
@@ -773,6 +773,7 @@ func TestReconciliationLock(t *testing.T) {
 	wg.Wait()
 }
 
+// nolint:revive // It's a control flag, but this is a test.
 func setupTestDBTemplate(
 	t *testing.T,
 	db database.Store,
