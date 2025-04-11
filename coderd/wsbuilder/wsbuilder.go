@@ -171,7 +171,7 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 	return b
 }
 
-func (b Builder) Prebuild() Builder {
+func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
 	b.prebuild = true
 	return b
@@ -310,7 +310,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 		WorkspaceBuildID: workspaceBuildID,
 		LogLevel:         b.logLevel,
-		Prebuild:         b.prebuild,
+		IsPrebuild:       b.prebuild,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{

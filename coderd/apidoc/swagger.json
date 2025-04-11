@@ -9543,10 +9543,7 @@
 					"$ref": "#/definitions/codersdk.AuditAction"
 				},
 				"additional_fields": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object"
 				},
 				"description": {
 					"type": "string"
@@ -10654,6 +10651,9 @@
 					"description": "HTTPAddress is a string because it may be set to zero to disable.",
 					"type": "string"
 				},
+				"http_cookies": {
+					"$ref": "#/definitions/codersdk.HTTPCookieConfig"
+				},
 				"in_memory_database": {
 					"type": "boolean"
 				},
@@ -10714,9 +10714,6 @@
 				"scim_api_key": {
 					"type": "string"
 				},
-				"secure_auth_cookie": {
-					"type": "boolean"
-				},
 				"session_lifetime": {
 					"$ref": "#/definitions/codersdk.SessionLifetime"
 				},
@@ -10766,6 +10763,9 @@
 					"type": "string"
 				},
 				"wildcard_access_url": {
+					"type": "string"
+				},
+				"workspace_hostname_suffix": {
 					"type": "string"
 				},
 				"write_config": {
@@ -10842,10 +10842,12 @@
 				"auto-fill-parameters",
 				"notifications",
 				"workspace-usage",
-				"web-push"
+				"web-push",
+				"dynamic-parameters"
 			],
 			"x-enum-comments": {
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+				"ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
 				"ExperimentExample": "This isn't used for anything.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
 				"ExperimentWebPush": "Enables web push notifications through the browser.",
@@ -10856,7 +10858,8 @@
 				"ExperimentAutoFillParameters",
 				"ExperimentNotifications",
 				"ExperimentWorkspaceUsage",
-				"ExperimentWebPush"
+				"ExperimentWebPush",
+				"ExperimentDynamicParameters"
 			]
 		},
 		"codersdk.ExternalAuth": {
@@ -11217,6 +11220,17 @@
 							"$ref": "#/definitions/regexp.Regexp"
 						}
 					]
+				}
+			}
+		},
+		"codersdk.HTTPCookieConfig": {
+			"type": "object",
+			"properties": {
+				"same_site": {
+					"type": "string"
+				},
+				"secure_auth_cookie": {
+					"type": "boolean"
 				}
 			}
 		},
@@ -13387,6 +13401,11 @@
 			"type": "object",
 			"properties": {
 				"hostname_prefix": {
+					"description": "HostnamePrefix is the prefix we append to workspace names for SSH hostnames.\nDeprecated: use HostnameSuffix instead.",
+					"type": "string"
+				},
+				"hostname_suffix": {
+					"description": "HostnameSuffix is the suffix to append to workspace names for SSH hostnames.",
 					"type": "string"
 				},
 				"ssh_config_options": {
@@ -14186,6 +14205,23 @@
 			"enum": ["UNSUPPORTED_WORKSPACES"],
 			"x-enum-varnames": ["TemplateVersionWarningUnsupportedWorkspaces"]
 		},
+		"codersdk.TerminalFontName": {
+			"type": "string",
+			"enum": [
+				"",
+				"ibm-plex-mono",
+				"fira-code",
+				"source-code-pro",
+				"jetbrains-mono"
+			],
+			"x-enum-varnames": [
+				"TerminalFontUnknown",
+				"TerminalFontIBMPlexMono",
+				"TerminalFontFiraCode",
+				"TerminalFontSourceCodePro",
+				"TerminalFontJetBrainsMono"
+			]
+		},
 		"codersdk.TimingStage": {
 			"type": "string",
 			"enum": [
@@ -14356,8 +14392,11 @@
 		},
 		"codersdk.UpdateUserAppearanceSettingsRequest": {
 			"type": "object",
-			"required": ["theme_preference"],
+			"required": ["terminal_font", "theme_preference"],
 			"properties": {
+				"terminal_font": {
+					"$ref": "#/definitions/codersdk.TerminalFontName"
+				},
 				"theme_preference": {
 					"type": "string"
 				}
@@ -14623,6 +14662,9 @@
 		"codersdk.UserAppearanceSettings": {
 			"type": "object",
 			"properties": {
+				"terminal_font": {
+					"$ref": "#/definitions/codersdk.TerminalFontName"
+				},
 				"theme_preference": {
 					"type": "string"
 				}

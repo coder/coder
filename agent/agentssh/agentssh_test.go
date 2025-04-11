@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -153,7 +154,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
-		defer s.Close()
+		t.Cleanup(func() {
+			_ = s.Close()
+		})
 		err = s.UpdateHostSigner(42)
 		assert.NoError(t, err)
 
@@ -190,10 +193,21 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				}
 				// The 60 seconds here is intended to be longer than the
 				// test. The shutdown should propagate.
-				err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; sleep 60'")
+				if runtime.GOOS == "windows" {
+					// Best effort to at least partially test this in Windows.
+					err = sess.Start("echo start\"ed\" && sleep 60")
+				} else {
+					err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; echo start\"ed\"; sleep 60'")
+				}
 				assert.NoError(t, err)
 
+				// Allow the session to settle (i.e. reach echo).
+				pty.ExpectMatchContext(ctx, "started")
+				// Sleep a bit to ensure the sleep has started.
+				time.Sleep(testutil.IntervalMedium)
+
 				close(ch)
+
 				err = sess.Wait()
 				assert.Error(t, err)
 			}(waitConns[i])

@@ -651,7 +651,7 @@ export interface DeploymentValues {
 	readonly telemetry?: TelemetryConfig;
 	readonly tls?: TLSConfig;
 	readonly trace?: TraceConfig;
-	readonly secure_auth_cookie?: boolean;
+	readonly http_cookies?: HTTPCookieConfig;
 	readonly strict_transport_security?: number;
 	readonly strict_transport_security_options?: string;
 	readonly ssh_keygen_algorithm?: string;
@@ -686,6 +686,7 @@ export interface DeploymentValues {
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
+	readonly workspace_hostname_suffix?: string;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -751,6 +752,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "auto-fill-parameters"
+	| "dynamic-parameters"
 	| "example"
 	| "notifications"
 	| "web-push"
@@ -974,6 +976,12 @@ export interface GroupSyncSettings {
 	readonly regex_filter: string | null;
 	readonly auto_create_missing_groups: boolean;
 	readonly legacy_group_name_mapping?: Record<string, string>;
+}
+
+// From codersdk/deployment.go
+export interface HTTPCookieConfig {
+	readonly secure_auth_cookie?: boolean;
+	readonly same_site?: string;
 }
 
 // From health/model.go
@@ -1668,6 +1676,13 @@ export interface PprofConfig {
 	readonly address: string;
 }
 
+// From codersdk/deployment.go
+export interface PrebuildsConfig {
+	readonly reconciliation_interval: number;
+	readonly reconciliation_backoff_interval: number;
+	readonly reconciliation_backoff_lookback: number;
+}
+
 // From codersdk/presets.go
 export interface Preset {
 	readonly ID: string;
@@ -2219,6 +2234,7 @@ export interface SSHConfig {
 // From codersdk/deployment.go
 export interface SSHConfigResponse {
 	readonly hostname_prefix: string;
+	readonly hostname_suffix: string;
 	readonly ssh_config_options: Record<string, string>;
 }
 
@@ -2656,6 +2672,22 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 	readonly include_archived: boolean;
 }
 
+// From codersdk/users.go
+export type TerminalFontName =
+	| "fira-code"
+	| "ibm-plex-mono"
+	| "jetbrains-mono"
+	| "source-code-pro"
+	| "";
+
+export const TerminalFontNames: TerminalFontName[] = [
+	"fira-code",
+	"ibm-plex-mono",
+	"jetbrains-mono",
+	"source-code-pro",
+	"",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -2789,6 +2821,7 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/notifications.go
@@ -2905,6 +2938,7 @@ export interface UserActivityInsightsResponse {
 // From codersdk/users.go
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
+	readonly terminal_font: TerminalFontName;
 }
 
 // From codersdk/insights.go
@@ -3388,7 +3422,7 @@ export interface WorkspaceBuild {
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
-	readonly template_version_preset_id?: string;
+	readonly template_version_preset_id: string | null;
 }
 
 // From codersdk/workspacebuilds.go

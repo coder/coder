@@ -358,7 +358,7 @@ type DeploymentValues struct {
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
 	TLS                             TLSConfig                            `json:"tls,omitempty" typescript:",notnull"`
 	Trace                           TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                serpent.Bool                         `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	HTTPCookies                     HTTPCookieConfig                     `json:"http_cookies,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         serpent.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
 	StrictTransportSecurityOptions  serpent.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
 	SSHKeygenAlgorithm              serpent.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
@@ -393,6 +393,7 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -583,6 +584,30 @@ type TraceConfig struct {
 	HoneycombAPIKey serpent.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     serpent.Bool   `json:"capture_logs" typescript:",notnull"`
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
+}
+
+type HTTPCookieConfig struct {
+	Secure   serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	SameSite string       `json:"same_site,omitempty" typescript:",notnull"`
+}
+
+func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
+	c.Secure = cfg.Secure.Value()
+	c.SameSite = cfg.HTTPSameSite()
+	return c
+}
+
+func (cfg HTTPCookieConfig) HTTPSameSite() http.SameSite {
+	switch strings.ToLower(cfg.SameSite) {
+	case "lax":
+		return http.SameSiteLaxMode
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteDefaultMode
+	}
 }
 
 type ExternalAuthConfig struct {
@@ -950,7 +975,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupClient = serpent.Group{
 			Name: "Client",
 			Description: "These options change the behavior of how clients interact with the Coder. " +
-				"Clients include the coder cli, vs code extension, and the web UI.",
+				"Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.",
 			YAML: "client",
 		}
 		deploymentGroupConfig = serpent.Group{
@@ -2381,9 +2406,21 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
 			Env:         "CODER_SECURE_AUTH_COOKIE",
-			Value:       &c.SecureAuthCookie,
+			Value:       &c.HTTPCookies.Secure,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "SameSite Auth Cookie",
+			Description: "Controls the 'SameSite' property is set on browser session cookies.",
+			Flag:        "samesite-auth-cookie",
+			Env:         "CODER_SAMESITE_AUTH_COOKIE",
+			// Do not allow "strict" same-site cookies. That would potentially break workspace apps.
+			Value:       serpent.EnumOf(&c.HTTPCookies.SameSite, "lax", "none"),
+			Default:     "lax",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "sameSiteAuthCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
@@ -2554,6 +2591,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SSHConfig.DeploymentName,
 			Hidden:      false,
 			Default:     "coder.",
+		},
+		{
+			Name:        "Workspace Hostname Suffix",
+			Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+			Flag:        "workspace-hostname-suffix",
+			Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
+			YAML:        "workspaceHostnameSuffix",
+			Group:       &deploymentGroupClient,
+			Value:       &c.WorkspaceHostnameSuffix,
+			Hidden:      false,
+			Default:     "coder",
 		},
 		{
 			Name: "SSH Config Options",
@@ -3200,6 +3248,7 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
+	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 )
 
 // ExperimentsAll should include all experiments that are safe for
@@ -3386,7 +3435,12 @@ type DeploymentStats struct {
 }
 
 type SSHConfigResponse struct {
-	HostnamePrefix   string            `json:"hostname_prefix"`
+	// HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
+	// Deprecated: use HostnameSuffix instead.
+	HostnamePrefix string `json:"hostname_prefix"`
+
+	// HostnameSuffix is the suffix to append to workspace names for SSH hostnames.
+	HostnameSuffix   string            `json:"hostname_suffix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 

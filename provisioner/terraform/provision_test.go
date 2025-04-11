@@ -822,7 +822,7 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					Prebuild: true,
+					IsPrebuild: true,
 				},
 			},
 			Response: &proto.PlanComplete{

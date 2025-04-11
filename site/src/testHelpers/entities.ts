@@ -536,6 +536,7 @@ export const SuspendedMockUser: TypesGen.User = {
 
 export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_preference: "dark",
+	terminal_font: "",
 };
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -1265,6 +1266,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 		count: 1,
 		available: 1,
 	},
+	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
@@ -1288,6 +1290,7 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
@@ -1311,6 +1314,7 @@ export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	template_version_preset_id: null,
 };
 
 export const MockFailedWorkspaceBuild = (
@@ -1336,6 +1340,7 @@ export const MockFailedWorkspaceBuild = (
 	resources: [],
 	status: "failed",
 	daily_cost: 20,
+	template_version_preset_id: null,
 });
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -3032,6 +3037,7 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
 	hostname_prefix: " coder.",
 	ssh_config_options: {},
+	hostname_suffix: "coder",
 };
 
 export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
