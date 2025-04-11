@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/codersdk"
 )
 
