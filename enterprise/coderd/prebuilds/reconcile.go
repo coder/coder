@@ -72,6 +72,7 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		c.done <- struct{}{}
 	}()
 
+	//nolint:gocritic Reconciliation Loop needs Prebuilds Orchestrator permissions.
 	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 	c.cancelFn = cancel
 
@@ -251,6 +252,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		return nil
 	}
 
+	//nolint:gocritic ReconcilePreset needs Prebuilds Orchestrator permissions.
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	levelFn := logger.Debug
