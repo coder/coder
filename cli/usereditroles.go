@@ -28,7 +28,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				return xerrors.Errorf("fetch site roles: %w", err)
 			}
 
-			var siteRoles = make([]string, 0)
+			siteRoles := make([]string, 0)
 			for _, role := range roles {
 				if role.Assignable {
 					siteRoles = append(siteRoles, role.Name)
