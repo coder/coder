@@ -378,15 +378,18 @@ func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 		now := c.clock.Now()
 
 		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:               prebuildID,
-			CreatedAt:        now,
-			UpdatedAt:        now,
-			OwnerID:          prebuilds.SystemUserID,
-			OrganizationID:   template.OrganizationID,
-			TemplateID:       template.ID,
-			Name:             name,
-			LastUsedAt:       c.clock.Now(),
-			AutomaticUpdates: database.AutomaticUpdatesNever,
+			ID:                prebuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			OwnerID:           prebuilds.SystemUserID,
+			OrganizationID:    template.OrganizationID,
+			TemplateID:        template.ID,
+			Name:              name,
+			LastUsedAt:        c.clock.Now(),
+			AutomaticUpdates:  database.AutomaticUpdatesNever,
+			AutostartSchedule: sql.NullString{},
+			Ttl:               sql.NullInt64{},
+			NextStartAt:       sql.NullTime{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
