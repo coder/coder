@@ -138,6 +138,7 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
 
+	// If the request is routed, add the route parameters to the log.
 	if chiCtx := chi.RouteContext(ctx); chiCtx != nil {
 		urlParams := chiCtx.URLParams
 		routeParamsFields := make([]slog.Field, 0, len(urlParams.Keys))
