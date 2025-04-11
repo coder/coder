@@ -39,4 +39,4 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        "/c/Program Files/OSFmount/OSFMount.com" -a -t vm -s 4096M -m R: -o logical,format:NTFS
+        "/c/Program Files/OSFmount/OSFMount.com" -a -t vm -s 4096M -m R: -o hd,format:NTFS
