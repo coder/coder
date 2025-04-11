@@ -10,20 +10,20 @@ runs:
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
+        $path = "$($env:TEMP)\osfmount.exe"
         & curl.exe `
           --progress-bar `
           --show-error `
           --fail `
           --location `
-          --output osfmount.exe `
+          --output $path `
           $env:OSFMOUNT_URL
         if ($LASTEXITCODE -ne 0) { throw "Failed to download osfmount.exe" }
-        if ((Get-FileHash osfmount.exe -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
+        if ((Get-FileHash $path -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
           throw "Failed to verify osfmount.exe"
         }
-        & .\osfmount.exe /silent /norestart
+        & $path /silent /norestart
         if ($LASTEXITCODE -ne 0) { throw "Failed to install osfmount.exe" }
-        Remove-Item osfmount.exe
       env:
         OSFMOUNT_URL: https://storage.googleapis.com/coder-osfmount-binaries/osfmount-v3.1.1003.exe
         OSFMOUNT_SHA256: 9fe0738b7c2d29a7414e67f53aea359f3801d1c37b44f1b4fed5d02cb7536369
