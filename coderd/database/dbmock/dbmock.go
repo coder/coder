@@ -1729,21 +1729,6 @@ func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserID(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserID), ctx, arg)
 }
 
-// GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.
-func (m *MockStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetJFrogXrayScanByWorkspaceAndAgentID", ctx, arg)
-	ret0, _ := ret[0].(database.JfrogXrayScan)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetJFrogXrayScanByWorkspaceAndAgentID indicates an expected call of GetJFrogXrayScanByWorkspaceAndAgentID.
-func (mr *MockStoreMockRecorder) GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJFrogXrayScanByWorkspaceAndAgentID", reflect.TypeOf((*MockStore)(nil).GetJFrogXrayScanByWorkspaceAndAgentID), ctx, arg)
-}
-
 // GetLastUpdateCheck mocks base method.
 func (m *MockStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -6413,20 +6398,6 @@ func (m *MockStore) UpsertHealthSettings(ctx context.Context, value string) erro
 func (mr *MockStoreMockRecorder) UpsertHealthSettings(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), ctx, value)
-}
-
-// UpsertJFrogXrayScanByWorkspaceAndAgentID mocks base method.
-func (m *MockStore) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertJFrogXrayScanByWorkspaceAndAgentID", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertJFrogXrayScanByWorkspaceAndAgentID indicates an expected call of UpsertJFrogXrayScanByWorkspaceAndAgentID.
-func (mr *MockStoreMockRecorder) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertJFrogXrayScanByWorkspaceAndAgentID", reflect.TypeOf((*MockStore)(nil).UpsertJFrogXrayScanByWorkspaceAndAgentID), ctx, arg)
 }
 
 // UpsertLastUpdateCheck mocks base method.

@@ -1151,16 +1151,6 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 	readonly signed_token: string;
 }
 
-// From codersdk/jfrog.go
-export interface JFrogXrayScan {
-	readonly workspace_id: string;
-	readonly agent_id: string;
-	readonly critical: number;
-	readonly high: number;
-	readonly medium: number;
-	readonly results_url: string;
-}
-
 // From codersdk/provisionerdaemons.go
 export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
 
