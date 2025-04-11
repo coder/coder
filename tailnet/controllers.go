@@ -21,11 +21,12 @@ import (
 	"tailscale.com/util/dnsname"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+	"github.com/coder/retry"
+
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/quartz"
-	"github.com/coder/retry"
 )
 
 // A Controller connects to the tailnet control plane, and then uses the control protocols to
@@ -1381,6 +1382,14 @@ func (c *Controller) Run(ctx context.Context) {
 				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 					return
 				}
+
+				// If the database is unreachable by the control plane, there's not much we can do, so we'll just retry later.
+				if strings.Contains(err.Error(), codersdk.DatabaseNotReachable) {
+					c.logger.Warn(c.ctx, "control plane lost connection to database, retrying",
+						slog.Error(err), slog.F("retry_in_ms", retrier.Delay.Milliseconds()))
+					continue
+				}
+
 				errF := slog.Error(err)
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) {
