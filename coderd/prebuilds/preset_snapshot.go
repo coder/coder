@@ -91,6 +91,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	)
 
 	if p.isActive() {
+		// #nosec G115 - Safe conversion as p.Running slice length is expected to be within int32 range
 		actual = int32(len(p.Running))
 		desired = p.Preset.DesiredInstances.Int32
 		eligible = p.countEligible()
@@ -219,9 +220,7 @@ func (p PresetSnapshot) countEligible() int32 {
 
 // countInProgress returns counts of prebuilds in transition states (starting, stopping, deleting).
 // These counts are tracked at the template level, so all presets sharing the same template see the same values.
-func (p PresetSnapshot) countInProgress() (int32, int32, int32) {
-	var starting, stopping, deleting int32
-
+func (p PresetSnapshot) countInProgress() (starting int32, stopping int32, deleting int32) {
 	for _, progress := range p.InProgress {
 		num := progress.Count
 		switch progress.Transition {

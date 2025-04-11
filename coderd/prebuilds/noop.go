@@ -15,7 +15,7 @@ func NewNoopReconciler() *NoopReconciler {
 func (NoopReconciler) RunLoop(context.Context)     {}
 func (NoopReconciler) Stop(context.Context, error) {}
 
-func (NoopReconciler) ReconcileAll(ctx context.Context) error {
+func (NoopReconciler) ReconcileAll(context.Context) error {
 	return nil
 }
 

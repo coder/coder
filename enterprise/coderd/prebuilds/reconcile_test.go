@@ -483,7 +483,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		}
 
 		// NOTE: preset1 doesn't block creation of instances in preset2
-		require.Equal(t, preset2.DesiredInstances.Int32, int32(newPrebuildCount))
+		require.Equal(t, preset2.DesiredInstances.Int32, int32(newPrebuildCount)) // nolint:gosec
 	}
 }
 
@@ -569,7 +569,7 @@ func TestRunLoop(t *testing.T) {
 			newPrebuildCount++
 		}
 
-		return int32(newPrebuildCount)
+		return int32(newPrebuildCount) // nolint:gosec
 	}
 
 	// we need to wait until ticker is initialized, and only then use clock.Advance()

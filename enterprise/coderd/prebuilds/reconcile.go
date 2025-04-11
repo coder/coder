@@ -464,7 +464,7 @@ func (c *StoreReconciler) provision(
 	_, provisionerJob, _, err := builder.Build(
 		ctx,
 		db,
-		func(action policy.Action, object rbac.Objecter) bool {
+		func(_ policy.Action, _ rbac.Objecter) bool {
 			return true // TODO: harden?
 		},
 		audit.WorkspaceBuildBaggage{},
