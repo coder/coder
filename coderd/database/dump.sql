@@ -1911,10 +1911,8 @@ CREATE TABLE workspace_app_statuses (
     app_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
     state workspace_app_status_state NOT NULL,
-    needs_user_attention boolean NOT NULL,
     message text NOT NULL,
-    uri text,
-    icon text
+    uri text
 );
 
 CREATE TABLE workspace_apps (

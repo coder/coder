@@ -67,10 +67,6 @@ var (
 						"type":        "string",
 						"description": "A link to a relevant resource, such as a PR or issue.",
 					},
-					"emoji": map[string]any{
-						"type":        "string",
-						"description": "An emoji that visually represents your current progress. Choose an emoji that helps the user understand your current status at a glance.",
-					},
 					"state": map[string]any{
 						"type":        "string",
 						"description": "The state of your task. This can be one of the following: working, complete, or failure. Select the state that best represents your current progress.",
@@ -81,7 +77,7 @@ var (
 						},
 					},
 				},
-				Required: []string{"summary", "link", "emoji", "state"},
+				Required: []string{"summary", "link", "state"},
 			},
 		},
 		Handler: func(ctx context.Context, args map[string]any) (string, error) {
@@ -104,22 +100,16 @@ var (
 			if !ok {
 				return "", xerrors.New("link must be a string")
 			}
-			emoji, ok := args["emoji"].(string)
-			if !ok {
-				return "", xerrors.New("emoji must be a string")
-			}
 			state, ok := args["state"].(string)
 			if !ok {
 				return "", xerrors.New("state must be a string")
 			}
 
 			if err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-				AppSlug:            appSlug,
-				Message:            summary,
-				URI:                link,
-				Icon:               emoji,
-				NeedsUserAttention: false, // deprecated, to be removed later
-				State:              codersdk.WorkspaceAppStatusState(state),
+				AppSlug: appSlug,
+				Message: summary,
+				URI:     link,
+				State:   codersdk.WorkspaceAppStatusState(state),
 			}); err != nil {
 				return "", err
 			}

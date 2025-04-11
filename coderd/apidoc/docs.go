@@ -10320,12 +10320,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Deprecated: this field is unused and will be removed in a future version.",
                     "type": "string"
                 },
                 "message": {
                     "type": "string"
                 },
                 "needs_user_attention": {
+                    "description": "Deprecated: this field is unused and will be removed in a future version.",
                     "type": "boolean"
                 },
                 "state": {
@@ -17019,7 +17021,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "icon": {
-                    "description": "Icon is an external URL to an icon that will be rendered in the UI.",
+                    "description": "Deprecated: This field is unused and will be removed in a future version.\nIcon is an external URL to an icon that will be rendered in the UI.",
                     "type": "string"
                 },
                 "id": {
@@ -17030,6 +17032,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "needs_user_attention": {
+                    "description": "Deprecated: This field is unused and will be removed in a future version.\nNeedsUserAttention specifies whether the status needs user attention.",
                     "type": "boolean"
                 },
                 "state": {

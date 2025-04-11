@@ -74,7 +74,6 @@ func TestTools(t *testing.T) {
 			"summary": "test summary",
 			"state":   "complete",
 			"link":    "https://example.com",
-			"emoji":   "✅",
 		})
 		require.NoError(t, err)
 	})

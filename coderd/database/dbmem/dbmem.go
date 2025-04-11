@@ -9783,16 +9783,14 @@ func (q *FakeQuerier) InsertWorkspaceAppStatus(_ context.Context, arg database.I
 	defer q.mutex.Unlock()
 
 	status := database.WorkspaceAppStatus{
-		ID:                 arg.ID,
-		CreatedAt:          arg.CreatedAt,
-		WorkspaceID:        arg.WorkspaceID,
-		AgentID:            arg.AgentID,
-		AppID:              arg.AppID,
-		NeedsUserAttention: arg.NeedsUserAttention,
-		State:              arg.State,
-		Message:            arg.Message,
-		Uri:                arg.Uri,
-		Icon:               arg.Icon,
+		ID:          arg.ID,
+		CreatedAt:   arg.CreatedAt,
+		WorkspaceID: arg.WorkspaceID,
+		AgentID:     arg.AgentID,
+		AppID:       arg.AppID,
+		State:       arg.State,
+		Message:     arg.Message,
+		Uri:         arg.Uri,
 	}
 	q.workspaceAppStatuses = append(q.workspaceAppStatuses, status)
 	return status, nil

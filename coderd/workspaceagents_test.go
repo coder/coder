@@ -366,8 +366,10 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			AppSlug: "vscode",
 			Message: "testing",
 			URI:     "https://example.com",
-			Icon:    "https://example.com/icon.png",
 			State:   codersdk.WorkspaceAppStatusStateComplete,
+			// Ensure deprecated fields are ignored.
+			Icon:               "https://example.com/icon.png",
+			NeedsUserAttention: true,
 		})
 		require.NoError(t, err)
 
@@ -376,6 +378,9 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		require.Len(t, agent.Apps[0].Statuses, 1)
+		// Deprecated fields should be ignored.
+		require.Empty(t, agent.Apps[0].Statuses[0].Icon)
+		require.False(t, agent.Apps[0].Statuses[0].NeedsUserAttention)
 	})
 }
 
