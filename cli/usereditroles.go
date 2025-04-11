@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"sort"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -38,6 +40,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				return xerrors.Errorf("fetch user roles: %w", err)
 			}
 
+			sort.Strings(siteRoles)
 			selectedRoles, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 				Message:  "Select the roles you'd like to assign to the user",
 				Options:  siteRoles,
