@@ -443,7 +443,6 @@ func TestAcquireJob(t *testing.T) {
 				_, err = db.GetAPIKeyByID(ctx, key.ID)
 				require.ErrorIs(t, err, sql.ErrNoRows)
 			})
-
 		}
 		t.Run(tc.name+"_TemplateVersionDryRun", func(t *testing.T) {
 			t.Parallel()
