@@ -149,7 +149,8 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
 		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{outdated.prebuildID}}, *actions)
+		DeleteIDs:  []uuid.UUID{outdated.prebuildID},
+	}, *actions)
 
 	// WHEN: calculating the current preset's state.
 	ps, err = snapshot.FilterByPreset(current.presetID)

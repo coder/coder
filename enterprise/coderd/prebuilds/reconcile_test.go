@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
