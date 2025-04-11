@@ -1309,7 +1309,7 @@ func NewTunnelAllWorkspaceUpdatesController(
 	t := &TunnelAllWorkspaceUpdatesController{
 		logger:         logger,
 		coordCtrl:      c,
-		dnsNameOptions: DNSNameOptions{"coder"},
+		dnsNameOptions: DNSNameOptions{CoderDNSSuffix},
 	}
 	for _, opt := range opts {
 		opt(t)
