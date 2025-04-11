@@ -329,7 +329,7 @@ var testedTools sync.Map
 // testTool is a helper function to test a tool and mark it as tested.
 func testTool[T any](ctx context.Context, t *testing.T, tool toolsdk.Tool[T], args map[string]any) (T, error) {
 	t.Helper()
-	testedTools.Store(tool.Tool.Name, struct{}{})
+	testedTools.Store(tool.Tool.Name, true)
 	result, err := tool.Handler(ctx, args)
 	return result, err
 }
@@ -337,10 +337,17 @@ func testTool[T any](ctx context.Context, t *testing.T, tool toolsdk.Tool[T], ar
 // TestMain runs after all tests to ensure that all tools in this package have
 // been tested once.
 func TestMain(m *testing.M) {
+	// Initialize testedTools
+	for _, tool := range toolsdk.All {
+		testedTools.Store(tool.Tool.Name, false)
+	}
+
 	code := m.Run()
+
+	// Ensure all tools have been tested
 	var untested []string
 	for _, tool := range toolsdk.All {
-		if _, ok := testedTools.Load(tool.Tool.Name); !ok {
+		if tested, ok := testedTools.Load(tool.Tool.Name); !ok || !tested.(bool) {
 			untested = append(untested, tool.Tool.Name)
 		}
 	}

@@ -32,22 +32,25 @@ func (t Tool[T]) Generic() Tool[any] {
 }
 
 var (
+	// All is a list of all tools that can be used in the Coder CLI.
+	// When you add a new tool, be sure to include it here!
 	All = []Tool[any]{
-		ReportTask.Generic(),
+		CreateTemplateVersion.Generic(),
+		CreateTemplate.Generic(),
 		CreateWorkspace.Generic(),
+		CreateWorkspaceBuild.Generic(),
+		DeleteTemplate.Generic(),
+		GetAuthenticatedUser.Generic(),
+		GetTemplateVersionLogs.Generic(),
+		GetWorkspace.Generic(),
+		GetWorkspaceAgentLogs.Generic(),
+		GetWorkspaceBuildLogs.Generic(),
 		ListWorkspaces.Generic(),
 		ListTemplates.Generic(),
 		ListTemplateVersionParameters.Generic(),
-		GetAuthenticatedUser.Generic(),
-		CreateWorkspaceBuild.Generic(),
+		ReportTask.Generic(),
 		UploadTarFile.Generic(),
-		CreateTemplateVersion.Generic(),
-		CreateTemplate.Generic(),
-		GetTemplateVersionLogs.Generic(),
 		UpdateTemplateActiveVersion.Generic(),
-		DeleteTemplate.Generic(),
-		GetWorkspaceAgentLogs.Generic(),
-		GetWorkspaceBuildLogs.Generic(),
 	}
 
 	ReportTask = Tool[string]{
