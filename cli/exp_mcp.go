@@ -689,6 +689,11 @@ func getAgentToken(fs afero.Fs) (string, error) {
 // mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
 // It assumes that the tool responds with a valid JSON object.
 func mcpFromSDK(sdkTool toolsdk.Tool[any]) server.ServerTool {
+	// NOTE: some clients will silently refuse to use tools if there is an issue
+	// with the tool's schema or configuration.
+	if sdkTool.Schema.Properties == nil {
+		panic("developer error: schema properties cannot be nil")
+	}
 	return server.ServerTool{
 		Tool: mcp.Tool{
 			Name:        sdkTool.Tool.Name,
