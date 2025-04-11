@@ -55,7 +55,6 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	})
 	if found {
 		backoffPtr = &backoff
-
 	}
 
 	return &PresetSnapshot{
