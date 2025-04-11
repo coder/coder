@@ -38,5 +38,5 @@ runs:
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
-        & OSFMount.com -a -s 4096M -m R: -o logical,format:NTFS
+        & "C:\Program Files\OSFmount\OSFMount.com" -a -s 4096M -m R: -o logical,format:NTFS
         if ($LASTEXITCODE -ne 0) { throw "Failed to create RAM disk" }
