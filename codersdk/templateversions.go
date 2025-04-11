@@ -141,6 +141,14 @@ type DynamicParametersResponse struct {
 	// TODO: Workspace tags
 }
 
+// FriendlyDiagnostic is included to guarantee it is generated in the output
+// types. This is used as the type override for `previewtypes.Diagnostic`.
+type FriendlyDiagnostic = previewtypes.FriendlyDiagnostic
+
+// NullHCLString is included to guarantee it is generated in the output
+// types. This is used as the type override for `previewtypes.HCLString`.
+type NullHCLString = previewtypes.NullHCLString
+
 func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
 	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version), nil)
 	if err != nil {
