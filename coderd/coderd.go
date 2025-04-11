@@ -813,7 +813,6 @@ func New(options *Options) *API {
 		httpmw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
-		prometheusMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -857,7 +856,7 @@ func New(options *Options) *API {
 		derpHandler := derphttp.Handler(api.DERPServer)
 		derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 
-		r.Route("/derp", func(r chi.Router) {
+		r.With(prometheusMW).Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
 			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
 			r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
@@ -869,13 +868,13 @@ func New(options *Options) *API {
 	// Register callback handlers for each OAuth2 provider.
 	// We must support gitauth and externalauth for backwards compatibility.
 	for _, route := range []string{"gitauth", "external-auth"} {
-		r.Route("/"+route, func(r chi.Router) {
+		r.With(prometheusMW).Route("/"+route, func(r chi.Router) {
 			for _, externalAuthConfig := range options.ExternalAuthConfigs {
 				// We don't need to register a callback handler for device auth.
 				if externalAuthConfig.DeviceAuth != nil {
 					continue
 				}
-				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
+				r.With(prometheusMW).Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
 						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
@@ -889,18 +888,18 @@ func New(options *Options) *API {
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
 	// logging into Coder with an external OAuth2 provider.
-	r.Route("/oauth2", func(r chi.Router) {
+	r.With(prometheusMW).Route("/oauth2", func(r chi.Router) {
 		r.Use(
 			api.oAuth2ProviderMiddleware,
 			// Fetch the app as system because in the /tokens route there will be no
 			// authenticated user.
 			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
 		)
-		r.Route("/authorize", func(r chi.Router) {
+		r.With(prometheusMW).Route("/authorize", func(r chi.Router) {
 			r.Use(apiKeyMiddlewareRedirect)
 			r.Get("/", api.getOAuth2ProviderAppAuthorize())
 		})
-		r.Route("/tokens", func(r chi.Router) {
+		r.With(prometheusMW).Route("/tokens", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
@@ -934,23 +933,23 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/regions", api.regions)
 		})
-		r.Route("/derp-map", func(r chi.Router) {
+		r.With(prometheusMW).Route("/derp-map", func(r chi.Router) {
 			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
-		r.Route("/deployment", func(r chi.Router) {
+		r.With(prometheusMW).Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
 		})
-		r.Route("/experiments", func(r chi.Router) {
+		r.With(prometheusMW).Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/available", handleExperimentsSafe)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
-		r.Route("/audit", func(r chi.Router) {
+		r.With(prometheusMW).Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				// This middleware only checks the site and orgs for the audit_log read
@@ -977,7 +976,7 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
-		r.Route("/files", func(r chi.Router) {
+		r.With(prometheusMW).Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RateLimit(options.FilesRateLimit, time.Minute),
@@ -985,13 +984,13 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/external-auth", func(r chi.Router) {
+		r.With(prometheusMW).Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 			)
 			// Get without a specific external auth ID will return all external auths.
 			r.Get("/", api.listUserExternalAuths)
-			r.Route("/{externalauth}", func(r chi.Router) {
+			r.With(prometheusMW).Route("/{externalauth}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
 				)
@@ -1001,37 +1000,37 @@ func New(options *Options) *API {
 				r.Get("/device", api.externalAuthDeviceByID)
 			})
 		})
-		r.Route("/organizations", func(r chi.Router) {
+		r.With(prometheusMW).Route("/organizations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.organizations)
-			r.Route("/{organization}", func(r chi.Router) {
+			r.With(prometheusMW).Route("/{organization}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
-				r.Route("/templates", func(r chi.Router) {
+				r.With(prometheusMW).Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization())
 					r.Get("/examples", api.templateExamplesByOrganization)
-					r.Route("/{templatename}", func(r chi.Router) {
+					r.With(prometheusMW).Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
-						r.Route("/versions/{templateversionname}", func(r chi.Router) {
+						r.With(prometheusMW).Route("/versions/{templateversionname}", func(r chi.Router) {
 							r.Get("/", api.templateVersionByOrganizationTemplateAndName)
 							r.Get("/previous", api.previousTemplateVersionByOrganizationTemplateAndName)
 						})
 					})
 				})
 				r.Get("/paginated-members", api.paginatedMembers)
-				r.Route("/members", func(r chi.Router) {
+				r.With(prometheusMW).Route("/members", func(r chi.Router) {
 					r.Get("/", api.listMembers)
-					r.Route("/roles", func(r chi.Router) {
+					r.With(prometheusMW).Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
 					})
 
-					r.Route("/{user}", func(r chi.Router) {
+					r.With(prometheusMW).Route("/{user}", func(r chi.Router) {
 						r.Group(func(r chi.Router) {
 							r.Use(
 								// Adding a member requires "read" permission
@@ -1053,22 +1052,22 @@ func New(options *Options) *API {
 						})
 					})
 				})
-				r.Route("/provisionerdaemons", func(r chi.Router) {
+				r.With(prometheusMW).Route("/provisionerdaemons", func(r chi.Router) {
 					r.Get("/", api.provisionerDaemons)
 				})
-				r.Route("/provisionerjobs", func(r chi.Router) {
+				r.With(prometheusMW).Route("/provisionerjobs", func(r chi.Router) {
 					r.Get("/{job}", api.provisionerJob)
 					r.Get("/", api.provisionerJobs)
 				})
 			})
 		})
-		r.Route("/templates", func(r chi.Router) {
+		r.With(prometheusMW).Route("/templates", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.fetchTemplates(nil))
 			r.Get("/examples", api.templateExamples)
-			r.Route("/{template}", func(r chi.Router) {
+			r.With(prometheusMW).Route("/{template}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractTemplateParam(options.Database),
 				)
@@ -1076,7 +1075,7 @@ func New(options *Options) *API {
 				r.Get("/", api.template)
 				r.Delete("/", api.deleteTemplate)
 				r.Patch("/", api.patchTemplateMeta)
-				r.Route("/versions", func(r chi.Router) {
+				r.With(prometheusMW).Route("/versions", func(r chi.Router) {
 					r.Post("/archive", api.postArchiveTemplateVersions)
 					r.Get("/", api.templateVersionsByTemplate)
 					r.Patch("/", api.patchActiveTemplateVersion)
@@ -1084,7 +1083,7 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
+		r.With(prometheusMW).Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
@@ -1108,7 +1107,7 @@ func New(options *Options) *API {
 			r.Get("/presets", api.templateVersionPresets)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
-			r.Route("/dry-run", func(r chi.Router) {
+			r.With(prometheusMW).Route("/dry-run", func(r chi.Router) {
 				r.Post("/", api.postTemplateVersionDryRun)
 				r.Get("/{jobID}", api.templateVersionDryRun)
 				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
@@ -1117,7 +1116,7 @@ func New(options *Options) *API {
 				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
 			})
 		})
-		r.Route("/users", func(r chi.Router) {
+		r.With(prometheusMW).Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Get("/authmethods", api.userAuthMethods)
@@ -1133,16 +1132,16 @@ func New(options *Options) *API {
 				r.Post("/otp/request", api.postRequestOneTimePasscode)
 				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
-				r.Route("/oauth2", func(r chi.Router) {
+				r.With(prometheusMW).Route("/oauth2", func(r chi.Router) {
 					r.Get("/github/device", api.userOAuth2GithubDevice)
-					r.Route("/github", func(r chi.Router) {
+					r.With(prometheusMW).Route("/github", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
-				r.Route("/oidc/callback", func(r chi.Router) {
+				r.With(prometheusMW).Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
 						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams),
 					)
@@ -1157,10 +1156,10 @@ func New(options *Options) *API {
 				r.Get("/", api.users)
 				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
-				r.Route("/roles", func(r chi.Router) {
+				r.With(prometheusMW).Route("/roles", func(r chi.Router) {
 					r.Get("/", api.AssignableSiteRoles)
 				})
-				r.Route("/{user}", func(r chi.Router) {
+				r.With(prometheusMW).Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
 						r.Use(httpmw.ExtractUserParamOptional(options.Database))
 						// Creating workspaces does not require permissions on the user, only the
@@ -1178,13 +1177,13 @@ func New(options *Options) *API {
 						r.Get("/autofill-parameters", api.userAutofillParameters)
 						r.Get("/login-type", api.userLoginType)
 						r.Put("/profile", api.putUserProfile)
-						r.Route("/status", func(r chi.Router) {
+						r.With(prometheusMW).Route("/status", func(r chi.Router) {
 							r.Put("/suspend", api.putSuspendUserAccount())
 							r.Put("/activate", api.putActivateUserAccount())
 						})
 						r.Get("/appearance", api.userAppearanceSettings)
 						r.Put("/appearance", api.putUserAppearanceSettings)
-						r.Route("/password", func(r chi.Router) {
+						r.With(prometheusMW).Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)
 						})
@@ -1192,39 +1191,39 @@ func New(options *Options) *API {
 						r.Put("/roles", api.putUserRoles)
 						r.Get("/roles", api.userRoles)
 
-						r.Route("/keys", func(r chi.Router) {
+						r.With(prometheusMW).Route("/keys", func(r chi.Router) {
 							r.Post("/", api.postAPIKey)
-							r.Route("/tokens", func(r chi.Router) {
+							r.With(prometheusMW).Route("/tokens", func(r chi.Router) {
 								r.Post("/", api.postToken)
 								r.Get("/", api.tokens)
 								r.Get("/tokenconfig", api.tokenConfig)
-								r.Route("/{keyname}", func(r chi.Router) {
+								r.With(prometheusMW).Route("/{keyname}", func(r chi.Router) {
 									r.Get("/", api.apiKeyByName)
 								})
 							})
-							r.Route("/{keyid}", func(r chi.Router) {
+							r.With(prometheusMW).Route("/{keyid}", func(r chi.Router) {
 								r.Get("/", api.apiKeyByID)
 								r.Delete("/", api.deleteAPIKey)
 							})
 						})
 
-						r.Route("/organizations", func(r chi.Router) {
+						r.With(prometheusMW).Route("/organizations", func(r chi.Router) {
 							r.Get("/", api.organizationsByUser)
 							r.Get("/{organizationname}", api.organizationByUserAndName)
 						})
-						r.Route("/workspace/{workspacename}", func(r chi.Router) {
+						r.With(prometheusMW).Route("/workspace/{workspacename}", func(r chi.Router) {
 							r.Get("/", api.workspaceByOwnerAndName)
 							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
 						})
 						r.Get("/gitsshkey", api.gitSSHKey)
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
-						r.Route("/notifications", func(r chi.Router) {
-							r.Route("/preferences", func(r chi.Router) {
+						r.With(prometheusMW).Route("/notifications", func(r chi.Router) {
+							r.With(prometheusMW).Route("/preferences", func(r chi.Router) {
 								r.Get("/", api.userNotificationPreferences)
 								r.Put("/", api.putUserNotificationPreferences)
 							})
 						})
-						r.Route("/webpush", func(r chi.Router) {
+						r.With(prometheusMW).Route("/webpush", func(r chi.Router) {
 							r.Post("/subscription", api.postUserWebpushSubscription)
 							r.Delete("/subscription", api.deleteUserWebpushSubscription)
 							r.Post("/test", api.postUserPushNotificationTest)
@@ -1233,7 +1232,7 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/workspaceagents", func(r chi.Router) {
+		r.With(prometheusMW).Route("/workspaceagents", func(r chi.Router) {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
@@ -1245,7 +1244,7 @@ func New(options *Options) *API {
 				}),
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
-			r.Route("/me", func(r chi.Router) {
+			r.With(prometheusMW).Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 					DB:       options.Database,
 					Optional: false,
@@ -1259,7 +1258,7 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 			})
-			r.Route("/{workspaceagent}", func(r chi.Router) {
+			r.With(prometheusMW).Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
 					// Allow either API key or external workspace proxy auth and require it.
 					apiKeyMiddlewareOptional,
@@ -1285,25 +1284,25 @@ func New(options *Options) *API {
 				// PTY is part of workspaceAppServer.
 			})
 		})
-		r.Route("/workspaces", func(r chi.Router) {
+		r.With(prometheusMW).Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.workspaces)
-			r.Route("/{workspace}", func(r chi.Router) {
+			r.With(prometheusMW).Route("/{workspace}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspace)
 				r.Patch("/", api.patchWorkspace)
-				r.Route("/builds", func(r chi.Router) {
+				r.With(prometheusMW).Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)
 				})
-				r.Route("/autostart", func(r chi.Router) {
+				r.With(prometheusMW).Route("/autostart", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceAutostart)
 				})
-				r.Route("/ttl", func(r chi.Router) {
+				r.With(prometheusMW).Route("/ttl", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceTTL)
 				})
 				r.Get("/watch", api.watchWorkspaceSSE)
@@ -1315,7 +1314,7 @@ func New(options *Options) *API {
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
-				r.Route("/port-share", func(r chi.Router) {
+				r.With(prometheusMW).Route("/port-share", func(r chi.Router) {
 					r.Get("/", api.workspaceAgentPortShares)
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
@@ -1323,7 +1322,7 @@ func New(options *Options) *API {
 				r.Get("/timings", api.workspaceTimings)
 			})
 		})
-		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
+		r.With(prometheusMW).Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
@@ -1337,17 +1336,17 @@ func New(options *Options) *API {
 			r.Get("/state", api.workspaceBuildState)
 			r.Get("/timings", api.workspaceBuildTimings)
 		})
-		r.Route("/authcheck", func(r chi.Router) {
+		r.With(prometheusMW).Route("/authcheck", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.checkAuthorization)
 		})
-		r.Route("/applications", func(r chi.Router) {
-			r.Route("/host", func(r chi.Router) {
+		r.With(prometheusMW).Route("/applications", func(r chi.Router) {
+			r.With(prometheusMW).Route("/host", func(r chi.Router) {
 				// Don't leak the hostname to unauthenticated users.
 				r.Use(apiKeyMiddleware)
 				r.Get("/", api.appHost)
 			})
-			r.Route("/auth-redirect", func(r chi.Router) {
+			r.With(prometheusMW).Route("/auth-redirect", func(r chi.Router) {
 				// We want to redirect to login if they are not authenticated.
 				r.Use(apiKeyMiddlewareRedirect)
 
@@ -1356,7 +1355,7 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceApplicationAuth)
 			})
 		})
-		r.Route("/insights", func(r chi.Router) {
+		r.With(prometheusMW).Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/daus", api.deploymentDAUs)
 			r.Get("/user-activity", api.insightsUserActivity)
@@ -1364,7 +1363,7 @@ func New(options *Options) *API {
 			r.Get("/user-latency", api.insightsUserLatency)
 			r.Get("/templates", api.insightsTemplates)
 		})
-		r.Route("/debug", func(r chi.Router) {
+		r.With(prometheusMW).Route("/debug", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				// Ensure only owners can access debug endpoints.
@@ -1382,46 +1381,46 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/tailnet", api.debugTailnet)
-			r.Route("/health", func(r chi.Router) {
+			r.With(prometheusMW).Route("/health", func(r chi.Router) {
 				r.Get("/", api.debugDeploymentHealth)
-				r.Route("/settings", func(r chi.Router) {
+				r.With(prometheusMW).Route("/settings", func(r chi.Router) {
 					r.Get("/", api.deploymentHealthSettings)
 					r.Put("/", api.putDeploymentHealthSettings)
 				})
 			})
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
-			r.Route("/{user}", func(r chi.Router) {
+			r.With(prometheusMW).Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
 			if options.DERPServer != nil {
-				r.Route("/derp", func(r chi.Router) {
+				r.With(prometheusMW).Route("/derp", func(r chi.Router) {
 					r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
 				})
 			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 		})
 		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
-		r.Route("/oauth2-provider", func(r chi.Router) {
+		r.With(prometheusMW).Route("/oauth2-provider", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.oAuth2ProviderMiddleware,
 			)
-			r.Route("/apps", func(r chi.Router) {
+			r.With(prometheusMW).Route("/apps", func(r chi.Router) {
 				r.Get("/", api.oAuth2ProviderApps)
 				r.Post("/", api.postOAuth2ProviderApp)
 
-				r.Route("/{app}", func(r chi.Router) {
+				r.With(prometheusMW).Route("/{app}", func(r chi.Router) {
 					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
 					r.Get("/", api.oAuth2ProviderApp)
 					r.Put("/", api.putOAuth2ProviderApp)
 					r.Delete("/", api.deleteOAuth2ProviderApp)
 
-					r.Route("/secrets", func(r chi.Router) {
+					r.With(prometheusMW).Route("/secrets", func(r chi.Router) {
 						r.Get("/", api.oAuth2ProviderAppSecrets)
 						r.Post("/", api.postOAuth2ProviderAppSecret)
 
-						r.Route("/{secretID}", func(r chi.Router) {
+						r.With(prometheusMW).Route("/{secretID}", func(r chi.Router) {
 							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
 							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
 						})
@@ -1429,9 +1428,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/notifications", func(r chi.Router) {
+		r.With(prometheusMW).Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Route("/inbox", func(r chi.Router) {
+			r.With(prometheusMW).Route("/inbox", func(r chi.Router) {
 				r.Get("/", api.listInboxNotifications)
 				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
 				r.Get("/watch", api.watchInboxNotifications)
@@ -1439,13 +1438,13 @@ func New(options *Options) *API {
 			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
-			r.Route("/templates", func(r chi.Router) {
+			r.With(prometheusMW).Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 			r.Post("/test", api.postTestNotification)
 		})
-		r.Route("/tailnet", func(r chi.Router) {
+		r.With(prometheusMW).Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
 		})

@@ -4241,7 +4241,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 		if preset.ID == presetID {
 			tv, ok := versionMap[preset.TemplateVersionID]
 			if !ok {
-				return empty, fmt.Errorf("template version %v does not exist", preset.TemplateVersionID)
+				return empty, xerrors.Errorf("template version %v does not exist", preset.TemplateVersionID)
 			}
 			return database.GetPresetByIDRow{
 				ID:                  preset.ID,
@@ -4256,7 +4256,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 		}
 	}
 
-	return empty, fmt.Errorf("preset %v does not exist", presetID)
+	return empty, xerrors.Errorf("preset %v does not exist", presetID)
 }
 
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
