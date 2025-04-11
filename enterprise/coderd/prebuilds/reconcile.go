@@ -94,7 +94,11 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 }
 
 func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
-	c.logger.Warn(context.Background(), "stopping reconciler", slog.F("cause", cause))
+	if cause != nil {
+		c.logger.Error(context.Background(), "stopping reconciler due to an error", slog.F("cause", cause))
+	} else {
+		c.logger.Info(context.Background(), "gracefully stopping reconciler")
+	}
 
 	if c.isStopped() {
 		return
