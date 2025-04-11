@@ -39,7 +39,7 @@ func TestExpMcpServer(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// Given: we run the exp mcp command with allowed tools set
-		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_whoami")
+		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_get_authenticated_user")
 		inv = inv.WithContext(cancelCtx)
 
 		pty := ptytest.New(t)
@@ -80,7 +80,7 @@ func TestExpMcpServer(t *testing.T) {
 			foundTools = append(foundTools, tool.Name)
 		}
 		slices.Sort(foundTools)
-		require.Equal(t, []string{"coder_whoami"}, foundTools)
+		require.Equal(t, []string{"coder_get_authenticated_user"}, foundTools)
 	})
 
 	t.Run("OK", func(t *testing.T) {
