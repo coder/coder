@@ -292,6 +292,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 
 func TestOpenVSCodeDevContainer(t *testing.T) {
 	t.Parallel()
+	t.Skip("see https://github.com/coder/internal/issues/578")
 
 	if runtime.GOOS != "linux" {
 		t.Skip("DevContainers are only supported for agents on Linux")
@@ -468,6 +469,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 
 func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	t.Parallel()
+	t.Skip("see https://github.com/coder/internal/issues/578")
 
 	if runtime.GOOS != "linux" {
 		t.Skip("DevContainers are only supported for agents on Linux")

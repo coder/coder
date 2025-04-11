@@ -1774,6 +1774,8 @@ func TestSSH(t *testing.T) {
 
 //nolint:paralleltest // This test uses t.Setenv, parent test MUST NOT be parallel.
 func TestSSH_ForwardGPG(t *testing.T) {
+	t.Skip("see https://github.com/coder/internal/issues/578")
+
 	if runtime.GOOS == "windows" {
 		// While GPG forwarding from a Windows client works, we currently do
 		// not support forwarding to a Windows workspace. Our tests use the
