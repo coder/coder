@@ -4,7 +4,6 @@ import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
-import { xrayScan } from "api/queries/integrations";
 import type {
 	Template,
 	Workspace,
@@ -41,7 +40,6 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { XRayScanAlert } from "./XRayScanAlert";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -72,11 +70,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	storybookAgentMetadata,
 	sshPrefix,
 }) => {
-	// XRay integration
-	const xrayScanQuery = useQuery(
-		xrayScan({ workspaceId: workspace.id, agentId: agent.id }),
-	);
-
 	// Apps visibility
 	const visibleApps = agent.apps.filter((app) => !app.hidden);
 	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
@@ -226,8 +219,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 				)}
 			</header>
-
-			{xrayScanQuery.data && <XRayScanAlert scan={xrayScanQuery.data} />}
 
 			<div css={styles.content}>
 				{agent.status === "connected" && (

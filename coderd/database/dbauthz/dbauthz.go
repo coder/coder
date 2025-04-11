@@ -1895,13 +1895,6 @@ func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID data
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
 }
 
-func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
-	if _, err := fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, arg.WorkspaceID); err != nil {
-		return database.JfrogXrayScan{}, err
-	}
-	return q.db.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
-}
-
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -4765,27 +4758,6 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
-}
-
-func (q *querier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	// TODO: Having to do all this extra querying makes me a sad panda.
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return xerrors.Errorf("get workspace by id: %w", err)
-	}
-
-	template, err := q.db.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		return xerrors.Errorf("get template by id: %w", err)
-	}
-
-	// Only template admins should be able to write JFrog Xray scans to a workspace.
-	// We don't want this to be a workspace-level permission because then users
-	// could overwrite their own results.
-	if err := q.authorizeContext(ctx, policy.ActionCreate, template); err != nil {
-		return err
-	}
-	return q.db.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {

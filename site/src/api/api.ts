@@ -381,11 +381,6 @@ export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
 
-export type GetJFrogXRayScanParams = {
-	workspaceId: string;
-	agentId: string;
-};
-
 export class MissingBuildParameters extends Error {
 	parameters: TypesGen.TemplateVersionParameter[] = [];
 	versionId: string;
@@ -2275,29 +2270,6 @@ class ApiMethods {
 
 	deleteFavoriteWorkspace = async (workspaceID: string) => {
 		await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
-	};
-
-	getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
-		const searchParams = new URLSearchParams({
-			workspace_id: options.workspaceId,
-			agent_id: options.agentId,
-		});
-
-		try {
-			const res = await this.axios.get<TypesGen.JFrogXrayScan>(
-				`/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
-			);
-
-			return res.data;
-		} catch (error) {
-			if (isAxiosError(error) && error.response?.status === 404) {
-				// react-query library does not allow undefined to be returned as a
-				// query result
-				return null;
-			}
-
-			throw error;
-		}
 	};
 
 	postWorkspaceUsage = async (

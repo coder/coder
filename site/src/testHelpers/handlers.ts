@@ -374,8 +374,4 @@ export const handlers = [
 	http.get("/api/v2/workspaceagents/:agent/listening-ports", () => {
 		return HttpResponse.json(M.MockListeningPortsResponse);
 	}),
-
-	http.get("/api/v2/integrations/jfrog/xray-scan", () => {
-		return new HttpResponse(null, { status: 404 });
-	}),
 ];
