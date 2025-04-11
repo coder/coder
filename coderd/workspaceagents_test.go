@@ -564,6 +564,8 @@ func TestWorkspaceAgentDialFailure(t *testing.T) {
 	}).WithAgent().Do()
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	require.Len(t, resources, 1)
+	require.Len(t, resources[0].Agents, 1)
 
 	// When: the db is marked as unhealthy (i.e. will fail its Ping).
 	// This needs to be done *after* the server "starts" otherwise it'll fail straight away when trying to initialize.
