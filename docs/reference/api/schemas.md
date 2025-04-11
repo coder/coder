@@ -133,14 +133,14 @@
 
 ### Properties
 
-| Name                   | Type                                                                 | Required | Restrictions | Description |
-|------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `app_slug`             | string                                                               | false    |              |             |
-| `icon`                 | string                                                               | false    |              |             |
-| `message`              | string                                                               | false    |              |             |
-| `needs_user_attention` | boolean                                                              | false    |              |             |
-| `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |             |
-| `uri`                  | string                                                               | false    |              |             |
+| Name                   | Type                                                                 | Required | Restrictions | Description                                                               |
+|------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `app_slug`             | string                                                               | false    |              |                                                                           |
+| `icon`                 | string                                                               | false    |              | Deprecated: this field is unused and will be removed in a future version. |
+| `message`              | string                                                               | false    |              |                                                                           |
+| `needs_user_attention` | boolean                                                              | false    |              | Deprecated: this field is unused and will be removed in a future version. |
+| `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                           |
+| `uri`                  | string                                                               | false    |              |                                                                           |
 
 ## agentsdk.PatchLogs
 
@@ -8499,18 +8499,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                                 | Required | Restrictions | Description                                                                                                                |
-|------------------------|----------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`             | string                                                               | false    |              |                                                                                                                            |
-| `app_id`               | string                                                               | false    |              |                                                                                                                            |
-| `created_at`           | string                                                               | false    |              |                                                                                                                            |
-| `icon`                 | string                                                               | false    |              | Icon is an external URL to an icon that will be rendered in the UI.                                                        |
-| `id`                   | string                                                               | false    |              |                                                                                                                            |
-| `message`              | string                                                               | false    |              |                                                                                                                            |
-| `needs_user_attention` | boolean                                                              | false    |              |                                                                                                                            |
-| `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                                                                            |
-| `uri`                  | string                                                               | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file |
-| `workspace_id`         | string                                                               | false    |              |                                                                                                                            |
+| Name                   | Type                                                                 | Required | Restrictions | Description                                                                                                                                     |
+|------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`             | string                                                               | false    |              |                                                                                                                                                 |
+| `app_id`               | string                                                               | false    |              |                                                                                                                                                 |
+| `created_at`           | string                                                               | false    |              |                                                                                                                                                 |
+| `icon`                 | string                                                               | false    |              | Deprecated: This field is unused and will be removed in a future version. Icon is an external URL to an icon that will be rendered in the UI.   |
+| `id`                   | string                                                               | false    |              |                                                                                                                                                 |
+| `message`              | string                                                               | false    |              |                                                                                                                                                 |
+| `needs_user_attention` | boolean                                                              | false    |              | Deprecated: This field is unused and will be removed in a future version. NeedsUserAttention specifies whether the status needs user attention. |
+| `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                                                                                                 |
+| `uri`                  | string                                                               | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file                      |
+| `workspace_id`         | string                                                               | false    |              |                                                                                                                                                 |
 
 ## codersdk.WorkspaceAppStatusState
 
