@@ -72,7 +72,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	startPollingExternalAuth: () => void;
 }
 
-// const getInitialParameterValues = (
+// const getInitialParameterValues1 = (
 // 	params: Parameter[],
 // 	autofillParams?: AutofillBuildParameter[],
 // ): WorkspaceBuildParameter[] => {
@@ -94,7 +94,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 // 			name: parameter.name,
 // 			value:
 // 				autofillParam &&
-// 				// isValidValue(parameter, autofillParam) &&
+// 				isValidValue(parameter, autofillParam) &&
 // 				autofillParam.source !== "user_history"
 // 					? autofillParam.value
 // 					: parameter.default_value,
