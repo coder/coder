@@ -10,6 +10,7 @@ runs:
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
+
         $path = "$($env:TEMP)\osfmount.exe"
         & curl.exe `
           --progress-bar `
@@ -22,11 +23,13 @@ runs:
         if ((Get-FileHash $path -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
           throw "Failed to verify osfmount.exe"
         }
+
         # We can't just use -Wait here or it will block when the installer
         # launches the GUI afterwards, and there's no way to turn that off.
         $proc = Start-Process -FilePath $path -ArgumentList "/silent /norestart" -PassThru
         $proc.WaitForExit()
         if ($proc.ExitCode -ne 0) { throw "Failed to install osfmount.exe" }
+
         # Close the GUI and delete the installer.
         Get-Process -Name "OSFMount" -ErrorAction SilentlyContinue | Stop-Process -Force
         Remove-Item $path
@@ -38,5 +41,20 @@ runs:
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
-        & "C:\Program Files\OSFmount\OSFMount.com" -a -s 4096M -m R: -o logical,format:NTFS
+
+        # List disks before creating the RAM disk.
+        $before = Get-Disk
+
+        # Create the uninitialized disk.
+        & "C:\Program Files\OSFmount\OSFMount.com" -a -t vm -s 4096M -o physical
         if ($LASTEXITCODE -ne 0) { throw "Failed to create RAM disk" }
+
+        # List disks after creating the RAM disk and find the new one.
+        $after = Get-Disk
+        $newDisk = ($after | Where-Object { $before.Number -notcontains $_.Number })
+        if (!$newDisk) { throw "Failed to find new RAM disk" }
+
+        # Initialize the disk, create a simple volume and format it NTFS.
+        Initialize-Disk -Number $newDisk.Number -PartitionStyle GPT -Confirm:$false
+        $partition = New-Partition -DiskNumber $newDisk.Number -UseMaximumSize -DriveLetter R
+        Format-Volume -Partition $partition -FileSystem NTFS -NewFileSystemLabel "RAMDisk" -Confirm:$false
