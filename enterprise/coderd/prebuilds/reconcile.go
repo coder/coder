@@ -107,6 +107,8 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	select {
 	// Give up waiting for control loop to exit.
 	case <-ctx.Done():
+		// nolint:gocritic // it's okay to use slog.F() for an error in this case
+		// because we want to differentiate two different types of errors: ctx.Err() and context.Cause()
 		c.logger.Error(context.Background(), "reconciler stop exited prematurely", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
 	// Wait for the control loop to exit.
 	case <-c.done:
