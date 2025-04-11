@@ -7,36 +7,36 @@ runs:
   steps:
     - name: Install OSFMount
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: bash
       run: |
-        $ErrorActionPreference = "Stop"
-        $path = "$($env:TEMP)\osfmount.exe"
-        & curl.exe `
-          --progress-bar `
-          --show-error `
-          --fail `
-          --location `
-          --output $path `
-          $env:OSFMOUNT_URL
-        if ($LASTEXITCODE -ne 0) { throw "Failed to download osfmount.exe" }
-        if ((Get-FileHash $path -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
-          throw "Failed to verify osfmount.exe"
-        }
-        # We can't just use -Wait here or it will block when the installer
-        # launches the GUI afterwards, and there's no way to turn that off.
-        $proc = Start-Process -FilePath $path -ArgumentList "/silent /norestart" -PassThru
-        $proc.WaitForExit()
-        if ($proc.ExitCode -ne 0) { throw "Failed to install osfmount.exe" }
-        # Close the GUI and delete the installer.
-        Get-Process -Name "OSFMount" -ErrorAction SilentlyContinue | Stop-Process -Force
-        Remove-Item $path
+        set -euo pipefail
+        curl \
+          --progress-bar \
+          --show-error \
+          --fail \
+          --location \
+          --output ./osfmount.exe \
+          "$OSFMOUNT_URL"
+
+        download_hash=$(sha256sum ./osfmount.exe | awk '{ print $1 }')
+        if [ "$download_hash" != "$OSFMOUNT_SHA256" ]; then
+          echo "Failed to verify osfmount.exe"
+          echo "Expected: $OSFMOUNT_SHA256"
+          echo "Got: $download_hash"
+          exit 1
+        fi
+
+        ./osfmount.exe //silent //norestart
+        # Close the GUI (which gets autolaunched and can't be disabled) and
+        # delete the installer.
+        taskkill //IM "OSFMount.exe" //F
+        rm -f osfmount.exe
       env:
         OSFMOUNT_URL: https://storage.googleapis.com/coder-osfmount-binaries/osfmount-v3.1.1003.exe
         OSFMOUNT_SHA256: 9fe0738b7c2d29a7414e67f53aea359f3801d1c37b44f1b4fed5d02cb7536369
 
     - name: Create RAM Disk
-      shell: pwsh
+      shell: bash
       run: |
-        $ErrorActionPreference = "Stop"
-        & "C:\Program Files\OSFmount\OSFMount.com" -a -s 4096M -m R: -o logical,format:NTFS
-        if ($LASTEXITCODE -ne 0) { throw "Failed to create RAM disk" }
+        set -euo pipefail
+        "/c/Program Files/OSFmount/OSFMount.com" -a -t vm -s 4096M -m R: -o logical,format:NTFS
