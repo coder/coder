@@ -18615,6 +18615,9 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                },
+                "hostname_suffix": {
+                    "type": "string"
                 }
             }
         },

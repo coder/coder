@@ -2560,3 +2560,34 @@ func requireEqualOrBothNil[T any](t testing.TB, a, b *T) {
 	}
 	require.Equal(t, a, b)
 }
+
+func TestAgentConnectionInfo(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.WorkspaceHostnameSuffix = "yallah"
+	dv.DERP.Config.BlockDirect = true
+	dv.DERP.Config.ForceWebSockets = true
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	info, err := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "yallah", info.HostnameSuffix)
+	require.True(t, info.DisableDirectConnections)
+	require.True(t, info.DERPForceWebSockets)
+
+	ws, err := client.Workspace(ctx, r.Workspace.ID)
+	require.NoError(t, err)
+	agnt := ws.LatestBuild.Resources[0].Agents[0]
+	info, err = workspacesdk.New(client).AgentConnectionInfo(ctx, agnt.ID)
+	require.NoError(t, err)
+	require.Equal(t, "yallah", info.HostnameSuffix)
+	require.True(t, info.DisableDirectConnections)
+	require.True(t, info.DERPForceWebSockets)
+}

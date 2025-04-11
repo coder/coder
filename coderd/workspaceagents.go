@@ -882,6 +882,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		HostnameSuffix:           api.DeploymentValues.WorkspaceHostnameSuffix.Value(),
 	})
 }
 
@@ -903,6 +904,7 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		HostnameSuffix:           api.DeploymentValues.WorkspaceHostnameSuffix.Value(),
 	})
 }
 

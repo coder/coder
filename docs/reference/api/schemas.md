@@ -11514,7 +11514,8 @@ None
       }
     }
   },
-  "disable_direct_connections": true
+  "disable_direct_connections": true,
+  "hostname_suffix": "string"
 }
 ```
 
@@ -11525,6 +11526,7 @@ None
 | `derp_force_websockets`      | boolean                            | false    |              |             |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
+| `hostname_suffix`            | string                             | false    |              |             |
 
 ## wsproxysdk.CryptoKeysResponse
 
