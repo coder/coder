@@ -22,18 +22,18 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 		Name:      "requests_processed_total",
 		Help:      "The total number of processed API requests",
 	}, []string{"code", "method", "path"})
-	requestsConcurrent := factory.NewGauge(prometheus.GaugeOpts{
+	requestsConcurrent := factory.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "concurrent_requests",
 		Help:      "The number of concurrent API requests.",
-	})
-	websocketsConcurrent := factory.NewGauge(prometheus.GaugeOpts{
+	}, []string{"path"})
+	websocketsConcurrent := factory.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "concurrent_websockets",
 		Help:      "The total number of concurrent API websockets.",
-	})
+	}, []string{"path"})
 	websocketsDist := factory.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -69,19 +69,21 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 				panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 			}
 
+			path := rctx.RoutePattern()
+
 			var (
 				dist     *prometheus.HistogramVec
 				distOpts []string
 			)
 			// We want to count WebSockets separately.
 			if httpapi.IsWebsocketUpgrade(r) {
-				websocketsConcurrent.Inc()
-				defer websocketsConcurrent.Dec()
+				websocketsConcurrent.WithLabelValues(path).Inc()
+				defer websocketsConcurrent.WithLabelValues(path).Dec()
 
 				dist = websocketsDist
 			} else {
-				requestsConcurrent.Inc()
-				defer requestsConcurrent.Dec()
+				requestsConcurrent.WithLabelValues(path).Inc()
+				defer requestsConcurrent.WithLabelValues(path).Dec()
 
 				dist = requestsDist
 				distOpts = []string{method}
@@ -89,7 +91,6 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 
 			next.ServeHTTP(w, r)
 
-			path := rctx.RoutePattern()
 			distOpts = append(distOpts, path)
 			statusStr := strconv.Itoa(sw.Status)
 
