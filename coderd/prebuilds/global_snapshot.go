@@ -46,7 +46,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	})
 
 	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
-		return prebuild.PresetID == preset.ID
+		return prebuild.PresetID.UUID == preset.ID
 	})
 
 	var backoffPtr *database.GetPresetsBackoffRow

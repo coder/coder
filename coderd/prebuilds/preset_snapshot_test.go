@@ -380,7 +380,10 @@ func TestInProgressActions(t *testing.T) {
 					TemplateVersionID: current.templateVersionID,
 					Transition:        tc.transition,
 					Count:             tc.inProgress,
-					PresetID:          defaultPreset.ID,
+					PresetID: uuid.NullUUID{
+						UUID:  defaultPreset.ID,
+						Valid: true,
+					},
 				},
 			}
 
@@ -603,7 +606,10 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			TemplateVersionID: templateVersionID,
 			Transition:        database.WorkspaceTransitionStart,
 			Count:             1,
-			PresetID:          presetOpts1.presetID,
+			PresetID: uuid.NullUUID{
+				UUID:  presetOpts1.presetID,
+				Valid: true,
+			},
 		},
 	}
 

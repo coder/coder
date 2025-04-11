@@ -59,7 +59,7 @@ WHERE (b.transition = 'start'::workspace_transition
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
 -- Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
-SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count, tvp.id as preset_id
+SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count, wlb.template_version_preset_id as preset_id
 FROM workspace_latest_builds wlb
 		INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		-- We only need these counts for active template versions.
@@ -69,9 +69,8 @@ FROM workspace_latest_builds wlb
 		-- running prebuilds for inactive template versions, and we ignore
 		-- prebuilds that are still building.
 		INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-		INNER JOIN template_version_presets tvp ON wlb.template_version_preset_id = tvp.id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
-GROUP BY t.id, wpb.template_version_id, wpb.transition, tvp.id;
+GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_preset_id;
 
 -- GetPresetsBackoff groups workspace builds by preset ID.
 -- Each preset is associated with exactly one template version ID.
