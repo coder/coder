@@ -1,9 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type {
-	Diagnostics,
-	Parameter,
-	Request,
-} from "api/typesParameter";
+import type { Diagnostics, Parameter, Request } from "api/typesParameter";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";

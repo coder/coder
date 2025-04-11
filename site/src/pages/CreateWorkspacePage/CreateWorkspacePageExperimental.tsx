@@ -33,9 +33,7 @@ import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import type {
-	Response,
-} from "api/typesParameter";
+import type { Response } from "api/typesParameter";
 import { useWebSocket } from "hooks/useWebsocket";
 import {
 	type CreateWorkspacePermissions,
@@ -56,10 +54,12 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const [currentResponse, setCurrentResponse] = useState<Response | null>(null);
 	const [wsResponseId, setWSResponseId] = useState<number>(0);
-	const {
-		message: webSocketResponse,
-		sendMessage,
-	} = useWebSocket<Response>(wsUrl, urlTestdata, "", "");
+	const { message: webSocketResponse, sendMessage } = useWebSocket<Response>(
+		wsUrl,
+		urlTestdata,
+		"",
+		"",
+	);
 
 	useEffect(() => {
 		if (webSocketResponse && webSocketResponse.id >= wsResponseId) {
