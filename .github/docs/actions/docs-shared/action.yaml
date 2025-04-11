@@ -26,6 +26,10 @@ inputs:
     description: 'Whether to check markdown formatting'
     required: false
     default: 'false'
+  lint-vale:
+    description: 'Whether to run Vale style checks on documentation'
+    required: false
+    default: 'true'
   generate-preview:
     description: 'Whether to generate preview links'
     required: false
@@ -77,6 +81,9 @@ outputs:
   link_check_results:
     description: 'Results from link checking'
     value: ${{ steps.check-links.outputs.result || '' }}
+  vale_results:
+    description: 'Results from Vale style checks'
+    value: ${{ steps.lint-vale.outputs.result || '' }}
 
 runs:
   using: 'composite'
@@ -266,9 +273,33 @@ runs:
       uses: umbrelladocs/action-linkspector@49cf4f8da82db70e691bb8284053add5028fa244 # v1.3.2
       with:
         reporter: github-pr-review
-        config_file: ".github/.linkspector.yml"
+        config_file: ".github/docs/.linkspector.yml"
         fail_on_error: ${{ inputs.fail-on-error }}
         filter_mode: "nofilter"
+        
+    - name: Install Vale
+      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      uses: errata-ai/vale-action@v2
+      with:
+        config: .github/docs/vale/.vale.ini
+      
+    - name: Run Vale style checks
+      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: lint-vale
+      shell: bash
+      run: |
+        # Run Vale on changed files and capture output
+        vale_output=$(echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | grep '\.md$' | xargs -r vale --config=.github/docs/vale/.vale.ini --output=line 2>&1) || true
+        
+        echo "result<<EOF" >> $GITHUB_OUTPUT
+        echo "$vale_output" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        if [ -n "$vale_output" ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          echo "::error::Vale style check found issues:"
+          echo "$vale_output"
+          exit 1
+        fi
 
     - name: Generate Preview URL
       if: inputs.generate-preview == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
@@ -330,6 +361,11 @@ runs:
           ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
           ${{ steps.format-docs.outputs.result != '' && steps.format-docs.outputs.result || '' }}
           ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
+
+          ${{ steps.lint-vale.outputs.result != '' && '### Vale Style Issues' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && steps.lint-vale.outputs.result || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
 
           ---
           <sub>🤖 This comment is automatically generated and updated when documentation changes.</sub>

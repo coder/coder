@@ -1,19 +1,19 @@
-name: Docs Shared Example
+name: Docs Unified Checks
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
       - 'docs/**'
       - '**.md'
-      - '.github/workflows/docs-shared-example.yaml'
-      - '.github/docs/actions/docs-shared/**'
+      - '.github/docs/**'
+      - '.github/workflows/docs-unified.yaml'
 
 permissions:
   contents: read
 
 jobs:
   docs-check:
-    name: Check Documentation
+    name: Documentation Validation
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # needed for commenting on PRs
@@ -48,10 +48,11 @@ jobs:
           check-links: "true"
           lint-markdown: "true"
           format-markdown: "true"
+          lint-vale: "true"
           generate-preview: "true"
           post-comment: "true"
           pr-number: "${{ env.PR_NUMBER }}"
-          fail-on-error: "false" # Set to false for this example to show all checks
+          fail-on-error: "false" # Set to false to show all issues in one run
 
       - name: Debug Outputs
         run: |
@@ -62,11 +63,13 @@ jobs:
           
           # Only display errors if there are any
           if [ "${{ steps.docs-shared.outputs.lint_results }}" != "" ]; then
-            echo "Linting issues found:"
-            echo "${{ steps.docs-shared.outputs.lint_results }}"
+            echo "Linting issues found"
           fi
           
           if [ "${{ steps.docs-shared.outputs.format_results }}" != "" ]; then
-            echo "Formatting issues found:"
-            echo "${{ steps.docs-shared.outputs.format_results }}"
+            echo "Formatting issues found"
+          fi
+          
+          if [ "${{ steps.docs-shared.outputs.vale_results }}" != "" ]; then
+            echo "Vale style issues found"
           fi

@@ -5,7 +5,7 @@ A composite GitHub action that provides shared functionality for docs-related wo
 ## Features
 
 - Detects changes in documentation files using `tj-actions/changed-files`
-- Provides linting and formatting for markdown files
+- Provides linting, style checking, and formatting for markdown files
 - Generates preview links for documentation changes
 - Creates or updates PR comments with preview links
 - Handles special analysis of manifest.json changes
@@ -32,6 +32,7 @@ A composite GitHub action that provides shared functionality for docs-related wo
     check-links: "true"
     lint-markdown: "true"
     format-markdown: "true"
+    lint-vale: "true"
     generate-preview: "true"
     post-comment: "true"
     pr-number: "${{ github.event.pull_request.number }}"
@@ -48,6 +49,7 @@ A composite GitHub action that provides shared functionality for docs-related wo
 | check-links      | Whether to check links in markdown files            | No       | false   |
 | lint-markdown    | Whether to lint markdown files                      | No       | false   |
 | format-markdown  | Whether to check markdown formatting                | No       | false   |
+| lint-vale        | Whether to run Vale style checks on documentation   | No       | true    |
 | generate-preview | Whether to generate preview links                   | No       | false   |
 | post-comment     | Whether to post a PR comment with results           | No       | false   |
 | pr-number        | PR number for commenting                            | No       | ""      |
@@ -68,6 +70,7 @@ A composite GitHub action that provides shared functionality for docs-related wo
 | lint_results          | Results from linting                             |
 | format_results        | Results from format checking                     |
 | link_check_results    | Results from link checking                       |
+| vale_results          | Results from Vale style checks                   |
 
 ## Example
 

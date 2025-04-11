@@ -1,0 +1,15 @@
+---
+# Coder project-specific terminology and preferred terms
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: warning
+ignorecase: true
+swap:
+  'VM': 'virtual machine'
+  'K8s': 'Kubernetes'
+  'kubernetes': 'Kubernetes'
+  'AWS EC2': 'Amazon EC2'
+  'CLI tool': 'CLI'
+  'web UI': 'dashboard'
+  'web ui': 'dashboard'
+  'WebUI': 'dashboard'
