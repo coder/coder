@@ -194,6 +194,7 @@ func TestTools(t *testing.T) {
 
 			// Create a new template version to update to
 			newVersion := dbfake.TemplateVersion(t, store).
+				// nolint:gocritic // This is in a test package and does not end up in the build
 				Seed(database.TemplateVersion{
 					OrganizationID: owner.OrganizationID,
 					CreatedBy:      owner.UserID,
