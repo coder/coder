@@ -1,27 +1,36 @@
-name: "Setup ImDisk"
+name: "Setup OSFMount"
 if: runner.os == 'Windows'
 description: |
-  Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+  Installs OSFmount for Windows and creates a RAM disk on drive R:.
 runs:
   using: "composite"
   steps:
-    - name: Download ImDisk
+    - name: Install OSFMount
       if: runner.os == 'Windows'
-      shell: bash
+      shell: pwsh
       run: |
-        mkdir imdisk
-        cd imdisk
-        curl -L -o files.cab https://github.com/coder/imdisk-artifacts/raw/92a17839ebc0ee3e69be019f66b3e9b5d2de4482/files.cab
-        curl -L -o install.bat https://github.com/coder/imdisk-artifacts/raw/92a17839ebc0ee3e69be019f66b3e9b5d2de4482/install.bat
-        cd ..
-
-    - name: Install ImDisk
-      shell: cmd
-      run: |
-        cd imdisk
-        install.bat /silent
+        $ErrorActionPreference = "Stop"
+        & curl.exe `
+          --progress-bar `
+          --show-error `
+          --fail `
+          --location `
+          --output osfmount.exe `
+          $env:OSFMOUNT_URL
+        if ($LASTEXITCODE -ne 0) { throw "Failed to download osfmount.exe" }
+        if ((Get-FileHash osfmount.exe -Algorithm SHA256).Hash -ne $env:OSFMOUNT_SHA256) {
+          throw "Failed to verify osfmount.exe"
+        }
+        & .\osfmount.exe /silent /norestart
+        if ($LASTEXITCODE -ne 0) { throw "Failed to install osfmount.exe" }
+        Remove-Item osfmount.exe
+      env:
+        OSFMOUNT_URL: https://storage.googleapis.com/coder-osfmount-binaries/osfmount-v3.1.1003.exe
+        OSFMOUNT_SHA256: 9fe0738b7c2d29a7414e67f53aea359f3801d1c37b44f1b4fed5d02cb7536369
 
     - name: Create RAM Disk
-      shell: cmd
+      shell: pwsh
       run: |
-        imdisk -a -s 4096M -m R: -p "/fs:ntfs /q /y"
+        $ErrorActionPreference = "Stop"
+        & OSFMount.com -a -s 4096M -m R: -o logical,format:NTFS
+        if ($LASTEXITCODE -ne 0) { throw "Failed to create RAM disk" }
