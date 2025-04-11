@@ -128,12 +128,19 @@ func init() {
 	}
 }
 
+type resolver interface {
+	LookupIP(ctx context.Context, network, host string) ([]net.IP, error)
+}
+
 type Client struct {
 	client *codersdk.Client
+
+	// overridden in tests
+	resolver resolver
 }
 
 func New(c *codersdk.Client) *Client {
-	return &Client{client: c}
+	return &Client{client: c, resolver: net.DefaultResolver}
 }
 
 // AgentConnectionInfo returns required information for establishing
@@ -383,4 +390,47 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
+}
+
+type CoderConnectQueryOptions struct {
+	HostnameSuffix string
+}
+
+// IsCoderConnectRunning checks if Coder Connect (OS level tunnel to workspaces) is running on the system. If you
+// already know the hostname suffix your deployment uses, you can pass it in the CoderConnectQueryOptions to avoid an
+// API call to AgentConnectionInfoGeneric.
+func (c *Client) IsCoderConnectRunning(ctx context.Context, o CoderConnectQueryOptions) (bool, error) {
+	suffix := o.HostnameSuffix
+	if suffix == "" {
+		info, err := c.AgentConnectionInfoGeneric(ctx)
+		if err != nil {
+			return false, xerrors.Errorf("get agent connection info: %w", err)
+		}
+		suffix = info.HostnameSuffix
+	}
+	domainName := fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, suffix)
+	var dnsError *net.DNSError
+	ips, err := c.resolver.LookupIP(ctx, "ip6", domainName)
+	if xerrors.As(err, &dnsError) {
+		if dnsError.IsNotFound {
+			return false, nil
+		}
+	}
+	if err != nil {
+		return false, xerrors.Errorf("lookup DNS %s: %w", domainName, err)
+	}
+
+	// The returned IP addresses are probably from the Coder Connect DNS server, but there are sometimes weird captive
+	// internet setups where the DNS server is configured to return an address for any IP query. So, to avoid false
+	// positives, check if we can find an address from our service prefix.
+	for _, ip := range ips {
+		addr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			continue
+		}
+		if tailnet.CoderServicePrefix.AsNetip().Contains(addr) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
