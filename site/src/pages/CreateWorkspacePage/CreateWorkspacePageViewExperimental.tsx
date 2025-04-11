@@ -15,7 +15,10 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
-import { DynamicParameter } from "modules/workspaces/DynamicParameter/DynamicParameter";
+import {
+	DynamicParameter,
+	useValidationSchemaForDynamicParameters,
+} from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -26,11 +29,7 @@ import {
 	useState,
 } from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
-import {
-	type AutofillBuildParameter,
-	getInitialRichParameterValues,
-	useValidationSchemaForRichParameters,
-} from "utils/richParameters";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 import type {
 	CreateWorkspaceMode,
@@ -60,7 +59,6 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	permissions: CreateWorkspacePermissions;
 	presets: TypesGen.Preset[];
 	template: TypesGen.Template;
-	templateVersionParameters: TypesGen.TemplateVersionParameter[];
 	versionId?: string;
 	onCancel: () => void;
 	onSubmit: (
@@ -73,7 +71,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	startPollingExternalAuth: () => void;
 }
 
-// const getInitialParameterValues = (
+// const getInitialParameterValues1 = (
 // 	params: Parameter[],
 // 	autofillParams?: AutofillBuildParameter[],
 // ): WorkspaceBuildParameter[] => {
@@ -95,7 +93,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 // 			name: parameter.name,
 // 			value:
 // 				autofillParam &&
-// 				// isValidValue(parameter, autofillParam) &&
+// 				isValidValue(parameter, autofillParam) &&
 // 				autofillParam.source !== "user_history"
 // 					? autofillParam.value
 // 					: parameter.default_value,
@@ -129,7 +127,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	permissions,
 	presets = [],
 	template,
-	templateVersionParameters,
 	versionId,
 	onSubmit,
 	onCancel,
@@ -157,9 +154,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 			},
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
-				rich_parameter_values: useValidationSchemaForRichParameters(
-					templateVersionParameters,
-				),
+				rich_parameter_values:
+					useValidationSchemaForDynamicParameters(parameters),
 			}),
 			enableReinitialize: true,
 			validateOnChange: false,

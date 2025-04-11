@@ -1,17 +1,12 @@
 import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
-	richParameters,
 	templateByName,
 	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import type {
-	Template,
-	TemplateVersionParameter,
-	Workspace,
-} from "api/typesGenerated";
+import type { Template, Workspace } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -29,7 +24,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -101,14 +95,8 @@ const CreateWorkspacePageExperimental: FC = () => {
 	);
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
+
 	const organizationId = templateQuery.data?.organization_id;
-	const richParametersQuery = useQuery({
-		...richParameters(realizedVersionId ?? ""),
-		enabled: realizedVersionId !== undefined,
-	});
-	const realizedParameters = richParametersQuery.data
-		? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
-		: undefined;
 
 	const {
 		externalAuth,
@@ -118,11 +106,8 @@ const CreateWorkspacePageExperimental: FC = () => {
 	} = useExternalAuth(realizedVersionId);
 
 	const isLoadingFormData =
-		templateQuery.isLoading ||
-		permissionsQuery.isLoading ||
-		richParametersQuery.isLoading;
-	const loadFormDataError =
-		templateQuery.error ?? permissionsQuery.error ?? richParametersQuery.error;
+		templateQuery.isLoading || permissionsQuery.isLoading;
+	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isLoading
 		? "Creating workspace..."
@@ -205,7 +190,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 		return [...currentResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [currentResponse?.parameters]);
 
-	// console.log("sortedParams", sortedParams);
 	return (
 		<>
 			<Helmet>
@@ -238,9 +222,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
-					templateVersionParameters={
-						realizedParameters as TemplateVersionParameter[]
-					}
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isLoading}
