@@ -170,8 +170,8 @@ const RoleTable: FC<RoleTableProps> = ({
 					</Cond>
 
 					<Cond>
-						{roles
-							?.sort((a, b) => a.name.localeCompare(b.name))
+						{[...(roles ?? [])]
+							.sort((a, b) => a.name.localeCompare(b.name))
 							.map((role) => (
 								<RoleRow
 									key={role.name}
