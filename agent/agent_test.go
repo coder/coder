@@ -68,6 +68,54 @@ func TestMain(m *testing.M) {
 
 var sshPorts = []uint16{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort}
 
+// TestAgent_CloseWhileStarting is a regression test for https://github.com/coder/coder/issues/17328
+func TestAgent_ImmediateClose(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	logger := slogtest.Make(t, &slogtest.Options{
+		// Agent can drop errors when shutting down, and some, like the
+		// fasthttplistener connection closed error, are unexported.
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	fs := afero.NewMemMapFs()
+	client := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(client.Close)
+
+	options := agent.Options{
+		Client:                 client,
+		Filesystem:             fs,
+		Logger:                 logger.Named("agent"),
+		ReconnectingPTYTimeout: 0,
+		EnvironmentVariables:   map[string]string{},
+	}
+
+	agentUnderTest := agent.New(options)
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// wait until the agent has connected and is starting to find races in the startup code
+	_ = testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+	t.Log("Closing Agent")
+	err := agentUnderTest.Close()
+	require.NoError(t, err)
+}
+
 // NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {

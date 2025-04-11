@@ -680,6 +680,68 @@
 			]
 		},
 		{
+			"title": "Run AI Coding Agents in Coder",
+			"description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
+			"path": "./ai-coder/index.md",
+			"icon_path": "./images/icons/wand.svg",
+			"state": ["early access"],
+			"children": [
+				{
+					"title": "Learn about coding agents",
+					"description": "Learn about the different AI agents and their tradeoffs",
+					"path": "./ai-coder/agents.md"
+				},
+				{
+					"title": "Create a Coder template for agents",
+					"description": "Create a purpose-built template for your AI agents",
+					"path": "./ai-coder/create-template.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Integrate with your issue tracker",
+					"description": "Assign tickets to AI agents and interact via code reviews",
+					"path": "./ai-coder/issue-tracker.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Model Context Protocols (MCP) and adding AI tools",
+					"description": "Improve results by adding tools to your AI agents",
+					"path": "./ai-coder/best-practices.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Supervise agents via Coder UI",
+					"description": "Interact with agents via the Coder UI",
+					"path": "./ai-coder/coder-dashboard.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Supervise agents via the IDE",
+					"description": "Interact with agents via VS Code or Cursor",
+					"path": "./ai-coder/ide-integration.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Programmatically manage agents",
+					"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
+					"path": "./ai-coder/headless.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Securing agents in Coder",
+					"description": "Learn how to secure agents with boundaries",
+					"path": "./ai-coder/securing.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Custom agents",
+					"description": "Learn how to use custom agents with Coder",
+					"path": "./ai-coder/custom-agents.md",
+					"state": ["early access"]
+				}
+			]
+		},
+		{
 			"title": "Contributing",
 			"description": "Learn how to contribute to Coder",
 			"path": "./CONTRIBUTING.md",
@@ -721,67 +783,6 @@
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
-				},
-				{
-					"title": "Run AI Coding Agents with Coder",
-					"description": "Learn how to run and secure agents in Coder",
-					"path": "./tutorials/ai-agents/README.md",
-					"state": ["early access"],
-					"children": [
-						{
-							"title": "Learn about coding agents",
-							"description": "Learn about the different AI agents and their tradeoffs",
-							"path": "./tutorials/ai-agents/agents.md"
-						},
-						{
-							"title": "Create a Coder template for agents",
-							"description": "Create a purpose-built template for your AI agents",
-							"path": "./tutorials/ai-agents/create-template.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Integrate with your issue tracker",
-							"description": "Assign tickets to AI agents and interact via code reviews",
-							"path": "./tutorials/ai-agents/issue-tracker.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Best practices \u0026 adding tools via MCP",
-							"description": "Improve results by adding tools to your agents",
-							"path": "./tutorials/ai-agents/best-practices.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Supervise agents via Coder UI",
-							"description": "Interact with agents via the Coder UI",
-							"path": "./tutorials/ai-agents/coder-dashboard.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Supervise agents via the IDE",
-							"description": "Interact with agents via VS Code or Cursor",
-							"path": "./tutorials/ai-agents/ide-integration.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Programmatically manage agents",
-							"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
-							"path": "./tutorials/ai-agents/headless.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Securing agents in Coder",
-							"description": "Learn how to secure agents with boundaries",
-							"path": "./tutorials/ai-agents/securing.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Custom agents",
-							"description": "Learn how to use custom agents with Coder",
-							"path": "./tutorials/ai-agents/custom-agents.md",
-							"state": ["early access"]
-						}
-					]
 				},
 				{
 					"title": "Write a Template from Scratch",

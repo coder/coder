@@ -5764,6 +5764,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dynamic-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Open dynamic parameters WebSocket by template version",
+                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
@@ -11332,73 +11361,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateTestAuditLogRequest": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "enum": [
-                        "create",
-                        "write",
-                        "delete",
-                        "start",
-                        "stop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AuditAction"
-                        }
-                    ]
-                },
-                "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "build_reason": {
-                    "enum": [
-                        "autostart",
-                        "autostop",
-                        "initiator"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "request_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "resource_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "resource_type": {
-                    "enum": [
-                        "template",
-                        "template_version",
-                        "user",
-                        "workspace",
-                        "workspace_build",
-                        "git_ssh_key",
-                        "auditable_group"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ResourceType"
-                        }
-                    ]
-                },
-                "time": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
+            "type": "object"
         },
         "codersdk.CreateTokenRequest": {
             "type": "object",
@@ -18652,6 +18615,9 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                },
+                "hostname_suffix": {
+                    "type": "string"
                 }
             }
         },
