@@ -4,8 +4,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/coder/quartz"
 	"github.com/google/uuid"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
