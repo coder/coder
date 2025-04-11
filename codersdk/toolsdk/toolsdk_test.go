@@ -108,7 +108,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
-		result, err := testTool(ctx, t, toolsdk.Whoami, map[string]any{})
+		result, err := testTool(ctx, t, toolsdk.GetAuthenticatedUser, map[string]any{})
 
 		require.NoError(t, err)
 		require.Equal(t, member.ID, result.ID)

@@ -38,7 +38,7 @@ var (
 		ListWorkspaces.Generic(),
 		ListTemplates.Generic(),
 		ListTemplateVersionParameters.Generic(),
-		Whoami.Generic(),
+		GetAuthenticatedUser.Generic(),
 		CreateWorkspaceBuild.Generic(),
 		UploadTarFile.Generic(),
 		CreateTemplateVersion.Generic(),
@@ -311,9 +311,9 @@ is provisioned correctly and the agent can connect to the control plane.
 		},
 	}
 
-	Whoami = Tool[codersdk.User]{
+	GetAuthenticatedUser = Tool[codersdk.User]{
 		Tool: aisdk.Tool{
-			Name:        "coder_whoami",
+			Name:        "coder_get_authenticated_user",
 			Description: "Get the currently authenticated user, similar to the `whoami` command.",
 		},
 		Handler: func(ctx context.Context, _ map[string]any) (codersdk.User, error) {
