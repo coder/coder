@@ -346,6 +346,13 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
+        with:
+          # This path is defined in testutil/cache.go
+          path: ~/.cache/coderv2-test
+          key: test-go-${{ runner.os }}-coderv2-test
+
       - name: Test with Mock Database
         id: test
         shell: bash
@@ -467,6 +474,13 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/setup-imdisk
 
+      - name: Cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
+        with:
+          # This path is defined in testutil/cache.go
+          path: ~/.cache/coderv2-test
+          key: test-go-pg-${{ runner.os }}-coderv2-test
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
@@ -518,6 +532,13 @@ jobs:
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
+
+      - name: Cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
+        with:
+          # This path is defined in testutil/cache.go
+          path: ~/.cache/coderv2-test
+          key: test-go-pg-16-${{ runner.os }}-coderv2-test
 
       - name: Test with PostgreSQL Database
         env:
