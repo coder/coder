@@ -346,6 +346,11 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Setup Test Cache
+        uses: ./.github/actions/setup-test-cache
+        with:
+          key-prefix: test-go
+
       - name: Test with Mock Database
         id: test
         shell: bash
@@ -467,6 +472,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/setup-imdisk
 
+      - name: Setup Test Cache
+        uses: ./.github/actions/setup-test-cache
+        with:
+          key-prefix: test-go-pg
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
@@ -519,6 +529,11 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Setup Test Cache
+        uses: ./.github/actions/setup-test-cache
+        with:
+          key-prefix: test-go-pg-16
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "16"
@@ -555,6 +570,11 @@ jobs:
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
+
+      - name: Setup Test Cache
+        uses: ./.github/actions/setup-test-cache
+        with:
+          key-prefix: test-go-race
 
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
@@ -593,6 +613,11 @@ jobs:
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
+
+      - name: Setup Test Cache
+        uses: ./.github/actions/setup-test-cache
+        with:
+          key-prefix: test-go-race-pg
 
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
