@@ -7,7 +7,7 @@ runs:
   steps:
     - name: Install OSFMount
       if: runner.os == 'Windows'
-      shell: powershell.exe -NoProfile -command . '{0}'
+      shell: powershell -NoProfile -Command "& '{0}'"
       run: |
         $ErrorActionPreference = "Stop"
 
@@ -38,7 +38,7 @@ runs:
         OSFMOUNT_SHA256: 9fe0738b7c2d29a7414e67f53aea359f3801d1c37b44f1b4fed5d02cb7536369
 
     - name: Create RAM Disk
-      shell: powershell.exe -NoProfile -command . '{0}'
+      shell: powershell -NoProfile -Command "& '{0}'"
       run: |
         $ErrorActionPreference = "Stop"
 
