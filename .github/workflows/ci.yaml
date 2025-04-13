@@ -536,7 +536,7 @@ jobs:
       - name: Cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
         with:
-          # This path is defined in testutil/cache.go
+          # This path is defined in testutil/cache.go!
           path: ~/.cache/coderv2-test
           key: test-go-pg-16-${{ runner.os }}-coderv2-test
 
