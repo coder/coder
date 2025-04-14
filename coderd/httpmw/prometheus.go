@@ -27,7 +27,7 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 		Subsystem: "api",
 		Name:      "concurrent_requests",
 		Help:      "The number of concurrent API requests.",
-	}, []string{"path"})
+	}, []string{"method", "path"})
 	websocketsConcurrent := factory.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -82,8 +82,8 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 
 				dist = websocketsDist
 			} else {
-				requestsConcurrent.WithLabelValues(path).Inc()
-				defer requestsConcurrent.WithLabelValues(path).Dec()
+				requestsConcurrent.WithLabelValues(method, path).Inc()
+				defer requestsConcurrent.WithLabelValues(method, path).Dec()
 
 				dist = requestsDist
 				distOpts = []string{method}
