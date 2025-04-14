@@ -393,7 +393,9 @@ export const getInitialParameterValues = (
 				isValidValue(parameter, autofillParam) &&
 				autofillParam.value
 					? autofillParam.value
-					: "",
+					: parameter.default_value.valid
+						? parameter.default_value.value
+						: "",
 		};
 	});
 };
