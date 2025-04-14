@@ -301,8 +301,15 @@ func (p *Server) acquireLoop() {
 			return
 		}
 		err := p.acquireAndRunOne(client)
-		if err != nil && ctx.Err() == nil { // Only log if context is not done.
-			p.opts.Logger.Debug(ctx, "retrying to acquire job", slog.F("retry_in_ms", retrier.Delay.Milliseconds()), slog.Error(err))
+		if err != nil { // Only log if context is not done.
+			// Short-circuit: don't wait for the retry delay to exit, if required.
+			if p.acquireExit() {
+				return
+			}
+			p.opts.Logger.Warn(ctx, "failed to acquire job, retrying...", slog.F("delay", fmt.Sprintf("%vms", retrier.Delay.Milliseconds())), slog.Error(err))
+		} else {
+			// Reset the retrier after each successful acquisition.
+			retrier.Reset()
 		}
 	}
 }

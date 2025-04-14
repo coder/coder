@@ -1386,7 +1386,7 @@ func (c *Controller) Run(ctx context.Context) {
 				// If the database is unreachable by the control plane, there's not much we can do, so we'll just retry later.
 				if strings.Contains(err.Error(), codersdk.DatabaseNotReachable) {
 					c.logger.Warn(c.ctx, "control plane lost connection to database, retrying",
-						slog.Error(err), slog.F("retry_in_ms", retrier.Delay.Milliseconds()))
+						slog.Error(err), slog.F("delay", fmt.Sprintf("%vms", retrier.Delay.Milliseconds())))
 					continue
 				}
 
