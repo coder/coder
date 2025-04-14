@@ -8,7 +8,6 @@ import (
 	"path"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -38,11 +37,9 @@ type API struct {
 
 	// lockCh protects the below fields. We use a channel instead of a
 	// mutex so we can handle cancellation properly.
-	lockCh     chan struct{}
-	containers codersdk.WorkspaceAgentListContainersResponse
-	mtime      time.Time
-
-	devcontainersMu    sync.Mutex                            // Protects following.
+	lockCh             chan struct{}
+	containers         codersdk.WorkspaceAgentListContainersResponse
+	mtime              time.Time
 	devcontainerNames  map[string]struct{}                   // Track devcontainer names to avoid duplicates.
 	knownDevcontainers []codersdk.WorkspaceAgentDevcontainer // Track predefined and runtime-detected devcontainers.
 }
@@ -168,9 +165,6 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 	api.containers = updated
 	api.mtime = now
 
-	api.devcontainersMu.Lock()
-	defer api.devcontainersMu.Unlock()
-
 	// Reset all known devcontainers to not running.
 	for i := range api.knownDevcontainers {
 		api.knownDevcontainers[i].Running = false
@@ -294,9 +288,13 @@ func (api *API) handleListDevcontainers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.devcontainersMu.Lock()
+	select {
+	case <-ctx.Done():
+		return
+	case api.lockCh <- struct{}{}:
+	}
 	devcontainers := slices.Clone(api.knownDevcontainers)
-	api.devcontainersMu.Unlock()
+	<-api.lockCh
 
 	slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
 		if cmp := strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder); cmp != 0 {
