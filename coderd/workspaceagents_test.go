@@ -557,7 +557,7 @@ func TestWorkspaceAgentDialFailure(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	// When: a workspace agent is setup and we try dial it.
+	// Given: a workspace agent is setup.
 	r := dbfake.WorkspaceBuild(t, pdb, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
@@ -574,7 +574,7 @@ func TestWorkspaceAgentDialFailure(t *testing.T) {
 	// Then: the tailnet controller will continually try to dial the coordination endpoint, exceeding its context timeout.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	conn, err := workspacesdk.New(client).DialAgent(ctx, resources[0].Agents[0].ID, nil)
-	require.ErrorContains(t, err, codersdk.DatabaseNotReachable)
+	require.ErrorIs(t, err, codersdk.ErrDatabaseNotReachable)
 	require.Nil(t, conn)
 }
 

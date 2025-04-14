@@ -94,7 +94,7 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 
 				if sdkErr.Message == codersdk.DatabaseNotReachable &&
 					sdkErr.StatusCode() == http.StatusInternalServerError {
-					err = xerrors.Errorf("%s: %w", codersdk.DatabaseNotReachable, err)
+					err = xerrors.Errorf("%w: %v", codersdk.ErrDatabaseNotReachable, err)
 				}
 			}
 			w.connected <- err

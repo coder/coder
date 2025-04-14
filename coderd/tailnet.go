@@ -549,7 +549,7 @@ type InmemTailnetDialer struct {
 func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
 	if a.DatabaseHealthcheckFn != nil {
 		if err := a.DatabaseHealthcheckFn(ctx); err != nil {
-			return tailnet.ControlProtocolClients{}, xerrors.Errorf("%s: %w", codersdk.DatabaseNotReachable, err)
+			return tailnet.ControlProtocolClients{}, xerrors.Errorf("%w: %v", codersdk.ErrDatabaseNotReachable, err)
 		}
 	}
 
