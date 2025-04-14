@@ -301,12 +301,12 @@ func (p *Server) acquireLoop() {
 			return
 		}
 		err := p.acquireAndRunOne(client)
-		if err != nil { // Only log if context is not done.
+		if err != nil && ctx.Err() == nil { // Only log if context is not done.
 			// Short-circuit: don't wait for the retry delay to exit, if required.
 			if p.acquireExit() {
 				return
 			}
-			p.opts.Logger.Warn(ctx, "failed to acquire job, retrying...", slog.F("delay", fmt.Sprintf("%vms", retrier.Delay.Milliseconds())), slog.Error(err))
+			p.opts.Logger.Warn(ctx, "failed to acquire job, retrying", slog.F("delay", fmt.Sprintf("%vms", retrier.Delay.Milliseconds())), slog.Error(err))
 		} else {
 			// Reset the retrier after each successful acquisition.
 			retrier.Reset()
@@ -346,7 +346,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) erro
 	}
 	if job.JobId == "" {
 		p.opts.Logger.Debug(ctx, "acquire job successfully canceled")
-		return xerrors.New("canceled")
+		return nil
 	}
 
 	if len(job.TraceMetadata) > 0 {
@@ -401,9 +401,9 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) erro
 			Error: fmt.Sprintf("failed to connect to provisioner: %s", resp.Error),
 		})
 		if err != nil {
-			p.opts.Logger.Error(ctx, "provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
+			p.opts.Logger.Error(ctx, "failed to report provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
 		}
-		return xerrors.Errorf("provisioner job failed: %w", err)
+		return xerrors.Errorf("failed to report provisioner job failed: %w", err)
 	}
 
 	p.mutex.Lock()

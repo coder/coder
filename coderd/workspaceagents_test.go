@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -536,46 +535,6 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
-}
-
-// TestWorkspaceAgentDialFailure validates that the tailnet controller will retry connecting to the control plane until
-// its context times out, when the dialer fails its healthcheck.
-func TestWorkspaceAgentDialFailure(t *testing.T) {
-	t.Parallel()
-
-	store, ps := dbtestutil.NewDB(t)
-
-	// Given: a database which will fail its Ping(ctx) call.
-	// NOTE: The Ping(ctx) call is made by the Dialer.
-	pdb := &pingFailingDB{
-		Store: store,
-	}
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database:                 pdb,
-		Pubsub:                   ps,
-		IncludeProvisionerDaemon: true,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-
-	// Given: a workspace agent is setup.
-	r := dbfake.WorkspaceBuild(t, pdb, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
-	_ = agenttest.New(t, client.URL, r.AgentToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
-	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Agents, 1)
-
-	// When: the db is marked as unhealthy (i.e. will fail its Ping).
-	// This needs to be done *after* the server "starts" otherwise it'll fail straight away when trying to initialize.
-	pdb.MarkUnhealthy()
-
-	// Then: the tailnet controller will continually try to dial the coordination endpoint, exceeding its context timeout.
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	conn, err := workspacesdk.New(client).DialAgent(ctx, resources[0].Agents[0].ID, nil)
-	require.ErrorIs(t, err, codersdk.ErrDatabaseNotReachable)
-	require.Nil(t, conn)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
@@ -2631,23 +2590,4 @@ func TestAgentConnectionInfo(t *testing.T) {
 	require.Equal(t, "yallah", info.HostnameSuffix)
 	require.True(t, info.DisableDirectConnections)
 	require.True(t, info.DERPForceWebSockets)
-}
-
-type pingFailingDB struct {
-	database.Store
-
-	unhealthy bool
-}
-
-func (p *pingFailingDB) Ping(context.Context) (time.Duration, error) {
-	if !p.unhealthy {
-		return time.Nanosecond, nil
-	}
-
-	// Simulate a database connection error.
-	return 0, xerrors.New("oops")
-}
-
-func (p *pingFailingDB) MarkUnhealthy() {
-	p.unhealthy = true
 }

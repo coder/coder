@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -58,7 +59,8 @@ func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
 	defer cancel()
 
 	// Connect through the ServerTailnet
-	agents, serverTailnet := setupServerTailnetAgent(t, 1, withDERPAndStunOptions(tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded))
+	agents, serverTailnet := setupServerTailnetAgent(t, 1,
+		tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded)
 	a := agents[0]
 
 	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
@@ -341,7 +343,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		agents, serverTailnet := setupServerTailnetAgent(t, 1, withDERPAndStunOptions(tailnettest.DisableSTUN))
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, tailnettest.DisableSTUN)
 		a := agents[0]
 
 		require.True(t, serverTailnet.Conn().GetBlockEndpoints(), "expected BlockEndpoints to be set")
@@ -366,47 +368,42 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 	})
 }
 
-type fakePing struct {
-	err error
-}
-
-func (f *fakePing) Ping(context.Context) (time.Duration, error) {
-	return time.Duration(0), f.err
-}
-
-func TestServerTailnet_Healthcheck(t *testing.T) {
+func TestDialFailure(t *testing.T) {
 	t.Parallel()
 
-	// Verifies that a non-nil healthcheck which returns a non-error response behaves as expected.
-	t.Run("Passing", func(t *testing.T) {
-		t.Parallel()
+	// Setup.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthChecker(&fakePing{}))
-
-		a := agents[0]
-		conn, release, err := serverTailnet.AgentConn(ctx, a.id)
-		t.Cleanup(release)
-		require.NoError(t, err)
-		assert.True(t, conn.AwaitReachable(ctx))
+	// Given: a tailnet coordinator.
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coord.Close()
 	})
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
 
-	// If the healthcheck fails, we have no insight into this at this level.
-	// The dial against the control plane is retried, so we wait for the context to timeout as an indication that the
-	// healthcheck is performing as expected.
-	t.Run("Failing", func(t *testing.T) {
-		t.Parallel()
+	// Given: a fake DB healthchecker which will always fail.
+	fch := &failingHealthcheck{}
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
+	// When: dialing the in-memory coordinator.
+	dialer := &coderd.InmemTailnetDialer{
+		CoordPtr:            &coordPtr,
+		Logger:              logger,
+		ClientID:            uuid.UUID{5},
+		DatabaseHealthCheck: fch,
+	}
+	_, err := dialer.Dial(ctx, nil)
 
-		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthChecker(&fakePing{err: xerrors.New("oops")}))
+	// Then: the error returned reflects the database has failed its healthcheck.
+	require.ErrorIs(t, err, codersdk.ErrDatabaseNotReachable)
+}
 
-		a := agents[0]
-		_, release, err := serverTailnet.AgentConn(ctx, a.id)
-		require.Nil(t, release)
-		require.ErrorContains(t, err, "agent is unreachable")
-	})
+type failingHealthcheck struct{}
+
+func (failingHealthcheck) Ping(context.Context) (time.Duration, error) {
+	// Simulate a database connection error.
+	return 0, xerrors.New("oops")
 }
 
 type wrappedListener struct {
@@ -433,36 +430,9 @@ type agentWithID struct {
 	agent.Agent
 }
 
-type serverOption struct {
-	HealthCheck        coderd.Pinger
-	DERPAndStunOptions []tailnettest.DERPAndStunOption
-}
-
-func withHealthChecker(p coderd.Pinger) serverOption {
-	return serverOption{
-		HealthCheck: p,
-	}
-}
-
-func withDERPAndStunOptions(opts ...tailnettest.DERPAndStunOption) serverOption {
-	return serverOption{
-		DERPAndStunOptions: opts,
-	}
-}
-
-func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...serverOption) ([]agentWithID, *coderd.ServerTailnet) {
+func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
 	logger := testutil.Logger(t)
-
-	var healthChecker coderd.Pinger
-	var derpAndStunOptions []tailnettest.DERPAndStunOption
-	for _, opt := range opts {
-		derpAndStunOptions = append(derpAndStunOptions, opt.DERPAndStunOptions...)
-		if opt.HealthCheck != nil {
-			healthChecker = opt.HealthCheck
-		}
-	}
-
-	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, derpAndStunOptions...)
+	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, opts...)
 
 	coord := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
@@ -502,11 +472,10 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...serverOption) (
 	}
 
 	dialer := &coderd.InmemTailnetDialer{
-		CoordPtr:            &coordPtr,
-		DERPFn:              func() *tailcfg.DERPMap { return derpMap },
-		Logger:              logger,
-		ClientID:            uuid.UUID{5},
-		DatabaseHealthCheck: healthChecker,
+		CoordPtr: &coordPtr,
+		DERPFn:   func() *tailcfg.DERPMap { return derpMap },
+		Logger:   logger,
+		ClientID: uuid.UUID{5},
 	}
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),
