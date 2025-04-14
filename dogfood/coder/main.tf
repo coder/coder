@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "2.2.0-pre0"
+      version = "2.3.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -191,16 +191,15 @@ module "vscode-web" {
   accept_license          = true
 }
 
-module "jetbrains_gateway" {
-  count          = data.coder_workspace.me.start_count
-  source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = ">= 1.0.0"
-  agent_id       = coder_agent.dev.id
-  agent_name     = "dev"
-  folder         = local.repo_dir
-  jetbrains_ides = ["GO", "WS"]
-  default        = "GO"
-  latest         = true
+module "jetbrains" {
+  count      = data.coder_workspace.me.start_count
+  source     = "git::https://github.com/coder/modules.git//jetbrains?ref=jetbrains"
+  agent_id   = coder_agent.dev.id
+  folder     = local.repo_dir
+  options    = ["WS", "GO"]
+  default    = "GO"
+  latest     = true
+  channel    = "eap"
 }
 
 module "filebrowser" {
