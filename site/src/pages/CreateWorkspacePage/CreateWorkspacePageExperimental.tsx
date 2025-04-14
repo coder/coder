@@ -49,7 +49,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const [currentResponse, setCurrentResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const [wsResponseId, setWSResponseId] = useState<number>(-1);
-	const webSocket = useRef<WebSocket | null>(null);
+	const ws = useRef<WebSocket | null>(null);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -81,58 +81,54 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
+	const onMessage = useCallback((response: DynamicParametersResponse) => {
+		setCurrentResponse((prev) => {
+			if (prev?.id === response.id) {
+				return prev;
+			}
+			return response;
+		});
+	}, []);
+
 	// Initialize the WebSocket connection when there is a valid template version ID
 	useEffect(() => {
 		if (!realizedVersionId) {
 			return;
 		}
 
-		if (webSocket.current) {
-			webSocket.current.close();
+		if (ws.current) {
+			ws.current.close();
 		}
 
-		const socket = API.templateVersionDynamicParameters(realizedVersionId);
-
-		socket.addEventListener("message", (event) => {
-			try {
-				const response = JSON.parse(event.data) as DynamicParametersResponse;
-
-				if (response && response.id >= wsResponseId) {
-					setCurrentResponse((prev) => {
-						if (prev?.id === response.id) {
-							return prev;
-						}
-						return response;
-					});
-				}
-			} catch (error) {
-				console.error("Failed to parse WebSocket message:", error);
-			}
+		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
+			onMessage,
+			onError: (error) => {
+				console.error("Failed to parse dynamic parameters webSocket message:", error);
+			},
 		});
 
-		webSocket.current = socket;
+		ws.current = socket;
 
 		return () => {
-			if (webSocket.current) {
-				webSocket.current.close();
+			if (ws.current) {
+				ws.current.close();
 			}
 		};
-	}, [realizedVersionId]);
+	}, [realizedVersionId, onMessage]);
 
-	const sendMessage =
-		(formValues: Record<string, string>) => {
-			setWSResponseId(prevId => {
-				const request: DynamicParametersRequest = {
-					id: prevId + 1,
-					inputs: formValues,
-				};
-				if (webSocket.current && webSocket.current.readyState === WebSocket.OPEN) {
-					webSocket.current.send(JSON.stringify(request));
-					return prevId + 1;
-				}
-				return prevId;
-			})
-		};
+	const sendMessage = (formValues: Record<string, string>) => {
+		setWSResponseId((prevId) => {
+			const request: DynamicParametersRequest = {
+				id: prevId + 1,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				return prevId + 1;
+			}
+			return prevId;
+		});
+	};
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -143,7 +139,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		isLoadingExternalAuth,
 	} = useExternalAuth(realizedVersionId);
 
-	const isLoadingFormData =
+	const isLoadingFormData = ws.current?.readyState !== WebSocket.OPEN ||
 		templateQuery.isLoading || permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
