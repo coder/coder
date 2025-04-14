@@ -188,7 +188,7 @@ func TestAPI(t *testing.T) {
 				ID:              knownDevcontainerID2,
 				Name:            "known-devcontainer-2",
 				WorkspaceFolder: "/workspace/known2",
-				// No config path intentionally
+				// No config path intentionally.
 			},
 		}
 
@@ -293,7 +293,6 @@ func TestAPI(t *testing.T) {
 				wantStatus:         http.StatusOK,
 				wantCount:          3, // 2 known + 1 runtime
 				verify: func(t *testing.T, devcontainers []codersdk.WorkspaceAgentDevcontainer) {
-					// Find and verify devcontainers by workspace folder
 					known1 := mustFindDevcontainerByPath(t, devcontainers, "/workspace/known1")
 					known2 := mustFindDevcontainerByPath(t, devcontainers, "/workspace/known2")
 					runtime1 := mustFindDevcontainerByPath(t, devcontainers, "/workspace/runtime1")
@@ -373,7 +372,6 @@ func TestAPI(t *testing.T) {
 				wantStatus:         http.StatusOK,
 				wantCount:          2,
 				verify: func(t *testing.T, devcontainers []codersdk.WorkspaceAgentDevcontainer) {
-					// Find devcontainer with ID matching knownDevcontainerID2
 					var dc2 *codersdk.WorkspaceAgentDevcontainer
 					for i := range devcontainers {
 						if devcontainers[i].ID == knownDevcontainerID2 {
@@ -484,7 +482,7 @@ func TestAPI(t *testing.T) {
 				// Verify the number of devcontainers in the response.
 				assert.Len(t, response.Devcontainers, tt.wantCount, "wrong number of devcontainers")
 
-				// Run custom verification if provided
+				// Run custom verification if provided.
 				if tt.verify != nil && len(response.Devcontainers) > 0 {
 					tt.verify(t, response.Devcontainers)
 				}

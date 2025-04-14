@@ -64,9 +64,9 @@ func WithDevcontainerCLI(dccli DevcontainerCLI) Option {
 	}
 }
 
-// WithDevcontainers sets the known devcontainers and scripts for the
-// API. This allows allows the API to be aware of devcontainers defined
-// in the workspace agent manifest.
+// WithDevcontainers sets the known devcontainers for the API. This
+// allows the API to be aware of devcontainers defined in the workspace
+// agent manifest.
 func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer) Option {
 	return func(api *API) {
 		if len(devcontainers) > 0 {
@@ -195,7 +195,6 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 			}
 
 			// If not in our known list, add as a runtime detected entry.
-			// Parse name from folder
 			name := path.Base(workspaceFolder)
 			if _, ok := api.devcontainerNames[name]; ok {
 				// Try to find a unique name by appending a number.
