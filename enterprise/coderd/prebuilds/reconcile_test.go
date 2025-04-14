@@ -487,6 +487,70 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	}
 }
 
+func TestInvalidPreset(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(
+		ctx,
+		t,
+		clock,
+		db,
+		pubSub,
+		org.ID,
+		ownerID,
+		template.ID,
+	)
+	// Add required param, which is not set in preset. It means that creating of prebuild will constantly fail.
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: templateVersionID,
+		Name:              "required-param",
+		Description:       "required param to make sure creating prebuild will fail",
+		Type:              "bool",
+		DefaultValue:      "",
+		Required:          true,
+	})
+	setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		1,
+		uuid.New().String(),
+	)
+
+	// Run the reconciliation multiple times to ensure idempotency
+	// 8 was arbitrary, but large enough to reasonably trust the result
+	for i := 1; i <= 8; i++ {
+		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+
+		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+		require.NoError(t, err)
+		newPrebuildCount := len(workspaces)
+
+		// NOTE: we don't have any new prebuilds, because their creation constantly fails.
+		require.Equal(t, int32(0), int32(newPrebuildCount)) // nolint:gosec
+	}
+}
+
 func TestRunLoop(t *testing.T) {
 	t.Parallel()
 
