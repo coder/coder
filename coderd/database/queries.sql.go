@@ -6024,7 +6024,7 @@ type CountInProgressPrebuildsRow struct {
 	PresetID          uuid.NullUUID       `db:"preset_id" json:"preset_id"`
 }
 
-// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 // Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
 	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)

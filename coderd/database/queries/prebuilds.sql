@@ -57,7 +57,7 @@ WHERE (b.transition = 'start'::workspace_transition
 	AND b.job_status = 'succeeded'::provisioner_job_status);
 
 -- name: CountInProgressPrebuilds :many
--- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+-- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 -- Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count, wlb.template_version_preset_id as preset_id
 FROM workspace_latest_builds wlb
