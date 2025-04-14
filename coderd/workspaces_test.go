@@ -445,8 +445,7 @@ func TestWorkspace(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		presets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
