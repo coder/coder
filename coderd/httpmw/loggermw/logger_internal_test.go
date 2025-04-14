@@ -205,6 +205,99 @@ func TestRequestLogger_HTTPRouteParams(t *testing.T) {
 	}
 }
 
+func TestRequestLogger_RouteParamsLogging(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		params         map[string]string
+		expectedFields []string
+	}{
+		{
+			name:           "EmptyParams",
+			params:         map[string]string{},
+			expectedFields: []string{},
+		},
+		{
+			name: "SingleParam",
+			params: map[string]string{
+				"workspace": "test-workspace",
+			},
+			expectedFields: []string{"workspace"},
+		},
+		{
+			name: "MultipleParams",
+			params: map[string]string{
+				"workspace": "test-workspace",
+				"agent":     "test-agent",
+				"user":      "test-user",
+			},
+			expectedFields: []string{"workspace", "agent", "user"},
+		},
+		{
+			name: "EmptyValueParam",
+			params: map[string]string{
+				"workspace": "test-workspace",
+				"agent":     "",
+			},
+			expectedFields: []string{"workspace"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sink := &fakeSink{}
+			logger := slog.Make(sink)
+			logger = logger.Leveled(slog.LevelDebug)
+
+			// Create a route context with the test parameters
+			chiCtx := chi.NewRouteContext()
+			for key, value := range tt.params {
+				chiCtx.URLParams.Add(key, value)
+			}
+
+			ctx := context.WithValue(context.Background(), chi.RouteCtxKey, chiCtx)
+			logCtx := NewRequestLogger(logger, "GET", time.Now())
+
+			// Write the log
+			logCtx.WriteLog(ctx, http.StatusOK)
+
+			require.Len(t, sink.entries, 1, "expected exactly one log entry")
+
+			// Convert fields to map for easier checking
+			fieldsMap := make(map[string]any)
+			for _, field := range sink.entries[0].Fields {
+				fieldsMap[field.Name] = field.Value
+			}
+
+			// Verify expected fields are present
+			for _, field := range tt.expectedFields {
+				value, exists := fieldsMap[field]
+				require.True(t, exists, "field %q should be present in log", field)
+				require.Equal(t, tt.params[field], value, "field %q has incorrect value", field)
+			}
+
+			// Verify no unexpected fields are present
+			for field := range fieldsMap {
+				if field == "took" || field == "status_code" || field == "latency_ms" {
+					continue // Skip standard fields
+				}
+				found := false
+				for _, expected := range tt.expectedFields {
+					if field == expected {
+						found = true
+						break
+					}
+				}
+				require.True(t, found, "unexpected field %q in log", field)
+			}
+		})
+	}
+}
+
 type fakeSink struct {
 	entries    []slog.SinkEntry
 	newEntries chan slog.SinkEntry
