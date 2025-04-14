@@ -1009,6 +1009,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	templateVersionDynamicParameters = (versionId: string): WebSocket => {
+		const socket = createWebSocket(
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+		);
+		return socket;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */

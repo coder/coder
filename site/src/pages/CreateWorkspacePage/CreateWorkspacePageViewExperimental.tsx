@@ -67,8 +67,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: DynamicParametersRequest) => void;
-	setWSResponseId: (value: React.SetStateAction<number>) => void;
+	sendMessage: (message: Record<string, string>) => void;
 	startPollingExternalAuth: () => void;
 }
 
@@ -95,7 +94,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	onCancel,
 	resetMutation,
 	sendMessage,
-	setWSResponseId,
 	startPollingExternalAuth,
 }) => {
 	const [owner, setOwner] = useState(defaultOwner);
