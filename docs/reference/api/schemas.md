@@ -1411,21 +1411,23 @@ None
     0
   ],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
-|-------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dry_run`               | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
-| `log_level`             | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
-| `orphan`                | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `state`                 | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
-| `template_version_id`   | string                                                                        | false    |              |                                                                                                                                                                                                               |
-| `transition`            | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                               |
+| Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
+|------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
+| `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
+| `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
+| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `state`                      | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
+| `template_version_id`        | string                                                                        | false    |              |                                                                                                                                                                                                               |
+| `template_version_preset_id` | string                                                                        | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                               |
 
 #### Enumerated Values
 
@@ -1469,6 +1471,7 @@ None
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "ttl_ms": 0
 }
 ```
@@ -1477,15 +1480,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                             |
-|-------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
-| `automatic_updates`     | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
-| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                         |
-| `name`                  | string                                                                        | true     |              |                                                                                                         |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
-| `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
-| `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
-| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
+| Name                         | Type                                                                          | Required | Restrictions | Description                                                                                             |
+|------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
+| `automatic_updates`          | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
+| `autostart_schedule`         | string                                                                        | false    |              |                                                                                                         |
+| `name`                       | string                                                                        | true     |              |                                                                                                         |
+| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
+| `template_id`                | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
+| `template_version_id`        | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
+| `template_version_preset_id` | string                                                                        | false    |              |                                                                                                         |
+| `ttl_ms`                     | integer                                                                       | false    |              |                                                                                                         |
 
 ## codersdk.CryptoKey
 
@@ -7761,6 +7765,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -8712,6 +8717,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "status": "pending",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -8741,6 +8747,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
 | `template_version_id`        | string                                                            | false    |              |             |
 | `template_version_name`      | string                                                            | false    |              |             |
+| `template_version_preset_id` | string                                                            | false    |              |             |
 | `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |             |
 | `updated_at`                 | string                                                            | false    |              |             |
 | `workspace_id`               | string                                                            | false    |              |             |
@@ -9408,6 +9415,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "status": "pending",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
+        "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
         "transition": "start",
         "updated_at": "2019-08-24T14:15:22Z",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",

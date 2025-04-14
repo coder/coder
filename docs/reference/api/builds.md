@@ -212,6 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "status": "pending",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -440,6 +441,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "status": "pending",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -1138,6 +1140,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "status": "pending",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -1439,6 +1442,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -1605,6 +1609,7 @@ Status Code **200**
 | `» status`                       | [codersdk.WorkspaceStatus](schemas.md#codersdkworkspacestatus)                                         | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_id`          | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_name`        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `» template_version_preset_id`   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» transition`                   | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» updated_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1707,6 +1712,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     0
   ],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"
 }
 ```
@@ -1909,6 +1915,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "status": "pending",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",

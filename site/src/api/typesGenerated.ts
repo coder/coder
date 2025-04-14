@@ -447,6 +447,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly orphan?: boolean;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
+	readonly template_version_preset_id?: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -465,6 +466,7 @@ export interface CreateWorkspaceRequest {
 	readonly ttl_ms?: number;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
+	readonly template_version_preset_id?: string;
 }
 
 // From codersdk/deployment.go
@@ -3482,6 +3484,7 @@ export interface WorkspaceBuild {
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
+	readonly template_version_preset_id: string | null;
 }
 
 // From codersdk/workspacebuilds.go
