@@ -421,6 +421,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			handler.ServeHTTP(w, r)
 		}
 	}))
+	t.Logf("coderdtest server listening on %s", srv.Listener.Addr().String())
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -433,7 +434,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	} else {
 		srv.Start()
 	}
-	t.Cleanup(srv.Close)
+	t.Logf("coderdtest server started on %s", srv.URL)
+	t.Cleanup(func() {
+		t.Log("closing coderdtest server")
+		srv.Close()
+		t.Log("closed coderdtest server")
+	})
 
 	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
