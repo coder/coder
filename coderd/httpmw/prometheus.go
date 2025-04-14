@@ -61,7 +61,7 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 			var (
 				start  = time.Now()
 				method = r.Method
-				rctx   = chi.RouteContext(r.Context())
+				// rctx   = chi.RouteContext(r.Context())
 			)
 
 			sw, ok := w.(*tracing.StatusWriter)
@@ -69,7 +69,7 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 				panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 			}
 
-			path := rctx.RoutePattern()
+			path := getRoutePattern(r)
 
 			var (
 				dist     *prometheus.HistogramVec
@@ -98,4 +98,27 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 			dist.WithLabelValues(distOpts...).Observe(time.Since(start).Seconds())
 		})
 	}
+}
+
+func getRoutePattern(r *http.Request) string {
+	rctx := chi.RouteContext(r.Context())
+	if pattern := rctx.RoutePattern(); pattern != "" {
+		// Pattern is already available
+		return pattern
+	}
+
+	routePath := r.URL.Path
+	if r.URL.RawPath != "" {
+		routePath = r.URL.RawPath
+	}
+
+	tctx := chi.NewRouteContext()
+	if !rctx.Routes.Match(tctx, r.Method, routePath) {
+		// No matching pattern, so just return an empty string.
+		// It is done to avoid returning a static path for frontend requests.
+		return ""
+	}
+
+	// tctx has the updated pattern, since Match mutates it
+	return tctx.RoutePattern()
 }
