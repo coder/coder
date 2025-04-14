@@ -1,6 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
 import type {
-	DynamicParametersRequest,
 	PreviewDiagnostics,
 	PreviewParameter,
 } from "api/typesGenerated";
