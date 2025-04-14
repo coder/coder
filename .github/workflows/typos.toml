@@ -24,6 +24,7 @@ EDE = "EDE"
 HELO = "HELO"
 LKE = "LKE"
 byt = "byt"
+typ = "typ"
 
 [files]
 extend-exclude = [
