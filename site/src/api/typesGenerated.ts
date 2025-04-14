@@ -571,7 +571,7 @@ export interface DERPRegionReport {
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
 	readonly region: TailDERPRegion | null;
-	readonly node_reports: readonly (DERPNodeReport | null)[];
+	readonly node_reports: readonly DERPNodeReport[];
 }
 
 // From codersdk/deployment.go
@@ -707,6 +707,19 @@ export const DisplayApps: DisplayApp[] = [
 	"vscode_insiders",
 	"web_terminal",
 ];
+
+// From codersdk/templateversions.go
+export interface DynamicParametersRequest {
+	readonly id: number;
+	readonly inputs: Record<string, string>;
+}
+
+// From codersdk/templateversions.go
+export interface DynamicParametersResponse {
+	readonly id: number;
+	readonly diagnostics: PreviewDiagnostics;
+	readonly parameters: readonly PreviewParameter[];
+}
 
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
@@ -900,6 +913,13 @@ export const FeatureSets: FeatureSet[] = ["enterprise", "", "premium"];
 
 // From codersdk/files.go
 export const FormatZip = "zip";
+
+// From codersdk/templateversions.go
+export interface FriendlyDiagnostic {
+	readonly severity: PreviewDiagnosticSeverityString;
+	readonly summary: string;
+	readonly detail: string;
+}
 
 // From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
@@ -1153,16 +1173,6 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 	readonly signed_token: string;
 }
 
-// From codersdk/jfrog.go
-export interface JFrogXrayScan {
-	readonly workspace_id: string;
-	readonly agent_id: string;
-	readonly critical: number;
-	readonly high: number;
-	readonly medium: number;
-	readonly results_url: string;
-}
-
 // From codersdk/provisionerdaemons.go
 export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
 
@@ -1386,6 +1396,12 @@ export interface NotificationsSettings {
 // From codersdk/deployment.go
 export interface NotificationsWebhookConfig {
 	readonly endpoint: string;
+}
+
+// From codersdk/templateversions.go
+export interface NullHCLString {
+	readonly value: string;
+	readonly valid: boolean;
 }
 
 // From codersdk/oauth2.go
@@ -1694,6 +1710,59 @@ export interface Preset {
 export interface PresetParameter {
 	readonly Name: string;
 	readonly Value: string;
+}
+
+// From types/diagnostics.go
+export type PreviewDiagnosticSeverityString = string;
+
+// From types/diagnostics.go
+export type PreviewDiagnostics = readonly FriendlyDiagnostic[];
+
+// From types/parameter.go
+export interface PreviewParameter extends PreviewParameterData {
+	readonly value: NullHCLString;
+	readonly diagnostics: PreviewDiagnostics;
+}
+
+// From types/parameter.go
+export interface PreviewParameterData {
+	readonly name: string;
+	readonly display_name: string;
+	readonly description: string;
+	readonly type: PreviewParameterType;
+	// this is likely an enum in an external package "github.com/coder/terraform-provider-coder/v2/provider.ParameterFormType"
+	readonly form_type: string;
+	// empty interface{} type, falling back to unknown
+	readonly styling: unknown;
+	readonly mutable: boolean;
+	readonly default_value: NullHCLString;
+	readonly icon: string;
+	readonly options: readonly PreviewParameterOption[];
+	readonly validations: readonly PreviewParameterValidation[];
+	readonly required: boolean;
+	readonly order: number;
+	readonly ephemeral: boolean;
+}
+
+// From types/parameter.go
+export interface PreviewParameterOption {
+	readonly name: string;
+	readonly description: string;
+	readonly value: NullHCLString;
+	readonly icon: string;
+}
+
+// From types/enum.go
+export type PreviewParameterType = string;
+
+// From types/parameter.go
+export interface PreviewParameterValidation {
+	readonly validation_error: string;
+	readonly validation_regex: string | null;
+	readonly validation_min: number | null;
+	readonly validation_max: number | null;
+	readonly validation_monotonic: string | null;
+	readonly validation_invalid: boolean | null;
 }
 
 // From codersdk/deployment.go
@@ -2403,7 +2472,7 @@ export interface TailDERPRegion {
 	readonly RegionCode: string;
 	readonly RegionName: string;
 	readonly Avoid?: boolean;
-	readonly Nodes: readonly (TailDERPNode | null)[];
+	readonly Nodes: readonly TailDERPNode[];
 }
 
 // From codersdk/deployment.go

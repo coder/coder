@@ -9,7 +9,6 @@ import (
 	"slices"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -273,8 +272,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.GetUsersResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
 		Users: convertUsers(users, organizationIDsByUserID),
 		Count: int(userCount),
 	})

@@ -222,7 +222,6 @@ type data struct {
 	gitSSHKey                            []database.GitSSHKey
 	groupMembers                         []database.GroupMemberTable
 	groups                               []database.Group
-	jfrogXRayScans                       []database.JfrogXrayScan
 	licenses                             []database.License
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
@@ -3291,6 +3290,7 @@ func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, 
 		}
 
 		workspaceBuildStats = append(workspaceBuildStats, database.GetFailedWorkspaceBuildsByTemplateIDRow{
+			WorkspaceID:            w.ID,
 			WorkspaceName:          w.Name,
 			WorkspaceOwnerUsername: workspaceOwner.Username,
 			TemplateVersionName:    templateVersion.Name,
@@ -3684,24 +3684,6 @@ func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, params da
 	}
 
 	return notifications, nil
-}
-
-func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.JfrogXrayScan{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, scan := range q.jfrogXRayScans {
-		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
-			return scan, nil
-		}
-	}
-
-	return database.JfrogXrayScan{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
@@ -4240,7 +4222,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 		if preset.ID == presetID {
 			tv, ok := versionMap[preset.TemplateVersionID]
 			if !ok {
-				return empty, fmt.Errorf("template version %v does not exist", preset.TemplateVersionID)
+				return empty, xerrors.Errorf("template version %v does not exist", preset.TemplateVersionID)
 			}
 			return database.GetPresetByIDRow{
 				ID:                  preset.ID,
@@ -4255,7 +4237,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 		}
 	}
 
-	return empty, fmt.Errorf("preset %v does not exist", presetID)
+	return empty, xerrors.Errorf("preset %v does not exist", presetID)
 }
 
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
@@ -11983,39 +11965,6 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 	defer q.mutex.Unlock()
 
 	q.healthSettings = []byte(data)
-	return nil
-}
-
-func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, scan := range q.jfrogXRayScans {
-		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
-			scan.Critical = arg.Critical
-			scan.High = arg.High
-			scan.Medium = arg.Medium
-			scan.ResultsUrl = arg.ResultsUrl
-			q.jfrogXRayScans[i] = scan
-			return nil
-		}
-	}
-
-	//nolint:gosimple
-	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
-		WorkspaceID: arg.WorkspaceID,
-		AgentID:     arg.AgentID,
-		Critical:    arg.Critical,
-		High:        arg.High,
-		Medium:      arg.Medium,
-		ResultsUrl:  arg.ResultsUrl,
-	})
-
 	return nil
 }
 
