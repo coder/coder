@@ -675,14 +675,11 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	dialer := &InmemTailnetDialer{
-		CoordPtr: &api.TailnetCoordinator,
-		DERPFn:   api.DERPMap,
-		Logger:   options.Logger,
-		ClientID: uuid.New(),
-		DatabaseHealthcheckFn: func(ctx context.Context) error {
-			_, err := api.Database.Ping(ctx)
-			return err
-		},
+		CoordPtr:            &api.TailnetCoordinator,
+		DERPFn:              api.DERPMap,
+		Logger:              options.Logger,
+		ClientID:            uuid.New(),
+		DatabaseHealthCheck: api.Database,
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,

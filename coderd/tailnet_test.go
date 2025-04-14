@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -365,6 +366,14 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 	})
 }
 
+type fakePing struct {
+	err error
+}
+
+func (f *fakePing) Ping(context.Context) (time.Duration, error) {
+	return time.Duration(0), f.err
+}
+
 func TestServerTailnet_Healthcheck(t *testing.T) {
 	t.Parallel()
 
@@ -373,9 +382,8 @@ func TestServerTailnet_Healthcheck(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		fn := func(ctx context.Context) error { return nil }
 
-		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthcheckFn(fn))
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthChecker(&fakePing{}))
 
 		a := agents[0]
 		conn, release, err := serverTailnet.AgentConn(ctx, a.id)
@@ -391,9 +399,8 @@ func TestServerTailnet_Healthcheck(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		fn := func(ctx context.Context) error { return xerrors.Errorf("oops, db gone") }
 
-		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthcheckFn(fn))
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, withHealthChecker(&fakePing{err: xerrors.New("oops")}))
 
 		a := agents[0]
 		_, release, err := serverTailnet.AgentConn(ctx, a.id)
@@ -427,13 +434,13 @@ type agentWithID struct {
 }
 
 type serverOption struct {
-	HealthcheckFn      func(ctx context.Context) error
+	HealthCheck        coderd.Pinger
 	DERPAndStunOptions []tailnettest.DERPAndStunOption
 }
 
-func withHealthcheckFn(fn func(ctx context.Context) error) serverOption {
+func withHealthChecker(p coderd.Pinger) serverOption {
 	return serverOption{
-		HealthcheckFn: fn,
+		HealthCheck: p,
 	}
 }
 
@@ -446,12 +453,12 @@ func withDERPAndStunOptions(opts ...tailnettest.DERPAndStunOption) serverOption 
 func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...serverOption) ([]agentWithID, *coderd.ServerTailnet) {
 	logger := testutil.Logger(t)
 
-	var healthcheckFn func(ctx context.Context) error
+	var healthChecker coderd.Pinger
 	var derpAndStunOptions []tailnettest.DERPAndStunOption
 	for _, opt := range opts {
 		derpAndStunOptions = append(derpAndStunOptions, opt.DERPAndStunOptions...)
-		if opt.HealthcheckFn != nil {
-			healthcheckFn = opt.HealthcheckFn
+		if opt.HealthCheck != nil {
+			healthChecker = opt.HealthCheck
 		}
 	}
 
@@ -495,11 +502,11 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...serverOption) (
 	}
 
 	dialer := &coderd.InmemTailnetDialer{
-		CoordPtr:              &coordPtr,
-		DERPFn:                func() *tailcfg.DERPMap { return derpMap },
-		Logger:                logger,
-		ClientID:              uuid.UUID{5},
-		DatabaseHealthcheckFn: healthcheckFn,
+		CoordPtr:            &coordPtr,
+		DERPFn:              func() *tailcfg.DERPMap { return derpMap },
+		Logger:              logger,
+		ClientID:            uuid.UUID{5},
+		DatabaseHealthCheck: healthChecker,
 	}
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),

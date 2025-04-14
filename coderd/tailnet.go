@@ -536,19 +536,24 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 	return m
 }
 
+type Pinger interface {
+	Ping(context.Context) (time.Duration, error)
+}
+
 // InmemTailnetDialer is a tailnet.ControlProtocolDialer that connects to a Coordinator and DERPMap
 // service running in the same memory space.
 type InmemTailnetDialer struct {
-	CoordPtr              *atomic.Pointer[tailnet.Coordinator]
-	DERPFn                func() *tailcfg.DERPMap
-	Logger                slog.Logger
-	ClientID              uuid.UUID
-	DatabaseHealthcheckFn func(ctx context.Context) error
+	CoordPtr *atomic.Pointer[tailnet.Coordinator]
+	DERPFn   func() *tailcfg.DERPMap
+	Logger   slog.Logger
+	ClientID uuid.UUID
+	// DatabaseHealthCheck is used to validate that the store is reachable.
+	DatabaseHealthCheck Pinger
 }
 
 func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
-	if a.DatabaseHealthcheckFn != nil {
-		if err := a.DatabaseHealthcheckFn(ctx); err != nil {
+	if a.DatabaseHealthCheck != nil {
+		if _, err := a.DatabaseHealthCheck.Ping(ctx); err != nil {
 			return tailnet.ControlProtocolClients{}, xerrors.Errorf("%w: %v", codersdk.ErrDatabaseNotReachable, err)
 		}
 	}
