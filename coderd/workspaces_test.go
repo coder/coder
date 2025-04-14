@@ -423,6 +423,51 @@ func TestWorkspace(t *testing.T) {
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
+
+	t.Run("TemplateVersionPreset", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		authz := coderdtest.AssertRBAC(t, api, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets: []*proto.Preset{{
+							Name: "test",
+						}},
+					},
+				},
+			}},
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(presets))
+		require.Equal(t, "test", presets[0].Name)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionPresetID = presets[0].ID
+		})
+
+		authz.Reset() // Reset all previous checks done in setup.
+		ws, err := client.Workspace(ctx, workspace.ID)
+		authz.AssertChecked(t, policy.ActionRead, ws)
+		require.NoError(t, err)
+		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
+		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
+		require.Equal(t, presets[0].ID, *ws.LatestBuild.TemplateVersionPresetID)
+
+		org, err := client.Organization(ctx, ws.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, ws.OrganizationName, org.Name)
+	})
 }
 
 func TestResolveAutostart(t *testing.T) {

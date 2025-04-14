@@ -1307,6 +1307,50 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, wantState, gotState)
 	})
 
+	t.Run("SetsPresetID", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets: []*proto.Preset{{
+							Name: "test",
+						}},
+					},
+				},
+			}},
+			ProvisionApply: echo.ApplyComplete,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.Nil(t, workspace.LatestBuild.TemplateVersionPresetID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(presets))
+		require.Equal(t, "test", presets[0].Name)
+
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:       version.ID,
+			Transition:              codersdk.WorkspaceTransitionStart,
+			TemplateVersionPresetID: presets[0].ID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, build.TemplateVersionPresetID)
+
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, build.TemplateVersionPresetID, workspace.LatestBuild.TemplateVersionPresetID)
+	})
+
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
