@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -154,6 +155,8 @@ func TestTools(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, codersdk.WorkspaceTransitionStop, result.Transition)
 			require.Equal(t, r.Workspace.ID, result.WorkspaceID)
+			require.Equal(t, r.TemplateVersion.ID, result.TemplateVersionID)
+			require.Equal(t, codersdk.WorkspaceTransitionStop, result.Transition)
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
@@ -172,10 +175,57 @@ func TestTools(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
 			require.Equal(t, r.Workspace.ID, result.WorkspaceID)
+			require.Equal(t, r.TemplateVersion.ID, result.TemplateVersionID)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
 			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID))
+		})
+
+		t.Run("TemplateVersionChange", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			ctx = toolsdk.WithClient(ctx, memberClient)
+
+			// Get the current template version ID before updating
+			workspace, err := memberClient.Workspace(ctx, r.Workspace.ID)
+			require.NoError(t, err)
+			originalVersionID := workspace.LatestBuild.TemplateVersionID
+
+			// Create a new template version to update to
+			newVersion := dbfake.TemplateVersion(t, store).
+				// nolint:gocritic // This is in a test package and does not end up in the build
+				Seed(database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      owner.UserID,
+					TemplateID:     uuid.NullUUID{UUID: r.Template.ID, Valid: true},
+				}).Do()
+
+			// Update to new version
+			updateBuild, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, map[string]any{
+				"workspace_id":        r.Workspace.ID.String(),
+				"transition":          "start",
+				"template_version_id": newVersion.TemplateVersion.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, updateBuild.Transition)
+			require.Equal(t, r.Workspace.ID.String(), updateBuild.WorkspaceID.String())
+			require.Equal(t, newVersion.TemplateVersion.ID.String(), updateBuild.TemplateVersionID.String())
+			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID))
+
+			// Roll back to the original version
+			rollbackBuild, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, map[string]any{
+				"workspace_id":        r.Workspace.ID.String(),
+				"transition":          "start",
+				"template_version_id": originalVersionID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, rollbackBuild.Transition)
+			require.Equal(t, r.Workspace.ID.String(), rollbackBuild.WorkspaceID.String())
+			require.Equal(t, originalVersionID.String(), rollbackBuild.TemplateVersionID.String())
+			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID))
 		})
 	})
 

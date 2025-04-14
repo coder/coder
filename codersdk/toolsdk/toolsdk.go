@@ -348,6 +348,11 @@ is provisioned correctly and the agent can connect to the control plane.
 					"transition": map[string]any{
 						"type":        "string",
 						"description": "The transition to perform. Must be one of: start, stop, delete",
+						"enum":        []string{"start", "stop", "delete"},
+					},
+					"template_version_id": map[string]any{
+						"type":        "string",
+						"description": "(Optional) The template version ID to use for the workspace build. If not provided, the previously built version will be used.",
 					},
 				},
 				Required: []string{"workspace_id", "transition"},
@@ -366,9 +371,17 @@ is provisioned correctly and the agent can connect to the control plane.
 			if !ok {
 				return codersdk.WorkspaceBuild{}, xerrors.New("transition must be a string")
 			}
-			return client.CreateWorkspaceBuild(ctx, workspaceID, codersdk.CreateWorkspaceBuildRequest{
+			templateVersionID, err := uuidFromArgs(args, "template_version_id")
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, err
+			}
+			cbr := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransition(rawTransition),
-			})
+			}
+			if templateVersionID != uuid.Nil {
+				cbr.TemplateVersionID = templateVersionID
+			}
+			return client.CreateWorkspaceBuild(ctx, workspaceID, cbr)
 		},
 	}
 
@@ -1240,7 +1253,11 @@ func workspaceAppStatusSlugFromContext(ctx context.Context) (string, bool) {
 }
 
 func uuidFromArgs(args map[string]any, key string) (uuid.UUID, error) {
-	raw, ok := args[key].(string)
+	argKey, ok := args[key]
+	if !ok {
+		return uuid.Nil, nil // No error if key is not present
+	}
+	raw, ok := argKey.(string)
 	if !ok {
 		return uuid.Nil, xerrors.Errorf("%s must be a string", key)
 	}
