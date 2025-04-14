@@ -342,7 +342,7 @@ func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slo
 		start := c.clock.Now()
 
 		// Try to acquire the lock. If we can't get it, another replica is handling reconciliation.
-		acquired, err := db.TryAcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
+		acquired, err := db.TryAcquireLock(ctx, database.LockIDReconcilePrebuilds)
 		if err != nil {
 			// This is a real database error, not just lock contention
 			logger.Error(ctx, "failed to acquire reconciliation lock due to database error", slog.Error(err))
