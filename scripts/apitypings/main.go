@@ -32,10 +32,9 @@ func main() {
 	// Serpent has some types referenced in the codersdk.
 	// We want the referenced types generated.
 	referencePackages := map[string]string{
-		"github.com/coder/preview":    "",
-		"github.com/coder/serpent":    "Serpent",
-		"github.com/hashicorp/hcl/v2": "Hcl",
-		"tailscale.com/derp":          "",
+		"github.com/coder/preview/types": "Preview",
+		"github.com/coder/serpent":       "Serpent",
+		"tailscale.com/derp":             "",
 		// Conflicting name "DERPRegion"
 		"tailscale.com/tailcfg":      "Tail",
 		"tailscale.com/net/netcheck": "Netcheck",
@@ -80,6 +79,8 @@ func TsMutations(ts *guts.Typescript) {
 		// Omitempty + null is just '?' in golang json marshal
 		// number?: number | null --> number?: number
 		config.SimplifyOmitEmpty,
+		// TsType: (string | null)[] --> (string)[]
+		config.NullUnionSlices,
 	)
 }
 
@@ -90,8 +91,22 @@ func TypeMappings(gen *guts.GoParser) error {
 	gen.IncludeCustomDeclaration(map[string]guts.TypeOverride{
 		"github.com/coder/coder/v2/codersdk.NullTime": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordString)),
 		// opt.Bool can return 'null' if unset
-		"tailscale.com/types/opt.Bool":           config.OverrideNullable(config.OverrideLiteral(bindings.KeywordBoolean)),
-		"github.com/hashicorp/hcl/v2.Expression": config.OverrideLiteral(bindings.KeywordUnknown),
+		"tailscale.com/types/opt.Bool": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordBoolean)),
+		// hcl diagnostics should be cast to `preview.FriendlyDiagnostic`
+		"github.com/hashicorp/hcl/v2.Diagnostic": func() bindings.ExpressionType {
+			return bindings.Reference(bindings.Identifier{
+				Name:    "FriendlyDiagnostic",
+				Package: nil,
+				Prefix:  "",
+			})
+		},
+		"github.com/coder/preview/types.HCLString": func() bindings.ExpressionType {
+			return bindings.Reference(bindings.Identifier{
+				Name:    "NullHCLString",
+				Package: nil,
+				Prefix:  "",
+			})
+		},
 	})
 
 	err := gen.IncludeCustom(map[string]string{

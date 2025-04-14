@@ -137,7 +137,14 @@
 						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Gateway",
-							"path": "./user-guides/workspace-access/jetbrains.md"
+							"path": "./user-guides/workspace-access/jetbrains/index.md",
+							"children": [
+								{
+									"title": "JetBrains Gateway in an air-gapped environment",
+									"description": "Use JetBrains Gateway in an air-gapped offline environment",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+								}
+							]
 						},
 						{
 							"title": "Remote Desktop",
@@ -448,6 +455,11 @@
 									"title": "Web IDEs and Coder Apps",
 									"description": "Add and configure Web IDEs in your templates as coder apps",
 									"path": "./admin/templates/extending-templates/web-ides.md"
+								},
+								{
+									"title": "Pre-install JetBrains Gateway",
+									"description": "Pre-install JetBrains Gateway in a template for faster IDE startup",
+									"path": "./admin/templates/extending-templates/jetbrains-gateway.md"
 								},
 								{
 									"title": "Docker in Workspaces",
