@@ -436,9 +436,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	t.Logf("coderdtest server started on %s", srv.URL)
 	t.Cleanup(func() {
-		t.Log("closing coderdtest server")
+		t.Logf("closing coderdtest server on %s", srv.Listener.Addr().String())
 		srv.Close()
-		t.Log("closed coderdtest server")
+		t.Logf("closed coderdtest server on %s", srv.Listener.Addr().String())
 	})
 
 	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
