@@ -102,6 +102,10 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 
 func getRoutePattern(r *http.Request) string {
 	rctx := chi.RouteContext(r.Context())
+	if rctx == nil {
+		return ""
+	}
+
 	if pattern := rctx.RoutePattern(); pattern != "" {
 		// Pattern is already available
 		return pattern
@@ -113,7 +117,8 @@ func getRoutePattern(r *http.Request) string {
 	}
 
 	tctx := chi.NewRouteContext()
-	if !rctx.Routes.Match(tctx, r.Method, routePath) {
+	routes := rctx.Routes
+	if routes != nil && routes.Match(tctx, r.Method, routePath) {
 		// No matching pattern, so just return an empty string.
 		// It is done to avoid returning a static path for frontend requests.
 		return ""
