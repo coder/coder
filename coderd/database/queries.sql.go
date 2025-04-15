@@ -11033,10 +11033,10 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
 
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
-	-- username is returned just to help for logging purposes
+	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status,
+	id, username, status, email,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
@@ -11077,6 +11077,7 @@ type GetAuthorizationUserRolesRow struct {
 	ID       uuid.UUID  `db:"id" json:"id"`
 	Username string     `db:"username" json:"username"`
 	Status   UserStatus `db:"status" json:"status"`
+	Email    string     `db:"email" json:"email"`
 	Roles    []string   `db:"roles" json:"roles"`
 	Groups   []string   `db:"groups" json:"groups"`
 }
@@ -11090,6 +11091,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 		&i.ID,
 		&i.Username,
 		&i.Status,
+		&i.Email,
 		pq.Array(&i.Roles),
 		pq.Array(&i.Groups),
 	)
