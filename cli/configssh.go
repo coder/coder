@@ -22,9 +22,10 @@ import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
 )
 
 const (
