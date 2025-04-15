@@ -76,14 +76,14 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
+	call := testutil.RequireReceive(ctx, t, fCoord.CoordinateCalls)
 	require.NotNil(t, call)
 	require.Equal(t, call.ID, clientID)
 	require.Equal(t, call.Name, "client")
 	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 	}))
-	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
+	req := testutil.RequireReceive(ctx, t, call.Reqs)
 	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
 
 	call.Resps <- &proto.CoordinateResponse{PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
@@ -126,7 +126,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	res, err := client.PostTelemetry(ctx, telemetryReq)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	gotEvents := testutil.RequireRecvCtx(ctx, t, telemetryEvents)
+	gotEvents := testutil.RequireReceive(ctx, t, telemetryEvents)
 	require.Len(t, gotEvents, 2)
 	require.Equal(t, "hi", string(gotEvents[0].Id))
 	require.Equal(t, "bye", string(gotEvents[1].Id))
@@ -134,7 +134,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	// RPCs closed; we need to close the Conn to end the session.
 	err = c.Close()
 	require.NoError(t, err)
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.RequireReceive(ctx, t, errCh)
 	require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
 }
 
@@ -174,7 +174,7 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		errCh <- err
 	}()
 
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.RequireReceive(ctx, t, errCh)
 	require.ErrorIs(t, err, tailnet.ErrUnsupportedVersion)
 }
 
@@ -201,7 +201,7 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 
 	// Should overflow and send a batch.
 	ctx := testutil.Context(t, testutil.WaitShort)
-	batch := testutil.RequireRecvCtx(ctx, t, events)
+	batch := testutil.RequireReceive(ctx, t, events)
 	require.Len(t, batch, 3)
 	require.Equal(t, "1", string(batch[0].Id))
 	require.Equal(t, "2", string(batch[1].Id))
@@ -209,7 +209,7 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 
 	// Should send any pending events when the ticker fires.
 	mClock.Advance(time.Millisecond)
-	batch = testutil.RequireRecvCtx(ctx, t, events)
+	batch = testutil.RequireReceive(ctx, t, events)
 	require.Len(t, batch, 1)
 	require.Equal(t, "4", string(batch[0].Id))
 
@@ -220,7 +220,7 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 	})
 	err := b.Close()
 	require.NoError(t, err)
-	batch = testutil.RequireRecvCtx(ctx, t, events)
+	batch = testutil.RequireReceive(ctx, t, events)
 	require.Len(t, batch, 2)
 	require.Equal(t, "5", string(batch[0].Id))
 	require.Equal(t, "6", string(batch[1].Id))
@@ -250,11 +250,11 @@ func TestClientUserCoordinateeAuth(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
+	call := testutil.RequireReceive(ctx, t, fCoord.CoordinateCalls)
 	require.NotNil(t, call)
 	require.Equal(t, call.ID, clientID)
 	require.Equal(t, call.Name, "client")
-	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
+	req := testutil.RequireReceive(ctx, t, call.Reqs)
 	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
 
 	// Authorize uses `ClientUserCoordinateeAuth`
@@ -354,7 +354,7 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 	t.Cleanup(func() {
 		err = c.Close()
 		require.NoError(t, err)
-		err = testutil.RequireRecvCtx(ctx, t, errCh)
+		err = testutil.RequireReceive(ctx, t, errCh)
 		require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
 	})
 	return fCoord, client

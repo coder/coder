@@ -271,12 +271,12 @@ func TestSSH(t *testing.T) {
 		}
 
 		// Allow one build to complete.
-		testutil.RequireSendCtx(ctx, t, buildPause, true)
-		testutil.RequireRecvCtx(ctx, t, buildDone)
+		testutil.RequireSend(ctx, t, buildPause, true)
+		testutil.RequireReceive(ctx, t, buildDone)
 
 		// Allow the remaining builds to continue.
 		for i := 0; i < len(ptys)-1; i++ {
-			testutil.RequireSendCtx(ctx, t, buildPause, false)
+			testutil.RequireSend(ctx, t, buildPause, false)
 		}
 
 		var foundConflict int
@@ -1017,14 +1017,14 @@ func TestSSH(t *testing.T) {
 					}
 				}()
 
-				msg := testutil.RequireRecvCtx(ctx, t, msgs)
+				msg := testutil.RequireReceive(ctx, t, msgs)
 				require.Equal(t, "test", msg)
 				close(success)
 				fsn.Notify()
 				<-cmdDone
 				fsn.AssertStopped()
 				// wait for dial goroutine to complete
-				_ = testutil.RequireRecvCtx(ctx, t, done)
+				_ = testutil.RequireReceive(ctx, t, done)
 
 				// wait for the remote socket to get cleaned up before retrying,
 				// because cleaning up the socket happens asynchronously, and we

@@ -35,7 +35,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("hello")
-		resp := testutil.RequireRecvCtx(ctx, t, msgChan)
+		resp := testutil.RequireReceive(ctx, t, msgChan)
 		require.Equal(t, "hello", resp)
 	})
 
@@ -54,7 +54,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("yes")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.RequireReceive(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
 	})
 
@@ -91,7 +91,7 @@ func TestPrompt(t *testing.T) {
 			doneChan <- resp
 		}()
 
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.RequireReceive(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
 		// Close the reader to end the io.Copy
 		require.NoError(t, ptty.Close(), "close eof reader")
@@ -115,7 +115,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("{}")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.RequireReceive(ctx, t, doneChan)
 		require.Equal(t, "{}", resp)
 	})
 
@@ -133,7 +133,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("{a")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.RequireReceive(ctx, t, doneChan)
 		require.Equal(t, "{a", resp)
 	})
 
@@ -153,7 +153,7 @@ func TestPrompt(t *testing.T) {
 		ptty.WriteLine(`{
 "test": "wow"
 }`)
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.RequireReceive(ctx, t, doneChan)
 		require.Equal(t, `{"test":"wow"}`, resp)
 	})
 
@@ -178,7 +178,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("foo\nbar\nbaz\n\n\nvalid\n")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.RequireReceive(ctx, t, doneChan)
 		require.Equal(t, "valid", resp)
 	})
 }

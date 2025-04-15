@@ -117,8 +117,8 @@ func TestFirstUser(t *testing.T) {
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
 
-		_ = testutil.RequireRecvCtx(ctx, t, trialGenerated)
-		_ = testutil.RequireRecvCtx(ctx, t, entitlementsRefreshed)
+		_ = testutil.RequireReceive(ctx, t, trialGenerated)
+		_ = testutil.RequireReceive(ctx, t, entitlementsRefreshed)
 	})
 }
 

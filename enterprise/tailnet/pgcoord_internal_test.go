@@ -427,7 +427,7 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 
 	pID := uuid.UUID{5}
 	_, resps := coordinator.Coordinate(ctx, pID, "test", agpl.AgentCoordinateeAuth{ID: pID})
-	resp := testutil.RequireRecvCtx(ctx, t, resps)
+	resp := testutil.RequireReceive(ctx, t, resps)
 	require.Nil(t, resp, "channel should be closed")
 
 	// give the coordinator some time to process any pending work.  We are

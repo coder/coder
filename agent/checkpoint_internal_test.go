@@ -44,6 +44,6 @@ func TestCheckpoint_WaitComplete(t *testing.T) {
 		errCh <- uut.wait(ctx)
 	}()
 	uut.complete(err)
-	got := testutil.RequireRecvCtx(ctx, t, errCh)
+	got := testutil.RequireReceive(ctx, t, errCh)
 	require.Equal(t, err, got)
 }

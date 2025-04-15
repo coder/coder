@@ -408,7 +408,7 @@ func TestStart_AlreadyRunning(t *testing.T) {
 	}()
 
 	pty.ExpectMatch("workspace is already running")
-	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+	_ = testutil.RequireReceive(ctx, t, doneChan)
 }
 
 func TestStart_Starting(t *testing.T) {
@@ -441,7 +441,7 @@ func TestStart_Starting(t *testing.T) {
 	_ = dbfake.JobComplete(t, store, r.Build.JobID).Pubsub(ps).Do()
 	pty.ExpectMatch("workspace has been started")
 
-	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+	_ = testutil.RequireReceive(ctx, t, doneChan)
 }
 
 func TestStart_NoWait(t *testing.T) {
@@ -474,5 +474,5 @@ func TestStart_NoWait(t *testing.T) {
 	}()
 
 	pty.ExpectMatch("workspace has been started in no-wait mode")
-	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+	_ = testutil.RequireReceive(ctx, t, doneChan)
 }

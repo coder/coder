@@ -400,7 +400,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	stats := testutil.RequireRecvCtx(ctx, t, statsCh)
+	stats := testutil.RequireReceive(ctx, t, statsCh)
 	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
@@ -1167,7 +1167,7 @@ func TestNotifications(t *testing.T) {
 		// Wait for workspace to become dormant
 		notifyEnq.Clear()
 		ticker <- workspace.LastUsedAt.Add(timeTilDormant * 3)
-		_ = testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, statCh)
+		_ = testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
 
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)

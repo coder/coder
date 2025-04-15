@@ -34,14 +34,14 @@ func TestStatsReporter(t *testing.T) {
 	}()
 
 	// initial request to get duration
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.RequireReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	require.Nil(t, req.Stats)
 	interval := time.Second * 34
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
 
 	// call to source to set the callback and interval
-	gotInterval := testutil.RequireRecvCtx(ctx, t, fSource.period)
+	gotInterval := testutil.RequireReceive(ctx, t, fSource.period)
 	require.Equal(t, interval, gotInterval)
 
 	// callback returning netstats
@@ -60,7 +60,7 @@ func TestStatsReporter(t *testing.T) {
 	fSource.callback(time.Now(), time.Now(), netStats, nil)
 
 	// collector called to complete the stats
-	gotNetStats := testutil.RequireRecvCtx(ctx, t, fCollector.calls)
+	gotNetStats := testutil.RequireReceive(ctx, t, fCollector.calls)
 	require.Equal(t, netStats, gotNetStats)
 
 	// while we are collecting the stats, send in two new netStats to simulate
@@ -94,13 +94,13 @@ func TestStatsReporter(t *testing.T) {
 
 	// complete first collection
 	stats := &proto.Stats{SessionCountJetbrains: 55}
-	testutil.RequireSendCtx(ctx, t, fCollector.stats, stats)
+	testutil.RequireSend(ctx, t, fCollector.stats, stats)
 
 	// destination called to report the first stats
-	update := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	update := testutil.RequireReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, update)
 	require.Equal(t, stats, update.Stats)
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
 
 	// second update -- netStat0 and netStats1 are accumulated and reported
 	wantNetStats := map[netlogtype.Connection]netlogtype.Counts{
@@ -115,22 +115,22 @@ func TestStatsReporter(t *testing.T) {
 			RxBytes:   21,
 		},
 	}
-	gotNetStats = testutil.RequireRecvCtx(ctx, t, fCollector.calls)
+	gotNetStats = testutil.RequireReceive(ctx, t, fCollector.calls)
 	require.Equal(t, wantNetStats, gotNetStats)
 	stats = &proto.Stats{SessionCountJetbrains: 66}
-	testutil.RequireSendCtx(ctx, t, fCollector.stats, stats)
-	update = testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	testutil.RequireSend(ctx, t, fCollector.stats, stats)
+	update = testutil.RequireReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, update)
 	require.Equal(t, stats, update.Stats)
 	interval2 := 27 * time.Second
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval2)})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval2)})
 
 	// set the new interval
-	gotInterval = testutil.RequireRecvCtx(ctx, t, fSource.period)
+	gotInterval = testutil.RequireReceive(ctx, t, fSource.period)
 	require.Equal(t, interval2, gotInterval)
 
 	loopCancel()
-	err := testutil.RequireRecvCtx(ctx, t, loopErr)
+	err := testutil.RequireReceive(ctx, t, loopErr)
 	require.NoError(t, err)
 }
 
