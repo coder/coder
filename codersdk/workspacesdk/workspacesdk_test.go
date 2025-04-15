@@ -126,11 +126,11 @@ func TestClient_IsCoderConnectRunning(t *testing.T) {
 	require.Error(t, err)
 
 	// Right name, wrong IP
-	ctxResolverWrongIp := workspacesdk.WithTestOnlyCoderContextResolver(ctx,
+	ctxResolverWrongIP := workspacesdk.WithTestOnlyCoderContextResolver(ctx,
 		&fakeResolver{t: t, hostMap: map[string][]net.IP{
 			expectedName: {net.ParseIP("2001::34")},
 		}})
-	result, err = client.IsCoderConnectRunning(ctxResolverWrongIp, workspacesdk.CoderConnectQueryOptions{})
+	result, err = client.IsCoderConnectRunning(ctxResolverWrongIP, workspacesdk.CoderConnectQueryOptions{})
 	require.NoError(t, err)
 	require.False(t, result)
 }
