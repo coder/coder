@@ -428,31 +428,27 @@ func TestWorkspace(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
-			name                string
-			presets             []*proto.Preset
-			expectedCount       int
-			selectedPresetIndex int // Index of the preset to use, or -1 if no preset should be used
+			name                      string
+			presets                   []*proto.Preset
+			templateVersionParameters []*proto.RichParameter
+			selectedPresetIndex       int // -1 if no preset should be used
 		}{
 			{
-				name:                "No Presets",
-				presets:             []*proto.Preset{},
-				expectedCount:       0,
-				selectedPresetIndex: -1,
+				name:                      "No Presets",
+				presets:                   []*proto.Preset{},
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       -1,
 			},
 			{
 				name: "Single Preset - No Parameters",
 				presets: []*proto.Preset{{
 					Name: "test",
-					Parameters: []*proto.PresetParameter{
-						{Name: "param1", Value: "value1"},
-						{Name: "param2", Value: "value2"},
-					},
 				}},
-				expectedCount:       1,
-				selectedPresetIndex: 0,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       0,
 			},
 			{
-				name: "Single Preset - With Parameters",
+				name: "Single Preset - With Parameters But No Template Parameters",
 				presets: []*proto.Preset{{
 					Name: "test",
 					Parameters: []*proto.PresetParameter{
@@ -460,7 +456,38 @@ func TestWorkspace(t *testing.T) {
 						{Name: "param2", Value: "value2"},
 					},
 				}},
-				expectedCount:       1,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       0,
+			},
+			{
+				name: "Single Preset - With Matching Parameters",
+				presets: []*proto.Preset{{
+					Name: "test",
+					Parameters: []*proto.PresetParameter{
+						{Name: "param1", Value: "value1"},
+						{Name: "param2", Value: "value2"},
+					},
+				}},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: true},
+					{Name: "param2", Type: "string", Required: true},
+				},
+				selectedPresetIndex: 0,
+			},
+			{
+				name: "Single Preset - With Partial Matching Parameters",
+				presets: []*proto.Preset{{
+					Name: "test",
+					Parameters: []*proto.PresetParameter{
+						{Name: "param1", Value: "value1"},
+						{Name: "param2", Value: "value2"},
+						{Name: "param3", Value: "value3"}, // This parameter doesn't exist in template
+					},
+				}},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: false},
+					{Name: "param2", Type: "string", Required: false},
+				},
 				selectedPresetIndex: 0,
 			},
 			{
@@ -470,8 +497,8 @@ func TestWorkspace(t *testing.T) {
 					{Name: "test2"},
 					{Name: "test3"},
 				},
-				expectedCount:       3,
-				selectedPresetIndex: 0,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       0,
 			},
 			{
 				name: "Multiple Presets - First Has Parameters",
@@ -486,7 +513,26 @@ func TestWorkspace(t *testing.T) {
 					{Name: "test2"},
 					{Name: "test3"},
 				},
-				expectedCount:       3,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       0,
+			},
+			{
+				name: "Multiple Presets - First Has Matching Parameters",
+				presets: []*proto.Preset{
+					{
+						Name: "test1",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "value1"},
+							{Name: "param2", Value: "value2"},
+						},
+					},
+					{Name: "test2"},
+					{Name: "test3"},
+				},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: true},
+					{Name: "param2", Type: "string", Required: true},
+				},
 				selectedPresetIndex: 0,
 			},
 			{
@@ -502,7 +548,26 @@ func TestWorkspace(t *testing.T) {
 					},
 					{Name: "test3"},
 				},
-				expectedCount:       3,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       1,
+			},
+			{
+				name: "Multiple Presets - Middle Has Matching Parameters",
+				presets: []*proto.Preset{
+					{Name: "test1"},
+					{
+						Name: "test2",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "value1"},
+							{Name: "param2", Value: "value2"},
+						},
+					},
+					{Name: "test3"},
+				},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: true},
+					{Name: "param2", Type: "string", Required: true},
+				},
 				selectedPresetIndex: 1,
 			},
 			{
@@ -518,7 +583,26 @@ func TestWorkspace(t *testing.T) {
 						},
 					},
 				},
-				expectedCount:       3,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       2,
+			},
+			{
+				name: "Multiple Presets - Last Has Matching Parameters",
+				presets: []*proto.Preset{
+					{Name: "test1"},
+					{Name: "test2"},
+					{
+						Name: "test3",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "value1"},
+							{Name: "param2", Value: "value2"},
+						},
+					},
+				},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: true},
+					{Name: "param2", Type: "string", Required: true},
+				},
 				selectedPresetIndex: 2,
 			},
 			{
@@ -543,7 +627,36 @@ func TestWorkspace(t *testing.T) {
 						},
 					},
 				},
-				expectedCount:       3,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       1,
+			},
+			{
+				name: "Multiple Presets - All Have Matching Parameters",
+				presets: []*proto.Preset{
+					{
+						Name: "test1",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "value1"},
+						},
+					},
+					{
+						Name: "test2",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param2", Value: "value2"},
+						},
+					},
+					{
+						Name: "test3",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param3", Value: "value3"},
+						},
+					},
+				},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: false},
+					{Name: "param2", Type: "string", Required: true},
+					{Name: "param3", Type: "string", Required: false},
+				},
 				selectedPresetIndex: 1,
 			},
 			{
@@ -562,7 +675,29 @@ func TestWorkspace(t *testing.T) {
 						},
 					},
 				},
-				expectedCount:       2,
+				templateVersionParameters: []*proto.RichParameter{},
+				selectedPresetIndex:       -1,
+			},
+			{
+				name: "Multiple Presets - With Matching Parameters But Not Used",
+				presets: []*proto.Preset{
+					{
+						Name: "test1",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "value1"},
+						},
+					},
+					{
+						Name: "test2",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param2", Value: "value2"},
+						},
+					},
+				},
+				templateVersionParameters: []*proto.RichParameter{
+					{Name: "param1", Type: "string", Required: false},
+					{Name: "param2", Type: "string", Required: false},
+				},
 				selectedPresetIndex: -1,
 			},
 		}
@@ -576,11 +711,12 @@ func TestWorkspace(t *testing.T) {
 				user := coderdtest.CreateFirstUser(t, client)
 				authz := coderdtest.AssertRBAC(t, api, client)
 
-				// Create a plan response with the specified presets
+				// Create a plan response with the specified presets and parameters
 				planResponse := &proto.Response{
 					Type: &proto.Response_Plan{
 						Plan: &proto.PlanComplete{
-							Presets: tc.presets,
+							Presets:    tc.presets,
+							Parameters: tc.templateVersionParameters,
 						},
 					},
 				}
@@ -598,9 +734,9 @@ func TestWorkspace(t *testing.T) {
 				// Check presets
 				presets, err := client.TemplateVersionPresets(ctx, version.ID)
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedCount, len(presets))
+				require.Equal(t, len(tc.presets), len(presets))
 
-				if tc.expectedCount > 0 {
+				if len(tc.presets) > 0 {
 					// Verify preset names and parameters
 					for i, preset := range presets {
 						require.Equal(t, tc.presets[i].Name, preset.Name)
@@ -626,15 +762,10 @@ func TestWorkspace(t *testing.T) {
 
 				// Create workspace with or without preset
 				var workspace codersdk.Workspace
-				if tc.selectedPresetIndex >= 0 && tc.expectedCount > 0 {
+				if tc.selectedPresetIndex >= 0 {
 					// Use the selected preset
-					selectedIndex := tc.selectedPresetIndex
-					if selectedIndex >= len(presets) {
-						selectedIndex = 0 // Fallback to first preset if index is out of bounds
-					}
-
 					workspace = coderdtest.CreateWorkspace(t, client, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
-						request.TemplateVersionPresetID = presets[selectedIndex].ID
+						request.TemplateVersionPresetID = presets[tc.selectedPresetIndex].ID
 					})
 				} else {
 					workspace = coderdtest.CreateWorkspace(t, client, template.ID)
@@ -649,23 +780,76 @@ func TestWorkspace(t *testing.T) {
 				require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
 
 				// Check preset ID if expected
-				if tc.selectedPresetIndex >= 0 && tc.expectedCount > 0 {
+				if tc.selectedPresetIndex >= 0 {
 					require.NotNil(t, ws.LatestBuild.TemplateVersionPresetID)
+					require.Equal(t, presets[tc.selectedPresetIndex].ID, *ws.LatestBuild.TemplateVersionPresetID)
 
-					// Use the selected preset index
-					selectedIndex := tc.selectedPresetIndex
-					if selectedIndex >= len(presets) {
-						selectedIndex = 0 // Fallback to first preset if index is out of bounds
-					}
+					// If the selected preset has parameters and there are template version parameters,
+					// verify that only matching parameters were applied
+					if tc.presets[tc.selectedPresetIndex].Parameters != nil && len(tc.templateVersionParameters) > 0 {
+						builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
+							WorkspaceID: ws.ID,
+						})
+						require.NoError(t, err)
+						require.Equal(t, 1, len(builds))
+						parameters, err := client.WorkspaceBuildParameters(ctx, builds[0].ID)
+						require.NoError(t, err)
+						parametersSetByPreset := 0
+						for _, param := range parameters {
+							for _, presetParam := range tc.presets[tc.selectedPresetIndex].Parameters {
+								if param.Name == presetParam.Name && param.Value == presetParam.Value {
+									parametersSetByPreset++
+									break
+								}
+							}
+						}
 
-					require.Equal(t, presets[selectedIndex].ID, *ws.LatestBuild.TemplateVersionPresetID)
+						// Track which template parameters were set by the preset
+						expectedParamCount := 0
+						for _, presetParam := range tc.presets[tc.selectedPresetIndex].Parameters {
+							for _, templateParam := range tc.templateVersionParameters {
+								if presetParam.Name == templateParam.Name {
+									expectedParamCount++
+									break
+								}
+							}
+						}
 
-					// If the selected preset has parameters, verify they were applied
-					if tc.presets[selectedIndex].Parameters != nil {
-						// This would require additional verification based on how parameters
-						// are stored in the workspace. For now, we'll just log that we checked.
-						t.Logf("Selected preset %s has parameters that should be applied to the workspace",
-							tc.presets[selectedIndex].Name)
+						// Verify that only the expected number of parameters were set
+						require.Equal(t, expectedParamCount, parametersSetByPreset,
+							"Expected %d parameters to be set, but found %d", expectedParamCount, parametersSetByPreset)
+
+						// Verify each parameter that should have been set
+						for _, presetParam := range tc.presets[tc.selectedPresetIndex].Parameters {
+							// Check if this parameter exists in the template version
+							paramExists := false
+							for _, templateParam := range tc.templateVersionParameters {
+								if presetParam.Name == templateParam.Name {
+									paramExists = true
+									break
+								}
+							}
+
+							if paramExists {
+								// This parameter should have been set
+								paramFound := false
+								for _, appliedParam := range parameters {
+									if appliedParam.Name == presetParam.Name {
+										require.Equal(t, presetParam.Value, appliedParam.Value,
+											"Parameter %s should have value %s", presetParam.Name, presetParam.Value)
+										paramFound = true
+										break
+									}
+								}
+								require.True(t, paramFound, "Parameter %s should be applied to the workspace", presetParam.Name)
+							} else {
+								// This parameter should NOT have been set
+								for _, appliedParam := range parameters {
+									require.NotEqual(t, presetParam.Name, appliedParam.Name,
+										"Parameter %s should not be applied to the workspace", presetParam.Name)
+								}
+							}
+						}
 					}
 				} else {
 					require.Nil(t, ws.LatestBuild.TemplateVersionPresetID)
