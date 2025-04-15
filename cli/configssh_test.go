@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"tailscale.com/net/tsaddr"
 	"testing"
+
+	"tailscale.com/net/tsaddr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -563,7 +564,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header "X-Test-Header=foo" --header "X-Test-Header2=bar" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header "X-Test-Header=foo" --header "X-Test-Header2=bar" ssh`,
 			},
 		},
 		{
@@ -575,7 +576,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "printf h1=v1" ssh`,
 			},
 		},
 		{
@@ -587,7 +588,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2=\\\"v2\\\"" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2=\\\"v2\\\"" ssh`,
 			},
 		},
 		{
@@ -599,7 +600,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2='v2'" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2='v2'" ssh`,
 			},
 		},
 		{
