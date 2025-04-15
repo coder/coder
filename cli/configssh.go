@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"io"
 	"io/fs"
 	"net/http"
@@ -326,6 +327,21 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			if sshConfigOpts.hostnameSuffix != "" {
 				// Override with user flag.
 				coderdConfig.HostnameSuffix = sshConfigOpts.hostnameSuffix
+			} else if coderdConfig.HostnameSuffix != "" {
+				// If we got a hostname suffix from coderd, then first check whether Coder Connect is running before
+				// using suffix config.
+				// Note that we only do this if we didn't explicitly get the suffix from the CLI
+				// flag: if the user specifically used the flag then we will always write suffix config as asked.
+				coderConnect, err := workspacesdk.New(client).IsCoderConnectRunning(ctx,
+					workspacesdk.CoderConnectQueryOptions{HostnameSuffix: coderdConfig.HostnameSuffix})
+				if err != nil {
+					return xerrors.Errorf("failed to check if Coder Connect is running: %w", err)
+				}
+				if coderConnect {
+					// If it is running, then users can generally connect to their workspaces directly using the suffix,
+					// so there is no need to add SSH config with a proxy command.
+					coderdConfig.HostnameSuffix = ""
+				}
 			}
 
 			// Write agent configuration.

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"tailscale.com/net/tsaddr"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -130,6 +131,8 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", sshConfigFile,
 		"--skip-proxy-command")
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	inv = inv.WithContext(withCoderConnectNotRunning(ctx))
 	clitest.SetupConfig(t, member, root)
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
@@ -197,13 +200,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		match, write string
 	}
 	tests := []struct {
-		name        string
-		args        []string
-		matches     []match
-		writeConfig writeConfig
-		wantConfig  wantConfig
-		wantErr     bool
-		hasAgent    bool
+		name                string
+		args                []string
+		matches             []match
+		writeConfig         writeConfig
+		wantConfig          wantConfig
+		wantErr             bool
+		hasAgent            bool
+		coderConnectRunning bool
 	}{
 		{
 			name: "Config file is created",
@@ -638,13 +642,41 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				regexMatch: `ProxyCommand .* ssh .* --ssh-host-prefix presto\. --hostname-suffix testy %h`,
 			},
 		},
+		{
+			name: "Default prefix and suffix with no coder connect",
+			args: []string{
+				"--yes",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh:        []string{"Host coder.* *.coder"},
+				regexMatch: `ProxyCommand .* ssh .* --ssh-host-prefix coder\. --hostname-suffix coder %h`,
+			},
+		},
+		{
+			name: "Default prefix and suffix with coder connect",
+			args: []string{
+				"--yes",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh:        []string{"Host coder.*"},
+				regexMatch: `ProxyCommand .* ssh .* --ssh-host-prefix coder\. %h`,
+			},
+			coderConnectRunning: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, db := coderdtest.NewWithDatabase(t, nil)
+			options := coderdtest.Options{
+				ConfigSSH: codersdk.SSHConfigResponse{HostnamePrefix: "coder.", HostnameSuffix: "coder"},
+			}
+			client, db := coderdtest.NewWithDatabase(t, &options)
 			user := coderdtest.CreateFirstUser(t, client)
 			if tt.hasAgent {
 				_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -665,6 +697,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			}
 			args = append(args, tt.args...)
 			inv, root := clitest.New(t, args...)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			if tt.coderConnectRunning {
+				inv = inv.WithContext(withCoderConnectRunning(ctx))
+			} else {
+				inv = inv.WithContext(withCoderConnectNotRunning(ctx))
+			}
+
 			//nolint:gocritic // This has always ran with the admin user.
 			clitest.SetupConfig(t, client, root)
 
@@ -702,4 +742,23 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			}
 		})
 	}
+}
+
+type fakeResolver struct {
+	shouldReturnSuccess bool
+}
+
+func (f *fakeResolver) LookupIP(_ context.Context, _, _ string) ([]net.IP, error) {
+	if f.shouldReturnSuccess {
+		return []net.IP{net.ParseIP(tsaddr.CoderServiceIPv6().String())}, nil
+	}
+	return nil, &net.DNSError{IsNotFound: true}
+}
+
+func withCoderConnectRunning(ctx context.Context) context.Context {
+	return workspacesdk.WithTestOnlyCoderContextResolver(ctx, &fakeResolver{shouldReturnSuccess: true})
+}
+
+func withCoderConnectNotRunning(ctx context.Context) context.Context {
+	return workspacesdk.WithTestOnlyCoderContextResolver(ctx, &fakeResolver{shouldReturnSuccess: false})
 }

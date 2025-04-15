@@ -128,19 +128,16 @@ func init() {
 	}
 }
 
-type resolver interface {
+type Resolver interface {
 	LookupIP(ctx context.Context, network, host string) ([]net.IP, error)
 }
 
 type Client struct {
 	client *codersdk.Client
-
-	// overridden in tests
-	resolver resolver
 }
 
 func New(c *codersdk.Client) *Client {
-	return &Client{client: c, resolver: net.DefaultResolver}
+	return &Client{client: c}
 }
 
 // AgentConnectionInfo returns required information for establishing
@@ -392,6 +389,12 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
 }
 
+func WithTestOnlyCoderContextResolver(ctx context.Context, r Resolver) context.Context {
+	return context.WithValue(ctx, dnsResolverContextKey{}, r)
+}
+
+type dnsResolverContextKey struct{}
+
 type CoderConnectQueryOptions struct {
 	HostnameSuffix string
 }
@@ -409,8 +412,15 @@ func (c *Client) IsCoderConnectRunning(ctx context.Context, o CoderConnectQueryO
 		suffix = info.HostnameSuffix
 	}
 	domainName := fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, suffix)
+
+	// check the context for a non-default resolver. This is only used in testing.
+	resolver, ok := ctx.Value(dnsResolverContextKey{}).(Resolver)
+	if !ok || resolver == nil {
+		resolver = net.DefaultResolver
+	}
+
 	var dnsError *net.DNSError
-	ips, err := c.resolver.LookupIP(ctx, "ip6", domainName)
+	ips, err := resolver.LookupIP(ctx, "ip6", domainName)
 	if xerrors.As(err, &dnsError) {
 		if dnsError.IsNotFound {
 			return false, nil
