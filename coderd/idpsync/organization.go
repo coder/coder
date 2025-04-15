@@ -127,7 +127,11 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	// Find the difference in the expected and the existing orgs, and
 	// correct the set of orgs the user is a member of.
 	add, remove := slice.SymmetricDifference(existingOrgIDs, finalExpected)
-	notExists := make([]uuid.UUID, 0)
+	// notExists is purely for debugging. It logs when the settings want
+	// a user in an organization, but the organization does not exist.
+	notExists := slice.DifferenceFunc(expectedOrgIDs, finalExpected, func(a, b uuid.UUID) bool {
+		return a == b
+	})
 	for _, orgID := range add {
 		_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
@@ -138,7 +142,24 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		})
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
+				// This should not happen because we check the org existance
+				// beforehand.
 				notExists = append(notExists, orgID)
+				continue
+			}
+
+			if database.IsUniqueViolation(err, database.UniqueOrganizationMembersPkey) {
+				// If we hit this error we have a bug. The user already exists in the
+				// organization, but was not detected to be at the start of this function.
+				// Instead of failing the function, an error will be logged. This is to not bring
+				// down the entire syncing behavior from a single failed org. Failing this can
+				// prevent user logins, so only fatal non-recoverable errors should be returned.
+				s.Logger.Error(ctx, "syncing user to organization failed as they are already a member, please report this failure to Coder",
+					slog.F("user_id", user.ID),
+					slog.F("username", user.Username),
+					slog.F("organization_id", orgID),
+					slog.Error(err),
+				)
 				continue
 			}
 			return xerrors.Errorf("add user to organization: %w", err)
@@ -156,6 +177,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	}
 
 	if len(notExists) > 0 {
+		notExists = slice.Unique(notExists) // Remove dupes
 		s.Logger.Debug(ctx, "organizations do not exist but attempted to use in org sync",
 			slog.F("not_found", notExists),
 			slog.F("user_id", user.ID),

@@ -49,17 +49,19 @@ func TestSyncOrganizations(t *testing.T) {
 	t.Run("SyncUserToDeletedOrg", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		extra := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: extra.ID,
+		})
 
 		// Create a new organization, add in the user as a member, then delete
 		// the org.
 		org := dbgen.Organization(t, db, database.Organization{})
-		user := dbgen.User(t, db, database.User{})
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
-			CreatedAt:      dbtime.Now(),
-			UpdatedAt:      dbtime.Now(),
-			Roles:          nil,
 		})
 
 		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
@@ -76,6 +78,7 @@ func TestSyncOrganizations(t *testing.T) {
 				OrganizationField: "orgs",
 				OrganizationMapping: map[string][]uuid.UUID{
 					"random": {org.ID},
+					"noise":  {uuid.New()},
 				},
 				OrganizationAssignDefault: false,
 			},
@@ -84,7 +87,7 @@ func TestSyncOrganizations(t *testing.T) {
 		err = s.SyncOrganizations(ctx, db, user, idpsync.OrganizationParams{
 			SyncEntitled: true,
 			MergedClaims: map[string]interface{}{
-				"orgs": []string{"random"},
+				"orgs": []string{"random", "noise"},
 			},
 		})
 		require.NoError(t, err)
