@@ -994,8 +994,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			member, policy.ActionRead,
 			member, policy.ActionDelete).
 			WithNotAuthorized("no rows").
-			WithCancelled(cancelledErr).
-			ErrorsWithInMemDB(sql.ErrNoRows)
+			WithCancelled(cancelledErr)
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
