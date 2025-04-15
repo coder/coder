@@ -36,7 +36,8 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				Name:        "roles",
 				Description: fmt.Sprintf("A list of roles to give to the user. This removes any existing roles the user may have. The available roles are: %s.", strings.Join(siteRoles, ", ")),
 				Flag:        "roles",
-				Value:       serpent.StringArrayOf(&givenRoles)},
+				Value:       serpent.StringArrayOf(&givenRoles),
+			},
 		},
 		Middleware: serpent.Chain(serpent.RequireNArgs(1), r.InitClient(client)),
 		Handler: func(inv *serpent.Invocation) error {
