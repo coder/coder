@@ -115,9 +115,13 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	// Deleted orgs are omitted from this set.
 	finalExpected := expectedOrgIDs
 	if len(expectedOrgIDs) > 0 {
+		// If you pass in an empty slice to the db arg, you get all orgs. So the slice
+		// has to be non-empty to get the expected set. Logically it also does not make
+		// sense to fetch an empty set from the db.
 		expectedOrganizations, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{
 			IDs: expectedOrgIDs,
-			// Do not include deleted organizations
+			// Do not include deleted organizations. Omitting deleted orgs will remove the
+			// user from any deleted organizations they are a member of.
 			Deleted: false,
 		})
 		if err != nil {
@@ -158,6 +162,10 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 				// Instead of failing the function, an error will be logged. This is to not bring
 				// down the entire syncing behavior from a single failed org. Failing this can
 				// prevent user logins, so only fatal non-recoverable errors should be returned.
+				//
+				// Inserting a user is privilege escalation. So skipping this instead of failing
+				// leaves the user with fewer permissions. So this is safe from a security
+				// perspective to continue.
 				s.Logger.Error(ctx, "syncing user to organization failed as they are already a member, please report this failure to Coder",
 					slog.F("user_id", user.ID),
 					slog.F("username", user.Username),
