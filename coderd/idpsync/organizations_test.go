@@ -1,6 +1,7 @@
 package idpsync_test
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -9,9 +10,10 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/testutil"
@@ -46,29 +48,28 @@ func TestParseOrganizationClaims(t *testing.T) {
 func TestSyncOrganizations(t *testing.T) {
 	t.Parallel()
 
+	// This test creates some deleted organizations and checks the behavior is
+	// correct.
 	t.Run("SyncUserToDeletedOrg", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{})
-		extra := dbgen.Organization(t, db, database.Organization{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: extra.ID,
-		})
 
-		// Create a new organization, add in the user as a member, then delete
-		// the org.
-		org := dbgen.Organization(t, db, database.Organization{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
+		// Create orgs for:
+		//  - stays = User is a member, and stays
+		//  - leaves = User is a member, and leaves
+		//  - joins  = User is not a member, and joins
+		// For deleted orgs, the user **should not** be a member of afterwards.
+		//  - deletedStays = User is a member of deleted org, and wants to stay
+		//  - deletedLeaves = User is a member of deleted org, and wants to leave
+		//  - deletedJoins = User is not a member of deleted org, and wants to join
+		stays := dbfake.Organization(t, db).Members(user).Do()
+		leaves := dbfake.Organization(t, db).Members(user).Do()
+		joins := dbfake.Organization(t, db).Do()
 
-		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
-			UpdatedAt: dbtime.Now(),
-			ID:        org.ID,
-		})
-		require.NoError(t, err)
+		deletedStays := dbfake.Organization(t, db).Members(user).Deleted(true).Do()
+		deletedLeaves := dbfake.Organization(t, db).Members(user).Deleted(true).Do()
+		deletedJoins := dbfake.Organization(t, db).Deleted(true).Do()
 
 		// Now sync the user to the deleted organization
 		s := idpsync.NewAGPLSync(
@@ -77,27 +78,34 @@ func TestSyncOrganizations(t *testing.T) {
 			idpsync.DeploymentSyncSettings{
 				OrganizationField: "orgs",
 				OrganizationMapping: map[string][]uuid.UUID{
-					"random": {org.ID},
-					"noise":  {uuid.New()},
+					"stay":  {stays.Org.ID, deletedStays.Org.ID},
+					"leave": {leaves.Org.ID, deletedLeaves.Org.ID},
+					"join":  {joins.Org.ID, deletedJoins.Org.ID},
 				},
 				OrganizationAssignDefault: false,
 			},
 		)
 
-		err = s.SyncOrganizations(ctx, db, user, idpsync.OrganizationParams{
+		err := s.SyncOrganizations(ctx, db, user, idpsync.OrganizationParams{
 			SyncEntitled: true,
 			MergedClaims: map[string]interface{}{
-				"orgs": []string{"random", "noise"},
+				"orgs": []string{"stay", "join"},
 			},
 		})
 		require.NoError(t, err)
 
-		mems, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-			OrganizationID: org.ID,
-			UserID:         user.ID,
-			IncludeSystem:  false,
+		orgs, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+			UserID:  user.ID,
+			Deleted: sql.NullBool{},
 		})
 		require.NoError(t, err)
-		require.Len(t, mems, 1)
+		require.Len(t, orgs, 2)
+
+		// Verify the user only exists in 2 orgs. The one they stayed, and the one they
+		// joined.
+		inIDs := db2sdk.List(orgs, func(org database.Organization) uuid.UUID {
+			return org.ID
+		})
+		require.ElementsMatch(t, []uuid.UUID{stays.Org.ID, joins.Org.ID}, inIDs)
 	})
 }

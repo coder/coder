@@ -4156,6 +4156,9 @@ func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrgan
 		if args.Name != "" && !strings.EqualFold(org.Name, args.Name) {
 			continue
 		}
+		if args.Deleted != org.Deleted {
+			continue
+		}
 		tmp = append(tmp, org)
 	}
 
