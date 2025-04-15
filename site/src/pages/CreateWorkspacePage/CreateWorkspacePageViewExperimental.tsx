@@ -18,6 +18,7 @@ import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import { useDebouncedFunction } from "hooks/debounce";
 import { ArrowLeft } from "lucide-react";
 import {
 	DynamicParameter,
@@ -209,66 +210,59 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameters,
 	]);
 
-	const [debouncedTimer, setDebouncedTimer] = useState<ReturnType<
-		typeof setTimeout
-	> | null>(null);
-
-	const handleChange = async (
-		value: string,
-		parameterField: string,
+	const sendDynamicParamsRequest = (
 		parameter: PreviewParameter,
+		value: string,
 	) => {
-		// Update form value immediately for all types
-		await form.setFieldValue(parameterField, {
-			name: parameter.form_type,
-			value,
+		const formInputs = Object.fromEntries(
+			form.values.rich_parameter_values?.map((value) => {
+				return [value.name, value.value];
+			}) ?? [],
+		);
+		// Update the input for the changed parameter
+		formInputs[parameter.name] = value;
+
+		setWSResponseId((prevId) => {
+			const newId = prevId + 1;
+			const request: DynamicParametersRequest = {
+				id: newId,
+				inputs: formInputs,
+			};
+			sendMessage(request);
+			return newId;
 		});
-
-		// Create the request object
-		const createRequest = () => {
-			const newInputs = Object.fromEntries(
-				form.values.rich_parameter_values?.map((value) => {
-					return [value.name, value.value];
-				}) ?? [],
-			);
-			// Update the input for the changed parameter
-			newInputs[parameter.name] = value;
-
-			setWSResponseId((prevId) => {
-				const newId = prevId + 1;
-				const request: DynamicParametersRequest = {
-					id: newId,
-					inputs: newInputs,
-				};
-				sendMessage(request);
-				return newId;
-			});
-		};
-
-		// Clear any existing timer
-		if (debouncedTimer) {
-			clearTimeout(debouncedTimer);
-		}
-
-		// For input type, debounce the sendMessage
-		if (parameter.form_type === "input") {
-			const timer = setTimeout(() => {
-				createRequest();
-			}, 1050);
-			setDebouncedTimer(timer);
-		} else {
-			// For all other form control types (checkbox, select, etc.), send immediately
-			createRequest();
-		}
 	};
 
-	useEffect(() => {
-		return () => {
-			if (debouncedTimer) {
-				clearTimeout(debouncedTimer);
-			}
-		};
-	}, [debouncedTimer]);
+	const { debounced: handleChangeDebounced } = useDebouncedFunction(
+		async (
+			parameter: PreviewParameter,
+			parameterField: string,
+			value: string,
+		) => {
+			await form.setFieldValue(parameterField, {
+				name: parameter.form_type,
+				value,
+			});
+			sendDynamicParamsRequest(parameter, value);
+		},
+		500,
+	);
+
+	const handleChange = async (
+		parameter: PreviewParameter,
+		parameterField: string,
+		value: string,
+	) => {
+		if (parameter.form_type === "input" || parameter.form_type === "textarea") {
+			handleChangeDebounced(parameter, parameterField, value);
+		} else {
+			await form.setFieldValue(parameterField, {
+				name: parameter.form_type,
+				value,
+			});
+			sendDynamicParamsRequest(parameter, value);
+		}
+	};
 
 	return (
 		<>
@@ -493,7 +487,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 											key={parameter.name}
 											parameter={parameter}
 											onChange={(value) =>
-												handleChange(value, parameterField, parameter)
+												handleChange(parameter, parameterField, value)
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
