@@ -143,11 +143,11 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 				connErrCh <- err
 				connCh <- conn
 			}()
-			testutil.RequireReceive(ctx, t, user)
-			testutil.RequireReceive(ctx, t, connInfo)
-			err = testutil.RequireReceive(ctx, t, connErrCh)
+			testutil.TryReceive(ctx, t, user)
+			testutil.TryReceive(ctx, t, connInfo)
+			err = testutil.TryReceive(ctx, t, connErrCh)
 			require.NoError(t, err)
-			conn := testutil.RequireReceive(ctx, t, connCh)
+			conn := testutil.TryReceive(ctx, t, connCh)
 
 			// Send a workspace update
 			update := &proto.WorkspaceUpdate{
@@ -168,7 +168,7 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 			testutil.RequireSend(ctx, t, outUpdateCh, update)
 
 			// It'll be received by the update handler
-			recvUpdate := testutil.RequireReceive(ctx, t, inUpdateCh)
+			recvUpdate := testutil.TryReceive(ctx, t, inUpdateCh)
 			require.Len(t, recvUpdate.UpsertedWorkspaces, 1)
 			require.Equal(t, wsID, recvUpdate.UpsertedWorkspaces[0].ID)
 			require.Len(t, recvUpdate.UpsertedAgents, 1)
@@ -202,7 +202,7 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 
 			// Close the conn
 			conn.Close()
-			err = testutil.RequireReceive(ctx, t, serveErrCh)
+			err = testutil.TryReceive(ctx, t, serveErrCh)
 			require.NoError(t, err)
 		})
 	}

@@ -362,7 +362,7 @@ func TestCache(t *testing.T) {
 			authOut       = make(chan error, 1) // buffered to not block
 			authorizeFunc = func(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 				// Just return what you're told.
-				return testutil.RequireReceive(ctx, t, authOut)
+				return testutil.TryReceive(ctx, t, authOut)
 			}
 			ma                = &rbac.MockAuthorizer{AuthorizeFunc: authorizeFunc}
 			rec               = &coderdtest.RecordingAuthorizer{Wrapped: ma}

@@ -272,7 +272,7 @@ func TestSSH(t *testing.T) {
 
 		// Allow one build to complete.
 		testutil.RequireSend(ctx, t, buildPause, true)
-		testutil.RequireReceive(ctx, t, buildDone)
+		testutil.TryReceive(ctx, t, buildDone)
 
 		// Allow the remaining builds to continue.
 		for i := 0; i < len(ptys)-1; i++ {
@@ -1017,14 +1017,14 @@ func TestSSH(t *testing.T) {
 					}
 				}()
 
-				msg := testutil.RequireReceive(ctx, t, msgs)
+				msg := testutil.TryReceive(ctx, t, msgs)
 				require.Equal(t, "test", msg)
 				close(success)
 				fsn.Notify()
 				<-cmdDone
 				fsn.AssertStopped()
 				// wait for dial goroutine to complete
-				_ = testutil.RequireReceive(ctx, t, done)
+				_ = testutil.TryReceive(ctx, t, done)
 
 				// wait for the remote socket to get cleaned up before retrying,
 				// because cleaning up the socket happens asynchronously, and we

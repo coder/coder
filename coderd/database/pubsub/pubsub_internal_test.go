@@ -160,19 +160,19 @@ func TestPubSub_DoesntBlockNotify(t *testing.T) {
 		assert.NoError(t, err)
 		cancels <- subCancel
 	}()
-	subCancel := testutil.RequireReceive(ctx, t, cancels)
+	subCancel := testutil.TryReceive(ctx, t, cancels)
 	cancelDone := make(chan struct{})
 	go func() {
 		defer close(cancelDone)
 		subCancel()
 	}()
-	testutil.RequireReceive(ctx, t, cancelDone)
+	testutil.TryReceive(ctx, t, cancelDone)
 
 	closeErrs := make(chan error)
 	go func() {
 		closeErrs <- uut.Close()
 	}()
-	err := testutil.RequireReceive(ctx, t, closeErrs)
+	err := testutil.TryReceive(ctx, t, closeErrs)
 	require.NoError(t, err)
 }
 
@@ -221,7 +221,7 @@ func TestPubSub_DoesntRaceListenUnlisten(t *testing.T) {
 	}
 	close(start)
 	for range numEvents * 2 {
-		_ = testutil.RequireReceive(ctx, t, done)
+		_ = testutil.TryReceive(ctx, t, done)
 	}
 	for i := range events {
 		fListener.requireIsListening(t, events[i])

@@ -260,7 +260,7 @@ func TestWebhookDispatch(t *testing.T) {
 	mgr.Run(ctx)
 
 	// THEN: the webhook is received by the mock server and has the expected contents
-	payload := testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, sent)
+	payload := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, sent)
 	require.EqualValues(t, "1.1", payload.Version)
 	require.Equal(t, msgID[0], payload.MsgID)
 	require.Equal(t, payload.Payload.Labels, input)
@@ -350,7 +350,7 @@ func TestBackpressure(t *testing.T) {
 
 	// one batch of dispatches is sent
 	for range batchSize {
-		call := testutil.RequireReceive(ctx, t, handler.calls)
+		call := testutil.TryReceive(ctx, t, handler.calls)
 		testutil.RequireSend(ctx, t, call.result, dispatchResult{
 			retryable: false,
 			err:       nil,
@@ -402,7 +402,7 @@ func TestBackpressure(t *testing.T) {
 	// The batch completes
 	w.MustWait(ctx)
 
-	require.NoError(t, testutil.RequireReceive(ctx, t, stopErr))
+	require.NoError(t, testutil.TryReceive(ctx, t, stopErr))
 	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 }
 
@@ -1808,7 +1808,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	// THEN: the notification should be received by the custom dispatch method
 	mgr.Run(ctx)
 
-	receivedMsgID := testutil.RequireReceive(ctx, t, received)
+	receivedMsgID := testutil.TryReceive(ctx, t, received)
 	require.Equal(t, msgID[0].String(), receivedMsgID.String())
 
 	// Ensure no messages received by default method (SMTP):

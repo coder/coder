@@ -293,7 +293,7 @@ func Test_Runner(t *testing.T) {
 		<-done
 		t.Log("canceled scaletest workspace creation")
 		// Ensure we have a job to interrogate
-		runningJob := testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, jobCh)
+		runningJob := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, jobCh)
 		require.NotZero(t, runningJob.ID)
 
 		// When we run the cleanup, it should be canceled

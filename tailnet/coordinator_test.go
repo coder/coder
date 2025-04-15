@@ -271,7 +271,7 @@ func TestCoordinatorPropogatedPeerContext(t *testing.T) {
 	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
 
 	testutil.RequireSend(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)}})
-	_ = testutil.RequireReceive(ctx, t, ch)
+	_ = testutil.TryReceive(ctx, t, ch)
 	// If we don't cancel the context, the coordinator close will wait until the
 	// peer request loop finishes, which will be after the timeout
 	peerCtxCancel()

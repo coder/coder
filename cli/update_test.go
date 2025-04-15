@@ -345,7 +345,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		pty.ExpectMatch("does not match")
 		pty.ExpectMatch("> Enter a value (default: \"\"): ")
 		pty.WriteLine("abc")
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ValidateNumber", func(t *testing.T) {
@@ -391,7 +391,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		pty.ExpectMatch("is not a number")
 		pty.ExpectMatch("> Enter a value (default: \"\"): ")
 		pty.WriteLine("8")
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ValidateBool", func(t *testing.T) {
@@ -437,7 +437,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		pty.ExpectMatch("boolean value can be either \"true\" or \"false\"")
 		pty.ExpectMatch("> Enter a value (default: \"\"): ")
 		pty.WriteLine("false")
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("RequiredParameterAdded", func(t *testing.T) {
@@ -508,7 +508,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("OptionalParameterAdded", func(t *testing.T) {
@@ -568,7 +568,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		pty.ExpectMatch("Planning workspace...")
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionChanged", func(t *testing.T) {
@@ -640,7 +640,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionDisappeared", func(t *testing.T) {
@@ -713,7 +713,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionFailsMonotonicValidation", func(t *testing.T) {
@@ -770,7 +770,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			pty.ExpectMatch(match)
 		}
 
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
@@ -838,7 +838,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("MutableRequiredParameterExists_ImmutableRequiredParameterAdded", func(t *testing.T) {
@@ -910,6 +910,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		_ = testutil.RequireReceive(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 }

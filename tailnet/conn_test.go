@@ -79,7 +79,7 @@ func TestTailnet(t *testing.T) {
 			conn <- struct{}{}
 		}()
 
-		_ = testutil.RequireReceive(ctx, t, listenDone)
+		_ = testutil.TryReceive(ctx, t, listenDone)
 		nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
 		require.NoError(t, err)
 		_ = nc.Close()
@@ -92,7 +92,7 @@ func TestTailnet(t *testing.T) {
 			default:
 			}
 		})
-		node := testutil.RequireReceive(ctx, t, nodes)
+		node := testutil.TryReceive(ctx, t, nodes)
 		// Ensure this connected over raw (not websocket) DERP!
 		require.Len(t, node.DERPForcedWebsocket, 0)
 
@@ -146,11 +146,11 @@ func TestTailnet(t *testing.T) {
 			_ = nc.Close()
 		}()
 
-		testutil.RequireReceive(ctx, t, listening)
+		testutil.TryReceive(ctx, t, listening)
 		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 		require.NoError(t, err)
 		_ = nc.Close()
-		testutil.RequireReceive(ctx, t, done)
+		testutil.TryReceive(ctx, t, done)
 
 		nodes := make(chan *tailnet.Node, 1)
 		w2.SetNodeCallback(func(node *tailnet.Node) {

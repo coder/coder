@@ -58,7 +58,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	_, err = mp.Write([]byte("codervpn manager 1.3,2.1\n"))
 	require.NoError(t, err)
 
-	err = testutil.RequireReceive(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	tun.start()
 
@@ -107,7 +107,7 @@ func TestSpeaker_HandshakeRWFailure(t *testing.T) {
 		tun = s
 		errCh <- err
 	}()
-	err := testutil.RequireReceive(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.ErrorContains(t, err, "handshake failed")
 	require.Nil(t, tun)
 }
@@ -131,7 +131,7 @@ func TestSpeaker_HandshakeCtxDone(t *testing.T) {
 		errCh <- err
 	}()
 	cancel()
-	err := testutil.RequireReceive(testCtx, t, errCh)
+	err := testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorContains(t, err, "handshake failed")
 	require.Nil(t, tun)
 }
@@ -168,7 +168,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 	_, err = mp.Write([]byte(badHandshake))
 	require.Error(t, err) // other side closes when we write too much
 
-	err = testutil.RequireReceive(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.ErrorContains(t, err, "handshake failed")
 	require.Nil(t, tun)
 }
@@ -216,7 +216,7 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, expectedHandshake, string(b[:n]))
 
-			err = testutil.RequireReceive(ctx, t, errCh)
+			err = testutil.TryReceive(ctx, t, errCh)
 			require.ErrorContains(t, err, "validate header")
 			require.Nil(t, tun)
 		})
@@ -258,7 +258,7 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 	_, err = mp.Write([]byte("codervpn manager 1.0\n"))
 	require.NoError(t, err)
 
-	err = testutil.RequireReceive(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	tun.start()
 
@@ -290,7 +290,7 @@ func TestSpeaker_unaryRPC_mainline(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	req := testutil.RequireReceive(ctx, t, tun.requests)
+	req := testutil.TryReceive(ctx, t, tun.requests)
 	require.NotEqualValues(t, 0, req.msg.GetRpc().GetMsgId())
 	require.Equal(t, "https://coder.example.com", req.msg.GetStart().GetCoderUrl())
 	err := req.sendReply(&TunnelMessage{
@@ -299,7 +299,7 @@ func TestSpeaker_unaryRPC_mainline(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = testutil.RequireReceive(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -334,12 +334,12 @@ func TestSpeaker_unaryRPC_canceled(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	req := testutil.RequireReceive(testCtx, t, tun.requests)
+	req := testutil.TryReceive(testCtx, t, tun.requests)
 	require.NotEqualValues(t, 0, req.msg.GetRpc().GetMsgId())
 	require.Equal(t, "https://coder.example.com", req.msg.GetStart().GetCoderUrl())
 
 	cancel()
-	err := testutil.RequireReceive(testCtx, t, errCh)
+	err := testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, resp)
 
@@ -370,7 +370,7 @@ func TestSpeaker_unaryRPC_hung_up(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	req := testutil.RequireReceive(testCtx, t, tun.requests)
+	req := testutil.TryReceive(testCtx, t, tun.requests)
 	require.NotEqualValues(t, 0, req.msg.GetRpc().GetMsgId())
 	require.Equal(t, "https://coder.example.com", req.msg.GetStart().GetCoderUrl())
 
@@ -378,7 +378,7 @@ func TestSpeaker_unaryRPC_hung_up(t *testing.T) {
 	err := tun.Close()
 	require.NoError(t, err)
 	// Then: we should get an error on the RPC.
-	err = testutil.RequireReceive(testCtx, t, errCh)
+	err = testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	require.Nil(t, resp)
 }
@@ -417,7 +417,7 @@ func TestSpeaker_unaryRPC_sendLoop(t *testing.T) {
 	}()
 
 	// Then: we should get an error on the RPC.
-	err = testutil.RequireReceive(testCtx, t, errCh)
+	err = testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	require.Nil(t, resp)
 }
@@ -448,9 +448,9 @@ func setupSpeakers(t *testing.T) (
 		mgr = s
 		errCh <- err
 	}()
-	err := testutil.RequireReceive(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
-	err = testutil.RequireReceive(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	tun.start()
 	mgr.start()

@@ -193,7 +193,7 @@ func TestPortForward(t *testing.T) {
 
 			flushCtx := testutil.Context(t, testutil.WaitShort)
 			testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
-			_ = testutil.RequireReceive(flushCtx, t, wuFlush)
+			_ = testutil.TryReceive(flushCtx, t, wuFlush)
 			updated, err := client.Workspace(context.Background(), workspace.ID)
 			require.NoError(t, err)
 			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
@@ -248,7 +248,7 @@ func TestPortForward(t *testing.T) {
 
 			flushCtx := testutil.Context(t, testutil.WaitShort)
 			testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
-			_ = testutil.RequireReceive(flushCtx, t, wuFlush)
+			_ = testutil.TryReceive(flushCtx, t, wuFlush)
 			updated, err := client.Workspace(context.Background(), workspace.ID)
 			require.NoError(t, err)
 			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
@@ -316,7 +316,7 @@ func TestPortForward(t *testing.T) {
 
 		flushCtx := testutil.Context(t, testutil.WaitShort)
 		testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
-		_ = testutil.RequireReceive(flushCtx, t, wuFlush)
+		_ = testutil.TryReceive(flushCtx, t, wuFlush)
 		updated, err := client.Workspace(context.Background(), workspace.ID)
 		require.NoError(t, err)
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
@@ -373,7 +373,7 @@ func TestPortForward(t *testing.T) {
 
 		flushCtx := testutil.Context(t, testutil.WaitShort)
 		testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
-		_ = testutil.RequireReceive(flushCtx, t, wuFlush)
+		_ = testutil.TryReceive(flushCtx, t, wuFlush)
 		updated, err := client.Workspace(context.Background(), workspace.ID)
 		require.NoError(t, err)
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)

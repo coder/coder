@@ -110,7 +110,7 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	})
 
 	// wait until the agent has connected and is starting to find races in the startup code
-	_ = testutil.RequireReceive(ctx, t, client.GetStartup())
+	_ = testutil.TryReceive(ctx, t, client.GetStartup())
 	t.Log("Closing Agent")
 	err := agentUnderTest.Close()
 	require.NoError(t, err)
@@ -1700,7 +1700,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		// In order to avoid shutting down the agent before it is fully started and triggering
 		// errors, we'll wait until the agent is fully up. It's a bit hokey, but among the last things the agent starts
 		// is the stats reporting, so getting a stats report is a good indication the agent is fully up.
-		_ = testutil.RequireReceive(ctx, t, statsCh)
+		_ = testutil.TryReceive(ctx, t, statsCh)
 
 		err := agent.Close()
 		require.NoError(t, err, "agent should be closed successfully")
@@ -1730,7 +1730,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "",
 		}, 0)
-		startup := testutil.RequireReceive(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		require.Equal(t, "", startup.GetExpandedDirectory())
 	})
 
@@ -1741,7 +1741,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "~",
 		}, 0)
-		startup := testutil.RequireReceive(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, homeDir, startup.GetExpandedDirectory())
@@ -1754,7 +1754,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "coder/coder",
 		}, 0)
-		startup := testutil.RequireReceive(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(homeDir, "coder/coder"), startup.GetExpandedDirectory())
@@ -1767,7 +1767,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "$HOME",
 		}, 0)
-		startup := testutil.RequireReceive(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, homeDir, startup.GetExpandedDirectory())
@@ -2632,7 +2632,7 @@ done
 
 	n := 1
 	for n <= 5 {
-		logs := testutil.RequireReceive(ctx, t, logsCh)
+		logs := testutil.TryReceive(ctx, t, logsCh)
 		require.NotNil(t, logs)
 		for _, l := range logs.GetLogs() {
 			require.Equal(t, fmt.Sprintf("start %d", n), l.GetOutput())
@@ -2645,7 +2645,7 @@ done
 
 	n = 1
 	for n <= 3000 {
-		logs := testutil.RequireReceive(ctx, t, logsCh)
+		logs := testutil.TryReceive(ctx, t, logsCh)
 		require.NotNil(t, logs)
 		for _, l := range logs.GetLogs() {
 			require.Equal(t, fmt.Sprintf("stop %d", n), l.GetOutput())
