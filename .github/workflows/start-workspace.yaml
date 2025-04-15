@@ -15,7 +15,7 @@ jobs:
     if: >-
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@coder')) || 
       (github.event_name == 'issues' && contains(github.event.issue.body, '@coder'))
-    environment: aidev
+    environment: dev.coder.com
     timeout-minutes: 5
     steps:
       - name: Start Coder workspace
