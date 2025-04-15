@@ -789,6 +789,7 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 		// Inputs
 		withTemplate,
 		withActiveVersion(nil),
+		withTemplateVersionPreset(presetID),
 		withLastBuildNotFound,
 		withTemplateVersionVariables(activeVersionID, nil),
 		withParameterSchemas(activeJobID, nil),
@@ -957,6 +958,12 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 		} else {
 			paramsCall.Return(nil, sql.ErrNoRows)
 		}
+	}
+}
+
+func withTemplateVersionPreset(presetID uuid.UUID) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().GetPresetParametersByPresetID(gomock.Any(), presetID).Return(nil, nil)
 	}
 }
 
