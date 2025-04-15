@@ -209,7 +209,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameters,
 	]);
 
-	const [debouncedTimer, setDebouncedTimer] = useState<NodeJS.Timeout | null>(
+	const [debouncedTimer, setDebouncedTimer] = useState<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
 
@@ -226,15 +226,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		// Create the request object
 		const createRequest = () => {
-			// Convert the rich_parameter_values array to a key-value object
-			const newInputs = (form.values.rich_parameter_values ?? []).reduce(
-				(acc, param) => {
-					acc[param.name] = param.value;
-					return acc;
-				},
-				{} as Record<string, string>,
-			);
-
+			const newInputs = Object.fromEntries(form.values.rich_parameter_values?.map(value => {
+				return [value.name, value.value]
+			}) ?? []);
 			// Update the input for the changed parameter
 			newInputs[parameter.name] = value;
 
@@ -274,7 +268,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 		};
 	}, [debouncedTimer]);
 
-	// TODO: display top level diagnostics
 	return (
 		<>
 			<div className="absolute sticky top-5 ml-10">
@@ -458,22 +451,16 @@ export const CreateWorkspacePageViewExperimental: FC<
 												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</div>
-										<div
-											css={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-											}}
-										>
+										<span className="flex items-center gap-3">
 											<Switch
 												id="show-preset-parameters"
 												checked={showPresetParameters}
 												onCheckedChange={setShowPresetParameters}
 											/>
-											<label htmlFor="show-preset-parameters">
+											<Label htmlFor="show-preset-parameters">
 												Show preset parameters
-											</label>
-										</div>
+											</Label>
+										</span>
 									</div>
 								</Stack>
 							)}
@@ -508,7 +495,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
-											// parameterAutofill={autofillByName[parameter.name]} TODO: handle autofill
 										/>
 									);
 								})}
