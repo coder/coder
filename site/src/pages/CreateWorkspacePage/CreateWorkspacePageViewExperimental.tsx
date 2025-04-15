@@ -209,9 +209,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameters,
 	]);
 
-	const [debouncedTimer, setDebouncedTimer] = useState<ReturnType<typeof setTimeout> | null>(
-		null,
-	);
+	const [debouncedTimer, setDebouncedTimer] = useState<ReturnType<
+		typeof setTimeout
+	> | null>(null);
 
 	const handleChange = async (
 		value: string,
@@ -226,9 +226,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		// Create the request object
 		const createRequest = () => {
-			const newInputs = Object.fromEntries(form.values.rich_parameter_values?.map(value => {
-				return [value.name, value.value]
-			}) ?? []);
+			const newInputs = Object.fromEntries(
+				form.values.rich_parameter_values?.map((value) => {
+					return [value.name, value.value];
+				}) ?? [],
+			);
 			// Update the input for the changed parameter
 			newInputs[parameter.name] = value;
 

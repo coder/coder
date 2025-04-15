@@ -205,14 +205,12 @@ export const MultiSelectCombobox = forwardRef<
 		const [isLoading, setIsLoading] = useState(false);
 		const dropdownRef = useRef<HTMLDivElement>(null);
 
-		const [selected, setSelected] = useState<Option[]>(
-			() => {
-				if (arrayDefaultOptions && arrayDefaultOptions.length > 0) {
-					return arrayDefaultOptions;
-				}
-				return [];
+		const [selected, setSelected] = useState<Option[]>(() => {
+			if (arrayDefaultOptions && arrayDefaultOptions.length > 0) {
+				return arrayDefaultOptions;
 			}
-		);
+			return [];
+		});
 		const [options, setOptions] = useState<GroupOption>(
 			transitionToGroupOption(arrayDefaultOptions, groupBy),
 		);
