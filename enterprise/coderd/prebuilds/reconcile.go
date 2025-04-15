@@ -293,6 +293,17 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		return nil
 
 	case prebuilds.ActionTypeCreate:
+		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
+		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
+		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
+		desired := ps.Preset.DesiredInstances.Int32
+		if actions.Create > desired {
+			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
+				slog.F("create_count", actions.Create), slog.F("desired_count", desired))
+
+			actions.Create = desired
+		}
+
 		var multiErr multierror.Error
 
 		for range actions.Create {
