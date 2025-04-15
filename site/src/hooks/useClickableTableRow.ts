@@ -15,12 +15,12 @@
  */
 import type { TableRowProps } from "@mui/material/TableRow";
 import type { MouseEventHandler } from "react";
+import { cn } from "utils/cn";
 import {
 	type ClickableAriaRole,
 	type UseClickableResult,
 	useClickable,
 } from "./useClickable";
-import { cn } from "utils/cn";
 
 type UseClickableTableRowResult<
 	TRole extends ClickableAriaRole = ClickableAriaRole,

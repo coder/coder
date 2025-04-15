@@ -34,9 +34,9 @@ import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/Wo
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { cn } from "utils/cn";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-import { cn } from "utils/cn";
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
