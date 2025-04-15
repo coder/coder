@@ -21,7 +21,6 @@ export function useWebSocket<T>(
 			setConnectionStatus("connecting");
 
 			ws.onopen = () => {
-				// console.log("Connected to WebSocket");
 				setConnectionStatus("connected");
 				ws.send(JSON.stringify({}));
 			};
@@ -29,7 +28,6 @@ export function useWebSocket<T>(
 			ws.onmessage = (event) => {
 				try {
 					const data: T = JSON.parse(event.data);
-					// console.log("Received message:", data);
 					setMessage(data);
 				} catch (err) {
 					console.error("Invalid JSON from server: ", event.data);
@@ -42,9 +40,6 @@ export function useWebSocket<T>(
 			};
 
 			ws.onclose = (event) => {
-				// console.log(
-				// 	`WebSocket closed with code ${event.code}. Reason: ${event.reason}`,
-				// );
 				setConnectionStatus("disconnected");
 			};
 		} catch (error) {
