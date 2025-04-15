@@ -5680,7 +5680,7 @@ SELECT
 FROM
     organizations
 WHERE
-    -- Optionally include deleted organizations
+    -- Optionally provide a filter for deleted organizations.
   	CASE WHEN
   	    $2 :: boolean IS NULL THEN
 			true

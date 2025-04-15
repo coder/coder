@@ -111,18 +111,22 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return org.ID
 	})
 
-	expectedOrganizations, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{
-		IDs: expectedOrgIDs,
-		// Do not include deleted organizations
-		Deleted: false,
-	})
-	if err != nil {
-		return xerrors.Errorf("failed to get expected organizations: %w", err)
+	// finalExpected is the final set of org ids the user is expected to be in.
+	// Deleted orgs are omitted from this set.
+	finalExpected := expectedOrgIDs
+	if len(expectedOrgIDs) > 0 {
+		expectedOrganizations, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{
+			IDs: expectedOrgIDs,
+			// Do not include deleted organizations
+			Deleted: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to get expected organizations: %w", err)
+		}
+		finalExpected = db2sdk.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
+			return org.ID
+		})
 	}
-
-	finalExpected := db2sdk.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
-		return org.ID
-	})
 
 	// Find the difference in the expected and the existing orgs, and
 	// correct the set of orgs the user is a member of.
@@ -142,7 +146,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		})
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
-				// This should not happen because we check the org existance
+				// This should not happen because we check the org existence
 				// beforehand.
 				notExists = append(notExists, orgID)
 				continue
