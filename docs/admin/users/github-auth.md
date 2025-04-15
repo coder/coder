@@ -41,6 +41,14 @@ own app or set:
 CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 ```
 
+> [!NOTE]
+> After you disable the default GitHub provider with the setting above, the
+> **Sign in with GitHub** button might still appear on your login page even though
+> the authentication flow is disabled.
+>
+> To completely hide the GitHub sign-in button, you must both disable the default
+> provider and ensure you don't have a custom GitHub OAuth app configured.
+
 ## Step 1: Configure the OAuth application in GitHub
 
 First,

@@ -270,7 +270,7 @@ export const organizationsPermissions = (
 	}
 
 	return {
-		queryKey: ["organizations", organizationIds.sort(), "permissions"],
+		queryKey: ["organizations", [...organizationIds.sort()], "permissions"],
 		queryFn: async () => {
 			// Only request what we need for the sidebar, which is one edit permission
 			// per sub-link (settings, groups, roles, and members pages) that tells us
@@ -316,7 +316,7 @@ export const workspacePermissionsByOrganization = (
 	}
 
 	return {
-		queryKey: ["workspaces", organizationIds.sort(), "permissions"],
+		queryKey: ["workspaces", [...organizationIds.sort()], "permissions"],
 		queryFn: async () => {
 			const prefixedChecks = organizationIds.flatMap((orgId) =>
 				Object.entries(workspacePermissionChecks(orgId, userId)).map(

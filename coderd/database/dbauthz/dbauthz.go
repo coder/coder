@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -163,6 +164,7 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 
 var (
 	subjectProvisionerd = rbac.Subject{
+		Type:         rbac.SubjectTypeProvisionerd,
 		FriendlyName: "Provisioner Daemon",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -197,6 +199,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectAutostart = rbac.Subject{
+		Type:         rbac.SubjectTypeAutostart,
 		FriendlyName: "Autostart",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -220,6 +223,7 @@ var (
 
 	// See unhanger package.
 	subjectHangDetector = rbac.Subject{
+		Type:         rbac.SubjectTypeHangDetector,
 		FriendlyName: "Hang Detector",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -240,6 +244,7 @@ var (
 
 	// See cryptokeys package.
 	subjectCryptoKeyRotator = rbac.Subject{
+		Type:         rbac.SubjectTypeCryptoKeyRotator,
 		FriendlyName: "Crypto Key Rotator",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -258,6 +263,7 @@ var (
 
 	// See cryptokeys package.
 	subjectCryptoKeyReader = rbac.Subject{
+		Type:         rbac.SubjectTypeCryptoKeyReader,
 		FriendlyName: "Crypto Key Reader",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -275,6 +281,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectNotifier = rbac.Subject{
+		Type:         rbac.SubjectTypeNotifier,
 		FriendlyName: "Notifier",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -295,6 +302,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectResourceMonitor = rbac.Subject{
+		Type:         rbac.SubjectTypeResourceMonitor,
 		FriendlyName: "Resource Monitor",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -313,6 +321,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSystemRestricted = rbac.Subject{
+		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -347,6 +356,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSystemReadProvisionerDaemons = rbac.Subject{
+		Type:         rbac.SubjectTypeSystemReadProvisionerDaemons,
 		FriendlyName: "Provisioner Daemons Reader",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -364,6 +374,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectPrebuildsOrchestrator = rbac.Subject{
+		Type:         rbac.SubjectTypePrebuildsOrchestrator,
 		FriendlyName: "Prebuilds Orchestrator",
 		ID:           prebuilds.SystemUserID.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -388,59 +399,59 @@ var (
 // AsProvisionerd returns a context with an actor that has permissions required
 // for provisionerd to function.
 func AsProvisionerd(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectProvisionerd)
+	return As(ctx, subjectProvisionerd)
 }
 
 // AsAutostart returns a context with an actor that has permissions required
 // for autostart to function.
 func AsAutostart(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectAutostart)
+	return As(ctx, subjectAutostart)
 }
 
 // AsHangDetector returns a context with an actor that has permissions required
 // for unhanger.Detector to function.
 func AsHangDetector(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectHangDetector)
+	return As(ctx, subjectHangDetector)
 }
 
 // AsKeyRotator returns a context with an actor that has permissions required for rotating crypto keys.
 func AsKeyRotator(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectCryptoKeyRotator)
+	return As(ctx, subjectCryptoKeyRotator)
 }
 
 // AsKeyReader returns a context with an actor that has permissions required for reading crypto keys.
 func AsKeyReader(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectCryptoKeyReader)
+	return As(ctx, subjectCryptoKeyReader)
 }
 
 // AsNotifier returns a context with an actor that has permissions required for
 // creating/reading/updating/deleting notifications.
 func AsNotifier(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectNotifier)
+	return As(ctx, subjectNotifier)
 }
 
 // AsResourceMonitor returns a context with an actor that has permissions required for
 // updating resource monitors.
 func AsResourceMonitor(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectResourceMonitor)
+	return As(ctx, subjectResourceMonitor)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
 // required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectSystemRestricted)
+	return As(ctx, subjectSystemRestricted)
 }
 
 // AsSystemReadProvisionerDaemons returns a context with an actor that has permissions
 // to read provisioner daemons.
 func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectSystemReadProvisionerDaemons)
+	return As(ctx, subjectSystemReadProvisionerDaemons)
 }
 
 // AsPrebuildsOrchestrator returns a context with an actor that has permissions
 // to read orchestrator workspace prebuilds.
 func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectPrebuildsOrchestrator)
+	return As(ctx, subjectPrebuildsOrchestrator)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -457,6 +468,9 @@ func As(ctx context.Context, actor rbac.Subject) context.Context {
 		// AsRemoveActor is a special case that is used to indicate that the actor
 		// should be removed from the context.
 		return context.WithValue(ctx, authContextKey{}, nil)
+	}
+	if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+		rlogger.WithAuthContext(actor)
 	}
 	return context.WithValue(ctx, authContextKey{}, actor)
 }
@@ -1893,13 +1907,6 @@ func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (d
 
 func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
-}
-
-func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
-	if _, err := fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, arg.WorkspaceID); err != nil {
-		return database.JfrogXrayScan{}, err
-	}
-	return q.db.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -4765,27 +4772,6 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
-}
-
-func (q *querier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	// TODO: Having to do all this extra querying makes me a sad panda.
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return xerrors.Errorf("get workspace by id: %w", err)
-	}
-
-	template, err := q.db.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		return xerrors.Errorf("get template by id: %w", err)
-	}
-
-	// Only template admins should be able to write JFrog Xray scans to a workspace.
-	// We don't want this to be a workspace-level permission because then users
-	// could overwrite their own results.
-	if err := q.authorizeContext(ctx, policy.ActionCreate, template); err != nil {
-		return err
-	}
-	return q.db.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {

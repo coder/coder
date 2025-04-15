@@ -429,6 +429,16 @@ type WorkspaceAgentContainer struct {
 	Volumes map[string]string `json:"volumes"`
 }
 
+func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
+	if c.ID == idOrName {
+		return true
+	}
+	if c.FriendlyName == idOrName {
+		return true
+	}
+	return false
+}
+
 // WorkspaceAgentContainerPort describes a port as exposed by a container.
 type WorkspaceAgentContainerPort struct {
 	// Port is the port number *inside* the container.

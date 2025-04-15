@@ -584,12 +584,14 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 
 // PatchAppStatus updates the status of a workspace app.
 type PatchAppStatus struct {
-	AppSlug            string                           `json:"app_slug"`
-	NeedsUserAttention bool                             `json:"needs_user_attention"`
-	State              codersdk.WorkspaceAppStatusState `json:"state"`
-	Message            string                           `json:"message"`
-	URI                string                           `json:"uri"`
-	Icon               string                           `json:"icon"`
+	AppSlug string                           `json:"app_slug"`
+	State   codersdk.WorkspaceAppStatusState `json:"state"`
+	Message string                           `json:"message"`
+	URI     string                           `json:"uri"`
+	// Deprecated: this field is unused and will be removed in a future version.
+	Icon string `json:"icon"`
+	// Deprecated: this field is unused and will be removed in a future version.
+	NeedsUserAttention bool `json:"needs_user_attention"`
 }
 
 func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {

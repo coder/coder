@@ -101,12 +101,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"workspace1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"workspace2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace2\"",
 					RunOnStart: false,
 				},
 			},
@@ -136,12 +136,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"workspace1\" --config \"workspace1/config1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace1\" --config \"workspace1/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"workspace2\" --config \"workspace2/config2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"workspace2\" --config \"workspace2/config2\"",
 					RunOnStart: false,
 				},
 			},
@@ -174,12 +174,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace1\" --config \"/home/workspace1/config1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace1\" --config \"/home/workspace1/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace2\" --config \"/home/workspace2/config2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace2\" --config \"/home/workspace2/config2\"",
 					RunOnStart: false,
 				},
 			},
@@ -216,12 +216,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace1\" --config \"/home/config1\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace1\" --config \"/home/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"/home/workspace2\" --config \"/config2\"",
+					Script:     "devcontainer up --log-format json --workspace-folder \"/home/workspace2\" --config \"/config2\"",
 					RunOnStart: false,
 				},
 			},

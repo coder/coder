@@ -730,7 +730,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       }
     }
   },
-  "disable_direct_connections": true
+  "disable_direct_connections": true,
+  "hostname_suffix": "string"
 }
 ```
 

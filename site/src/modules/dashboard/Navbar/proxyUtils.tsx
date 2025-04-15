@@ -4,7 +4,7 @@ export function sortProxiesByLatency(
 	proxies: Proxies,
 	latencies: ProxyLatencies,
 ) {
-	return proxies.toSorted((a, b) => {
+	return [...proxies].sort((a, b) => {
 		const latencyA = latencies?.[a.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
 		const latencyB = latencies?.[b.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
 		return latencyA - latencyB;

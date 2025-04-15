@@ -902,9 +902,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			},
 		}
 		// TODO: more than 1 allowable?
-		if len(preset.Prebuild) == 1 {
+		if len(preset.Prebuilds) == 1 {
 			protoPreset.Prebuild = &proto.Prebuild{
-				Instances: int32(preset.Prebuild[0].Instances),
+				Instances: int32(preset.Prebuilds[0].Instances),
 			}
 		}
 

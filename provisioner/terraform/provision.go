@@ -291,7 +291,6 @@ func provisionEnv(
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
 		env = append(env, "TF_LOG=JSON")
 	}
-
 	return env, nil
 }
 
