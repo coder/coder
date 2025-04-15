@@ -874,6 +874,13 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args([]uuid.UUID{ma.UserID, mb.UserID}).
 			Asserts(rbac.ResourceUserObject(ma.UserID), policy.ActionRead, rbac.ResourceUserObject(mb.UserID), policy.ActionRead).OutOfOrder()
 	}))
+	s.Run("GetOrganizationMemberRoles", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		check.Args(database.GetOrganizationMemberRolesParams{OrganizationID: o.ID, UserID: u.ID}).
+			Asserts(rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead)
+	}))
 	s.Run("GetOrganizations", s.Subtest(func(db database.Store, check *expects) {
 		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})

@@ -5267,6 +5267,28 @@ func (q *sqlQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uu
 	return items, nil
 }
 
+const getOrganizationMemberRoles = `-- name: GetOrganizationMemberRoles :one
+SELECT
+	roles
+FROM
+	organization_members
+WHERE
+	user_id = $1
+	AND organization_id = $2
+`
+
+type GetOrganizationMemberRolesParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetOrganizationMemberRoles(ctx context.Context, arg GetOrganizationMemberRolesParams) ([]string, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationMemberRoles, arg.UserID, arg.OrganizationID)
+	var roles []string
+	err := row.Scan(pq.Array(&roles))
+	return roles, err
+}
+
 const insertOrganizationMember = `-- name: InsertOrganizationMember :one
 INSERT INTO
 	organization_members (
