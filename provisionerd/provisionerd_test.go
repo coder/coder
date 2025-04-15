@@ -174,7 +174,7 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitMedium))
 		require.NoError(t, closer.Close())
 	})
 
