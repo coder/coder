@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -200,7 +202,7 @@ func TestRequestLogger_HTTPRouteParams(t *testing.T) {
 	// Check that the log contains the expected fields
 	requiredFields := []string{"workspace", "agent"}
 	for _, field := range requiredFields {
-		_, exists := fieldsMap[field]
+		_, exists := fieldsMap["params_"+field]
 		require.True(t, exists, "field %q is missing in log fields", field)
 	}
 }
@@ -223,7 +225,7 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 			params: map[string]string{
 				"workspace": "test-workspace",
 			},
-			expectedFields: []string{"workspace"},
+			expectedFields: []string{"params_workspace"},
 		},
 		{
 			name: "MultipleParams",
@@ -232,7 +234,7 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 				"agent":     "test-agent",
 				"user":      "test-user",
 			},
-			expectedFields: []string{"workspace", "agent", "user"},
+			expectedFields: []string{"params_workspace", "params_agent", "params_user"},
 		},
 		{
 			name: "EmptyValueParam",
@@ -240,7 +242,7 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 				"workspace": "test-workspace",
 				"agent":     "",
 			},
-			expectedFields: []string{"workspace"},
+			expectedFields: []string{"params_workspace"},
 		},
 	}
 
@@ -277,7 +279,7 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 			for _, field := range tt.expectedFields {
 				value, exists := fieldsMap[field]
 				require.True(t, exists, "field %q should be present in log", field)
-				require.Equal(t, tt.params[field], value, "field %q has incorrect value", field)
+				require.Equal(t, tt.params[strings.TrimPrefix(field, "params_")], value, "field %q has incorrect value", field)
 			}
 
 			// Verify no unexpected fields are present
@@ -285,14 +287,7 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 				if field == "took" || field == "status_code" || field == "latency_ms" {
 					continue // Skip standard fields
 				}
-				found := false
-				for _, expected := range tt.expectedFields {
-					if field == expected {
-						found = true
-						break
-					}
-				}
-				require.True(t, found, "unexpected field %q in log", field)
+				require.True(t, slices.Contains(tt.expectedFields, field), "unexpected field %q in log", field)
 			}
 		})
 	}

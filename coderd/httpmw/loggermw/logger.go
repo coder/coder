@@ -145,7 +145,7 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 
 		for k, v := range urlParams.Keys {
 			if urlParams.Values[k] != "" {
-				routeParamsFields = append(routeParamsFields, slog.F(v, urlParams.Values[k]))
+				routeParamsFields = append(routeParamsFields, slog.F("params_"+v, urlParams.Values[k]))
 			}
 		}
 
