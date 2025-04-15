@@ -88,6 +88,10 @@ type Subject struct {
 	// It is not used in any functional way.
 	Email string
 
+	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
+	// It is not used in any functional way, only for logging.
+	Type SubjectType
+
 	ID     string
 	Roles  ExpandableRoles
 	Groups []string
@@ -95,10 +99,6 @@ type Subject struct {
 
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
-
-	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
-	// It is not used in any functional way, only for logging.
-	Type SubjectType
 }
 
 // RegoValueOk is only used for unit testing. There is no easy way
