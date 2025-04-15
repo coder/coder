@@ -111,14 +111,33 @@ func (c *SlogRequestLogger) addAuthContextFields() {
 			slog.F("requestor_name", usr.FriendlyName),
 			slog.F("requestor_email", usr.Email),
 		)
-	} else if len(c.actors) > 0 {
-		for _, v := range c.actors {
+	} else {
+		// If there is no user, we log the requestor name for the first
+		// actor in a defined order.
+		for _, v := range actorLogOrder {
+			subj, ok := c.actors[v]
+			if !ok {
+				continue
+			}
 			c.log = c.log.With(
-				slog.F("requestor_name", v.FriendlyName),
+				slog.F("requestor_name", subj.FriendlyName),
 			)
 			break
 		}
 	}
+}
+
+var actorLogOrder = []rbac.SubjectType{
+	rbac.SubjectTypeAutostart,
+	rbac.SubjectTypeCryptoKeyReader,
+	rbac.SubjectTypeCryptoKeyRotator,
+	rbac.SubjectTypeHangDetector,
+	rbac.SubjectTypeNotifier,
+	rbac.SubjectTypePrebuildsOrchestrator,
+	rbac.SubjectTypeProvisionerd,
+	rbac.SubjectTypeResourceMonitor,
+	rbac.SubjectTypeSystemRestricted,
+	rbac.SubjectTypeSystemReadProvisionerDaemons,
 }
 
 func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
