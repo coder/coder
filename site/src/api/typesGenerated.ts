@@ -447,6 +447,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly orphan?: boolean;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
+	readonly template_version_preset_id?: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -465,6 +466,7 @@ export interface CreateWorkspaceRequest {
 	readonly ttl_ms?: number;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
+	readonly template_version_preset_id?: string;
 }
 
 // From codersdk/deployment.go
@@ -588,6 +590,9 @@ export interface DangerousConfig {
 	readonly allow_path_app_site_owner_access: boolean;
 	readonly allow_all_cors: boolean;
 }
+
+// From codersdk/database.go
+export const DatabaseNotReachable = "database not reachable";
 
 // From healthsdk/healthsdk.go
 export interface DatabaseReport extends BaseReport {
@@ -3234,6 +3239,13 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
+	readonly running: boolean;
+	readonly container?: WorkspaceAgentContainer;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainersResponse {
+	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 }
 
 // From codersdk/workspaceagents.go
@@ -3443,10 +3455,10 @@ export interface WorkspaceAppStatus {
 	readonly agent_id: string;
 	readonly app_id: string;
 	readonly state: WorkspaceAppStatusState;
-	readonly needs_user_attention: boolean;
 	readonly message: string;
 	readonly uri: string;
 	readonly icon: string;
+	readonly needs_user_attention: boolean;
 }
 
 // From codersdk/workspaceapps.go
@@ -3482,6 +3494,7 @@ export interface WorkspaceBuild {
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
+	readonly template_version_preset_id: string | null;
 }
 
 // From codersdk/workspacebuilds.go

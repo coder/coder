@@ -37,10 +37,19 @@ func (a *agent) apiHandler() http.Handler {
 		cacheDuration: cacheDuration,
 	}
 
-	containerAPI := agentcontainers.NewAPI(
-		a.logger.Named("containers"),
+	containerAPIOpts := []agentcontainers.Option{
 		agentcontainers.WithLister(a.lister),
-	)
+	}
+	if a.experimentalDevcontainersEnabled {
+		manifest := a.manifest.Load()
+		if manifest != nil && len(manifest.Devcontainers) > 0 {
+			containerAPIOpts = append(
+				containerAPIOpts,
+				agentcontainers.WithDevcontainers(manifest.Devcontainers),
+			)
+		}
+	}
+	containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
 
