@@ -180,6 +180,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 				<title>{pageTitle(title)}</title>
 			</Helmet>
 			{!currentResponse ||
+			!templateQuery.data ||
 			isLoadingFormData ||
 			isLoadingExternalAuth ||
 			autoCreateReady ? (
@@ -199,7 +200,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 						autoCreateWorkspaceMutation.error
 					}
 					resetMutation={createWorkspaceMutation.reset}
-					template={templateQuery.data ?? ({} as Template)}
+					template={templateQuery.data}
 					versionId={realizedVersionId}
 					externalAuth={externalAuth ?? []}
 					externalAuthPollingState={externalAuthPollingState}
