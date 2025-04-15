@@ -73,7 +73,6 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("selecting roles for user: %w", err)
 				}
-
 			}
 
 			_, err = client.UpdateUserRoles(ctx, user.Username, codersdk.UpdateRoles{

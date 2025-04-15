@@ -23,10 +23,11 @@ func TestUserEditRoles(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
 		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
 
 		inv, root := clitest.New(t, "users", "edit-roles", member.Username, fmt.Sprintf("--roles=%s", strings.Join(roles, ",")))
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 
 		// Create context with timeout
 		ctx := testutil.Context(t, testutil.WaitShort)
