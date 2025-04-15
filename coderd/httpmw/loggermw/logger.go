@@ -136,8 +136,8 @@ var actorLogOrder = []rbac.SubjectType{
 	rbac.SubjectTypePrebuildsOrchestrator,
 	rbac.SubjectTypeProvisionerd,
 	rbac.SubjectTypeResourceMonitor,
-	rbac.SubjectTypeSystemRestricted,
 	rbac.SubjectTypeSystemReadProvisionerDaemons,
+	rbac.SubjectTypeSystemRestricted,
 }
 
 func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
