@@ -92,14 +92,16 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return nil // No sync configured, nothing to do
 	}
 
-	expectedOrgs, err := orgSettings.ParseClaims(ctx, tx, params.MergedClaims)
+	expectedOrgIDs, err := orgSettings.ParseClaims(ctx, tx, params.MergedClaims)
 	if err != nil {
 		return xerrors.Errorf("organization claims: %w", err)
 	}
 
+	// Fetch all organizations, even deleted ones. This is to remove a user
+	// from any deleted organizations they may be in.
 	existingOrgs, err := tx.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
 		UserID:  user.ID,
-		Deleted: false,
+		Deleted: sql.NullBool{},
 	})
 	if err != nil {
 		return xerrors.Errorf("failed to get user organizations: %w", err)
@@ -109,9 +111,22 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return org.ID
 	})
 
+	expectedOrganizations, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{
+		IDs: expectedOrgIDs,
+		// Do not include deleted organizations
+		Deleted: false,
+	})
+	if err != nil {
+		return xerrors.Errorf("failed to get expected organizations: %w", err)
+	}
+
+	finalExpected := db2sdk.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
+		return org.ID
+	})
+
 	// Find the difference in the expected and the existing orgs, and
 	// correct the set of orgs the user is a member of.
-	add, remove := slice.SymmetricDifference(existingOrgIDs, expectedOrgs)
+	add, remove := slice.SymmetricDifference(existingOrgIDs, finalExpected)
 	notExists := make([]uuid.UUID, 0)
 	for _, orgID := range add {
 		_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{

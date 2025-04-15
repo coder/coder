@@ -4172,7 +4172,11 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, arg database.G
 			continue
 		}
 		for _, organization := range q.organizations {
-			if organization.ID != organizationMember.OrganizationID || organization.Deleted != arg.Deleted {
+			if organization.ID != organizationMember.OrganizationID {
+				continue
+			}
+
+			if arg.Deleted.Valid && organization.Deleted != arg.Deleted.Bool {
 				continue
 			}
 			organizations = append(organizations, organization)
