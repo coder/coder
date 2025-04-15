@@ -52,7 +52,7 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	previews := stream.Chan()
 
 	// Should automatically send a form state with all defaulted/empty values
-	preview := testutil.RequireRecvCtx(ctx, t, previews)
+	preview := testutil.RequireReceive(ctx, t, previews)
 	require.Equal(t, -1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
@@ -65,7 +65,7 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 		Inputs: map[string]string{"group": "Bloob"},
 	})
 	require.NoError(t, err)
-	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	preview = testutil.RequireReceive(ctx, t, previews)
 	require.Equal(t, 1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
@@ -78,7 +78,7 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 		Inputs: map[string]string{},
 	})
 	require.NoError(t, err)
-	preview = testutil.RequireRecvCtx(ctx, t, previews)
+	preview = testutil.RequireReceive(ctx, t, previews)
 	require.Equal(t, 3, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
@@ -125,7 +125,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	previews := stream.Chan()
 
 	// Should automatically send a form state with all defaulted/empty values
-	preview := testutil.RequireRecvCtx(ctx, t, previews)
+	preview := testutil.RequireReceive(ctx, t, previews)
 	require.Equal(t, -1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "public_key", preview.Parameters[0].Name)
