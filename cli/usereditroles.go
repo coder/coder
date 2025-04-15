@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -8,12 +9,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) userEditRoles() *serpent.Command {
 	client := new(codersdk.Client)
+
+	roles := rbac.SiteRoles()
+
+	siteRoles := make([]string, 0)
+	for _, role := range roles {
+		siteRoles = append(siteRoles, role.Identifier.Name)
+	}
+	sort.Strings(siteRoles)
 
 	var givenRoles []string
 
@@ -24,7 +34,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			cliui.SkipPromptOption(),
 			{
 				Name:        "roles",
-				Description: "A list of roles to give to the user. This removes any existing roles the user may have.",
+				Description: fmt.Sprintf("A list of roles to give to the user. This removes any existing roles the user may have. The available roles are: %s.", strings.Join(siteRoles, ", ")),
 				Flag:        "roles",
 				Value:       serpent.StringArrayOf(&givenRoles)},
 		},
@@ -37,19 +47,6 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				return xerrors.Errorf("fetch user: %w", err)
 			}
 
-			roles, err := client.ListSiteRoles(ctx)
-			if err != nil {
-				return xerrors.Errorf("fetch site roles: %w", err)
-			}
-
-			siteRoles := make([]string, 0)
-			for _, role := range roles {
-				if role.Assignable {
-					siteRoles = append(siteRoles, role.Name)
-				}
-			}
-			sort.Strings(siteRoles)
-
 			userRoles, err := client.UserRoles(ctx, user.Username)
 			if err != nil {
 				return xerrors.Errorf("fetch user roles: %w", err)
@@ -57,22 +54,15 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 
 			var selectedRoles []string
 			if len(givenRoles) > 0 {
-				// If the none role is present ignore all other roles.
-				// This is so there is a way to clear roles from the CLI without making a
-				// new command.
-				if slices.Contains(givenRoles, "none") {
-					selectedRoles = []string{}
-				} else {
-					// Make sure all of the given roles are valid site roles
-					for _, givenRole := range givenRoles {
-						if !slices.Contains(siteRoles, givenRole) {
-							siteRolesPretty := strings.Join(siteRoles, ", ")
-							return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s, or none\n", givenRole, siteRolesPretty)
-						}
+				// Make sure all of the given roles are valid site roles
+				for _, givenRole := range givenRoles {
+					if !slices.Contains(siteRoles, givenRole) {
+						siteRolesPretty := strings.Join(siteRoles, ", ")
+						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", givenRole, siteRolesPretty)
 					}
-
-					selectedRoles = givenRoles
 				}
+
+				selectedRoles = givenRoles
 			} else {
 				selectedRoles, err = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 					Message:  "Select the roles you'd like to assign to the user",
