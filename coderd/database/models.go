@@ -3579,16 +3579,14 @@ type WorkspaceAppStat struct {
 }
 
 type WorkspaceAppStatus struct {
-	ID                 uuid.UUID               `db:"id" json:"id"`
-	CreatedAt          time.Time               `db:"created_at" json:"created_at"`
-	AgentID            uuid.UUID               `db:"agent_id" json:"agent_id"`
-	AppID              uuid.UUID               `db:"app_id" json:"app_id"`
-	WorkspaceID        uuid.UUID               `db:"workspace_id" json:"workspace_id"`
-	State              WorkspaceAppStatusState `db:"state" json:"state"`
-	NeedsUserAttention bool                    `db:"needs_user_attention" json:"needs_user_attention"`
-	Message            string                  `db:"message" json:"message"`
-	Uri                sql.NullString          `db:"uri" json:"uri"`
-	Icon               sql.NullString          `db:"icon" json:"icon"`
+	ID          uuid.UUID               `db:"id" json:"id"`
+	CreatedAt   time.Time               `db:"created_at" json:"created_at"`
+	AgentID     uuid.UUID               `db:"agent_id" json:"agent_id"`
+	AppID       uuid.UUID               `db:"app_id" json:"app_id"`
+	WorkspaceID uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	State       WorkspaceAppStatusState `db:"state" json:"state"`
+	Message     string                  `db:"message" json:"message"`
+	Uri         sql.NullString          `db:"uri" json:"uri"`
 }
 
 // Joins in the username + avatar url of the initiated by user.

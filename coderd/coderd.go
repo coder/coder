@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
@@ -675,10 +676,11 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	dialer := &InmemTailnetDialer{
-		CoordPtr: &api.TailnetCoordinator,
-		DERPFn:   api.DERPMap,
-		Logger:   options.Logger,
-		ClientID: uuid.New(),
+		CoordPtr:            &api.TailnetCoordinator,
+		DERPFn:              api.DERPMap,
+		Logger:              options.Logger,
+		ClientID:            uuid.New(),
+		DatabaseHealthCheck: api.Database,
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
@@ -810,7 +812,7 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		httpmw.Logger(api.Logger),
+		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,

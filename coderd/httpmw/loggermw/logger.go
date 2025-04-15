@@ -1,13 +1,17 @@
-package httpmw
+package loggermw
 
 import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -62,6 +66,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 type RequestLogger interface {
 	WithFields(fields ...slog.Field)
 	WriteLog(ctx context.Context, status int)
+	WithAuthContext(actor rbac.Subject)
 }
 
 type SlogRequestLogger struct {
@@ -69,6 +74,9 @@ type SlogRequestLogger struct {
 	written bool
 	message string
 	start   time.Time
+	// Protects actors map for concurrent writes.
+	mu     sync.RWMutex
+	actors map[rbac.SubjectType]rbac.Subject
 }
 
 var _ RequestLogger = &SlogRequestLogger{}
@@ -79,11 +87,58 @@ func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestL
 		written: false,
 		message: message,
 		start:   start,
+		actors:  make(map[rbac.SubjectType]rbac.Subject),
 	}
 }
 
 func (c *SlogRequestLogger) WithFields(fields ...slog.Field) {
 	c.log = c.log.With(fields...)
+}
+
+func (c *SlogRequestLogger) WithAuthContext(actor rbac.Subject) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.actors[actor.Type] = actor
+}
+
+func (c *SlogRequestLogger) addAuthContextFields() {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	usr, ok := c.actors[rbac.SubjectTypeUser]
+	if ok {
+		c.log = c.log.With(
+			slog.F("requestor_id", usr.ID),
+			slog.F("requestor_name", usr.FriendlyName),
+			slog.F("requestor_email", usr.Email),
+		)
+	} else {
+		// If there is no user, we log the requestor name for the first
+		// actor in a defined order.
+		for _, v := range actorLogOrder {
+			subj, ok := c.actors[v]
+			if !ok {
+				continue
+			}
+			c.log = c.log.With(
+				slog.F("requestor_name", subj.FriendlyName),
+			)
+			break
+		}
+	}
+}
+
+var actorLogOrder = []rbac.SubjectType{
+	rbac.SubjectTypeAutostart,
+	rbac.SubjectTypeCryptoKeyReader,
+	rbac.SubjectTypeCryptoKeyRotator,
+	rbac.SubjectTypeHangDetector,
+	rbac.SubjectTypeNotifier,
+	rbac.SubjectTypePrebuildsOrchestrator,
+	rbac.SubjectTypeProvisionerd,
+	rbac.SubjectTypeResourceMonitor,
+	rbac.SubjectTypeSystemReadProvisionerDaemons,
+	rbac.SubjectTypeSystemRestricted,
 }
 
 func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
@@ -93,11 +148,32 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 	c.written = true
 	end := time.Now()
 
+	// Right before we write the log, we try to find the user in the actors
+	// and add the fields to the log.
+	c.addAuthContextFields()
+
 	logger := c.log.With(
 		slog.F("took", end.Sub(c.start)),
 		slog.F("status_code", status),
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
+
+	// If the request is routed, add the route parameters to the log.
+	if chiCtx := chi.RouteContext(ctx); chiCtx != nil {
+		urlParams := chiCtx.URLParams
+		routeParamsFields := make([]slog.Field, 0, len(urlParams.Keys))
+
+		for k, v := range urlParams.Keys {
+			if urlParams.Values[k] != "" {
+				routeParamsFields = append(routeParamsFields, slog.F("params_"+v, urlParams.Values[k]))
+			}
+		}
+
+		if len(routeParamsFields) > 0 {
+			logger = logger.With(routeParamsFields...)
+		}
+	}
+
 	// We already capture most of this information in the span (minus
 	// the response body which we don't want to capture anyways).
 	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
