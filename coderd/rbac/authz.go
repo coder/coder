@@ -58,6 +58,23 @@ func hashAuthorizeCall(actor Subject, action policy.Action, object Object) [32]b
 	return hashOut
 }
 
+// SubjectType represents the type of subject in the RBAC system.
+type SubjectType string
+
+const (
+	SubjectTypeUser                         SubjectType = "user"
+	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
+	SubjectTypeAutostart                    SubjectType = "autostart"
+	SubjectTypeHangDetector                 SubjectType = "hang_detector"
+	SubjectTypeResourceMonitor              SubjectType = "resource_monitor"
+	SubjectTypeCryptoKeyRotator             SubjectType = "crypto_key_rotator"
+	SubjectTypeCryptoKeyReader              SubjectType = "crypto_key_reader"
+	SubjectTypePrebuildsOrchestrator        SubjectType = "prebuilds_orchestrator"
+	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
+	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
+	SubjectTypeNotifier                     SubjectType = "notifier"
+)
+
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
@@ -66,6 +83,14 @@ type Subject struct {
 	// It is usually the "username" of the user, but it can be the name of the
 	// external workspace proxy or other service type actor.
 	FriendlyName string
+
+	// Email is entirely optional and is used for logging and debugging
+	// It is not used in any functional way.
+	Email string
+
+	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
+	// It is not used in any functional way, only for logging.
+	Type SubjectType
 
 	ID     string
 	Roles  ExpandableRoles

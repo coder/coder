@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -378,7 +379,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	})
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	err = server.Serve(ctx, session)
 	srvCancel()
