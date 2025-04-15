@@ -3448,10 +3448,10 @@ export interface WorkspaceAppStatus {
 	readonly agent_id: string;
 	readonly app_id: string;
 	readonly state: WorkspaceAppStatusState;
-	readonly needs_user_attention: boolean;
 	readonly message: string;
 	readonly uri: string;
 	readonly icon: string;
+	readonly needs_user_attention: boolean;
 }
 
 // From codersdk/workspaceapps.go

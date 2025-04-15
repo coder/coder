@@ -366,11 +366,6 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 			String: req.URI,
 			Valid:  req.URI != "",
 		},
-		Icon: sql.NullString{
-			String: req.Icon,
-			Valid:  req.Icon != "",
-		},
-		NeedsUserAttention: req.NeedsUserAttention,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
