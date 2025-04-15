@@ -85,7 +85,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/src
 
 # alpine:3.18
-FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto 
+FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
@@ -185,6 +185,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	sudo \
 	tcptraceroute \
 	termshark \
+	tmux \
 	traceroute \
 	unzip \
 	vim \
@@ -198,9 +199,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.3.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.4.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.3/terraform_1.11.3_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.4/terraform_1.11.4_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \

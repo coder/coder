@@ -366,8 +366,10 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			AppSlug: "vscode",
 			Message: "testing",
 			URI:     "https://example.com",
-			Icon:    "https://example.com/icon.png",
 			State:   codersdk.WorkspaceAppStatusStateComplete,
+			// Ensure deprecated fields are ignored.
+			Icon:               "https://example.com/icon.png",
+			NeedsUserAttention: true,
 		})
 		require.NoError(t, err)
 
@@ -376,6 +378,9 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		require.Len(t, agent.Apps[0].Statuses, 1)
+		// Deprecated fields should be ignored.
+		require.Empty(t, agent.Apps[0].Statuses[0].Icon)
+		require.False(t, agent.Apps[0].Statuses[0].NeedsUserAttention)
 	})
 }
 
@@ -2559,4 +2564,35 @@ func requireEqualOrBothNil[T any](t testing.TB, a, b *T) {
 		return
 	}
 	require.Equal(t, a, b)
+}
+
+func TestAgentConnectionInfo(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.WorkspaceHostnameSuffix = "yallah"
+	dv.DERP.Config.BlockDirect = true
+	dv.DERP.Config.ForceWebSockets = true
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	info, err := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "yallah", info.HostnameSuffix)
+	require.True(t, info.DisableDirectConnections)
+	require.True(t, info.DERPForceWebSockets)
+
+	ws, err := client.Workspace(ctx, r.Workspace.ID)
+	require.NoError(t, err)
+	agnt := ws.LatestBuild.Resources[0].Agents[0]
+	info, err = workspacesdk.New(client).AgentConnectionInfo(ctx, agnt.ID)
+	require.NoError(t, err)
+	require.Equal(t, "yallah", info.HostnameSuffix)
+	require.True(t, info.DisableDirectConnections)
+	require.True(t, info.DERPForceWebSockets)
 }

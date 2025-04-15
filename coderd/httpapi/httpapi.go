@@ -20,6 +20,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -198,6 +199,20 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	if rec, ok := rbac.GetAuthzCheckRecorder(ctx); ok {
+		// If you're here because you saw this header in a response, and you're
+		// trying to investigate the code, here are a couple of notable things
+		// for you to know:
+		// - If any of the checks are `false`, they might not represent the whole
+		//   picture. There could be additional checks that weren't performed,
+		//   because processing stopped after the failure.
+		// - The checks are recorded by the `authzRecorder` type, which is
+		//   configured on server startup for development and testing builds.
+		// - If this header is missing from a response, make sure the response is
+		//   being written by calling `httpapi.Write`!
+		rw.Header().Set("x-authz-checks", rec.String())
+	}
+
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
 
@@ -212,6 +227,10 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	if rec, ok := rbac.GetAuthzCheckRecorder(ctx); ok {
+		rw.Header().Set("x-authz-checks", rec.String())
+	}
 
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)

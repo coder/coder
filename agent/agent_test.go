@@ -68,6 +68,54 @@ func TestMain(m *testing.M) {
 
 var sshPorts = []uint16{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort}
 
+// TestAgent_CloseWhileStarting is a regression test for https://github.com/coder/coder/issues/17328
+func TestAgent_ImmediateClose(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	logger := slogtest.Make(t, &slogtest.Options{
+		// Agent can drop errors when shutting down, and some, like the
+		// fasthttplistener connection closed error, are unexported.
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	fs := afero.NewMemMapFs()
+	client := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(client.Close)
+
+	options := agent.Options{
+		Client:                 client,
+		Filesystem:             fs,
+		Logger:                 logger.Named("agent"),
+		ReconnectingPTYTimeout: 0,
+		EnvironmentVariables:   map[string]string{},
+	}
+
+	agentUnderTest := agent.New(options)
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// wait until the agent has connected and is starting to find races in the startup code
+	_ = testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+	t.Log("Closing Agent")
+	err := agentUnderTest.Close()
+	require.NoError(t, err)
+}
+
 // NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {
@@ -1602,8 +1650,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		expected := "this-is-shutdown"
 		derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+		statsCh := make(chan *proto.Stats, 50)
 
 		client := agenttest.NewClient(t,
 			logger,
@@ -1622,7 +1672,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 					RunOnStop: true,
 				}},
 			},
-			make(chan *proto.Stats, 50),
+			statsCh,
 			tailnet.NewCoordinator(logger),
 		)
 		defer client.Close()
@@ -1646,6 +1696,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 			}
 			return len(content) > 0 // something is in the startup log file
 		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		// In order to avoid shutting down the agent before it is fully started and triggering
+		// errors, we'll wait until the agent is fully up. It's a bit hokey, but among the last things the agent starts
+		// is the stats reporting, so getting a stats report is a good indication the agent is fully up.
+		_ = testutil.RequireRecvCtx(ctx, t, statsCh)
 
 		err := agent.Close()
 		require.NoError(t, err, "agent should be closed successfully")

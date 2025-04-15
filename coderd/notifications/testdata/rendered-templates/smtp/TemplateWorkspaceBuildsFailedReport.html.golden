@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Workspace builds failed for template "Bobby First Template"
+Subject: Failed workspace builds report
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,29 +12,51 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-Template Bobby First Template has failed to build 4/55 times over the last =
-week.
+The following templates have had build failures over the last week:
+
+Bobby First Template failed to build 4/55 times
+Bobby Second Template failed to build 5/50 times
 
 Report:
 
+Bobby First Template
+
 bobby-template-version-1 failed 3 times:
-
-mtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/builds/12=
-34)
-johndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace-3/b=
-uilds/5678)
-jack / workwork / #774 (http://test.com/@jack/workwork/builds/774)
-
+    mtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/build=
+s/1234)
+    johndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace=
+-3/builds/5678)
+    jack / workwork / #774 (http://test.com/@jack/workwork/builds/774)
 bobby-template-version-2 failed 1 time:
+    ben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/build=
+s/8888)
 
-ben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/builds/88=
-88)
+
+Bobby Second Template
+
+bobby-template-version-1 failed 3 times:
+    daniellemaywood / workspace-9 / #9234 (http://test.com/@daniellemaywood=
+/workspace-9/builds/9234)
+    johndoe / my-workspace-7 / #8678 (http://test.com/@johndoe/my-workspace=
+-7/builds/8678)
+    jack / workworkwork / #374 (http://test.com/@jack/workworkwork/builds/3=
+74)
+bobby-template-version-2 failed 2 times:
+    ben / more-cool-workspace / #8878 (http://test.com/@ben/more-cool-works=
+pace/builds/8878)
+    ben / less-cool-workspace / #8848 (http://test.com/@ben/less-cool-works=
+pace/builds/8848)
+
 
 We recommend reviewing these issues to ensure future builds are successful.
 
 
-View workspaces: http://test.com/workspaces?filter=3Dtemplate%3Abobby-first=
--template
+View workspaces: http://test.com/workspaces?filter=3Did%3A24f5bd8f-1566-437=
+4-9734-c3efa0454dc7+id%3A372a194b-dcde-43f1-b7cf-8a2f3d3114a0+id%3A1386d294=
+-19c1-4351-89e2-6cae1afb9bfe+id%3A86fd99b1-1b6e-4b7e-b58e-0aee6e35c159+id%3=
+Acd469690-b6eb-4123-b759-980be7a7b278+id%3Ac447d472-0800-4529-a836-788754d5=
+e27d+id%3A919db6df-48f0-4dc1-b357-9036a2c40f86+id%3Ac8fb0652-9290-4bf2-a711=
+-71b910243ac2+id%3A703d718d-2234-4990-9a02-5b1df6cf462a
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -46,8 +68,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Workspace builds failed for template "Bobby First Template"</tit=
-le>
+    <title>Failed workspace builds report</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -62,35 +83,73 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Workspace builds failed for template "Bobby First Template"
+        Failed workspace builds report
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>Template <strong>Bobby First Template</strong> has failed to bui=
-ld <sup>4</sup>&frasl;<sub>55</sub> times over the last week.</p>
+        <p>The following templates have had build failures over the last we=
+ek:</p>
+
+<ul>
+<li><p><strong>Bobby First Template</strong> failed to build <sup>4</sup>&f=
+rasl;<sub>55</sub> times</p></li>
+
+<li><p><strong>Bobby Second Template</strong> failed to build <sup>5</sup>&=
+frasl;<sub>50</sub> times</p></li>
+</ul>
 
 <p><strong>Report:</strong></p>
 
-<p><strong>bobby-template-version-1</strong> failed 3 times:</p>
+<p><strong>Bobby First Template</strong></p>
 
 <ul>
-<li><a href=3D"http://test.com/@mtojek/workspace-1/builds/1234">mtojek / wo=
-rkspace-1 / #1234</a><br>
-</li>
-<li><a href=3D"http://test.com/@johndoe/my-workspace-3/builds/5678">johndoe=
- / my-workspace-3 / #5678</a><br>
-</li>
-<li><a href=3D"http://test.com/@jack/workwork/builds/774">jack / workwork /=
- #774</a><br>
-</li>
-</ul>
+<li><p><strong>bobby-template-version-1</strong> failed 3 times:</p>
 
-<p><strong>bobby-template-version-2</strong> failed 1 time:</p>
+<ul>
+<li><p><a href=3D"http://test.com/@mtojek/workspace-1/builds/1234">mtojek /=
+ workspace-1 / #1234</a></p></li>
+
+<li><p><a href=3D"http://test.com/@johndoe/my-workspace-3/builds/5678">john=
+doe / my-workspace-3 / #5678</a></p></li>
+
+<li><p><a href=3D"http://test.com/@jack/workwork/builds/774">jack / workwor=
+k / #774</a></p></li>
+</ul></li>
+
+<li><p><strong>bobby-template-version-2</strong> failed 1 time:</p>
 
 <ul>
 <li><a href=3D"http://test.com/@ben/cool-workspace/builds/8888">ben / cool-=
 workspace / #8888</a><br>
 </li>
+</ul></li>
+</ul>
+
+<p><strong>Bobby Second Template</strong></p>
+
+<ul>
+<li><p><strong>bobby-template-version-1</strong> failed 3 times:</p>
+
+<ul>
+<li><p><a href=3D"http://test.com/@daniellemaywood/workspace-9/builds/9234"=
+>daniellemaywood / workspace-9 / #9234</a></p></li>
+
+<li><p><a href=3D"http://test.com/@johndoe/my-workspace-7/builds/8678">john=
+doe / my-workspace-7 / #8678</a></p></li>
+
+<li><p><a href=3D"http://test.com/@jack/workworkwork/builds/374">jack / wor=
+kworkwork / #374</a></p></li>
+</ul></li>
+
+<li><p><strong>bobby-template-version-2</strong> failed 2 times:</p>
+
+<ul>
+<li><p><a href=3D"http://test.com/@ben/more-cool-workspace/builds/8878">ben=
+ / more-cool-workspace / #8878</a></p></li>
+
+<li><p><a href=3D"http://test.com/@ben/less-cool-workspace/builds/8848">ben=
+ / less-cool-workspace / #8848</a></p></li>
+</ul></li>
 </ul>
 
 <p>We recommend reviewing these issues to ensure future builds are successf=
@@ -98,10 +157,14 @@ ul.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/workspaces?filter=3Dtemplate%3Abobby-fir=
-st-template" style=3D"display: inline-block; padding: 13px 24px; background=
--color: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px;=
- margin: 0 4px;">
+        <a href=3D"http://test.com/workspaces?filter=3Did%3A24f5bd8f-1566-4=
+374-9734-c3efa0454dc7+id%3A372a194b-dcde-43f1-b7cf-8a2f3d3114a0+id%3A1386d2=
+94-19c1-4351-89e2-6cae1afb9bfe+id%3A86fd99b1-1b6e-4b7e-b58e-0aee6e35c159+id=
+%3Acd469690-b6eb-4123-b759-980be7a7b278+id%3Ac447d472-0800-4529-a836-788754=
+d5e27d+id%3A919db6df-48f0-4dc1-b357-9036a2c40f86+id%3Ac8fb0652-9290-4bf2-a7=
+11-71b910243ac2+id%3A703d718d-2234-4990-9a02-5b1df6cf462a" style=3D"display=
+: inline-block; padding: 13px 24px; background-color: #020617; color: #f8fa=
+fc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
           View workspaces
         </a>
        =20

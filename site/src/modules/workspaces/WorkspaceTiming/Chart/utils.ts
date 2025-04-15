@@ -13,9 +13,9 @@ export const mergeTimeRanges = (ranges: TimeRange[]): TimeRange => {
 		.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
 	const start = sortedDurations[0].startedAt;
 
-	const sortedEndDurations = ranges
-		.slice()
-		.sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime());
+	const sortedEndDurations = [...ranges].sort(
+		(a, b) => a.endedAt.getTime() - b.endedAt.getTime(),
+	);
 	const end = sortedEndDurations[sortedEndDurations.length - 1].endedAt;
 	return { startedAt: start, endedAt: end };
 };

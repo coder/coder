@@ -299,27 +299,6 @@ export const Deprecated: Story = {
 	},
 };
 
-export const WithXRayScan: Story = {
-	parameters: {
-		queries: [
-			{
-				key: [
-					"xray",
-					{ agentId: M.MockWorkspaceAgent.id, workspaceId: M.MockWorkspace.id },
-				],
-				data: {
-					workspace_id: M.MockWorkspace.id,
-					agent_id: M.MockWorkspaceAgent.id,
-					critical: 10,
-					high: 3,
-					medium: 5,
-					results_url: "http://localhost:8080",
-				},
-			},
-		],
-	},
-};
-
 export const HideApp: Story = {
 	args: {
 		agent: {
