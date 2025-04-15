@@ -51,6 +51,8 @@ func TestSyncOrganizations(t *testing.T) {
 	// This test creates some deleted organizations and checks the behavior is
 	// correct.
 	t.Run("SyncUserToDeletedOrg", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{})
@@ -107,5 +109,43 @@ func TestSyncOrganizations(t *testing.T) {
 			return org.ID
 		})
 		require.ElementsMatch(t, []uuid.UUID{stays.Org.ID, joins.Org.ID}, inIDs)
+	})
+
+	t.Run("UserToZeroOrgs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+
+		deletedLeaves := dbfake.Organization(t, db).Members(user).Deleted(true).Do()
+
+		// Now sync the user to the deleted organization
+		s := idpsync.NewAGPLSync(
+			slogtest.Make(t, &slogtest.Options{}),
+			runtimeconfig.NewManager(),
+			idpsync.DeploymentSyncSettings{
+				OrganizationField: "orgs",
+				OrganizationMapping: map[string][]uuid.UUID{
+					"leave": {deletedLeaves.Org.ID},
+				},
+				OrganizationAssignDefault: false,
+			},
+		)
+
+		err := s.SyncOrganizations(ctx, db, user, idpsync.OrganizationParams{
+			SyncEntitled: true,
+			MergedClaims: map[string]interface{}{
+				"orgs": []string{},
+			},
+		})
+		require.NoError(t, err)
+
+		orgs, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+			UserID:  user.ID,
+			Deleted: sql.NullBool{},
+		})
+		require.NoError(t, err)
+		require.Len(t, orgs, 0)
 	})
 }
