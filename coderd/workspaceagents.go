@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -463,7 +464,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	defer t.Stop()
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	go func() {
 		defer func() {
@@ -746,7 +747,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	defer encoder.Close(websocket.StatusGoingAway)
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	go func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
@@ -1112,7 +1113,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	defer sendTicker.Stop()
 
 	// Log the request immediately instead of after it completes.
-	httpmw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	// Send initial metadata.
 	sendMetadata()

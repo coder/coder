@@ -564,7 +564,7 @@ GEN_FILES := \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go \
-	coderd/httpmw/loggermock/loggermock.go
+	coderd/httpmw/loggermw/loggermock/loggermock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db $(GEN_FILES)
@@ -598,7 +598,7 @@ gen/mark-fresh:
 		examples/examples.gen.json \
 		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
-		coderd/httpmw/loggermock/loggermock.go \
+		coderd/httpmw/loggermw/loggermock/loggermock.go \
 		"
 
 	for file in $$files; do
@@ -630,9 +630,8 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
 
-coderd/httpmw/loggermock/loggermock.go: coderd/httpmw/logger.go
-	go generate ./coderd/httpmw/loggermock/
-	touch "$@"
+coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.go
+	go generate ./coderd/httpmw/loggermw/loggermock/
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/
