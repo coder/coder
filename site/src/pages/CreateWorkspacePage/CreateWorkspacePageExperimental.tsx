@@ -7,6 +7,7 @@ import {
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
+	DynamicParametersRequest,
 	DynamicParametersResponse,
 	Template,
 	Workspace,
@@ -31,16 +32,11 @@ import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import { useWebSocket } from "hooks/useWebsocket";
 import {
 	type CreateWorkspacePermissions,
 	createWorkspaceChecks,
 } from "./permissions";
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
-
-const serverAddress = "localhost:8100";
-const urlTestdata = "demo";
-const wsUrl = `ws://${serverAddress}/ws/${encodeURIComponent(urlTestdata)}`;
 
 const CreateWorkspacePageExperimental: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -52,19 +48,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const [currentResponse, setCurrentResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const [wsResponseId, setWSResponseId] = useState<number>(0);
-	const { message: webSocketResponse, sendMessage } =
-		useWebSocket<DynamicParametersResponse>(wsUrl, urlTestdata, "", "");
-
-	useEffect(() => {
-		if (webSocketResponse && webSocketResponse.id >= wsResponseId) {
-			setCurrentResponse((prev) => {
-				if (prev?.id === webSocketResponse.id) {
-					return prev;
-				}
-				return webSocketResponse;
-			});
-		}
-	}, [webSocketResponse, wsResponseId]);
+	const sendMessage = (message: DynamicParametersRequest) => {};
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
