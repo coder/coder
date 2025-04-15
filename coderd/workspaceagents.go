@@ -366,11 +366,6 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 			String: req.URI,
 			Valid:  req.URI != "",
 		},
-		Icon: sql.NullString{
-			String: req.Icon,
-			Valid:  req.Icon != "",
-		},
-		NeedsUserAttention: req.NeedsUserAttention,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -996,6 +991,16 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 // @Router /workspaceagents/{workspaceagent}/coordinate [get]
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Ensure the database is reachable before proceeding.
+	_, err := api.Database.Ping(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: codersdk.DatabaseNotReachable,
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	// This route accepts user API key auth and workspace proxy auth. The moon actor has
 	// full permissions so should be able to pass this authz check.
