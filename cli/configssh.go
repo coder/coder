@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"io"
 	"io/fs"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/cli/safeexec"
+	"github.com/coder/serpent"
 	"github.com/natefinch/atomic"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
@@ -25,7 +25,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
