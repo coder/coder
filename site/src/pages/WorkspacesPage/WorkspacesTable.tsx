@@ -99,7 +99,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead className={hasAppStatus ? "w-[30%]" : "w-[40%]"}>
+					<TableHead className={hasAppStatus ? "w-1/6" : "w-2/6"}>
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
 								<Checkbox
@@ -123,14 +123,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							Name
 						</div>
 					</TableHead>
-					{hasAppStatus && <TableHead className="w-[30%]">Activity</TableHead>}
-					<TableHead className="w-[25%]">Template</TableHead>
-					<TableHead className="w-[20%]">Last used</TableHead>
-					<TableHead className="w-[15%]">Status</TableHead>
-					<TableHead className="w-[1%]" />
+					{hasAppStatus && <TableHead className="w-2/6">Activity</TableHead>}
+					<TableHead className="w-2/6">Template</TableHead>
+					<TableHead className="w-1/6">Last used</TableHead>
+					<TableHead className="w-1/6">Status</TableHead>
+					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
-			<TableBody>
+			<TableBody className="[&_td]:h-[72px]">
 				{!workspaces && <TableLoader canCheckWorkspaces={canCheckWorkspaces} />}
 				{workspaces && workspaces.length === 0 && (
 					<TableRow>
@@ -230,8 +230,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								<AvatarData
 									title={getDisplayWorkspaceTemplateName(workspace)}
 									subtitle={
-										dashboard.showOrganizations &&
-										(activeOrg?.display_name || workspace.organization_name)
+										dashboard.showOrganizations && (
+											<>
+												<span className="sr-only">Organization:</span>{" "}
+												{activeOrg?.display_name || workspace.organization_name}
+											</>
+										)
 									}
 									avatar={
 										<Avatar
@@ -332,23 +336,23 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
-				<TableCell className="w-2/5">
+				<TableCell className="w-2/6">
 					<div className="flex items-center gap-2">
 						{canCheckWorkspaces && <Checkbox size="small" disabled />}
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
+				<TableCell className="w-2/6">
+					<AvatarDataSkeleton />
 				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
+				<TableCell className="w-1/6">
+					<Skeleton variant="text" width="75%" />
 				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
+				<TableCell className="w-1/6">
+					<Skeleton variant="text" width="75%" />
 				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
+				<TableCell className="w-0">
+					<Skeleton variant="text" width="75%" />
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>
