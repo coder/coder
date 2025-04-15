@@ -74,6 +74,7 @@ type SlogRequestLogger struct {
 	written bool
 	message string
 	start   time.Time
+	// Protects actors map for concurrent writes.
 	mu      sync.RWMutex
 	actors  map[rbac.SubjectType]rbac.Subject
 }
