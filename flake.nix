@@ -130,7 +130,7 @@
             gnused
             gnugrep
             gnutar
-            go_1_24
+            unstablePkgs.go_1_24
             go-migrate
             (pinnedPkgs.golangci-lint)
             gopls
