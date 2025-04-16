@@ -1,9 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type {
-	DynamicParametersRequest,
-	PreviewDiagnostics,
-	PreviewParameter,
-} from "api/typesGenerated";
+import type { PreviewDiagnostics, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -19,7 +15,7 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { useDebouncedFunction } from "hooks/debounce";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -413,6 +409,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									parameters cannot be modified once the workspace is created.
 								</p>
 							</hgroup>
+							<Diagnostics diagnostics={diagnostics} />
 							{presets.length > 0 && (
 								<Stack direction="column" spacing={2}>
 									<div className="flex flex-col gap-2">
@@ -500,5 +497,46 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</form>
 			</div>
 		</>
+	);
+};
+
+interface DiagnosticsProps {
+	diagnostics: PreviewParameter["diagnostics"];
+}
+
+export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
+	return (
+		<div className="flex flex-col gap-4">
+			{diagnostics.map((diagnostic, index) => (
+				<div
+					key={`diagnostic-${diagnostic.summary}-${index}`}
+					className={`text-xs flex flex-col rounded-md border px-4 pb-3 border-solid
+                        ${
+													diagnostic.severity === "error"
+														? " text-content-destructive border-border-destructive"
+														: " text-content-warning border-border-warning"
+												}`}
+				>
+					<div className="flex items-center m-0">
+						{diagnostic.severity === "error" && (
+							<CircleAlert
+								className="me-2 -mt-0.5 inline-flex opacity-80"
+								size={16}
+								aria-hidden="true"
+							/>
+						)}
+						{diagnostic.severity === "warning" && (
+							<TriangleAlert
+								className="me-2 -mt-0.5 inline-flex opacity-80"
+								size={16}
+								aria-hidden="true"
+							/>
+						)}
+						<p className="font-medium">{diagnostic.summary}</p>
+					</div>
+					{diagnostic.detail && <p className="m-0 pb-0">{diagnostic.detail}</p>}
+				</div>
+			))}
+		</div>
 	);
 };
