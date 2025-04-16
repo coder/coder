@@ -157,7 +157,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	disabled,
 	id,
 }) => {
-	const value = validValue(parameter.value)
+	const value = validValue(parameter.value);
 	const defaultValue = validValue(parameter.default_value);
 
 	switch (parameter.form_type) {
@@ -375,7 +375,7 @@ export const getInitialParameterValues = (
 		if (parameter.ephemeral) {
 			return {
 				name: parameter.name,
-				value: validValue(parameter.default_value)
+				value: validValue(parameter.default_value),
 			};
 		}
 
@@ -390,16 +390,14 @@ export const getInitialParameterValues = (
 				isValidParameterOption(parameter, autofillParam) &&
 				autofillParam.value
 					? autofillParam.value
-					: validValue(parameter.default_value)
+					: validValue(parameter.default_value),
 		};
 	});
 };
 
-const validValue = (
-	value: NullHCLString
-) => {
+const validValue = (value: NullHCLString) => {
 	return value.valid ? value.value : "";
-}
+};
 
 const isValidParameterOption = (
 	previewParam: PreviewParameter,
