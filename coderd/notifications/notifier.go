@@ -139,7 +139,7 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		}
 	}()
 
-	// run the ticker with the graceful context, so we stop fetching after stop() is called
+	// Periodically trigger the processing loop.
 	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
 		c := make(chan struct{})
 		loopTick <- c
@@ -148,6 +148,27 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		<-c
 		return nil
 	}, "notifier", "fetchInterval")
+
+	// Also signal the processing loop when a notification is enqueued.
+	if stopListen, err := n.ps.Subscribe(EventNotificationEnqueued, func(ctx context.Context, _ []byte) {
+		c := make(chan struct{})
+		select {
+		case <-ctx.Done():
+			return
+		// This is a no-op if the notifier is paused.
+		case loopTick <- c:
+		default:
+			// If the loop is busy, don't send a notification.
+			n.log.Debug(ctx, "notifier busy, skipping notification")
+			return
+		}
+	}); err != nil {
+		// Intentionally not making this a fatal error. The notifier will still run,
+		// albeit without notification events.
+		n.log.Error(n.outerCtx, "failed to subscribe to notification events", slog.Error(err))
+	} else {
+		defer stopListen()
+	}
 
 	// Note the order of operations here.
 	_ = tick.Wait() // will block until gracefulCtx is done
