@@ -1908,7 +1908,9 @@ Expire-Date: 0
 	tpty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
 	listKeysOutput := tpty.ExpectMatch("gpg--listkeys-command-done")
 	require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
-	require.Contains(t, listKeysOutput, "[ultimate] Dean Sheather (work key) <dean@coder.com>")
+	// It's fine that this key is expired. We're just testing that the key trust
+	// gets synced properly.
+	require.Contains(t, listKeysOutput, "[ expired] Dean Sheather (work key) <dean@coder.com>")
 
 	// Try to sign something. This demonstrates that the forwarding is
 	// working as expected, since the workspace doesn't have access to the
