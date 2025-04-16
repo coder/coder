@@ -110,7 +110,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		};
 	}, [realizedVersionId, onMessage]);
 
-	const sendMessage = (formValues: Record<string, string>) => {
+	const sendMessage = useCallback((formValues: Record<string, string>) => {
 		setWSResponseId((prevId) => {
 			const request: DynamicParametersRequest = {
 				id: prevId + 1,
@@ -122,7 +122,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 			}
 			return prevId;
 		});
-	};
+	}, []);
 
 	const organizationId = templateQuery.data?.organization_id;
 
