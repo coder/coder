@@ -58,13 +58,13 @@ func TestSyncOrganizations(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 
 		// Create orgs for:
-		//  - stays = User is a member, and stays
+		//  - stays  = User is a member, and stays
 		//  - leaves = User is a member, and leaves
 		//  - joins  = User is not a member, and joins
 		// For deleted orgs, the user **should not** be a member of afterwards.
-		//  - deletedStays = User is a member of deleted org, and wants to stay
+		//  - deletedStays  = User is a member of deleted org, and wants to stay
 		//  - deletedLeaves = User is a member of deleted org, and wants to leave
-		//  - deletedJoins = User is not a member of deleted org, and wants to join
+		//  - deletedJoins  = User is not a member of deleted org, and wants to join
 		stays := dbfake.Organization(t, db).Members(user).Do()
 		leaves := dbfake.Organization(t, db).Members(user).Do()
 		joins := dbfake.Organization(t, db).Do()
