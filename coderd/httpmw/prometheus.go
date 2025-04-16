@@ -3,6 +3,7 @@ package httpmw
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -61,7 +62,6 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 			var (
 				start  = time.Now()
 				method = r.Method
-				// rctx   = chi.RouteContext(r.Context())
 			)
 
 			sw, ok := w.(*tracing.StatusWriter)
@@ -69,12 +69,12 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 				panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 			}
 
-			path := getRoutePattern(r)
-
 			var (
 				dist     *prometheus.HistogramVec
 				distOpts []string
+				path     = getRoutePattern(r)
 			)
+
 			// We want to count WebSockets separately.
 			if httpapi.IsWebsocketUpgrade(r) {
 				websocketsConcurrent.WithLabelValues(path).Inc()
@@ -119,9 +119,12 @@ func getRoutePattern(r *http.Request) string {
 	tctx := chi.NewRouteContext()
 	routes := rctx.Routes
 	if routes != nil && routes.Match(tctx, r.Method, routePath) {
-		// No matching pattern, so just return an empty string.
-		// It is done to avoid returning a static path for frontend requests.
-		return ""
+		// No matching pattern. /api/* requests will be matched as "UNKNOWN"
+		// All other ones will be matched as "STATIC".
+		if strings.HasPrefix(routePath, "/api/") {
+			return "UNKNOWN"
+		}
+		return "STATIC"
 	}
 
 	// tctx has the updated pattern, since Match mutates it
