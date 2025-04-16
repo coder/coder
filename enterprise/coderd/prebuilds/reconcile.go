@@ -264,11 +264,13 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	levelFn := logger.Debug
-	switch actions.ActionType {
-	case prebuilds.ActionTypeBackoff:
+	switch {
+	case actions.ActionType == prebuilds.ActionTypeBackoff:
 		levelFn = logger.Warn
-	case prebuilds.ActionTypeCreate, prebuilds.ActionTypeDelete:
-		// Log at info level when there's a change to be effected.
+	// Log at info level when there's a change to be effected.
+	case actions.ActionType == prebuilds.ActionTypeCreate && actions.Create > 0:
+		levelFn = logger.Info
+	case actions.ActionType == prebuilds.ActionTypeDelete && len(actions.DeleteIDs) > 0:
 		levelFn = logger.Info
 	}
 
