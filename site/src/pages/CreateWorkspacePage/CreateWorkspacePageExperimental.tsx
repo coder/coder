@@ -103,7 +103,10 @@ const CreateWorkspacePageExperimental: FC = () => {
 		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
 			onMessage,
 			onError: (error) => {
-				console.error("Failed to parse dynamic parameters webSocket message:", error);
+				console.error(
+					"Failed to parse dynamic parameters webSocket message:",
+					error,
+				);
 			},
 		});
 
@@ -139,8 +142,10 @@ const CreateWorkspacePageExperimental: FC = () => {
 		isLoadingExternalAuth,
 	} = useExternalAuth(realizedVersionId);
 
-	const isLoadingFormData = ws.current?.readyState !== WebSocket.OPEN ||
-		templateQuery.isLoading || permissionsQuery.isLoading;
+	const isLoadingFormData =
+		ws.current?.readyState !== WebSocket.OPEN ||
+		templateQuery.isLoading ||
+		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isLoading
