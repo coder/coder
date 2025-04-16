@@ -44,7 +44,7 @@ func TestExecuteBasic(t *testing.T) {
 	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
-	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
+	log := testutil.TryReceive(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)
 }
 
@@ -136,7 +136,7 @@ func TestScriptReportsTiming(t *testing.T) {
 	require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteAllScripts))
 	runner.Close()
 
-	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
+	log := testutil.TryReceive(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)
 
 	timings := aAPI.GetTimings()
