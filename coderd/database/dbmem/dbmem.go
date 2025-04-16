@@ -3283,6 +3283,7 @@ func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, 
 		}
 
 		workspaceBuildStats = append(workspaceBuildStats, database.GetFailedWorkspaceBuildsByTemplateIDRow{
+			WorkspaceID:            w.ID,
 			WorkspaceName:          w.Name,
 			WorkspaceOwnerUsername: workspaceOwner.Username,
 			TemplateVersionName:    templateVersion.Name,

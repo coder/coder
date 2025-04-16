@@ -20,12 +20,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/retry"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/retry"
 )
 
 // Dialer represents the function to create a daemon client connection.
@@ -290,7 +291,7 @@ func (p *Server) acquireLoop() {
 	defer p.wg.Done()
 	defer func() { close(p.acquireDoneCh) }()
 	ctx := p.closeContext
-	for {
+	for retrier := retry.New(10*time.Millisecond, 1*time.Second); retrier.Wait(ctx); {
 		if p.acquireExit() {
 			return
 		}
@@ -299,7 +300,17 @@ func (p *Server) acquireLoop() {
 			p.opts.Logger.Debug(ctx, "shut down before client (re) connected")
 			return
 		}
-		p.acquireAndRunOne(client)
+		err := p.acquireAndRunOne(client)
+		if err != nil && ctx.Err() == nil { // Only log if context is not done.
+			// Short-circuit: don't wait for the retry delay to exit, if required.
+			if p.acquireExit() {
+				return
+			}
+			p.opts.Logger.Warn(ctx, "failed to acquire job, retrying", slog.F("delay", fmt.Sprintf("%vms", retrier.Delay.Milliseconds())), slog.Error(err))
+		} else {
+			// Reset the retrier after each successful acquisition.
+			retrier.Reset()
+		}
 	}
 }
 
@@ -318,7 +329,7 @@ func (p *Server) acquireExit() bool {
 	return false
 }
 
-func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
+func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) error {
 	ctx := p.closeContext
 	p.opts.Logger.Debug(ctx, "start of acquireAndRunOne")
 	job, err := p.acquireGraceful(client)
@@ -327,15 +338,15 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 		if errors.Is(err, context.Canceled) ||
 			errors.Is(err, yamux.ErrSessionShutdown) ||
 			errors.Is(err, fasthttputil.ErrInmemoryListenerClosed) {
-			return
+			return err
 		}
 
 		p.opts.Logger.Warn(ctx, "provisionerd was unable to acquire job", slog.Error(err))
-		return
+		return xerrors.Errorf("failed to acquire job: %w", err)
 	}
 	if job.JobId == "" {
 		p.opts.Logger.Debug(ctx, "acquire job successfully canceled")
-		return
+		return nil
 	}
 
 	if len(job.TraceMetadata) > 0 {
@@ -390,9 +401,9 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 			Error: fmt.Sprintf("failed to connect to provisioner: %s", resp.Error),
 		})
 		if err != nil {
-			p.opts.Logger.Error(ctx, "provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
+			p.opts.Logger.Error(ctx, "failed to report provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
 		}
-		return
+		return xerrors.Errorf("failed to report provisioner job failed: %w", err)
 	}
 
 	p.mutex.Lock()
@@ -416,6 +427,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 	p.mutex.Lock()
 	p.activeJob = nil
 	p.mutex.Unlock()
+	return nil
 }
 
 // acquireGraceful attempts to acquire a job from the server, handling canceling the acquisition if we gracefully shut
