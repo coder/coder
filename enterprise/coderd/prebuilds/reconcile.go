@@ -268,6 +268,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_name", ps.Preset.Name),
 	)
 
+	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
 		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err), slog.F("preset_id", ps.Preset.ID))
@@ -290,10 +291,14 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 
 	fields := []any{
 		slog.F("action_type", actions.ActionType),
-		slog.F("create_count", actions.Create),
-		slog.F("delete_count", len(actions.DeleteIDs)),
+		slog.F("create_count", actions.Create), slog.F("delete_count", len(actions.DeleteIDs)),
 		slog.F("to_delete", actions.DeleteIDs),
+		slog.F("desired", state.Desired), slog.F("actual", state.Actual),
+		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
+		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
+		slog.F("eligible", state.Eligible),
 	}
+
 	levelFn(ctx, "reconciliation actions for preset are calculated", fields...)
 
 	switch actions.ActionType {
