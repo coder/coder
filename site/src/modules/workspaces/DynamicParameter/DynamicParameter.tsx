@@ -1,4 +1,5 @@
 import type {
+	NullHCLString,
 	PreviewParameter,
 	PreviewParameterOption,
 	WorkspaceBuildParameter,
@@ -156,10 +157,8 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	disabled,
 	id,
 }) => {
-	const value = parameter.value.valid ? parameter.value.value : "";
-	const defaultValue = parameter.default_value.valid
-		? parameter.default_value.value
-		: "";
+	const value = validValue(parameter.value);
+	const defaultValue = validValue(parameter.default_value);
 
 	switch (parameter.form_type) {
 		case "dropdown":
@@ -248,10 +247,13 @@ const ParameterField: FC<ParameterFieldProps> = ({
 							className="flex items-center space-x-2"
 						>
 							<RadioGroupItem
-								id={option.value.value}
+								id={`${id}-${option.value.value}`}
 								value={option.value.value}
 							/>
-							<Label htmlFor={option.value.value} className="cursor-pointer">
+							<Label
+								htmlFor={`${id}-${option.value.value}`}
+								className="cursor-pointer"
+							>
 								<OptionDisplay option={option} />
 							</Label>
 						</div>
@@ -351,15 +353,15 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 		<div className="flex flex-col gap-2">
 			{diagnostics.map((diagnostic, index) => (
 				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
+					key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
 					className={`text-xs px-1 ${
 						diagnostic.severity === "error"
 							? "text-content-destructive"
 							: "text-content-warning"
 					}`}
 				>
-					<div className="font-medium">{diagnostic.summary}</div>
-					{diagnostic.detail && <div>{diagnostic.detail}</div>}
+					<p className="font-medium">{diagnostic.summary}</p>
+					{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
 				</div>
 			))}
 		</div>
@@ -376,9 +378,7 @@ export const getInitialParameterValues = (
 		if (parameter.ephemeral) {
 			return {
 				name: parameter.name,
-				value: parameter.default_value.valid
-					? parameter.default_value.value
-					: "",
+				value: validValue(parameter.default_value),
 			};
 		}
 
@@ -390,15 +390,19 @@ export const getInitialParameterValues = (
 			name: parameter.name,
 			value:
 				autofillParam &&
-				isValidValue(parameter, autofillParam) &&
+				isValidParameterOption(parameter, autofillParam) &&
 				autofillParam.value
 					? autofillParam.value
-					: "",
+					: validValue(parameter.default_value),
 		};
 	});
 };
 
-const isValidValue = (
+const validValue = (value: NullHCLString) => {
+	return value.valid ? value.value : "";
+};
+
+const isValidParameterOption = (
 	previewParam: PreviewParameter,
 	buildParam: WorkspaceBuildParameter,
 ) => {
@@ -409,7 +413,7 @@ const isValidValue = (
 		return validValues.includes(buildParam.value);
 	}
 
-	return true;
+	return false;
 };
 
 export const useValidationSchemaForDynamicParameters = (
