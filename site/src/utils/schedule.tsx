@@ -165,7 +165,9 @@ export const autostopDisplay = (
 				<>
 					{title}
 					This workspace will be stopped on{" "}
-					{deadline.format("MMMM D [at] h:mm A")}
+					<span data-chromatic="ignore">
+						{deadline.format("MMMM D [at] h:mm A")}
+					</span>
 					{reason}
 				</>
 			),
