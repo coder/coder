@@ -146,7 +146,7 @@ func (p PresetSnapshot) CalculateActions(clock quartz.Clock, backoffInterval tim
 	return p.handleActiveTemplateVersion()
 }
 
-// isActive returns true if the preset's template version is the active version for its template.
+// isActive returns true if the preset's template version is the active version, and it is neither deleted nor deprecated.
 // This determines whether we should maintain prebuilds for this preset or delete them.
 func (p PresetSnapshot) isActive() bool {
 	return p.Preset.UsingActiveVersion && !p.Preset.Deleted && !p.Preset.Deprecated
