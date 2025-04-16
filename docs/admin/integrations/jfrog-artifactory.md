@@ -1,15 +1,5 @@
 # JFrog Artifactory Integration
 
-<div>
-  <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">M Atif Ali</span>
-    <img src="https://github.com/matifali.png" alt="matifali" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
-  </a>
-</div>
-January 24, 2024
-
----
-
 Use Coder and JFrog Artifactory together to secure your development environments
 without disturbing your developers' existing workflows.
 
@@ -60,8 +50,8 @@ To set this up, follow these steps:
    ```
 
 1. Create a new Application Integration by going to
-   `https://JFROG_URL/ui/admin/configuration/integrations/new` and select the
-   Application Type as the integration you created in step 1.
+   `https://JFROG_URL/ui/admin/configuration/integrations/app-integrations/new` and select the
+   Application Type as the integration you created in step 1 or `Custom Integration` if you are using SaaS instnace i.e. example.jfrog.io.
 
 1. Add a new [external authentication](../../admin/external-auth.md) to Coder by setting these
    environment variables in a manner consistent with your Coder deployment. Replace `JFROG_URL` with your JFrog Artifactory base URL:
@@ -82,18 +72,20 @@ To set this up, follow these steps:
 
    ```tf
    module "jfrog" {
-     source = "registry.coder.com/modules/jfrog-oauth/coder"
-     version = "1.0.0"
-     agent_id = coder_agent.example.id
-     jfrog_url = "https://jfrog.example.com"
-     configure_code_server = true # this depends on the code-server
-     username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
-     package_managers = {
-       "npm": "npm",
-       "go": "go",
-       "pypi": "pypi"
-     }
-   }
+	   count          = data.coder_workspace.me.start_count
+		 source         = "registry.coder.com/modules/jfrog-oauth/coder"
+		 version        = "1.0.19"
+		 agent_id       = coder_agent.example.id
+		 jfrog_url      = "https://example.jfrog.io"
+		 username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
+	
+		 package_managers = {
+			 npm    = ["npm", "@scoped:npm-scoped"]
+			 go     = ["go", "another-go-repo"]
+			 pypi   = ["pypi", "extra-index-pypi"]
+			 docker = ["example-docker-staging.jfrog.io", "example-docker-production.jfrog.io"]
+		 }
+	 }
    ```
 
 ### JFrog-Token
@@ -117,18 +109,18 @@ To set this up, follow these steps:
    }
 
    module "jfrog" {
-     source = "registry.coder.com/modules/jfrog-token/coder"
-     version = "1.0.0"
-     agent_id = coder_agent.example.id
-     jfrog_url = "https://example.jfrog.io"
-     configure_code_server = true # this depends on the code-server
-     artifactory_access_token = var.artifactory_access_token
-     package_managers = {
-       "npm": "npm",
-       "go": "go",
-       "pypi": "pypi"
-     }
-   }
+	   source                   = "registry.coder.com/modules/jfrog-token/coder"
+	   version                  = "1.0.30"
+	   agent_id                 = coder_agent.example.id
+	   jfrog_url                = "https://XXXX.jfrog.io"
+	   artifactory_access_token = var.artifactory_access_token
+	   package_managers = {
+	     npm    = ["npm", "@scoped:npm-scoped"]
+	     go     = ["go", "another-go-repo"]
+	     pypi   = ["pypi", "extra-index-pypi"]
+	     docker = ["example-docker-staging.jfrog.io", "example-docker-production.jfrog.io"]
+	   }
+	 }
    ```
 
    > [!NOTE]
