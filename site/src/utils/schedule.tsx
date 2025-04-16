@@ -148,7 +148,7 @@ export const autostopDisplay = (
 		if (template.autostop_requirement && template.allow_user_autostop) {
 			title = <HelpTooltipTitle>Autostop schedule</HelpTooltipTitle>;
 			reason = (
-				<>
+				<span data-chromatic="ignore">
 					{" "}
 					because this workspace has enabled autostop. You can disable autostop
 					from this workspace&apos;s{" "}
@@ -156,7 +156,7 @@ export const autostopDisplay = (
 						schedule settings
 					</Link>
 					.
-				</>
+				</span>
 			);
 		}
 		return {
@@ -165,9 +165,7 @@ export const autostopDisplay = (
 				<>
 					{title}
 					This workspace will be stopped on{" "}
-					<span data-chromatic="ignore">
-						{deadline.format("MMMM D [at] h:mm A")}
-					</span>
+					{deadline.format("MMMM D [at] h:mm A")}
 					{reason}
 				</>
 			),

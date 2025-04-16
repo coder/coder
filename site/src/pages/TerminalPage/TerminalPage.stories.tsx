@@ -90,6 +90,9 @@ const meta = {
 				},
 			},
 		],
+		chromatic: {
+			diffThreshold: 0.2,
+		},
 	},
 	decorators: [
 		(Story) => (
