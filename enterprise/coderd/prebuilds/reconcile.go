@@ -299,7 +299,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("eligible", state.Eligible),
 	}
 
-	levelFn(ctx, "reconciliation actions for preset are calculated", fields...)
+	levelFn(ctx, "calculated reconciliation actions for preset", fields...)
 
 	switch actions.ActionType {
 	case prebuilds.ActionTypeBackoff:
