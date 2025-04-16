@@ -476,7 +476,6 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
 		Initiator(prebuilds.SystemUserID).
-		ActiveVersion().
 		VersionID(template.ActiveVersionID).
 		MarkPrebuild().
 		TemplateVersionPresetID(presetID)
