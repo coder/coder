@@ -472,7 +472,7 @@ func New(options *Options) *API {
 		//   header. To opt in on a per-request basis.
 		//   Some authz calls (like filtering lists) might be able to be
 		//   summarized better to condense the header payload.
-		//r.Use(httpmw.RecordAuthzChecks)
+		// r.Use(httpmw.RecordAuthzChecks)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
