@@ -72,20 +72,20 @@ To set this up, follow these steps:
 
    ```tf
    module "jfrog" {
-	   count          = data.coder_workspace.me.start_count
-		 source         = "registry.coder.com/modules/jfrog-oauth/coder"
-		 version        = "1.0.19"
-		 agent_id       = coder_agent.example.id
-		 jfrog_url      = "https://example.jfrog.io"
-		 username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
-	
-		 package_managers = {
-			 npm    = ["npm", "@scoped:npm-scoped"]
-			 go     = ["go", "another-go-repo"]
-			 pypi   = ["pypi", "extra-index-pypi"]
-			 docker = ["example-docker-staging.jfrog.io", "example-docker-production.jfrog.io"]
-		 }
-	 }
+     count          = data.coder_workspace.me.start_count
+     source         = "registry.coder.com/modules/jfrog-oauth/coder"
+     version        = "1.0.19"
+     agent_id       = coder_agent.example.id
+     jfrog_url      = "https://example.jfrog.io"
+     username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
+
+     package_managers = {
+       npm    = ["npm", "@scoped:npm-scoped"]
+       go     = ["go", "another-go-repo"]
+       pypi   = ["pypi", "extra-index-pypi"]
+       docker = ["example-docker-staging.jfrog.io", "example-docker-production.jfrog.io"]
+     }
+   }
    ```
 
 ### JFrog-Token
@@ -109,18 +109,18 @@ To set this up, follow these steps:
    }
 
    module "jfrog" {
-	   source                   = "registry.coder.com/modules/jfrog-token/coder"
-	   version                  = "1.0.30"
-	   agent_id                 = coder_agent.example.id
-	   jfrog_url                = "https://XXXX.jfrog.io"
-	   artifactory_access_token = var.artifactory_access_token
-	   package_managers = {
-	     npm    = ["npm", "@scoped:npm-scoped"]
-	     go     = ["go", "another-go-repo"]
-	     pypi   = ["pypi", "extra-index-pypi"]
-	     docker = ["example-docker-staging.jfrog.io", "example-docker-production.jfrog.io"]
-	   }
-	 }
+     source                   = "registry.coder.com/modules/jfrog-token/coder"
+     version                  = "1.0.30"
+     agent_id                 = coder_agent.example.id
+     jfrog_url                = "https://XXXX.jfrog.io"
+     artifactory_access_token = var.artifactory_access_token
+     package_managers = {
+       npm    = ["npm", "@scoped:npm-scoped"]
+       go     = ["go", "another-go-repo"]
+       pypi   = ["pypi", "extra-index-pypi"]
+       docker = ["example-docker-staging.jfrog.io", "example-docker-production.jfrog.io"]
+     }
+   }
    ```
 
    > [!NOTE]
