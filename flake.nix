@@ -196,7 +196,7 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          pkgs.buildGo124Module {
+          unstablePkgs.buildGo124Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
