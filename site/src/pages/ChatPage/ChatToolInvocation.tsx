@@ -1,4 +1,4 @@
-import { FC, useMemo } from "react";
+import React, { FC, useMemo } from "react";
 import { useTheme } from "@emotion/react";
 import type { ToolCall, ToolResult } from "@ai-sdk/provider-utils";
 import * as TypesGen from "api/typesGenerated";
@@ -7,9 +7,11 @@ import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/Error";
 import CodeIcon from "@mui/icons-material/Code";
 import ArticleIcon from "@mui/icons-material/Article";
+import { Tooltip } from "@mui/material";
+import { InfoIcon } from "lucide-react";
 
 interface ChatToolInvocationProps {
-	toolInvocation: ChatToolInvocations;
+	toolInvocation: ChatToolInvocation;
 }
 
 export const ChatToolInvocation: FC<ChatToolInvocationProps> = ({
@@ -22,65 +24,6 @@ export const ChatToolInvocation: FC<ChatToolInvocationProps> = ({
 			.replace(/_/g, " ")
 			.replace(/\b\w/g, (char) => char.toUpperCase());
 	}, [toolInvocation.toolName]);
-
-	let preview: React.ReactNode;
-	switch (toolInvocation.toolName) {
-		case "coder_get_workspace":
-			switch (toolInvocation.state) {
-				case "partial-call":
-				case "call":
-					preview = (
-						<div css={{ display: "flex", alignItems: "center", gap: theme.spacing(1), color: theme.palette.text.secondary }}>
-							<CircularProgress size={14} color="inherit" />
-							<span>Fetching workspace details...</span>
-						</div>
-					);
-					break;
-				case "result":
-					preview = (
-						<div css={{ display: "flex", alignItems: "center", gap: theme.spacing(1.5) }}>
-							<img
-								src={toolInvocation.result.template_icon || "/icon/code.svg"}
-								alt={toolInvocation.result.template_display_name || "Template"}
-								css={{
-									width: 32,
-									height: 32,
-									borderRadius: theme.shape.borderRadius / 2,
-									objectFit: "contain",
-								}}
-							/>
-							<div>
-								<div css={{ fontWeight: 500, lineHeight: 1.4 }}>{toolInvocation.result.name}</div>
-								<div css={{ fontSize: "0.875rem", color: theme.palette.text.secondary, lineHeight: 1.4 }}>
-									{toolInvocation.result.template_display_name}
-								</div>
-							</div>
-						</div>
-					);
-					break;
-			}
-			break;
-		default:
-			switch (toolInvocation.state) {
-				case "partial-call":
-				case "call":
-					preview = (
-						<div css={{ display: "flex", alignItems: "center", gap: theme.spacing(1), color: theme.palette.text.secondary }}>
-							<CircularProgress size={14} color="inherit" />
-							<span>Executing {friendlyName}...</span>
-						</div>
-					);
-					break;
-				case "result":
-					preview = (
-						<div css={{ display: 'flex', alignItems: 'center', gap: theme.spacing(1), color: theme.palette.text.secondary }}>
-							<ArticleIcon sx={{ fontSize: 16 }} />
-							<span>{friendlyName} result received.</span>
-						</div>
-					);
-					break;
-			}
-	}
 
 	const hasError = useMemo(() => {
 		if (toolInvocation.state !== "result") {
@@ -109,9 +52,12 @@ export const ChatToolInvocation: FC<ChatToolInvocationProps> = ({
 				display: "flex",
 				flexDirection: "column",
 				gap: theme.spacing(0.75),
+				width: "fit-content",
 			}}
 		>
-			<div css={{ display: "flex", alignItems: "center", gap: theme.spacing(1) }}>
+			<div
+				css={{ display: "flex", alignItems: "center", gap: theme.spacing(1) }}
+			>
 				{toolInvocation.state !== "result" && (
 					<CircularProgress
 						size={16}
@@ -129,27 +75,116 @@ export const ChatToolInvocation: FC<ChatToolInvocationProps> = ({
 				) : null}
 				<div
 					css={{
-						flex: 1,
-						fontSize: '0.9rem',
+						fontSize: "0.9rem",
 						fontWeight: 500,
 						color: theme.palette.text.primary,
 					}}
 				>
 					{friendlyName}
 				</div>
+				<Tooltip title="Content">
+					<InfoIcon size={12} color={theme.palette.text.disabled} />
+				</Tooltip>
 			</div>
-			<div css={{ paddingLeft: theme.spacing(3) }}>{preview}</div>
+			{toolInvocation.state === "result" && (
+				<ChatToolInvocationResultPreview toolInvocation={toolInvocation} />
+			)}
 		</div>
 	);
 };
 
-export type ChatToolInvocations =
+const ChatToolInvocationResultPreview: FC<{
+	toolInvocation: Extract<ChatToolInvocation, { state: "result" }>;
+}> = ({ toolInvocation }) => {
+	const theme = useTheme();
+
+	if (
+		typeof toolInvocation.result === "object" &&
+		"error" in toolInvocation.result
+	) {
+		return null;
+	}
+
+	let content: React.ReactNode;
+	switch (toolInvocation.toolName) {
+		case "coder_get_workspace":
+		case "coder_create_workspace":
+			content = (
+				<div
+					css={{
+						display: "flex",
+						alignItems: "center",
+						gap: theme.spacing(1.5),
+					}}
+				>
+					{toolInvocation.result.template_icon && (
+						<img
+							src={toolInvocation.result.template_icon || "/icon/code.svg"}
+							alt={toolInvocation.result.template_display_name || "Template"}
+							css={{
+								width: 32,
+								height: 32,
+								borderRadius: theme.shape.borderRadius / 2,
+								objectFit: "contain",
+							}}
+						/>
+					)}
+					<div>
+						<div css={{ fontWeight: 500, lineHeight: 1.4 }}>
+							{toolInvocation.result.name}
+						</div>
+						<div
+							css={{
+								fontSize: "0.875rem",
+								color: theme.palette.text.secondary,
+								lineHeight: 1.4,
+							}}
+						>
+							{toolInvocation.result.template_display_name}
+						</div>
+					</div>
+				</div>
+			);
+			break;
+		case "coder_list_workspaces":
+			content = (
+				<div>
+					{toolInvocation.result.map((workspace) => (
+						<div key={workspace.id}>
+							<img
+								src={workspace.template_icon || "/icon/code.svg"}
+								alt={workspace.template_display_name || "Template"}
+								css={{
+									width: 32,
+									height: 32,
+									borderRadius: theme.shape.borderRadius / 2,
+									objectFit: "contain",
+								}}
+							/>
+							{workspace.name}
+						</div>
+					))}
+				</div>
+			);
+	}
+	return (
+		<div
+			css={{
+				paddingLeft: theme.spacing(3),
+			}}
+		>
+			{content}
+		</div>
+	);
+};
+
+export type ChatToolInvocation =
 	| ToolInvocation<
 			"coder_get_workspace",
 			{
 				id: string;
 			},
-			TypesGen.Workspace & { error?: any }
+			TypesGen.Workspace
 	  >
 	| ToolInvocation<
 			"coder_create_workspace",
@@ -159,7 +194,7 @@ export type ChatToolInvocations =
 				name: string;
 				rich_parameters: Record<string, any>;
 			},
-			TypesGen.Workspace & { error?: any }
+			TypesGen.Workspace
 	  >
 	| ToolInvocation<
 			"coder_list_workspaces",
@@ -176,7 +211,7 @@ export type ChatToolInvocations =
 				| "template_icon"
 				| "template_active_version_id"
 				| "outdated"
-			>[] & { error?: any }
+			>[]
 	  >
 	| ToolInvocation<
 			"coder_list_templates",
@@ -188,23 +223,23 @@ export type ChatToolInvocations =
 				| "description"
 				| "active_version_id"
 				| "active_user_count"
-			>[] & { error?: any }
+			>[]
 	  >
 	| ToolInvocation<
 			"coder_template_version_parameters",
 			{
 				template_version_id: string;
 			},
-			TypesGen.TemplateVersionParameter[] & { error?: any }
+			TypesGen.TemplateVersionParameter[]
 	  >
-	| ToolInvocation<"coder_get_authenticated_user", {}, TypesGen.User & { error?: any }>
+	| ToolInvocation<"coder_get_authenticated_user", {}, TypesGen.User>
 	| ToolInvocation<
 			"coder_create_workspace_build",
 			{
 				workspace_id: string;
 				transition: "start" | "stop" | "delete";
 			},
-			TypesGen.WorkspaceBuild & { error?: any }
+			TypesGen.WorkspaceBuild
 	  >
 	| ToolInvocation<
 			"coder_create_template_version",
@@ -212,28 +247,28 @@ export type ChatToolInvocations =
 				template_id?: string;
 				file_id: string;
 			},
-			TypesGen.TemplateVersion & { error?: any }
+			TypesGen.TemplateVersion
 	  >
 	| ToolInvocation<
 			"coder_get_workspace_agent_logs",
 			{
 				workspace_agent_id: string;
 			},
-			string[] & { error?: any }
+			string[]
 	  >
 	| ToolInvocation<
 			"coder_get_workspace_build_logs",
 			{
 				workspace_build_id: string;
 			},
-			string[] & { error?: any }
+			string[]
 	  >
 	| ToolInvocation<
 			"coder_get_template_version_logs",
 			{
 				template_version_id: string;
 			},
-			string[] & { error?: any }
+			string[]
 	  >
 	| ToolInvocation<
 			"coder_update_template_active_version",
@@ -241,7 +276,7 @@ export type ChatToolInvocations =
 				template_id: string;
 				template_version_id: string;
 			},
-			string & { error?: any }
+			string
 	  >
 	| ToolInvocation<
 			"coder_upload_tar_file",
@@ -249,23 +284,22 @@ export type ChatToolInvocations =
 				mime_type: string;
 				files: Record<string, string>;
 			},
-			TypesGen.UploadResponse & { error?: any }
+			TypesGen.UploadResponse
 	  >
 	| ToolInvocation<
 			"coder_create_template",
 			{
 				name: string;
 			},
-			TypesGen.Template & { error?: any }
+			TypesGen.Template
 	  >
 	| ToolInvocation<
 			"coder_delete_template",
 			{
 				template_id: string;
 			},
-			string & { error?: any }
-	  >
-	| ToolInvocation<string, Record<string, any>, any & { error?: any }>;
+			string
+	  >;
 
 type ToolInvocation<N extends string, A, R> =
 	| ({
@@ -279,4 +313,11 @@ type ToolInvocation<N extends string, A, R> =
 	| ({
 			state: "result";
 			step?: number;
-	  } & ToolResult<N, A, R & { error?: any }>);
+	  } & ToolResult<
+			N,
+			A,
+			| R
+			| {
+					error: string;
+			  }
+	  >);

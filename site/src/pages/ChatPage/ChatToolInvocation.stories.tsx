@@ -1,6 +1,11 @@
 import { Meta, StoryObj } from "@storybook/react";
 import { ChatToolInvocation } from "./ChatToolInvocation";
-import { MockWorkspace } from "testHelpers/entities";
+import {
+	MockStartingWorkspace,
+	MockStoppedWorkspace,
+	MockStoppingWorkspace,
+	MockWorkspace,
+} from "testHelpers/entities";
 
 const meta: Meta<typeof ChatToolInvocation> = {
 	title: "pages/ChatPage/ChatToolInvocation",
@@ -11,32 +16,93 @@ export default meta;
 type Story = StoryObj<typeof ChatToolInvocation>;
 
 export const GetWorkspace: Story = {
-	args: {
-		toolInvocation: {
-			toolName: "coder_get_workspace",
-			args: {
+	render: () =>
+		renderInvocations(
+			"coder_get_workspace",
+			{
 				id: MockWorkspace.id,
 			},
-			result: MockWorkspace,
-			state: "result",
-			toolCallId: "some-id",
-		},
-	},
+			MockWorkspace,
+		),
 };
 
 export const CreateWorkspace: Story = {
-	args: {
-		toolInvocation: {
-			toolName: "coder_create_workspace",
-			args: {
+	render: () =>
+		renderInvocations(
+			"coder_create_workspace",
+			{
 				name: MockWorkspace.name,
 				rich_parameters: {},
 				template_version_id: MockWorkspace.template_active_version_id,
 				user: MockWorkspace.owner_name,
 			},
-			result: MockWorkspace,
-			state: "result",
-			toolCallId: "some-id",
-		},
-	},
+			MockWorkspace,
+		),
+};
+
+export const ListWorkspaces: Story = {
+	render: () =>
+		renderInvocations(
+			"coder_list_workspaces",
+			{
+				owner: "me",
+			},
+			[
+				MockWorkspace,
+				MockStoppedWorkspace,
+				MockStoppingWorkspace,
+				MockStartingWorkspace,
+			],
+		),
+};
+
+const renderInvocations = <T extends ChatToolInvocation["toolName"]>(
+	toolName: T,
+	args: Extract<ChatToolInvocation, { toolName: T }>["args"],
+	result: Extract<
+		ChatToolInvocation,
+		{ toolName: T; state: "result" }
+	>["result"],
+	error?: string,
+) => {
+	return (
+		<>
+			<ChatToolInvocation
+				toolInvocation={{
+					toolCallId: "call",
+					toolName,
+					args: args as any,
+					state: "call",
+				}}
+			/>
+			<ChatToolInvocation
+				toolInvocation={{
+					toolCallId: "partial-call",
+					toolName,
+					args: args as any,
+					state: "partial-call",
+				}}
+			/>
+			<ChatToolInvocation
+				toolInvocation={{
+					toolCallId: "result",
+					toolName,
+					args: args as any,
+					state: "result",
+					result: result as any,
+				}}
+			/>
+			<ChatToolInvocation
+				toolInvocation={{
+					toolCallId: "result",
+					toolName,
+					args: args as any,
+					state: "result",
+					result: {
+						error: error || "Something bad happened!",
+					},
+				}}
+			/>
+		</>
+	);
 };
