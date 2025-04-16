@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.24.1
+go 1.24.2
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
