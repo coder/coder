@@ -323,7 +323,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		var multiErr multierror.Error
 
 		for range actions.Create {
-			if err := c.createPrebuild(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
+			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
 				multiErr.Errors = append(multiErr.Errors, err)
 			}
@@ -335,7 +335,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		var multiErr multierror.Error
 
 		for _, id := range actions.DeleteIDs {
-			if err := c.deletePrebuild(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
+			if err := c.deletePrebuiltWorkspace(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 				logger.Error(ctx, "failed to delete prebuild", slog.Error(err))
 				multiErr.Errors = append(multiErr.Errors, err)
 			}
@@ -397,7 +397,7 @@ func (c *StoreReconciler) WithReconciliationLock(
 	})
 }
 
-func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltWorkspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
 	name, err := prebuilds.GenerateName()
 	if err != nil {
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
@@ -412,7 +412,7 @@ func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 		now := c.clock.Now()
 
 		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:                prebuildID,
+			ID:                prebuiltWorkspaceID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
 			OwnerID:           prebuilds.SystemUserID,
@@ -436,18 +436,18 @@ func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 		}
 
 		c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name),
-			slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
+			slog.F("workspace_id", prebuiltWorkspaceID.String()), slog.F("preset_id", presetID.String()))
 
-		return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
+		return c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionStart, workspace)
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  false,
 	})
 }
 
-func (c *StoreReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltWorkspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
 	return c.store.InTx(func(db database.Store) error {
-		workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
+		workspace, err := db.GetWorkspaceByID(ctx, prebuiltWorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
@@ -462,9 +462,9 @@ func (c *StoreReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UU
 		}
 
 		c.logger.Info(ctx, "attempting to delete prebuild",
-			slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
+			slog.F("workspace_id", prebuiltWorkspaceID.String()), slog.F("preset_id", presetID.String()))
 
-		return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionDelete, workspace)
+		return c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionDelete, workspace)
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  false,
