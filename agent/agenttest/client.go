@@ -97,8 +97,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC24(ctx context.Context) (
-	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient24, error,
+func (c *Client) ConnectRPC25(ctx context.Context) (
+	agentproto.DRPCAgentClient25, proto.DRPCTailnetClient25, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -362,6 +362,10 @@ func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequ
 	f.Lock()
 	defer f.Unlock()
 	return slices.Clone(f.connectionReports)
+}
+
+func (f *FakeAgentAPI) CreateChildAgent(_ context.Context, req *agentproto.CreateChildAgentRequest) (*agentproto.CreateChildAgentResponse, error) {
+	return &agentproto.CreateChildAgentResponse{}, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

@@ -50,6 +50,7 @@ type API struct {
 	*LogsAPI
 	*ScriptsAPI
 	*AuditAPI
+	*ChildAgentAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex

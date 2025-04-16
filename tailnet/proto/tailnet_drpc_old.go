@@ -40,3 +40,7 @@ type DRPCTailnetClient23 interface {
 type DRPCTailnetClient24 interface {
 	DRPCTailnetClient23
 }
+
+type DRPCTailnetClient25 interface {
+	DRPCTailnetClient24
+}

@@ -14,7 +14,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add new field named `devcontainers` in the Agent.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 // CurrentVersion is the current provisionerd API version.

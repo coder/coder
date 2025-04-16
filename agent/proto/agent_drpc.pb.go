@@ -52,6 +52,7 @@ type DRPCAgentClient interface {
 	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
+	CreateChildAgent(ctx context.Context, in *CreateChildAgentRequest) (*CreateChildAgentResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -181,6 +182,15 @@ func (c *drpcAgentClient) ReportConnection(ctx context.Context, in *ReportConnec
 	return out, nil
 }
 
+func (c *drpcAgentClient) CreateChildAgent(ctx context.Context, in *CreateChildAgentRequest) (*CreateChildAgentResponse, error) {
+	out := new(CreateChildAgentResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/CreateChildAgent", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -195,6 +205,7 @@ type DRPCAgentServer interface {
 	GetResourcesMonitoringConfiguration(context.Context, *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(context.Context, *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(context.Context, *ReportConnectionRequest) (*emptypb.Empty, error)
+	CreateChildAgent(context.Context, *CreateChildAgentRequest) (*CreateChildAgentResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -251,9 +262,13 @@ func (s *DRPCAgentUnimplementedServer) ReportConnection(context.Context, *Report
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) CreateChildAgent(context.Context, *CreateChildAgentRequest) (*CreateChildAgentResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 13 }
+func (DRPCAgentDescription) NumMethods() int { return 14 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -374,6 +389,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*ReportConnectionRequest),
 					)
 			}, DRPCAgentServer.ReportConnection, true
+	case 13:
+		return "/coder.agent.v2.Agent/CreateChildAgent", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					CreateChildAgent(
+						ctx,
+						in1.(*CreateChildAgentRequest),
+					)
+			}, DRPCAgentServer.CreateChildAgent, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -585,6 +609,22 @@ type drpcAgent_ReportConnectionStream struct {
 }
 
 func (x *drpcAgent_ReportConnectionStream) SendAndClose(m *emptypb.Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_CreateChildAgentStream interface {
+	drpc.Stream
+	SendAndClose(*CreateChildAgentResponse) error
+}
+
+type drpcAgent_CreateChildAgentStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_CreateChildAgentStream) SendAndClose(m *CreateChildAgentResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

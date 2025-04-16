@@ -50,3 +50,10 @@ type DRPCAgentClient24 interface {
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }
+
+// DRPCAgentClient25 is the Agent API at v2.5. It adds the GetResourcesMonitoringConfiguration,
+// PushResourcesMonitoringUsage and ReportConnection RPCs. Compatible with Coder v2.19+
+type DRPCAgentClient25 interface {
+	DRPCAgentClient24
+	CreateChildAgent(ctx context.Context, in *CreateChildAgentRequest) (*CreateChildAgentResponse, error)
+}

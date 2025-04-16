@@ -376,6 +376,15 @@ message ReportConnectionRequest {
 	Connection connection = 1;
 }
 
+message CreateChildAgentRequest {
+	string name = 1;
+	string directory = 2;
+}
+
+message CreateChildAgentResponse {
+	bytes id = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -390,4 +399,5 @@ service Agent {
 	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
+	rpc CreateChildAgent(CreateChildAgentRequest) returns (CreateChildAgentResponse);
 }
