@@ -26,7 +26,7 @@ type options struct {
 }
 
 // templateID is common across all option sets.
-var templateID = uuid.New()
+var templateID = uuid.UUID{5}
 
 const (
 	backoffInterval = time.Second * 5
