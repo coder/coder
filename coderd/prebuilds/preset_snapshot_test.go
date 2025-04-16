@@ -424,7 +424,7 @@ func TestInProgressActions(t *testing.T) {
 				})
 			}
 
-			// GIVEN: one prebuild for the old preset which is currently transitioning.
+			// GIVEN: some prebuilds for the preset which are currently transitioning.
 			inProgress := []database.CountInProgressPrebuildsRow{
 				{
 					TemplateID:        current.templateID,
