@@ -1,8 +1,6 @@
-import RecyclingIcon from "@mui/icons-material/Recycling";
 import Tooltip from "@mui/material/Tooltip";
 import type { Workspace } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
-import { Pill } from "components/Pill/Pill";
 import { formatDistanceToNow } from "date-fns";
 import type { FC } from "react";
 

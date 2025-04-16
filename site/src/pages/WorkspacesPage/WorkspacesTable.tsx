@@ -30,13 +30,13 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
@@ -47,6 +47,8 @@ import {
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
+
+dayjs.extend(relativeTime);
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
