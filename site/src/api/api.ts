@@ -1028,7 +1028,7 @@ class ApiMethods {
 		);
 
 		socket.addEventListener("error", () => {
-			onError?.(new Error("Connection for dynamic parameters failed."));
+			onError(new Error("Connection for dynamic parameters failed."));
 			socket.close();
 		});
 
