@@ -2112,6 +2112,58 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 	})
 }
 
+func TestNotificationEnqueuePubsubNotify(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	store, pubsub := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
+
+	const method = database.NotificationMethodWebhook
+	cfg := defaultNotificationsConfig(method)
+
+	// Tune the queue to fetch infrequently.
+	const fetchInterval = time.Minute
+	cfg.FetchInterval = serpent.Duration(fetchInterval)
+
+	mClock := quartz.NewMock(t)
+	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
+	defer fetchTrap.Close()
+
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(),
+		logger.Named("manager"), notifications.WithTestClock(mClock))
+	require.NoError(t, err)
+
+	handler := &chanHandler{calls: make(chan dispatchCall)}
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: handler,
+	})
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	require.NoError(t, err)
+
+	user := createSampleUser(t, store)
+
+	// Given: the manager is running and the fetch interval is set to 1 minute.
+	mgr.Run(ctx)
+	fetchTrap.MustWait(ctx).Release()
+
+	// When: a notification is enqueued
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
+	require.NoError(t, err)
+
+	// Then: we attempt to dispatch the notification immediately.
+	call := testutil.TryReceive(ctx, t, handler.calls)
+	testutil.RequireSend(ctx, t, call.result, dispatchResult{
+		retryable: false,
+		err:       nil,
+	})
+}
+
 type fakeHandler struct {
 	mu                sync.RWMutex
 	succeeded, failed []string

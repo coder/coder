@@ -95,6 +95,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub,
 		log:   log,
 		cfg:   cfg,
 		store: store,
+		ps:    ps,
 
 		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
 		//

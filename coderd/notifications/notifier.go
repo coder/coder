@@ -108,11 +108,6 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		n.log.Info(context.Background(), "gracefully stopped")
 	}()
 
-	// TODO: idea from Cian: instead of querying the database on a short interval, we could wait for pubsub notifications.
-	//		 if 100 notifications are enqueued, we shouldn't activate this routine for each one; so how to debounce these?
-	//		 PLUS we should also have an interval (but a longer one, maybe 1m) to account for retries (those will not get
-	//     triggered by a code path, but rather by a timeout expiring which makes the message retryable)
-
 	// loopTick is used to synchronize the goroutine that processes messages with the ticker.
 	loopTick := make(chan chan struct{})
 	// loopDone is used to signal when the processing loop has exited due to
@@ -139,7 +134,7 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		}
 	}()
 
-	// run the ticker with the graceful context, so we stop fetching after stop() is called
+	// Periodically trigger the processing loop.
 	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
 		c := make(chan struct{})
 		loopTick <- c
@@ -149,10 +144,32 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		return nil
 	}, "notifier", "fetchInterval")
 
-	// Note the order of operations here.
-	_ = tick.Wait() // will block until gracefulCtx is done
-	close(loopTick) // happens immediately
-	<-loopDone      // wait for the current processing loop to finish
+	// Also signal the processing loop when a notification is enqueued.
+	if stopListen, err := n.ps.Subscribe(EventNotificationEnqueued, func(ctx context.Context, _ []byte) {
+		n.log.Debug(n.outerCtx, "got pubsub event", slog.F("event", EventNotificationEnqueued))
+		c := make(chan struct{})
+		select {
+		case <-n.gracefulCtx.Done():
+			return
+		// This is a no-op if the notifier is paused.
+		case loopTick <- c:
+			<-c // Wait for the processing loop to finish.
+		default:
+			// If the loop is busy, don't send a notification.
+			n.log.Debug(ctx, "notifier busy, skipping notification")
+			return
+		}
+	}); err != nil {
+		// Intentionally not making this a fatal error. The notifier will still run,
+		// albeit without notification events.
+		n.log.Error(n.outerCtx, "failed to subscribe to notification events", slog.Error(err))
+	} else {
+		defer stopListen()
+	}
+
+	_ = tick.Wait() // Block until the ticker exits. This will be after gracefulCtx is canceled.
+	close(loopTick) // Signal the processing goroutine to stop.
+	<-loopDone      // Wait for the processing goroutine to exit.
 
 	// only errors we can return are context errors.  Only return an error if the outer context
 	// was canceled, not if we were gracefully stopped.
