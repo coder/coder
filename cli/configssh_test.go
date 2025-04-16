@@ -435,7 +435,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 						"# :hostname-suffix=coder-suffix",
 						"# :header=X-Test-Header=foo",
 						"# :header=X-Test-Header2=bar",
-						"# :header-command=printf h1=v1 h2=\"v2\" h3='v3'",
+						"# :header-command=echo h1=v1 h2=\"v2\" h3='v3'",
 						"#",
 					}, "\n"),
 					strings.Join([]string{
@@ -451,7 +451,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--hostname-suffix", "coder-suffix",
 				"--header", "X-Test-Header=foo",
 				"--header", "X-Test-Header2=bar",
-				"--header-command", "printf h1=v1 h2=\"v2\" h3='v3'",
+				"--header-command", "echo h1=v1 h2=\"v2\" h3='v3'",
 			},
 		},
 		{
@@ -566,36 +566,36 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			name: "Header command",
 			args: []string{
 				"--yes",
-				"--header-command", "printf h1=v1",
+				"--header-command", "echo h1=v1",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1" ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{
 			name: "Header command with double quotes",
 			args: []string{
 				"--yes",
-				"--header-command", "printf h1=v1 h2=\"v2\"",
+				"--header-command", "echo h1=v1 h2=\"v2\"",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2=\\\"v2\\\"" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1 h2=\\\"v2\\\"" ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{
 			name: "Header command with single quotes",
 			args: []string{
 				"--yes",
-				"--header-command", "printf h1=v1 h2='v2'",
+				"--header-command", "echo h1=v1 h2='v2'",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2='v2'" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1 h2='v2'" ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{
