@@ -454,9 +454,8 @@ func TestWorkspace(t *testing.T) {
 			selectedPresetIndex       *int
 		}{
 			{
-				name:                      "No Presets - No Template Parameters",
-				presets:                   []*proto.Preset{},
-				templateVersionParameters: templateVersionParameters,
+				name:    "No Presets - No Template Parameters",
+				presets: []*proto.Preset{},
 			},
 			{
 				name:                      "No Presets - With Template Parameters",
