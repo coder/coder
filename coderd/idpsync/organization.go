@@ -216,7 +216,7 @@ func (s *OrganizationSyncSettings) Set(v string) error {
 	legacyCheck := make(map[string]any)
 	err := json.Unmarshal([]byte(v), &legacyCheck)
 	if assign, ok := legacyCheck["AssignDefault"]; err == nil && ok {
-		// the legacy json was 'AssignDefault' instead of 'assign_default'
+		// The legacy JSON key was 'AssignDefault' instead of 'assign_default'
 		// Set the default value from the legacy if it exists.
 		isBool, ok := assign.(bool)
 		if ok {
