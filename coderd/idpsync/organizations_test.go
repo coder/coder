@@ -25,13 +25,13 @@ func TestFromLegacySettings(t *testing.T) {
 
 	legacy := func(assignDefault bool) string {
 		return fmt.Sprintf(`{
-		   "Field":"groups",
-		   "Mapping":{
-			  "engineering":[
-				 "10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
-			  ]
-		   },
-		   "AssignDefault":%t
+			"Field": "groups",
+			"Mapping": {
+				"engineering": [
+					"10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
+				]
+			},
+			"AssignDefault": %t
 		}`, assignDefault)
 	}
 
