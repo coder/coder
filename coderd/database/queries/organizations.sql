@@ -55,8 +55,13 @@ SELECT
 FROM
     organizations
 WHERE
-    -- Optionally include deleted organizations
-    deleted = @deleted AND
+    -- Optionally provide a filter for deleted organizations.
+  	CASE WHEN
+  	    sqlc.narg('deleted') :: boolean IS NULL THEN
+			true
+		ELSE
+			deleted = sqlc.narg('deleted')
+	END AND
     id = ANY(
         SELECT
             organization_id
