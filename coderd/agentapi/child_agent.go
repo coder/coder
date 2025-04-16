@@ -5,6 +5,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -24,7 +25,7 @@ func (a *ChildAgentAPI) CreateChildAgent(ctx context.Context, req *proto.CreateC
 	}
 
 	childAgentAuthToken := uuid.New()
-	childAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+	childAgent, err := a.Database.InsertWorkspaceAgent(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		CreatedAt:                dbtime.Now(),
 		UpdatedAt:                dbtime.Now(),
@@ -49,6 +50,7 @@ func (a *ChildAgentAPI) CreateChildAgent(ctx context.Context, req *proto.CreateC
 	}
 
 	return &proto.CreateChildAgentResponse{
-		Id: []byte(childAgent.ID.String()),
+		Id:        childAgent.ID[:],
+		AuthToken: childAgent.AuthToken[:],
 	}, nil
 }

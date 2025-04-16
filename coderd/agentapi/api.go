@@ -193,6 +193,11 @@ func New(opts Options) *API {
 		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
 	}
 
+	api.ChildAgentAPI = &ChildAgentAPI{
+		AgentID:  opts.AgentID,
+		Database: opts.Database,
+	}
+
 	return api
 }
 

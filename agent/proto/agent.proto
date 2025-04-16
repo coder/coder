@@ -383,6 +383,7 @@ message CreateChildAgentRequest {
 
 message CreateChildAgentResponse {
 	bytes id = 1;
+	bytes auth_token = 2;
 }
 
 service Agent {

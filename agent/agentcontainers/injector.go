@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"cdr.dev/slog"
@@ -48,24 +48,30 @@ func NewInjector(
 }
 
 func (i *Injector) Start(ctx context.Context) error {
+	i.logger.Info(ctx, "starting injector routine")
+
 	agentScripts := provisionersdk.AgentScriptEnv()
 	agentScript := agentScripts[fmt.Sprintf("CODER_AGENT_SCRIPT_%s_%s", runtime.GOOS, runtime.GOARCH)]
 
-	file, err := afero.TempFile(i.fs, "/tmp", "agentScript")
+	file, err := afero.TempFile(i.fs, "/tmp", "agent-script")
 	if err != nil {
+		i.logger.Error(ctx, "create agent-script file", slog.Error(err))
 		return err
 	}
 	if _, err := file.Write([]byte(agentScript)); err != nil {
+		i.logger.Error(ctx, "write agent-script content", slog.Error(err))
 		return err
 	}
 	if err := file.Close(); err != nil {
+		i.logger.Error(ctx, "close agent-script file", slog.Error(err))
 		return err
 	}
 
 	i.clock.TickerFunc(ctx, 10*time.Second, func() error {
 		listing, err := i.cl.List(ctx)
 		if err != nil {
-			return err
+			i.logger.Error(ctx, "list containers", slog.Error(err))
+			return nil
 		}
 
 		for _, container := range listing.Containers {
@@ -84,12 +90,20 @@ func (i *Injector) Start(ctx context.Context) error {
 				Directory: workspaceFolder,
 			})
 			if err != nil {
-				return err
+				i.logger.Error(ctx, "create child agent", slog.Error(err))
+				return nil
 			}
 
 			childAgentID, err := uuid.FromBytes(resp.Id)
 			if err != nil {
-				return err
+				i.logger.Error(ctx, "parse agent id", slog.Error(err))
+				return nil
+			}
+
+			childAuthToken, err := uuid.FromBytes(resp.AuthToken)
+			if err != nil {
+				i.logger.Error(ctx, "parse auth token", slog.Error(err))
+				return nil
 			}
 
 			i.children[container.ID] = childAgentID
@@ -99,35 +113,55 @@ func (i *Injector) Start(ctx context.Context) error {
 
 			stdout, stderr, err := run(ctx, i.execer,
 				"docker", "container", "cp",
-				filepath.Join("/tmp", file.Name()),
+				file.Name(),
 				fmt.Sprintf("%s:/tmp/bootstrap.sh", container.ID),
 			)
-			if err != nil {
-				return err
-			}
-
 			i.logger.Info(ctx, stdout)
 			i.logger.Error(ctx, stderr)
+			if err != nil {
+				i.logger.Error(ctx, "copy bootstrap script", slog.Error(err))
+				return nil
+			}
 
 			stdout, stderr, err = run(ctx, i.execer, "docker", "container", "exec", container.ID, "chmod +x /tmp/bootstrap.sh")
-			if err != nil {
-				return err
-			}
-
 			i.logger.Info(ctx, stdout)
 			i.logger.Error(ctx, stderr)
+			if err != nil {
+				i.logger.Error(ctx, "make bootstrap script executable", slog.Error(err))
+				return nil
+			}
 
-			stdout, stderr, err = run(ctx, i.execer, "docker", "container", "exec", container.ID,
-				"-e", fmt.Sprintf("ACCESS_URL=%s", accessURL),
-				"-e", fmt.Sprintf("AUTH_TYPE=%s", authType),
-				"/tmp/bootstrap.sh",
+			cmd := i.execer.CommandContext(ctx, "docker", "container", "exec", container.ID,
+				"--detach",
+				"--env", fmt.Sprintf("ACCESS_URL=%s", accessURL),
+				"--env", fmt.Sprintf("AUTH_TYPE=%s", authType),
+				"--env", fmt.Sprintf("CODER_AGENT_TOKEN=%s", childAuthToken.String()),
+				"bash", "-c", "/tmp/bootstrap.sh",
 			)
-			if err != nil {
-				return err
+
+			var stdoutBuf, stderrBuf strings.Builder
+
+			cmd.Stdout = &stdoutBuf
+			cmd.Stderr = &stderrBuf
+
+			if err := cmd.Start(); err != nil {
+				i.logger.Error(ctx, "starting command", slog.Error(err))
 			}
 
-			i.logger.Info(ctx, stdout)
-			i.logger.Error(ctx, stderr)
+			go func() {
+				for {
+					i.logger.Info(ctx, stdoutBuf.String())
+					i.logger.Error(ctx, stderrBuf.String())
+
+					time.Sleep(5 * time.Second)
+				}
+			}()
+
+			go func() {
+				if err := cmd.Wait(); err != nil {
+					i.logger.Error(ctx, "running command", slog.Error(err))
+				}
+			}()
 		}
 
 		return nil
