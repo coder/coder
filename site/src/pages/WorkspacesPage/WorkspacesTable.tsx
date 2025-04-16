@@ -14,6 +14,11 @@ import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Stack } from "components/Stack/Stack";
 import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "components/StatusIndicator/StatusIndicator";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -36,17 +41,12 @@ import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
+	type GetWorkspaceDisplayStatusType,
 	getDisplayWorkspaceStatus,
 	getDisplayWorkspaceTemplateName,
 	lastUsedMessage,
-	type GetWorkspaceDisplayStatusType,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
