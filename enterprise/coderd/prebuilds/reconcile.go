@@ -44,7 +44,13 @@ type StoreReconciler struct {
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
-func NewStoreReconciler(store database.Store, ps pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger, clock quartz.Clock) *StoreReconciler {
+func NewStoreReconciler(
+	store database.Store,
+	ps pubsub.Pubsub,
+	cfg codersdk.PrebuildsConfig,
+	logger slog.Logger,
+	clock quartz.Clock,
+) *StoreReconciler {
 	return &StoreReconciler{
 		store:  store,
 		pubsub: ps,
@@ -89,7 +95,12 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		case <-ctx.Done():
 			// nolint:gocritic // it's okay to use slog.F() for an error in this case
 			// because we want to differentiate two different types of errors: ctx.Err() and context.Cause()
-			c.logger.Warn(context.Background(), "reconciliation loop exited", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
+			c.logger.Warn(
+				context.Background(),
+				"reconciliation loop exited",
+				slog.Error(ctx.Err()),
+				slog.F("cause", context.Cause(ctx)),
+			)
 			return
 		}
 	}
@@ -115,7 +126,12 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	case <-ctx.Done():
 		// nolint:gocritic // it's okay to use slog.F() for an error in this case
 		// because we want to differentiate two different types of errors: ctx.Err() and context.Cause()
-		c.logger.Error(context.Background(), "reconciler stop exited prematurely", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
+		c.logger.Error(
+			context.Background(),
+			"reconciler stop exited prematurely",
+			slog.Error(ctx.Err()),
+			slog.F("cause", context.Cause(ctx)),
+		)
 	// Wait for the control loop to exit.
 	case <-c.done:
 		c.logger.Info(context.Background(), "reconciler stopped")
@@ -185,7 +201,12 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 				// Pass outer context.
 				err = c.ReconcilePreset(ctx, *ps)
 				if err != nil {
-					logger.Error(ctx, "failed to reconcile prebuilds for preset", slog.Error(err), slog.F("preset_id", preset.ID))
+					logger.Error(
+						ctx,
+						"failed to reconcile prebuilds for preset",
+						slog.Error(err),
+						slog.F("preset_id", preset.ID),
+					)
 				}
 				// DO NOT return error otherwise the tx will end.
 				return nil
@@ -211,7 +232,8 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 	var state prebuilds.GlobalSnapshot
 
 	err := store.InTx(func(db database.Store) error {
-		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{}) // TODO: implement template-specific reconciliations later
+		// TODO: implement template-specific reconciliations later
+		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{})
 		if err != nil {
 			return xerrors.Errorf("failed to get template presets with prebuilds: %w", err)
 		}
@@ -342,7 +364,11 @@ func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuil
 	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
 }
 
-func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slog.Logger, fn func(ctx context.Context, db database.Store) error) error {
+func (c *StoreReconciler) WithReconciliationLock(
+	ctx context.Context,
+	logger slog.Logger,
+	fn func(ctx context.Context, db database.Store) error,
+) error {
 	// This tx holds a global lock, which prevents any other coderd replica from starting a reconciliation and
 	// possibly getting an inconsistent view of the state.
 	//
@@ -366,7 +392,10 @@ func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slo
 			return nil
 		}
 
-		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
+		logger.Debug(ctx,
+			"acquired top-level reconciliation lock",
+			slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())),
+		)
 
 		return fn(ctx, db)
 	}, &database.TxOptions{
