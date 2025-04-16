@@ -726,7 +726,11 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 	return entry
 }
 
-func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
+func prebuild(
+	opts options,
+	clock quartz.Clock,
+	muts ...func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow,
+) database.GetRunningPrebuiltWorkspacesRow {
 	entry := database.GetRunningPrebuiltWorkspacesRow{
 		ID:                opts.prebuildID,
 		Name:              opts.workspaceName,
