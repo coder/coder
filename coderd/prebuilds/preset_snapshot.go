@@ -178,9 +178,7 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (*ReconciliationActions, e
 // handleInactiveTemplateVersion deletes all running prebuilds except those already being deleted
 // to avoid duplicate deletion attempts.
 func (p PresetSnapshot) handleInactiveTemplateVersion() (*ReconciliationActions, error) {
-	state := p.CalculateState()
-
-	prebuildsToDelete := max(len(p.Running)-int(state.Deleting), 0)
+	prebuildsToDelete := len(p.Running)
 	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
 
 	return &ReconciliationActions{

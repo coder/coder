@@ -167,6 +167,56 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	}, *actions)
 }
 
+// Make sure that outdated prebuild will be deleted, even if deletion of another outdated prebuild is already in progress.
+func TestDeleteOutdatedPrebuilds(t *testing.T) {
+	t.Parallel()
+	outdated := opts[optionSet0]
+	clock := quartz.NewMock(t)
+
+	// GIVEN: 1 outdated preset.
+	presets := []database.GetTemplatePresetsWithPrebuildsRow{
+		preset(false, 1, outdated),
+	}
+
+	// GIVEN: one running prebuild for the outdated preset.
+	running := []database.GetRunningPrebuiltWorkspacesRow{
+		prebuild(outdated, clock),
+	}
+
+	// GIVEN: one deleting prebuild for the outdated preset.
+	inProgress := []database.CountInProgressPrebuildsRow{
+		{
+			TemplateID:        outdated.templateID,
+			TemplateVersionID: outdated.templateVersionID,
+			Transition:        database.WorkspaceTransitionDelete,
+			Count:             1,
+			PresetID: uuid.NullUUID{
+				UUID:  outdated.presetID,
+				Valid: true,
+			},
+		},
+	}
+
+	// WHEN: calculating the outdated preset's state.
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	ps, err := snapshot.FilterByPreset(outdated.presetID)
+	require.NoError(t, err)
+
+	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
+	// Despite the fact that deletion of another outdated prebuild is already in progress.
+	state := ps.CalculateState()
+	actions, err := ps.CalculateActions(clock, backoffInterval)
+	require.NoError(t, err)
+	validateState(t, prebuilds.ReconciliationState{
+		Deleting: 1,
+	}, *state)
+
+	validateActions(t, prebuilds.ReconciliationActions{
+		ActionType: prebuilds.ActionTypeDelete,
+		DeleteIDs:  []uuid.UUID{outdated.prebuildID},
+	}, *actions)
+}
+
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
 // the calculated actions should indicate the state correctly.
 func TestInProgressActions(t *testing.T) {
