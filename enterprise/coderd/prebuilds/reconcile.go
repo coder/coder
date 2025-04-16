@@ -310,7 +310,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 				slog.F("backoff_secs", math.Round(actions.BackoffUntil.Sub(c.clock.Now()).Seconds())),
 			)...)
 
-		// return ErrBackoff
 		return nil
 
 	case prebuilds.ActionTypeCreate:
