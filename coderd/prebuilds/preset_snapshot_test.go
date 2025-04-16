@@ -131,7 +131,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 
 	// GIVEN: a running prebuild for the outdated preset.
 	running := []database.GetRunningPrebuiltWorkspacesRow{
-		prebuild(outdated, clock),
+		prebuiltWorkspace(outdated, clock),
 	}
 
 	// GIVEN: no in-progress builds.
@@ -180,7 +180,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 
 	// GIVEN: one running prebuild for the outdated preset.
 	running := []database.GetRunningPrebuiltWorkspacesRow{
-		prebuild(outdated, clock),
+		prebuiltWorkspace(outdated, clock),
 	}
 
 	// GIVEN: one deleting prebuild for the outdated preset.
@@ -466,13 +466,13 @@ func TestExtraneous(t *testing.T) {
 	var older uuid.UUID
 	// GIVEN: 2 running prebuilds for the preset.
 	running := []database.GetRunningPrebuiltWorkspacesRow{
-		prebuild(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
+		prebuiltWorkspace(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
 			// The older of the running prebuilds will be deleted in order to maintain freshness.
 			row.CreatedAt = clock.Now().Add(-time.Hour)
 			older = row.ID
 			return row
 		}),
-		prebuild(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
+		prebuiltWorkspace(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
 			row.CreatedAt = clock.Now()
 			return row
 		}),
@@ -515,7 +515,7 @@ func TestDeprecated(t *testing.T) {
 
 	// GIVEN: 1 running prebuilds for the preset.
 	running := []database.GetRunningPrebuiltWorkspacesRow{
-		prebuild(current, clock),
+		prebuiltWorkspace(current, clock),
 	}
 
 	// GIVEN: NO prebuilds in progress.
@@ -552,7 +552,7 @@ func TestLatestBuildFailed(t *testing.T) {
 
 	// GIVEN: running prebuilds only for one preset (the other will be failing, as evidenced by the backoffs below).
 	running := []database.GetRunningPrebuiltWorkspacesRow{
-		prebuild(other, clock),
+		prebuiltWorkspace(other, clock),
 	}
 
 	// GIVEN: NO prebuilds in progress.
@@ -726,7 +726,7 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 	return entry
 }
 
-func prebuild(
+func prebuiltWorkspace(
 	opts options,
 	clock quartz.Clock,
 	muts ...func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow,
