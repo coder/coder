@@ -220,15 +220,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		// Update the input for the changed parameter
 		formInputs[parameter.name] = value;
 
-		setWSResponseId((prevId) => {
-			const newId = prevId + 1;
-			const request: DynamicParametersRequest = {
-				id: newId,
-				inputs: formInputs,
-			};
-			sendMessage(request);
-			return newId;
-		});
+		sendMessage(formInputs);
 	};
 
 	const { debounced: handleChangeDebounced } = useDebouncedFunction(
@@ -238,7 +230,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 			value: string,
 		) => {
 			await form.setFieldValue(parameterField, {
-				name: parameter.form_type,
+				name: parameter.name,
 				value,
 			});
 			sendDynamicParamsRequest(parameter, value);
@@ -255,7 +247,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 			handleChangeDebounced(parameter, parameterField, value);
 		} else {
 			await form.setFieldValue(parameterField, {
-				name: parameter.form_type,
+				name: parameter.name,
 				value,
 			});
 			sendDynamicParamsRequest(parameter, value);
