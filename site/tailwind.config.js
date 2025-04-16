@@ -49,10 +49,12 @@ module.exports = {
 					grey: "hsl(var(--surface-grey))",
 					orange: "hsl(var(--surface-orange))",
 					sky: "hsl(var(--surface-sky))",
+					red: "hsl(var(--surface-red))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
 					destructive: "hsl(var(--border-destructive))",
+					warning: "hsl(var(--border-warning))",
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
 				},

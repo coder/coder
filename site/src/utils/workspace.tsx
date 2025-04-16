@@ -176,6 +176,7 @@ export const getDisplayWorkspaceStatus = (
 		case undefined:
 			return {
 				text: "Loading",
+				type: "active",
 				icon: <PillSpinner />,
 			} as const;
 		case "running":
@@ -240,6 +241,10 @@ export const getDisplayWorkspaceStatus = (
 			} as const;
 	}
 };
+
+export type GetWorkspaceDisplayStatusType = ReturnType<
+	typeof getDisplayWorkspaceStatus
+>["type"];
 
 export const hasJobError = (workspace: TypesGen.Workspace) => {
 	return workspace.latest_build.job.error !== undefined;
@@ -306,4 +311,24 @@ const FALLBACK_ICON = "/icon/widgets.svg";
 
 export const getResourceIconPath = (resourceType: string): string => {
 	return BUILT_IN_ICON_PATHS[resourceType] ?? FALLBACK_ICON;
+};
+
+export const lastUsedMessage = (lastUsedAt: string | Date) => {
+	const t = dayjs(lastUsedAt);
+	const now = dayjs();
+	let message = t.fromNow();
+
+	if (t.isAfter(now.subtract(1, "hour"))) {
+		message = "Now";
+	} else if (t.isAfter(now.subtract(3, "day"))) {
+		message = t.fromNow();
+	} else if (t.isAfter(now.subtract(1, "month"))) {
+		message = t.fromNow();
+	} else if (t.isAfter(now.subtract(100, "year"))) {
+		message = t.fromNow();
+	} else {
+		message = "Never";
+	}
+
+	return message;
 };
