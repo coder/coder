@@ -1,4 +1,5 @@
 import type {
+	NullHCLString,
 	PreviewParameter,
 	PreviewParameterOption,
 	WorkspaceBuildParameter,
@@ -156,10 +157,8 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	disabled,
 	id,
 }) => {
-	const value = parameter.value.valid ? parameter.value.value : "";
-	const defaultValue = parameter.default_value.valid
-		? parameter.default_value.value
-		: "";
+	const value = validValue(parameter.value)
+	const defaultValue = validValue(parameter.default_value);
 
 	switch (parameter.form_type) {
 		case "dropdown":
@@ -376,9 +375,7 @@ export const getInitialParameterValues = (
 		if (parameter.ephemeral) {
 			return {
 				name: parameter.name,
-				value: parameter.default_value.valid
-					? parameter.default_value.value
-					: "",
+				value: validValue(parameter.default_value)
 			};
 		}
 
@@ -390,17 +387,21 @@ export const getInitialParameterValues = (
 			name: parameter.name,
 			value:
 				autofillParam &&
-				isValidValue(parameter, autofillParam) &&
+				isValidParameterOption(parameter, autofillParam) &&
 				autofillParam.value
 					? autofillParam.value
-					: parameter.default_value.valid
-						? parameter.default_value.value
-						: "",
+					: validValue(parameter.default_value)
 		};
 	});
 };
 
-const isValidValue = (
+const validValue = (
+	value: NullHCLString
+) => {
+	return value.valid ? value.value : "";
+}
+
+const isValidParameterOption = (
 	previewParam: PreviewParameter,
 	buildParam: WorkspaceBuildParameter,
 ) => {
@@ -411,7 +412,7 @@ const isValidValue = (
 		return validValues.includes(buildParam.value);
 	}
 
-	return true;
+	return false;
 };
 
 export const useValidationSchemaForDynamicParameters = (
