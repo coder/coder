@@ -464,7 +464,7 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
-	//nolint:revive // This block will be re-enabled, not going to remove it
+	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
 	if buildinfo.IsDev() {
 		// TODO: Find another solution to opt into these checks.
 		//   If the header grows too large, it breaks `fetch()` requests.
