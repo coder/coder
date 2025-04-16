@@ -408,7 +408,7 @@ func TestInProgressActions(t *testing.T) {
 				defaultPreset,
 			}
 
-			// GIVEN: a running prebuild for the preset.
+			// GIVEN: running prebuilt workspaces for the preset.
 			running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, tc.running)
 			for range tc.running {
 				name, err := prebuilds.GenerateName()
