@@ -9,7 +9,6 @@ import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
-	Template,
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -50,6 +49,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		useState<DynamicParametersResponse | null>(null);
 	const [wsResponseId, setWSResponseId] = useState<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
+	const [wsError, setWsError] = useState<Error | null>(null);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -103,10 +103,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
 			onMessage,
 			onError: (error) => {
-				console.error(
-					"Failed to parse dynamic parameters webSocket message:",
-					error,
-				);
+				setWsError(error);
 			},
 		});
 
@@ -244,11 +241,12 @@ const CreateWorkspacePageExperimental: FC = () => {
 				<CreateWorkspacePageViewExperimental
 					mode={mode}
 					defaultName={defaultName}
-					diagnostics={currentResponse.diagnostics}
+					diagnostics={currentResponse?.diagnostics ?? []}
 					disabledParams={disabledParams}
 					defaultOwner={me}
 					autofillParameters={autofillParameters}
 					error={
+						wsError ||
 						createWorkspaceMutation.error ||
 						autoCreateError ||
 						loadFormDataError ||
