@@ -189,7 +189,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	}
 
 	if len(notExists) > 0 {
-		notExists = slice.Unique(notExists) // Remove dupes
+		notExists = slice.Unique(notExists) // Remove duplicates
 		s.Logger.Debug(ctx, "organizations do not exist but attempted to use in org sync",
 			slog.F("not_found", notExists),
 			slog.F("user_id", user.ID),
