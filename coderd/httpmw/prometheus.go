@@ -118,7 +118,7 @@ func getRoutePattern(r *http.Request) string {
 
 	tctx := chi.NewRouteContext()
 	routes := rctx.Routes
-	if routes != nil && routes.Match(tctx, r.Method, routePath) {
+	if routes != nil && !routes.Match(tctx, r.Method, routePath) {
 		// No matching pattern. /api/* requests will be matched as "UNKNOWN"
 		// All other ones will be matched as "STATIC".
 		if strings.HasPrefix(routePath, "/api/") {
