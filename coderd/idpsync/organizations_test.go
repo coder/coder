@@ -20,7 +20,10 @@ import (
 )
 
 func TestFromLegacySettings(t *testing.T) {
+	t.Parallel()
+
 	t.Run("AssignDefault,True", func(t *testing.T) {
+		t.Parallel()
 		legacy := `{
    "Field":"groups",
    "Mapping":{
@@ -46,6 +49,7 @@ func TestFromLegacySettings(t *testing.T) {
 	})
 
 	t.Run("AssignDefault,False", func(t *testing.T) {
+		t.Parallel()
 		legacy := `{
    "Field":"groups",
    "Mapping":{
@@ -71,6 +75,7 @@ func TestFromLegacySettings(t *testing.T) {
 	})
 
 	t.Run("CorrectAssign", func(t *testing.T) {
+		t.Parallel()
 		legacy := `{
    "Field":"groups",
    "Mapping":{
