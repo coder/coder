@@ -168,6 +168,9 @@ func (s *OrganizationSyncSettings) Set(v string) error {
 }
 
 func (s *OrganizationSyncSettings) String() string {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
 	return runtimeconfig.JSONString(s)
 }
 
