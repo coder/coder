@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
@@ -463,8 +464,16 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
+	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
 	if buildinfo.IsDev() {
-		r.Use(httpmw.RecordAuthzChecks)
+		// TODO: Find another solution to opt into these checks.
+		//   If the header grows too large, it breaks `fetch()` requests.
+		//   Temporarily disabling this until we can find a better solution.
+		//	 One idea is to include checking the request for `X-Authz-Record=true`
+		//   header. To opt in on a per-request basis.
+		//   Some authz calls (like filtering lists) might be able to be
+		//   summarized better to condense the header payload.
+		// r.Use(httpmw.RecordAuthzChecks)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -675,10 +684,11 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	dialer := &InmemTailnetDialer{
-		CoordPtr: &api.TailnetCoordinator,
-		DERPFn:   api.DERPMap,
-		Logger:   options.Logger,
-		ClientID: uuid.New(),
+		CoordPtr:            &api.TailnetCoordinator,
+		DERPFn:              api.DERPMap,
+		Logger:              options.Logger,
+		ClientID:            uuid.New(),
+		DatabaseHealthCheck: api.Database,
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
@@ -810,7 +820,7 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		httpmw.Logger(api.Logger),
+		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,

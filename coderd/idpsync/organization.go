@@ -92,14 +92,16 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return nil // No sync configured, nothing to do
 	}
 
-	expectedOrgs, err := orgSettings.ParseClaims(ctx, tx, params.MergedClaims)
+	expectedOrgIDs, err := orgSettings.ParseClaims(ctx, tx, params.MergedClaims)
 	if err != nil {
 		return xerrors.Errorf("organization claims: %w", err)
 	}
 
+	// Fetch all organizations, even deleted ones. This is to remove a user
+	// from any deleted organizations they may be in.
 	existingOrgs, err := tx.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
 		UserID:  user.ID,
-		Deleted: false,
+		Deleted: sql.NullBool{},
 	})
 	if err != nil {
 		return xerrors.Errorf("failed to get user organizations: %w", err)
@@ -109,10 +111,35 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return org.ID
 	})
 
+	// finalExpected is the final set of org ids the user is expected to be in.
+	// Deleted orgs are omitted from this set.
+	finalExpected := expectedOrgIDs
+	if len(expectedOrgIDs) > 0 {
+		// If you pass in an empty slice to the db arg, you get all orgs. So the slice
+		// has to be non-empty to get the expected set. Logically it also does not make
+		// sense to fetch an empty set from the db.
+		expectedOrganizations, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{
+			IDs: expectedOrgIDs,
+			// Do not include deleted organizations. Omitting deleted orgs will remove the
+			// user from any deleted organizations they are a member of.
+			Deleted: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to get expected organizations: %w", err)
+		}
+		finalExpected = db2sdk.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
+			return org.ID
+		})
+	}
+
 	// Find the difference in the expected and the existing orgs, and
 	// correct the set of orgs the user is a member of.
-	add, remove := slice.SymmetricDifference(existingOrgIDs, expectedOrgs)
-	notExists := make([]uuid.UUID, 0)
+	add, remove := slice.SymmetricDifference(existingOrgIDs, finalExpected)
+	// notExists is purely for debugging. It logs when the settings want
+	// a user in an organization, but the organization does not exist.
+	notExists := slice.DifferenceFunc(expectedOrgIDs, finalExpected, func(a, b uuid.UUID) bool {
+		return a == b
+	})
 	for _, orgID := range add {
 		_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
@@ -123,7 +150,28 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		})
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
+				// This should not happen because we check the org existence
+				// beforehand.
 				notExists = append(notExists, orgID)
+				continue
+			}
+
+			if database.IsUniqueViolation(err, database.UniqueOrganizationMembersPkey) {
+				// If we hit this error we have a bug. The user already exists in the
+				// organization, but was not detected to be at the start of this function.
+				// Instead of failing the function, an error will be logged. This is to not bring
+				// down the entire syncing behavior from a single failed org. Failing this can
+				// prevent user logins, so only fatal non-recoverable errors should be returned.
+				//
+				// Inserting a user is privilege escalation. So skipping this instead of failing
+				// leaves the user with fewer permissions. So this is safe from a security
+				// perspective to continue.
+				s.Logger.Error(ctx, "syncing user to organization failed as they are already a member, please report this failure to Coder",
+					slog.F("user_id", user.ID),
+					slog.F("username", user.Username),
+					slog.F("organization_id", orgID),
+					slog.Error(err),
+				)
 				continue
 			}
 			return xerrors.Errorf("add user to organization: %w", err)
@@ -141,6 +189,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	}
 
 	if len(notExists) > 0 {
+		notExists = slice.Unique(notExists) // Remove duplicates
 		s.Logger.Debug(ctx, "organizations do not exist but attempted to use in org sync",
 			slog.F("not_found", notExists),
 			slog.F("user_id", user.ID),

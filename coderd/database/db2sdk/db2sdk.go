@@ -537,16 +537,14 @@ func WorkspaceAppStatuses(statuses []database.WorkspaceAppStatus) []codersdk.Wor
 
 func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAppStatus {
 	return codersdk.WorkspaceAppStatus{
-		ID:                 status.ID,
-		CreatedAt:          status.CreatedAt,
-		WorkspaceID:        status.WorkspaceID,
-		AgentID:            status.AgentID,
-		AppID:              status.AppID,
-		NeedsUserAttention: status.NeedsUserAttention,
-		URI:                status.Uri.String,
-		Icon:               status.Icon.String,
-		Message:            status.Message,
-		State:              codersdk.WorkspaceAppStatusState(status.State),
+		ID:          status.ID,
+		CreatedAt:   status.CreatedAt,
+		WorkspaceID: status.WorkspaceID,
+		AgentID:     status.AgentID,
+		AppID:       status.AppID,
+		URI:         status.Uri.String,
+		Message:     status.Message,
+		State:       codersdk.WorkspaceAppStatusState(status.State),
 	}
 }
 

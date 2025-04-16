@@ -984,11 +984,12 @@ export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	agent_id: "test-workspace-agent",
 	workspace_id: "test-workspace",
 	app_id: MockWorkspaceApp.id,
-	needs_user_attention: false,
-	icon: "/emojis/1f957.png",
 	uri: "https://github.com/coder/coder/pull/1234",
 	message: "Your competitors page is completed!",
 	state: "complete",
+	// Deprecated fields
+	needs_user_attention: false,
+	icon: "",
 };
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -1266,6 +1267,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 		count: 1,
 		available: 1,
 	},
+	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
@@ -1289,6 +1291,7 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
@@ -1312,6 +1315,7 @@ export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	template_version_preset_id: null,
 };
 
 export const MockFailedWorkspaceBuild = (
@@ -1337,6 +1341,7 @@ export const MockFailedWorkspaceBuild = (
 	resources: [],
 	status: "failed",
 	daily_cost: 20,
+	template_version_preset_id: null,
 });
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {

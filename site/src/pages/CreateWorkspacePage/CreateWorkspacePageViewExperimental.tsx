@@ -1,5 +1,9 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
+import type {
+	DynamicParametersRequest,
+	PreviewDiagnostics,
+	PreviewParameter,
+} from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -9,12 +13,18 @@ import { SelectFilter } from "components/Filter/SelectFilter";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Pill } from "components/Pill/Pill";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import { useDebouncedFunction } from "hooks/debounce";
 import { ArrowLeft } from "lucide-react";
+import {
+	DynamicParameter,
+	getInitialParameterValues,
+	useValidationSchemaForDynamicParameters,
+} from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -25,11 +35,7 @@ import {
 	useState,
 } from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
-import {
-	type AutofillBuildParameter,
-	getInitialRichParameterValues,
-	useValidationSchemaForRichParameters,
-} from "utils/richParameters";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 import type {
 	CreateWorkspaceMode,
@@ -37,65 +43,67 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
-export const Language = {
-	duplicationWarning:
-		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
-} as const;
 
 export interface CreateWorkspacePageViewExperimentalProps {
-	mode: CreateWorkspaceMode;
+	autofillParameters: AutofillBuildParameter[];
+	creatingWorkspace: boolean;
 	defaultName?: string | null;
+	defaultOwner: TypesGen.User;
+	diagnostics: PreviewDiagnostics;
 	disabledParams?: string[];
 	error: unknown;
-	resetMutation: () => void;
-	defaultOwner: TypesGen.User;
-	template: TypesGen.Template;
-	versionId?: string;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
 	externalAuthPollingState: ExternalAuthPollingState;
-	startPollingExternalAuth: () => void;
 	hasAllRequiredExternalAuth: boolean;
-	parameters: TypesGen.TemplateVersionParameter[];
-	autofillParameters: AutofillBuildParameter[];
-	presets: TypesGen.Preset[];
+	mode: CreateWorkspaceMode;
+	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
-	creatingWorkspace: boolean;
+	presets: TypesGen.Preset[];
+	template: TypesGen.Template;
+	versionId?: string;
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
 		owner: TypesGen.User,
 	) => void;
+	resetMutation: () => void;
+	sendMessage: (message: DynamicParametersRequest) => void;
+	setWSResponseId: (value: React.SetStateAction<number>) => void;
+	startPollingExternalAuth: () => void;
 }
 
 export const CreateWorkspacePageViewExperimental: FC<
 	CreateWorkspacePageViewExperimentalProps
 > = ({
-	mode,
+	autofillParameters,
+	creatingWorkspace,
 	defaultName,
+	defaultOwner,
+	diagnostics,
 	disabledParams,
 	error,
-	resetMutation,
-	defaultOwner,
-	template,
-	versionId,
 	externalAuth,
 	externalAuthPollingState,
-	startPollingExternalAuth,
 	hasAllRequiredExternalAuth,
+	mode,
 	parameters,
-	autofillParameters,
-	presets = [],
 	permissions,
-	creatingWorkspace,
+	presets = [],
+	template,
+	versionId,
 	onSubmit,
 	onCancel,
+	resetMutation,
+	sendMessage,
+	setWSResponseId,
+	startPollingExternalAuth,
 }) => {
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
+	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
-
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
@@ -105,16 +113,19 @@ export const CreateWorkspacePageViewExperimental: FC<
 			initialValues: {
 				name: defaultName ?? "",
 				template_id: template.id,
-				rich_parameter_values: getInitialRichParameterValues(
+				rich_parameter_values: getInitialParameterValues(
 					parameters,
 					autofillParameters,
 				),
 			},
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
-				rich_parameter_values: useValidationSchemaForRichParameters(parameters),
+				rich_parameter_values:
+					useValidationSchemaForDynamicParameters(parameters),
 			}),
 			enableReinitialize: true,
+			validateOnChange: false,
+			validateOnBlur: true,
 			onSubmit: (request) => {
 				if (!hasAllRequiredExternalAuth) {
 					return;
@@ -195,9 +206,63 @@ export const CreateWorkspacePageViewExperimental: FC<
 		presetOptions,
 		selectedPresetIndex,
 		presets,
-		parameters,
 		form.setFieldValue,
+		parameters,
 	]);
+
+	const sendDynamicParamsRequest = (
+		parameter: PreviewParameter,
+		value: string,
+	) => {
+		const formInputs = Object.fromEntries(
+			form.values.rich_parameter_values?.map((value) => {
+				return [value.name, value.value];
+			}) ?? [],
+		);
+		// Update the input for the changed parameter
+		formInputs[parameter.name] = value;
+
+		setWSResponseId((prevId) => {
+			const newId = prevId + 1;
+			const request: DynamicParametersRequest = {
+				id: newId,
+				inputs: formInputs,
+			};
+			sendMessage(request);
+			return newId;
+		});
+	};
+
+	const { debounced: handleChangeDebounced } = useDebouncedFunction(
+		async (
+			parameter: PreviewParameter,
+			parameterField: string,
+			value: string,
+		) => {
+			await form.setFieldValue(parameterField, {
+				name: parameter.form_type,
+				value,
+			});
+			sendDynamicParamsRequest(parameter, value);
+		},
+		500,
+	);
+
+	const handleChange = async (
+		parameter: PreviewParameter,
+		parameterField: string,
+		value: string,
+	) => {
+		if (parameter.form_type === "input" || parameter.form_type === "textarea") {
+			handleChangeDebounced(parameter, parameterField, value);
+		} else {
+			await form.setFieldValue(parameterField, {
+				name: parameter.form_type,
+				value,
+			});
+			sendDynamicParamsRequest(parameter, value);
+		}
+	};
 
 	return (
 		<>
@@ -244,7 +309,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 							dismissible
 							data-testid="duplication-warning"
 						>
-							{Language.duplicationWarning}
+							Duplicating a workspace only copies its parameters. No state from
+							the old workspace is copied over.
 						</Alert>
 					)}
 
@@ -353,9 +419,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">Parameters</h2>
 								<p className="text-sm text-content-secondary m-0">
-									These are the settings used by your template. Please note that
-									immutable parameters cannot be modified once the workspace is
-									created.
+									These are the settings used by your template. Immutable
+									parameters cannot be modified once the workspace is created.
 								</p>
 							</hgroup>
 							{presets.length > 0 && (
@@ -382,6 +447,16 @@ export const CreateWorkspacePageViewExperimental: FC<
 												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</div>
+										<span className="flex items-center gap-3">
+											<Switch
+												id="show-preset-parameters"
+												checked={showPresetParameters}
+												onCheckedChange={setShowPresetParameters}
+											/>
+											<Label htmlFor="show-preset-parameters">
+												Show preset parameters
+											</Label>
+										</span>
 									</div>
 								</Stack>
 							)}
@@ -390,26 +465,32 @@ export const CreateWorkspacePageViewExperimental: FC<
 								{parameters.map((parameter, index) => {
 									const parameterField = `rich_parameter_values.${index}`;
 									const parameterInputName = `${parameterField}.value`;
+									const isPresetParameter = presetParameterNames.includes(
+										parameter.name,
+									);
 									const isDisabled =
 										disabledParams?.includes(
 											parameter.name.toLowerCase().replace(/ /g, "_"),
 										) ||
+										(parameter.styling as { disabled?: boolean })?.disabled ||
 										creatingWorkspace ||
-										presetParameterNames.includes(parameter.name);
+										isPresetParameter;
+
+									// Hide preset parameters if showPresetParameters is false
+									if (!showPresetParameters && isPresetParameter) {
+										return null;
+									}
 
 									return (
-										<RichParameterInput
+										<DynamicParameter
 											{...getFieldHelpers(parameterInputName)}
-											onChange={async (value) => {
-												await form.setFieldValue(parameterField, {
-													name: parameter.name,
-													value,
-												});
-											}}
 											key={parameter.name}
 											parameter={parameter}
-											parameterAutofill={autofillByName[parameter.name]}
+											onChange={(value) =>
+												handleChange(parameter, parameterField, value)
+											}
 											disabled={isDisabled}
+											isPreset={isPresetParameter}
 										/>
 									);
 								})}
@@ -431,10 +512,3 @@ export const CreateWorkspacePageViewExperimental: FC<
 		</>
 	);
 };
-
-const styles = {
-	description: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
