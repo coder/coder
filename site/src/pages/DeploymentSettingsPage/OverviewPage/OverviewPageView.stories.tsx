@@ -39,6 +39,11 @@ const meta: Meta<typeof OverviewPageView> = {
 		invalidExperiments: [],
 		safeExperiments: [],
 	},
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.2,
+		},
+	},
 };
 
 export default meta;

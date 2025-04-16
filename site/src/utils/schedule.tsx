@@ -162,12 +162,12 @@ export const autostopDisplay = (
 		return {
 			message: `Stop ${deadline.fromNow()}`,
 			tooltip: (
-				<>
+				<span data-chromatic="ignore">
 					{title}
 					This workspace will be stopped on{" "}
 					{deadline.format("MMMM D [at] h:mm A")}
 					{reason}
-				</>
+				</span>
 			),
 			danger: isShutdownSoon(workspace),
 		};

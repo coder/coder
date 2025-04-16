@@ -97,7 +97,9 @@ const meta = {
 	decorators: [
 		(Story) => (
 			<AuthProvider>
-				<Story />
+				<div style={{ width: 1170, height: 880 }}>
+					<Story />
+				</div>
 			</AuthProvider>
 		),
 	],

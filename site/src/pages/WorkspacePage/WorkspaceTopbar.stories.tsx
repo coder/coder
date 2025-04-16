@@ -209,11 +209,6 @@ export const WithApproachingDeadline: Story = {
 			);
 		});
 	},
-	parameters: {
-		chromatic: {
-			diffThreshold: 0.3,
-		},
-	},
 };
 
 export const WithFarAwayDeadline: Story = {
