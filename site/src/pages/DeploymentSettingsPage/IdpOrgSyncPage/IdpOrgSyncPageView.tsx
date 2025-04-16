@@ -257,7 +257,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
-									defaultOptions={organizations.map((org) => ({
+									options={organizations.map((org) => ({
 										label: org.display_name,
 										value: org.id,
 									}))}
