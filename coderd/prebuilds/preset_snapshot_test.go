@@ -17,12 +17,12 @@ import (
 )
 
 type options struct {
-	templateID        uuid.UUID
-	templateVersionID uuid.UUID
-	presetID          uuid.UUID
-	presetName        string
-	prebuildID        uuid.UUID
-	workspaceName     string
+	templateID          uuid.UUID
+	templateVersionID   uuid.UUID
+	presetID            uuid.UUID
+	presetName          string
+	prebuiltWorkspaceID uuid.UUID
+	workspaceName       string
 }
 
 // templateID is common across all option sets.
@@ -38,28 +38,28 @@ const (
 
 var opts = map[uint]options{
 	optionSet0: {
-		templateID:        templateID,
-		templateVersionID: uuid.New(),
-		presetID:          uuid.New(),
-		presetName:        "my-preset",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds0",
+		templateID:          templateID,
+		templateVersionID:   uuid.New(),
+		presetID:            uuid.New(),
+		presetName:          "my-preset",
+		prebuiltWorkspaceID: uuid.New(),
+		workspaceName:       "prebuilds0",
 	},
 	optionSet1: {
-		templateID:        templateID,
-		templateVersionID: uuid.New(),
-		presetID:          uuid.New(),
-		presetName:        "my-preset",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds1",
+		templateID:          templateID,
+		templateVersionID:   uuid.New(),
+		presetID:            uuid.New(),
+		presetName:          "my-preset",
+		prebuiltWorkspaceID: uuid.New(),
+		workspaceName:       "prebuilds1",
 	},
 	optionSet2: {
-		templateID:        templateID,
-		templateVersionID: uuid.New(),
-		presetID:          uuid.New(),
-		presetName:        "my-preset",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds2",
+		templateID:          templateID,
+		templateVersionID:   uuid.New(),
+		presetID:            uuid.New(),
+		presetName:          "my-preset",
+		prebuiltWorkspaceID: uuid.New(),
+		workspaceName:       "prebuilds2",
 	},
 }
 
@@ -149,7 +149,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
 		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{outdated.prebuildID},
+		DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
 	}, *actions)
 
 	// WHEN: calculating the current preset's state.
@@ -213,7 +213,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 
 	validateActions(t, prebuilds.ReconciliationActions{
 		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{outdated.prebuildID},
+		DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
 	}, *actions)
 }
 
@@ -533,7 +533,7 @@ func TestDeprecated(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
 		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{current.prebuildID},
+		DeleteIDs:  []uuid.UUID{current.prebuiltWorkspaceID},
 	}, *actions)
 }
 
@@ -628,20 +628,20 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	templateID := uuid.New()
 	templateVersionID := uuid.New()
 	presetOpts1 := options{
-		templateID:        templateID,
-		templateVersionID: templateVersionID,
-		presetID:          uuid.New(),
-		presetName:        "my-preset-1",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds1",
+		templateID:          templateID,
+		templateVersionID:   templateVersionID,
+		presetID:            uuid.New(),
+		presetName:          "my-preset-1",
+		prebuiltWorkspaceID: uuid.New(),
+		workspaceName:       "prebuilds1",
 	}
 	presetOpts2 := options{
-		templateID:        templateID,
-		templateVersionID: templateVersionID,
-		presetID:          uuid.New(),
-		presetName:        "my-preset-2",
-		prebuildID:        uuid.New(),
-		workspaceName:     "prebuilds2",
+		templateID:          templateID,
+		templateVersionID:   templateVersionID,
+		presetID:            uuid.New(),
+		presetName:          "my-preset-2",
+		prebuiltWorkspaceID: uuid.New(),
+		workspaceName:       "prebuilds2",
 	}
 
 	clock := quartz.NewMock(t)
@@ -732,7 +732,7 @@ func prebuiltWorkspace(
 	muts ...func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow,
 ) database.GetRunningPrebuiltWorkspacesRow {
 	entry := database.GetRunningPrebuiltWorkspacesRow{
-		ID:                opts.prebuildID,
+		ID:                opts.prebuiltWorkspaceID,
 		Name:              opts.workspaceName,
 		TemplateID:        opts.templateID,
 		TemplateVersionID: opts.templateVersionID,
