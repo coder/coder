@@ -2,6 +2,7 @@ package idpsync_test
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -22,21 +23,24 @@ import (
 func TestFromLegacySettings(t *testing.T) {
 	t.Parallel()
 
+	legacy := func(assignDefault bool) string {
+		return fmt.Sprintf(`{
+		   "Field":"groups",
+		   "Mapping":{
+			  "engineering":[
+				 "10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
+			  ]
+		   },
+		   "AssignDefault":%t
+		}`, assignDefault)
+	}
+
 	t.Run("AssignDefault,True", func(t *testing.T) {
 		t.Parallel()
-		legacy := `{
-   "Field":"groups",
-   "Mapping":{
-      "engineering":[
-         "10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
-      ]
-   },
-   "AssignDefault":true
-}`
 
 		var settings idpsync.OrganizationSyncSettings
 		settings.AssignDefault = true
-		err := settings.Set(legacy)
+		err := settings.Set(legacy(true))
 		require.NoError(t, err)
 
 		require.Equal(t, settings.Field, "groups", "field")
@@ -50,19 +54,10 @@ func TestFromLegacySettings(t *testing.T) {
 
 	t.Run("AssignDefault,False", func(t *testing.T) {
 		t.Parallel()
-		legacy := `{
-   "Field":"groups",
-   "Mapping":{
-      "engineering":[
-         "10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
-      ]
-   },
-   "AssignDefault":false
-}`
 
 		var settings idpsync.OrganizationSyncSettings
 		settings.AssignDefault = true
-		err := settings.Set(legacy)
+		err := settings.Set(legacy(false))
 		require.NoError(t, err)
 
 		require.Equal(t, settings.Field, "groups", "field")
@@ -76,19 +71,10 @@ func TestFromLegacySettings(t *testing.T) {
 
 	t.Run("CorrectAssign", func(t *testing.T) {
 		t.Parallel()
-		legacy := `{
-   "Field":"groups",
-   "Mapping":{
-      "engineering":[
-         "10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
-      ]
-   },
-   "AssignDefault":false
-}`
 
 		var settings idpsync.OrganizationSyncSettings
 		settings.AssignDefault = true
-		err := settings.Set(legacy)
+		err := settings.Set(legacy(false))
 		require.NoError(t, err)
 
 		require.Equal(t, settings.Field, "groups", "field")
