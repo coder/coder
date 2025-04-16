@@ -5702,8 +5702,13 @@ SELECT
 FROM
     organizations
 WHERE
-    -- Optionally include deleted organizations
-    deleted = $2 AND
+    -- Optionally provide a filter for deleted organizations.
+  	CASE WHEN
+  	    $2 :: boolean IS NULL THEN
+			true
+		ELSE
+			deleted = $2
+	END AND
     id = ANY(
         SELECT
             organization_id
@@ -5715,8 +5720,8 @@ WHERE
 `
 
 type GetOrganizationsByUserIDParams struct {
-	UserID  uuid.UUID `db:"user_id" json:"user_id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
+	UserID  uuid.UUID    `db:"user_id" json:"user_id"`
+	Deleted sql.NullBool `db:"deleted" json:"deleted"`
 }
 
 func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error) {

@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.24.1
+go 1.24.2
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -490,7 +490,7 @@ require (
 require (
 	github.com/coder/preview v0.0.0-20250415184318-1998a47f687e
 	github.com/kylecarbs/aisdk-go v0.0.5
-	github.com/mark3labs/mcp-go v0.17.0
+	github.com/mark3labs/mcp-go v0.20.1
 )
 
 require (
