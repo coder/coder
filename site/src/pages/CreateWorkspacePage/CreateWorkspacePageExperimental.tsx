@@ -96,10 +96,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 			return;
 		}
 
-		if (ws.current) {
-			ws.current.close();
-		}
-
 		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
 			onMessage,
 			onError: (error) => {
@@ -110,9 +106,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		ws.current = socket;
 
 		return () => {
-			if (ws.current) {
-				ws.current.close();
-			}
+			socket.close();
 		};
 	}, [realizedVersionId, onMessage]);
 
