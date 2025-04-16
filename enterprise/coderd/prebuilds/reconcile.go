@@ -457,6 +457,10 @@ func (c *StoreReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UU
 			return xerrors.Errorf("failed to get template: %w", err)
 		}
 
+		if workspace.OwnerID != prebuilds.SystemUserID {
+			return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
+		}
+
 		c.logger.Info(ctx, "attempting to delete prebuild",
 			slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
 
