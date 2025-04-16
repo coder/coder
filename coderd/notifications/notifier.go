@@ -99,27 +99,49 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 	// TODO: idea from Cian: instead of querying the database on a short interval, we could wait for pubsub notifications.
 	//		 if 100 notifications are enqueued, we shouldn't activate this routine for each one; so how to debounce these?
 	//		 PLUS we should also have an interval (but a longer one, maybe 1m) to account for retries (those will not get
-	//		 triggered by a code path, but rather by a timeout expiring which makes the message retryable)
+	//     triggered by a code path, but rather by a timeout expiring which makes the message retryable)
+
+	// loopTick is used to synchronize the goroutine that processes messages with the ticker.
+	loopTick := make(chan chan struct{})
+	// loopDone is used to signal when the processing loop has exited due to
+	// graceful stop or otherwise.
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		for c := range loopTick {
+			n.log.Info(n.outerCtx, "processing messages")
+			// Check if notifier is not paused.
+			ok, err := n.ensureRunning(n.outerCtx)
+			if err != nil {
+				n.log.Warn(n.outerCtx, "failed to check notifier state", slog.Error(err))
+			}
+
+			if ok {
+				err = n.process(n.outerCtx, success, failure)
+				if err != nil {
+					n.log.Error(n.outerCtx, "failed to process messages", slog.Error(err))
+				}
+			}
+			// Signal that we've finished processing one iteration.
+			close(c)
+		}
+	}()
 
 	// run the ticker with the graceful context, so we stop fetching after stop() is called
 	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
-		// Check if notifier is not paused.
-		ok, err := n.ensureRunning(n.outerCtx)
-		if err != nil {
-			n.log.Warn(n.outerCtx, "failed to check notifier state", slog.Error(err))
-		}
-
-		if ok {
-			err = n.process(n.outerCtx, success, failure)
-			if err != nil {
-				n.log.Error(n.outerCtx, "failed to process messages", slog.Error(err))
-			}
-		}
-		// we don't return any errors because we don't want to kill the loop because of them.
+		c := make(chan struct{})
+		loopTick <- c
+		// Wait for the processing to finish before continuing. The ticker will
+		// compensate for the time it takes to process the messages.
+		<-c
 		return nil
 	}, "notifier", "fetchInterval")
 
-	_ = tick.Wait()
+	// Note the order of operations here.
+	_ = tick.Wait() // will block until gracefulCtx is done
+	close(loopTick) // happens immediately
+	<-loopDone      // wait for the current processing loop to finish
+
 	// only errors we can return are context errors.  Only return an error if the outer context
 	// was canceled, not if we were gracefully stopped.
 	if n.outerCtx.Err() != nil {
