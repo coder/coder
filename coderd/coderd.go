@@ -465,7 +465,14 @@ func New(options *Options) *API {
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
 	if buildinfo.IsDev() {
-		r.Use(httpmw.RecordAuthzChecks)
+		// TODO: Find another solution to opt into these checks.
+		//   If the header grows too large, it breaks `fetch()` requests.
+		//   Temporarily disabling this until we can find a better solution.
+		//	 One idea is to include checking the request for `X-Authz-Record=true`
+		//   header. To opt in on a per-request basis.
+		//   Some authz calls (like filtering lists) might be able to be
+		//   summarized better to condense the header payload.
+		//r.Use(httpmw.RecordAuthzChecks)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
