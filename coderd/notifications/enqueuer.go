@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,6 +37,7 @@ func (e InvalidDefaultNotificationMethodError) Error() string {
 
 type StoreEnqueuer struct {
 	store Store
+	ps    pubsub.Pubsub
 	log   slog.Logger
 
 	defaultMethod  database.NotificationMethod
@@ -50,7 +52,7 @@ type StoreEnqueuer struct {
 }
 
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
-func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
+func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
 	// TODO(DanielleMaywood):
 	// Currently we do not want to allow setting `inbox` as the default notification method.
@@ -63,6 +65,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 
 	return &StoreEnqueuer{
 		store:          store,
+		ps:             ps,
 		log:            log,
 		defaultMethod:  method,
 		defaultEnabled: cfg.Enabled(),

@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -52,6 +53,7 @@ type notifier struct {
 	cfg   codersdk.NotificationsConfig
 	log   slog.Logger
 	store Store
+	ps    pubsub.Pubsub
 
 	stopOnce       sync.Once
 	outerCtx       context.Context
@@ -67,8 +69,17 @@ type notifier struct {
 	clock quartz.Clock
 }
 
-func newNotifier(outerCtx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
-	hr map[database.NotificationMethod]Handler, helpers template.FuncMap, metrics *Metrics, clock quartz.Clock,
+func newNotifier(
+	outerCtx context.Context,
+	cfg codersdk.NotificationsConfig,
+	id uuid.UUID,
+	log slog.Logger,
+	db Store,
+	ps pubsub.Pubsub,
+	hr map[database.NotificationMethod]Handler,
+	helpers template.FuncMap,
+	metrics *Metrics,
+	clock quartz.Clock,
 ) *notifier {
 	gracefulCtx, gracefulCancel := context.WithCancel(outerCtx)
 	return &notifier{
@@ -80,6 +91,7 @@ func newNotifier(outerCtx context.Context, cfg codersdk.NotificationsConfig, id 
 		gracefulCancel: gracefulCancel,
 		done:           make(chan any),
 		store:          db,
+		ps:             ps,
 		handlers:       hr,
 		helpers:        helpers,
 		metrics:        metrics,

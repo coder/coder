@@ -71,7 +71,7 @@ func TestMetrics(t *testing.T) {
 		database.NotificationMethodInbox: &fakeHandler{},
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -264,7 +264,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 		database.NotificationMethodInbox: inboxHandler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -354,7 +354,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 		database.NotificationMethodInbox: &fakeHandler{},
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -441,7 +441,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 		database.NotificationMethodInbox: &fakeHandler{},
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
