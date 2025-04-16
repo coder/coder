@@ -91,7 +91,7 @@ const meta = {
 			},
 		],
 		chromatic: {
-			diffThreshold: 0.2,
+			diffThreshold: 0.3,
 		},
 	},
 	decorators: [

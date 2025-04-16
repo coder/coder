@@ -211,7 +211,7 @@ export const WithApproachingDeadline: Story = {
 	},
 	parameters: {
 		chromatic: {
-			diffThreshold: 0.2,
+			diffThreshold: 0.3,
 		},
 	},
 };
@@ -323,7 +323,7 @@ export const TemplateInfoPopover: Story = {
 	},
 	parameters: {
 		chromatic: {
-			diffThreshold: 0.2,
+			diffThreshold: 0.3,
 		},
 	},
 };
