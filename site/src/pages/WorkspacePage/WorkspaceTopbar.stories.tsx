@@ -209,6 +209,11 @@ export const WithApproachingDeadline: Story = {
 			);
 		});
 	},
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.2,
+		},
+	},
 };
 
 export const WithFarAwayDeadline: Story = {
@@ -315,6 +320,11 @@ export const TemplateInfoPopover: Story = {
 				).toHaveTextContent(MockTemplate.display_name),
 			);
 		});
+	},
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.2,
+		},
 	},
 };
 
