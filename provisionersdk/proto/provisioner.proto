@@ -49,6 +49,7 @@ message RichParameter {
     string display_name = 15;
     int32 order = 16;
     bool ephemeral = 17;
+    string form_type = 18;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
