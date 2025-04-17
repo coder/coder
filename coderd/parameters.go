@@ -178,23 +178,19 @@ func (api *API) getWorkspaceOwnerData(
 
 	var ownerRoles []previewtypes.WorkspaceOwnerRBACRole
 	g.Go(func() error {
-		orgRoles, err := api.Database.GetOrganizationMemberRoles(ctx, database.GetOrganizationMemberRolesParams{
-			OrganizationID: organizationID,
-			UserID:         user.ID,
-		})
+		row, err := api.Database.GetAuthorizationUserRoles(ctx, user.ID)
 		if err != nil {
 			return err
 		}
-		ownerRoles = make([]previewtypes.WorkspaceOwnerRBACRole, 0, len(user.RBACRoles)+len(orgRoles))
-		for _, it := range user.RBACRoles {
-			ownerRoles = append(ownerRoles, previewtypes.WorkspaceOwnerRBACRole{
-				Name: it,
-			})
+		roles, err := row.RoleNames()
+		if err != nil {
+			return err
 		}
-		for _, it := range orgRoles {
+		ownerRoles = make([]previewtypes.WorkspaceOwnerRBACRole, 0, len(roles))
+		for _, it := range roles {
 			ownerRoles = append(ownerRoles, previewtypes.WorkspaceOwnerRBACRole{
-				Name:  it,
-				OrgID: organizationID,
+				Name:  it.Name,
+				OrgID: it.OrganizationID,
 			})
 		}
 		return nil

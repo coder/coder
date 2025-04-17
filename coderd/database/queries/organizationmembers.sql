@@ -95,12 +95,3 @@ ORDER BY
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF(@limit_opt :: int, 0);
-
--- name: GetOrganizationMemberRoles :one
-SELECT
-	roles
-FROM
-	organization_members
-WHERE
-	user_id = @user_id
-	AND organization_id = @organization_id;
