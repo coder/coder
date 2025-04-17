@@ -191,9 +191,16 @@ func (api *API) getWorkspaceOwnerData(
 		}
 		ownerRoles = make([]previewtypes.WorkspaceOwnerRBACRole, 0, len(roles))
 		for _, it := range roles {
+			if it.OrganizationID != uuid.Nil && it.OrganizationID != organizationID {
+				continue
+			}
+			var orgID string
+			if it.OrganizationID != uuid.Nil {
+				orgID = it.OrganizationID.String()
+			}
 			ownerRoles = append(ownerRoles, previewtypes.WorkspaceOwnerRBACRole{
 				Name:  it.Name,
-				OrgID: it.OrganizationID,
+				OrgID: orgID,
 			})
 		}
 		return nil
@@ -231,7 +238,7 @@ func (api *API) getWorkspaceOwnerData(
 	}
 
 	return previewtypes.WorkspaceOwner{
-		ID:           user.ID,
+		ID:           user.ID.String(),
 		Name:         user.Username,
 		FullName:     user.Name,
 		Email:        user.Email,
