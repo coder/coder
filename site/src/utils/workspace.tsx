@@ -168,10 +168,24 @@ export const getDisplayWorkspaceTemplateName = (
 		: workspace.template_name;
 };
 
+export type DisplayWorkspaceStatusType =
+	| "success"
+	| "active"
+	| "inactive"
+	| "error"
+	| "warning"
+	| "danger";
+
+type DisplayWorkspaceStatus = {
+	text: string;
+	type: DisplayWorkspaceStatusType;
+	icon: React.ReactNode;
+};
+
 export const getDisplayWorkspaceStatus = (
 	workspaceStatus: TypesGen.WorkspaceStatus,
 	provisionerJob?: TypesGen.ProvisionerJob,
-) => {
+): DisplayWorkspaceStatus => {
 	switch (workspaceStatus) {
 		case undefined:
 			return {
@@ -242,10 +256,6 @@ export const getDisplayWorkspaceStatus = (
 	}
 };
 
-export type GetWorkspaceDisplayStatusType = ReturnType<
-	typeof getDisplayWorkspaceStatus
->["type"];
-
 export const hasJobError = (workspace: TypesGen.Workspace) => {
 	return workspace.latest_build.job.error !== undefined;
 };
@@ -313,7 +323,7 @@ export const getResourceIconPath = (resourceType: string): string => {
 	return BUILT_IN_ICON_PATHS[resourceType] ?? FALLBACK_ICON;
 };
 
-export const lastUsedMessage = (lastUsedAt: string | Date) => {
+export const lastUsedMessage = (lastUsedAt: string | Date): string => {
 	const t = dayjs(lastUsedAt);
 	const now = dayjs();
 	let message = t.fromNow();

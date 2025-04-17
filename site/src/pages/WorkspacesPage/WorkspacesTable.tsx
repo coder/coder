@@ -41,7 +41,7 @@ import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
-	type GetWorkspaceDisplayStatusType,
+	type DisplayWorkspaceStatusType,
 	getDisplayWorkspaceStatus,
 	getDisplayWorkspaceTemplateName,
 	lastUsedMessage,
@@ -338,7 +338,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell className="w-2/6">
-					<Skeleton variant="text" width="75%" />
+					<Skeleton variant="text" width="50%" />
 				</TableCell>
 				<TableCell className="w-0">
 					<Skeleton variant="text" width="25%" />
@@ -357,7 +357,7 @@ type WorkspaceStatusCellProps = {
 };
 
 const variantByStatusType: Record<
-	GetWorkspaceDisplayStatusType,
+	DisplayWorkspaceStatusType,
 	StatusIndicatorProps["variant"]
 > = {
 	active: "pending",
@@ -365,6 +365,7 @@ const variantByStatusType: Record<
 	success: "success",
 	error: "failed",
 	danger: "warning",
+	warning: "warning",
 };
 
 const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
