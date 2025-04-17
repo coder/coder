@@ -181,8 +181,7 @@ func (api *API) getWorkspaceOwnerData(
 		// nolint:gocritic // This is kind of the wrong query to use here, but it
 		// matches how the provisioner currently works. We should figure out
 		// something that needs less escalation but has the correct behavior.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		row, err := api.Database.GetAuthorizationUserRoles(sysCtx, user.ID)
+		row, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			return err
 		}
