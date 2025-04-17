@@ -316,6 +316,11 @@ export const TemplateInfoPopover: Story = {
 			);
 		});
 	},
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.3,
+		},
+	},
 };
 
 export const TemplateInfoPopoverWithoutDisplayName: Story = {

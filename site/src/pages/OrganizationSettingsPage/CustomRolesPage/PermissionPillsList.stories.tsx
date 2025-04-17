@@ -6,6 +6,13 @@ import { PermissionPillsList } from "./PermissionPillsList";
 const meta: Meta<typeof PermissionPillsList> = {
 	title: "pages/OrganizationCustomRolesPage/PermissionPillsList",
 	component: PermissionPillsList,
+	decorators: [
+		(Story) => (
+			<div style={{ width: "800px" }}>
+				<Story />
+			</div>
+		),
+	],
 };
 
 export default meta;
