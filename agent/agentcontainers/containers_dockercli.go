@@ -24,19 +24,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DockerCLILister is a ContainerLister that lists containers using the docker CLI
-type DockerCLILister struct {
-	execer agentexec.Execer
-}
-
-var _ Lister = &DockerCLILister{}
-
-func NewDocker(execer agentexec.Execer) Lister {
-	return &DockerCLILister{
-		execer: agentexec.DefaultExecer,
-	}
-}
-
 // DockerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
 // information about a container.
 type DockerEnvInfoer struct {
@@ -241,6 +228,19 @@ func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...strin
 	return stdout, stderr, err
 }
 
+// DockerCLILister is a ContainerLister that lists containers using the docker CLI
+type DockerCLILister struct {
+	execer agentexec.Execer
+}
+
+var _ Lister = &DockerCLILister{}
+
+func NewDocker(execer agentexec.Execer) Lister {
+	return &DockerCLILister{
+		execer: agentexec.DefaultExecer,
+	}
+}
+
 func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	// List all container IDs, one per line, with no truncation
@@ -319,9 +319,12 @@ func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...strin
 	stdout = bytes.TrimSpace(stdoutBuf.Bytes())
 	stderr = bytes.TrimSpace(stderrBuf.Bytes())
 	if err != nil {
+		if bytes.Contains(stderr, []byte("No such object:")) {
+			// This can happen if a container is deleted between the time we check for its existence and the time we inspect it.
+			return stdout, stderr, nil
+		}
 		return stdout, stderr, err
 	}
-
 	return stdout, stderr, nil
 }
 

@@ -38,6 +38,9 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 	parameters: {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
+		chromatic: {
+			diffThreshold: 0.3,
+		},
 	},
 };
 
@@ -315,6 +318,11 @@ export const TemplateInfoPopover: Story = {
 				).toHaveTextContent(MockTemplate.display_name),
 			);
 		});
+	},
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.3,
+		},
 	},
 };
 

@@ -2,6 +2,7 @@ package idpsync_test
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -18,6 +19,73 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestFromLegacySettings(t *testing.T) {
+	t.Parallel()
+
+	legacy := func(assignDefault bool) string {
+		return fmt.Sprintf(`{
+			"Field": "groups",
+			"Mapping": {
+				"engineering": [
+					"10b2bd19-f5ca-4905-919f-bf02e95e3b6a"
+				]
+			},
+			"AssignDefault": %t
+		}`, assignDefault)
+	}
+
+	t.Run("AssignDefault,True", func(t *testing.T) {
+		t.Parallel()
+
+		var settings idpsync.OrganizationSyncSettings
+		settings.AssignDefault = true
+		err := settings.Set(legacy(true))
+		require.NoError(t, err)
+
+		require.Equal(t, settings.Field, "groups", "field")
+		require.Equal(t, settings.Mapping, map[string][]uuid.UUID{
+			"engineering": {
+				uuid.MustParse("10b2bd19-f5ca-4905-919f-bf02e95e3b6a"),
+			},
+		}, "mapping")
+		require.True(t, settings.AssignDefault, "assign default")
+	})
+
+	t.Run("AssignDefault,False", func(t *testing.T) {
+		t.Parallel()
+
+		var settings idpsync.OrganizationSyncSettings
+		settings.AssignDefault = true
+		err := settings.Set(legacy(false))
+		require.NoError(t, err)
+
+		require.Equal(t, settings.Field, "groups", "field")
+		require.Equal(t, settings.Mapping, map[string][]uuid.UUID{
+			"engineering": {
+				uuid.MustParse("10b2bd19-f5ca-4905-919f-bf02e95e3b6a"),
+			},
+		}, "mapping")
+		require.False(t, settings.AssignDefault, "assign default")
+	})
+
+	t.Run("CorrectAssign", func(t *testing.T) {
+		t.Parallel()
+
+		var settings idpsync.OrganizationSyncSettings
+		settings.AssignDefault = true
+		err := settings.Set(legacy(false))
+		require.NoError(t, err)
+
+		require.Equal(t, settings.Field, "groups", "field")
+		require.Equal(t, settings.Mapping, map[string][]uuid.UUID{
+			"engineering": {
+				uuid.MustParse("10b2bd19-f5ca-4905-919f-bf02e95e3b6a"),
+			},
+		}, "mapping")
+		require.False(t, settings.AssignDefault, "assign default")
+	})
+}
 
 func TestParseOrganizationClaims(t *testing.T) {
 	t.Parallel()

@@ -615,13 +615,21 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			name: "Hostname Suffix",
 			args: []string{
 				"--yes",
+				"--ssh-option", "Foo=bar",
 				"--hostname-suffix", "testy",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				ssh:        []string{"Host coder.* *.testy"},
-				regexMatch: `ProxyCommand .* ssh .* --hostname-suffix testy %h`,
+				ssh: []string{
+					"Host *.testy",
+					"Foo=bar",
+					"ConnectTimeout=0",
+					"StrictHostKeyChecking=no",
+					"UserKnownHostsFile=/dev/null",
+					"LogLevel ERROR",
+				},
+				regexMatch: `Match host \*\.testy !exec ".* connect exists %h"\n\tProxyCommand .* ssh .* --hostname-suffix testy %h`,
 			},
 		},
 		{
@@ -634,8 +642,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				ssh:        []string{"Host presto.* *.testy"},
-				regexMatch: `ProxyCommand .* ssh .* --ssh-host-prefix presto\. --hostname-suffix testy %h`,
+				ssh: []string{"Host presto.*", "Match host *.testy !exec"},
 			},
 		},
 	}
