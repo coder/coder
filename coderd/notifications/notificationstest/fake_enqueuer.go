@@ -2,21 +2,29 @@ package notificationstest
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 )
 
+type Enqueuer interface {
+	notifications.Enqueuer
+
+	Sent(matchers ...func(*FakeNotification) bool) []*FakeNotification
+	Clear()
+}
+
 type FakeEnqueuer struct {
-	authorizer rbac.Authorizer
-	mu         sync.Mutex
-	sent       []*FakeNotification
+	// authorizer rbac.Authorizer
+	mu    sync.Mutex
+	sent  []*FakeNotification
+	Store database.Store
 }
 
 type FakeNotification struct {
@@ -27,6 +35,7 @@ type FakeNotification struct {
 	Targets            []uuid.UUID
 }
 
+/*
 // TODO: replace this with actual calls to dbauthz.
 // See: https://github.com/coder/coder/issues/15481
 func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
@@ -58,6 +67,7 @@ func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
 		panic("Developer error: failed to check auth:" + err.Error())
 	}
 }
+*/
 
 func (f *FakeEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	return f.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
@@ -70,7 +80,25 @@ func (f *FakeEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID u
 func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.assertRBACNoLock(ctx)
+	id := uuid.New()
+	var err error
+	if err = f.Store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+		ID:                     id,
+		UserID:                 userID,
+		NotificationTemplateID: templateID,
+		Payload:                json.RawMessage(`{}`),
+		Method:                 database.NotificationMethodInbox,
+		Targets:                targets,
+		CreatedBy:              createdBy,
+		CreatedAt:              dbtime.Now(),
+	}); err != nil {
+		// TODO: just use the real thing. See https://github.com/coder/coder/issues/15481
+		if strings.Contains(err.Error(), notifications.ErrCannotEnqueueDisabledNotification.Error()) {
+			err = notifications.ErrCannotEnqueueDisabledNotification
+		} else if database.IsUniqueViolation(err, database.UniqueNotificationMessagesDedupeHashIndex) {
+			err = notifications.ErrDuplicate
+		}
+	}
 
 	f.sent = append(f.sent, &FakeNotification{
 		UserID:     userID,
@@ -81,8 +109,7 @@ func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, template
 		Targets:    targets,
 	})
 
-	id := uuid.New()
-	return []uuid.UUID{id}, nil
+	return []uuid.UUID{id}, err
 }
 
 func (f *FakeEnqueuer) Clear() {

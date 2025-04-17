@@ -2184,10 +2184,12 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CanChangePassword", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
-
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2225,11 +2227,14 @@ func TestUserForgotPassword(t *testing.T) {
 
 		const oneTimePasscodeValidityPeriod = 1 * time.Millisecond
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer:         notifyEnq,
 			OneTimePasscodeValidityPeriod: oneTimePasscodeValidityPeriod,
+			Database:                      db,
+			Pubsub:                        ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2262,10 +2267,13 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2291,10 +2299,13 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2322,10 +2333,13 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2355,10 +2369,13 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2388,10 +2405,13 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2423,10 +2443,13 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 

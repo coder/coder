@@ -1403,10 +1403,13 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: an initiator
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				db, ps    = dbtestutil.NewDB(t)
+				notifyEnq = &notificationstest.FakeEnqueuer{Store: db}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
+					Database:                 db,
+					Pubsub:                   ps,
 				})
 				initiator = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, initiator.OrganizationID, nil)
@@ -1434,10 +1437,13 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: multiple users with different roles
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				db, ps    = dbtestutil.NewDB(t)
+				notifyEnq = &notificationstest.FakeEnqueuer{Store: db}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
+					Database:                 db,
+					Pubsub:                   ps,
 				})
 				initiator = coderdtest.CreateFirstUser(t, client)
 				ctx       = testutil.Context(t, testutil.WaitLong)

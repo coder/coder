@@ -569,9 +569,10 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 	t.Run("NoRepeatedNotifications", func(t *testing.T) {
 		t.Parallel()
 
-		notify := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notify := &notificationstest.FakeEnqueuer{Store: db}
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify, Database: db, Pubsub: ps})
 		first := coderdtest.CreateFirstUser(t, client)
 		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
@@ -643,9 +644,10 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 	t.Run("ToCorrectUser", func(t *testing.T) {
 		t.Parallel()
 
-		notify := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notify := &notificationstest.FakeEnqueuer{Store: db}
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify, Database: db, Pubsub: ps})
 		first := coderdtest.CreateFirstUser(t, client)
 		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)

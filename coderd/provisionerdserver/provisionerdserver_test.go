@@ -65,7 +65,7 @@ func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursSc
 func TestAcquireJob_LongPoll(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
-	srv, _, _, _ := setup(t, false, &overrides{acquireJobLongPollDuration: time.Microsecond})
+	srv, _, _, _, _ := setup(t, false, &overrides{acquireJobLongPollDuration: time.Microsecond})
 	job, err := srv.AcquireJob(context.Background(), nil)
 	require.NoError(t, err)
 	require.Equal(t, &proto.AcquiredJob{}, job)
@@ -74,7 +74,7 @@ func TestAcquireJob_LongPoll(t *testing.T) {
 func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
-	srv, _, _, _ := setup(t, false, nil)
+	srv, _, _, _, _ := setup(t, false, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	fs := newFakeStream(ctx)
@@ -111,7 +111,7 @@ func TestHeartbeat(t *testing.T) {
 		}
 	}
 	//nolint:dogsled
-	_, _, _, _ = setup(t, false, &overrides{
+	_, _, _, _, _ = setup(t, false, &overrides{
 		ctx:               ctx,
 		heartbeatFn:       heartbeatFn,
 		heartbeatInterval: testutil.IntervalFast,
@@ -148,7 +148,7 @@ func TestAcquireJob(t *testing.T) {
 		tc := tc
 		t.Run(tc.name+"_InitiatorNotFound", func(t *testing.T) {
 			t.Parallel()
-			srv, db, _, pd := setup(t, false, nil)
+			srv, db, _, pd, _ := setup(t, false, nil)
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 
@@ -180,7 +180,7 @@ func TestAcquireJob(t *testing.T) {
 					Id: "github",
 				}
 
-				srv, db, ps, pd := setup(t, false, &overrides{
+				srv, db, ps, pd, _ := setup(t, false, &overrides{
 					deploymentValues: dv,
 					externalAuthConfigs: []*externalauth.Config{{
 						ID:                       gitAuthProvider.Id,
@@ -446,7 +446,7 @@ func TestAcquireJob(t *testing.T) {
 		}
 		t.Run(tc.name+"_TemplateVersionDryRun", func(t *testing.T) {
 			t.Parallel()
-			srv, db, ps, _ := setup(t, false, nil)
+			srv, db, ps, _, _ := setup(t, false, nil)
 			ctx := context.Background()
 
 			user := dbgen.User(t, db, database.User{})
@@ -483,7 +483,7 @@ func TestAcquireJob(t *testing.T) {
 		})
 		t.Run(tc.name+"_TemplateVersionImport", func(t *testing.T) {
 			t.Parallel()
-			srv, db, ps, _ := setup(t, false, nil)
+			srv, db, ps, _, _ := setup(t, false, nil)
 			ctx := context.Background()
 
 			user := dbgen.User(t, db, database.User{})
@@ -514,7 +514,7 @@ func TestAcquireJob(t *testing.T) {
 		})
 		t.Run(tc.name+"_TemplateVersionImportWithUserVariable", func(t *testing.T) {
 			t.Parallel()
-			srv, db, ps, _ := setup(t, false, nil)
+			srv, db, ps, _, _ := setup(t, false, nil)
 
 			user := dbgen.User(t, db, database.User{})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
@@ -563,7 +563,7 @@ func TestUpdateJob(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		srv, _, _, _ := setup(t, false, nil)
+		srv, _, _, _, _ := setup(t, false, nil)
 		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: "hello",
 		})
@@ -576,7 +576,7 @@ func TestUpdateJob(t *testing.T) {
 	})
 	t.Run("NotRunning", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, _ := setup(t, false, nil)
+		srv, db, _, _, _ := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -592,7 +592,7 @@ func TestUpdateJob(t *testing.T) {
 	// This test prevents runners from updating jobs they don't own!
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, _ := setup(t, false, nil)
+		srv, db, _, _, _ := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -635,7 +635,7 @@ func TestUpdateJob(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		srv, db, _, pd, _ := setup(t, false, &overrides{})
 		job := setupJob(t, db, pd.ID)
 		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.String(),
@@ -645,7 +645,7 @@ func TestUpdateJob(t *testing.T) {
 
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
-		srv, db, ps, pd := setup(t, false, &overrides{})
+		srv, db, ps, pd, _ := setup(t, false, &overrides{})
 		job := setupJob(t, db, pd.ID)
 
 		published := make(chan struct{})
@@ -670,7 +670,7 @@ func TestUpdateJob(t *testing.T) {
 	})
 	t.Run("Readme", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		srv, db, _, pd, _ := setup(t, false, &overrides{})
 		job := setupJob(t, db, pd.ID)
 		versionID := uuid.New()
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -696,7 +696,7 @@ func TestUpdateJob(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			srv, db, _, pd := setup(t, false, &overrides{})
+			srv, db, _, pd, _ := setup(t, false, &overrides{})
 			job := setupJob(t, db, pd.ID)
 			versionID := uuid.New()
 			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -743,7 +743,7 @@ func TestUpdateJob(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			srv, db, _, pd := setup(t, false, &overrides{})
+			srv, db, _, pd, _ := setup(t, false, &overrides{})
 			job := setupJob(t, db, pd.ID)
 			versionID := uuid.New()
 			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -789,7 +789,7 @@ func TestUpdateJob(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		srv, db, _, pd := setup(t, false, &overrides{})
+		srv, db, _, pd, _ := setup(t, false, &overrides{})
 		job := setupJob(t, db, pd.ID)
 		versionID := uuid.New()
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -821,7 +821,7 @@ func TestFailJob(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		srv, _, _, _ := setup(t, false, nil)
+		srv, _, _, _, _ := setup(t, false, nil)
 		_, err := srv.FailJob(ctx, &proto.FailedJob{
 			JobId: "hello",
 		})
@@ -835,7 +835,7 @@ func TestFailJob(t *testing.T) {
 	// This test prevents runners from updating jobs they don't own!
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, _ := setup(t, false, nil)
+		srv, db, _, _, _ := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -858,7 +858,7 @@ func TestFailJob(t *testing.T) {
 	})
 	t.Run("AlreadyCompleted", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		srv, db, _, pd, _ := setup(t, false, &overrides{})
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -894,7 +894,7 @@ func TestFailJob(t *testing.T) {
 		//	(*Server).FailJob       audit log - get build {"error": "sql: no rows in result set"}
 		ignoreLogErrors := true
 		auditor := audit.NewMock()
-		srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
+		srv, db, ps, pd, _ := setup(t, ignoreLogErrors, &overrides{
 			auditor: auditor,
 		})
 		org := dbgen.Organization(t, db, database.Organization{})
@@ -987,7 +987,7 @@ func TestCompleteJob(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		srv, _, _, _ := setup(t, false, nil)
+		srv, _, _, _, _ := setup(t, false, nil)
 		_, err := srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: "hello",
 		})
@@ -1001,7 +1001,7 @@ func TestCompleteJob(t *testing.T) {
 	// This test prevents runners from updating jobs they don't own!
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, nil)
+		srv, db, _, pd, _ := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             uuid.New(),
 			Provisioner:    database.ProvisionerTypeEcho,
@@ -1027,7 +1027,7 @@ func TestCompleteJob(t *testing.T) {
 
 	t.Run("TemplateImport_MissingGitAuth", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		srv, db, _, pd, _ := setup(t, false, &overrides{})
 		jobID := uuid.New()
 		versionID := uuid.New()
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -1081,7 +1081,7 @@ func TestCompleteJob(t *testing.T) {
 
 	t.Run("TemplateImport_WithGitAuth", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{
+		srv, db, _, pd, _ := setup(t, false, &overrides{
 			externalAuthConfigs: []*externalauth.Config{{
 				ID: "github",
 			}},
@@ -1228,7 +1228,7 @@ func TestCompleteJob(t *testing.T) {
 				tss := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 				uqhss := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 				auditor := audit.NewMock()
-				srv, db, ps, pd := setup(t, false, &overrides{
+				srv, db, ps, pd, _ := setup(t, false, &overrides{
 					clock:                       clock,
 					templateScheduleStore:       tss,
 					userQuietHoursScheduleStore: uqhss,
@@ -1408,7 +1408,7 @@ func TestCompleteJob(t *testing.T) {
 	})
 	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		srv, db, _, pd, _ := setup(t, false, &overrides{})
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -1633,7 +1633,7 @@ func TestCompleteJob(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 
-				srv, db, _, pd := setup(t, false, &overrides{})
+				srv, db, _, pd, _ := setup(t, false, &overrides{})
 				jobParams := c.provisionerJobParams
 				if jobParams.ID == uuid.Nil {
 					jobParams.ID = uuid.New()
@@ -2320,10 +2320,10 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &notificationstest.FakeEnqueuer{}
+				// notifEnq := &notificationstest.FakeEnqueuer{}
 
-				srv, db, ps, pd := setup(t, false, &overrides{
-					notificationEnqueuer: notifEnq,
+				srv, db, ps, pd, notifEnq := setup(t, false, &overrides{
+					// notificationEnqueuer: notifEnq,
 				})
 
 				user := dbgen.User(t, db, database.User{})
@@ -2442,13 +2442,13 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &notificationstest.FakeEnqueuer{}
+				// notifEnq := &notificationstest.FakeEnqueuer{}
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
 				ignoreLogErrors := true
-				srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
-					notificationEnqueuer: notifEnq,
+				srv, db, ps, pd, notifEnq := setup(t, ignoreLogErrors, &overrides{
+					// notificationEnqueuer: notifEnq,
 				})
 
 				user := dbgen.User(t, db, database.User{})
@@ -2532,8 +2532,10 @@ func TestNotifications(t *testing.T) {
 		ctx := context.Background()
 
 		// given
-		notifEnq := &notificationstest.FakeEnqueuer{}
-		srv, db, ps, pd := setup(t, true /* ignoreLogErrors */, &overrides{notificationEnqueuer: notifEnq})
+		// notifEnq := &notificationstest.FakeEnqueuer{}
+		srv, db, ps, pd, notifEnq := setup(t, true /* ignoreLogErrors */, &overrides{
+			// notificationEnqueuer: notifEnq
+		})
 
 		templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		_ /* other template admin, should not receive notification */ = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
@@ -2602,10 +2604,10 @@ type overrides struct {
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
 	auditor                     audit.Auditor
-	notificationEnqueuer        notifications.Enqueuer
+	// notificationEnqueuer        notifications.Enqueuer
 }
 
-func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
+func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon, *notificationstest.FakeEnqueuer) {
 	t.Helper()
 	logger := testutil.Logger(t)
 	db := dbmem.New()
@@ -2664,12 +2666,12 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 	auditPtr.Store(&auditor)
 	pollDur = ov.acquireJobLongPollDuration
-	var notifEnq notifications.Enqueuer
-	if ov.notificationEnqueuer != nil {
-		notifEnq = ov.notificationEnqueuer
-	} else {
-		notifEnq = notifications.NewNoopEnqueuer()
-	}
+	notifEnq := &notificationstest.FakeEnqueuer{Store: db}
+	// if ov.notificationEnqueuer != nil {
+	// notifEnq = ov.notificationEnqueuer
+	// } else {
+	// notifEnq = notifications.NewNoopEnqueuer()
+	// }
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
@@ -2713,7 +2715,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		notifEnq,
 	)
 	require.NoError(t, err)
-	return srv, db, ps, daemon
+	return srv, db, ps, daemon, notifEnq
 }
 
 func must[T any](value T, err error) T {

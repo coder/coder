@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
@@ -118,12 +119,15 @@ func TestNotificationsTest(t *testing.T) {
 	t.Run("OwnerCanSendTestNotification", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		// Given: An owner user.
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		_ = coderdtest.CreateFirstUser(t, ownerClient)
 
@@ -142,12 +146,15 @@ func TestNotificationsTest(t *testing.T) {
 	t.Run("MemberCannotSendTestNotification", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 
 		// Given: A member user.
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		ownerUser := coderdtest.CreateFirstUser(t, ownerClient)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)

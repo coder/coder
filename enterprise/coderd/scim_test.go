@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -131,11 +132,14 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			db, ps := dbtestutil.NewDB(t)
+			notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
 					NotificationsEnqueuer: notifyEnq,
+					Database:              db,
+					Pubsub:                ps,
 				},
 				SCIMAPIKey:   scimAPIKey,
 				AuditLogging: true,
@@ -193,11 +197,14 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			db, ps := dbtestutil.NewDB(t)
+			notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
 					NotificationsEnqueuer: notifyEnq,
+					Database:              db,
+					Pubsub:                ps,
 				},
 				SCIMAPIKey:   scimAPIKey,
 				AuditLogging: true,
@@ -249,7 +256,8 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			db, ps := dbtestutil.NewDB(t)
+			notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 			dv := coderdtest.DeploymentValues(t)
 			dv.OIDC.OrganizationAssignDefault = false
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -257,6 +265,8 @@ func TestScim(t *testing.T) {
 					Auditor:               mockAudit,
 					NotificationsEnqueuer: notifyEnq,
 					DeploymentValues:      dv,
+					Database:              db,
+					Pubsub:                ps,
 				},
 				SCIMAPIKey:   scimAPIKey,
 				AuditLogging: true,

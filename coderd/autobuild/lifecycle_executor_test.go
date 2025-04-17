@@ -188,13 +188,16 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				tickCh   = make(chan time.Time)
 				statsCh  = make(chan autobuild.Stats)
 				logger   = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
-				enqueuer = notificationstest.FakeEnqueuer{}
+				db, ps   = dbtestutil.NewDB(t)
+				enqueuer = notificationstest.FakeEnqueuer{Store: db}
 				client   = coderdtest.New(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
 					IncludeProvisionerDaemon: true,
 					AutobuildStats:           statsCh,
 					Logger:                   &logger,
 					NotificationsEnqueuer:    &enqueuer,
+					Database:                 db,
+					Pubsub:                   ps,
 				})
 				// Given: we have a user with a workspace that has autostart enabled
 				workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -1052,7 +1055,7 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 			ProvisionApply: echo.ApplyFailed,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+			ctr.FailureTTLMillis = ptr.Ref(failureTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
@@ -1103,7 +1106,7 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref(inactiveTTL.Milliseconds())
 		})
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
@@ -1125,13 +1128,16 @@ func TestNotifications(t *testing.T) {
 		var (
 			ticker         = make(chan time.Time)
 			statCh         = make(chan autobuild.Stats)
-			notifyEnq      = notificationstest.FakeEnqueuer{}
+			db, ps         = dbtestutil.NewDB(t)
+			notifyEnq      = notificationstest.FakeEnqueuer{Store: db}
 			timeTilDormant = time.Minute
 			client         = coderdtest.New(t, &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				AutobuildStats:           statCh,
 				IncludeProvisionerDaemon: true,
 				NotificationsEnqueuer:    &notifyEnq,
+				Database:                 db,
+				Pubsub:                   ps,
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						template.TimeTilDormant = int64(options.TimeTilDormant)

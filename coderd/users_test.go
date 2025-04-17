@@ -417,9 +417,12 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 	t.Run("Account suspended", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
@@ -454,9 +457,12 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
@@ -498,9 +504,12 @@ func TestNotifyDeletedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		firstUserResponse := coderdtest.CreateFirstUser(t, adminClient)
 
@@ -537,9 +546,12 @@ func TestNotifyDeletedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
@@ -849,9 +861,12 @@ func TestNotifyCreatedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
@@ -886,9 +901,12 @@ func TestNotifyCreatedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 

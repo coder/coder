@@ -669,8 +669,14 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	t.Run("CreateSendsNotification", func(t *testing.T) {
 		t.Parallel()
 
-		enqueuer := notificationstest.FakeEnqueuer{}
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: &enqueuer})
+		db, ps := dbtestutil.NewDB(t)
+		enqueuer := notificationstest.FakeEnqueuer{Store: db}
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			NotificationsEnqueuer:    &enqueuer,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
@@ -709,8 +715,14 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	t.Run("CreateSendsNotificationToCorrectUser", func(t *testing.T) {
 		t.Parallel()
 
-		enqueuer := notificationstest.FakeEnqueuer{}
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: &enqueuer})
+		db, ps := dbtestutil.NewDB(t)
+		enqueuer := notificationstest.FakeEnqueuer{Store: db}
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			NotificationsEnqueuer:    &enqueuer,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleOwner())
 		_, memberUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
@@ -3536,7 +3548,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(timeTilDormantAutoDelete.Milliseconds())
 		})
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -3835,10 +3847,13 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				db, ps    = dbtestutil.NewDB(t)
+				notifyEnq = &notificationstest.FakeEnqueuer{Store: db}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
+					Database:                 db,
+					Pubsub:                   ps,
 				})
 				user            = coderdtest.CreateFirstUser(t, client)
 				memberClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
@@ -3874,10 +3889,13 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				db, ps    = dbtestutil.NewDB(t)
+				notifyEnq = &notificationstest.FakeEnqueuer{Store: db}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
+					Database:                 db,
+					Pubsub:                   ps,
 				})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -3905,10 +3923,13 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				db, ps    = dbtestutil.NewDB(t)
+				notifyEnq = &notificationstest.FakeEnqueuer{Store: db}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
+					Database:                 db,
+					Pubsub:                   ps,
 				})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

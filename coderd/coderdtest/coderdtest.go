@@ -262,7 +262,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
+		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{Store: options.Database}
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -331,7 +331,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
+		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{Store: options.Database}
 	}
 
 	if options.OneTimePasscodeValidityPeriod == 0 {

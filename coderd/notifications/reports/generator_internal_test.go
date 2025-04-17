@@ -509,7 +509,7 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.P
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	logger := slogtest.Make(t, &slogtest.Options{})
 	db, ps := dbtestutil.NewDB(t)
-	notifyEnq := &notificationstest.FakeEnqueuer{}
+	notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 	clk := quartz.NewMock(t)
 	return ctx, logger, db, ps, notifyEnq, clk
 }

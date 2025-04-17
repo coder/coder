@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
@@ -330,10 +331,13 @@ func TestNotificationTest(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 
 		// Given: A user with owner permissions.
@@ -353,10 +357,13 @@ func TestNotificationTest(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		db, ps := dbtestutil.NewDB(t)
+		notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
+			Database:              db,
+			Pubsub:                ps,
 		})
 
 		// Given: A user without owner permissions.

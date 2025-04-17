@@ -677,7 +677,7 @@ func TestNotifications(t *testing.T) {
 		}
 
 		// Setup dependencies
-		notifyEnq := notificationstest.FakeEnqueuer{}
+		notifyEnq := notificationstest.FakeEnqueuer{Store: db}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)

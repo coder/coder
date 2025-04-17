@@ -55,7 +55,7 @@ func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, databas
 		ResourceID: resource.ID,
 	})
 
-	notifyEnq := &notificationstest.FakeEnqueuer{}
+	notifyEnq := &notificationstest.FakeEnqueuer{Store: db}
 	clock := quartz.NewMock(t)
 
 	return &agentapi.ResourcesMonitoringAPI{
