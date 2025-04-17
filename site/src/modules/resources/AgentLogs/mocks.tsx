@@ -612,7 +612,7 @@ export const MockLogs = [
 		id: 3295813,
 		level: "info",
 		output:
-			"Hit:16 https://ppa.launchpadcontent.net/fish-shell/release-3/ubuntu jammy InRelease",
+			"Hit:16 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu jammy InRelease",
 		time: "2024-03-14T11:31:07.827832Z",
 		sourceId: "d9475581-8a42-4bce-b4d0-e4d2791d5c98",
 	},
