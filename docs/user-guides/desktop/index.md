@@ -1,4 +1,4 @@
-# Coder Desktop (Early Access)
+# Coder Desktop (Beta)
 
 Use Coder Desktop to work on your workspaces as though they're on your LAN, no
 port-forwarding required.
@@ -22,7 +22,7 @@ You can install Coder Desktop on macOS or Windows.
 
    Alternatively, you can manually install Coder Desktop from the [releases page](https://github.com/coder/coder-desktop-macos/releases).
 
-1. Open **Coder Desktop** from the Applications directory. When macOS asks if you want to open it, select **Open**.
+1. Open **Coder Desktop** from the Applications directory.
 
 1. The application is treated as a system VPN. macOS will prompt you to confirm with:
 
@@ -129,28 +129,38 @@ While active, Coder Connect will list the workspaces you own and will configure 
 
 To copy the `.coder` hostname of a workspace agent, you can click the copy icon beside it.
 
-On macOS you can use `ping6` in your terminal to verify the connection to your workspace:
-
-   ```shell
-   ping6 -c 5 your-workspace.coder
-   ```
-
-On Windows, you can use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
-
-   ```shell
-   ping -n 5 your-workspace.coder
-   ```
-
-Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
-
 You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
 
    ```shell
    ssh your-workspace.coder
    ```
 
+Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
+
 > [!NOTE]
 > Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
+
+### Ping your workspace
+
+<div class="tabs">
+
+### macOS
+
+Use `ping6` in your terminal to verify the connection to your workspace:
+
+   ```shell
+   ping6 -c 5 your-workspace.coder
+   ```
+
+### Windows
+
+Use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
+
+   ```shell
+   ping -n 5 your-workspace.coder
+   ```
+
+</div>
 
 ## Accessing web apps in a secure browser context
 
