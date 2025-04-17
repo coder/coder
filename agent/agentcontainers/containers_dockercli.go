@@ -235,7 +235,7 @@ type DockerCLILister struct {
 
 var _ Lister = &DockerCLILister{}
 
-func NewDocker(execer agentexec.Execer, opts ...func(*DockerCLILister)) Lister {
+func NewDocker(execer agentexec.Execer) Lister {
 	return &DockerCLILister{
 		execer: agentexec.DefaultExecer,
 	}
