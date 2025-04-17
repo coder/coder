@@ -26,7 +26,7 @@ type options struct {
 }
 
 // templateID is common across all option sets.
-var templateID = uuid.UUID{5}
+var templateID = uuid.UUID{1}
 
 const (
 	backoffInterval = time.Second * 5
@@ -39,26 +39,26 @@ const (
 var opts = map[uint]options{
 	optionSet0: {
 		templateID:          templateID,
-		templateVersionID:   uuid.New(),
-		presetID:            uuid.New(),
+		templateVersionID:   uuid.UUID{11},
+		presetID:            uuid.UUID{12},
 		presetName:          "my-preset",
-		prebuiltWorkspaceID: uuid.New(),
+		prebuiltWorkspaceID: uuid.UUID{13},
 		workspaceName:       "prebuilds0",
 	},
 	optionSet1: {
 		templateID:          templateID,
-		templateVersionID:   uuid.New(),
-		presetID:            uuid.New(),
+		templateVersionID:   uuid.UUID{21},
+		presetID:            uuid.UUID{22},
 		presetName:          "my-preset",
-		prebuiltWorkspaceID: uuid.New(),
+		prebuiltWorkspaceID: uuid.UUID{23},
 		workspaceName:       "prebuilds1",
 	},
 	optionSet2: {
 		templateID:          templateID,
-		templateVersionID:   uuid.New(),
-		presetID:            uuid.New(),
+		templateVersionID:   uuid.UUID{31},
+		presetID:            uuid.UUID{32},
 		presetName:          "my-preset",
-		prebuiltWorkspaceID: uuid.New(),
+		prebuiltWorkspaceID: uuid.UUID{33},
 		workspaceName:       "prebuilds2",
 	},
 }
