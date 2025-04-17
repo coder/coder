@@ -10,9 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/v2/codersdk/wsjson"
 	previewtypes "github.com/coder/preview/types"
-	"github.com/coder/websocket"
 )
 
 type TemplateVersionWarning string
@@ -139,22 +137,6 @@ type DynamicParametersResponse struct {
 	Diagnostics previewtypes.Diagnostics `json:"diagnostics"`
 	Parameters  []previewtypes.Parameter `json:"parameters"`
 	// TODO: Workspace tags
-}
-
-// FriendlyDiagnostic is included to guarantee it is generated in the output
-// types. This is used as the type override for `previewtypes.Diagnostic`.
-type FriendlyDiagnostic = previewtypes.FriendlyDiagnostic
-
-// NullHCLString is included to guarantee it is generated in the output
-// types. This is used as the type override for `previewtypes.HCLString`.
-type NullHCLString = previewtypes.NullHCLString
-
-func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
-	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version), nil)
-	if err != nil {
-		return nil, err
-	}
-	return wsjson.NewStream[DynamicParametersResponse, DynamicParametersRequest](conn, websocket.MessageText, websocket.MessageText, c.Logger()), nil
 }
 
 // TemplateVersionParameters returns parameters a template version exposes.

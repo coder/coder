@@ -1,10 +1,10 @@
-FROM rust:slim@sha256:9abf10cc84dfad6ace1b0aae3951dc5200f467c593394288c11db1e17bb4d349 AS rust-utils
+# 1.86.0
+FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21651a4f AS rust-utils
 # Install rust helper programs
-# ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install typos-cli watchexec-cli && \
-	# Reduce image size.
-	rm -rf /usr/local/cargo/registry
+RUN apt-get update
+RUN apt-get install -y libssl-dev openssl pkg-config build-essential
+RUN cargo install jj-cli typos-cli watchexec-cli
 
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
