@@ -230,7 +230,7 @@ func TestInProgressActions(t *testing.T) {
 		desired    int32
 		running    int32
 		inProgress int32
-		checkFn    func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool
+		checkFn    func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions)
 	}{
 		// With no running prebuilds and one starting, no creations/deletions should take place.
 		{
@@ -239,11 +239,11 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Desired: 1, Starting: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Desired: 1, Starting: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+				}, actions)
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur since we're approaching the correct state.
@@ -253,11 +253,11 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    1,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Starting: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Starting: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+				}, actions)
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur
@@ -268,11 +268,11 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Starting: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Starting: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+				}, actions)
 			},
 		},
 		// With one prebuild desired and one stopping, a new prebuild will be created.
@@ -282,12 +282,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Desired: 1, Stopping: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-						Create:     1,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Desired: 1, Stopping: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+					Create:     1,
+				}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 2 running, and 1 stopping, a new prebuild will be created.
@@ -297,12 +297,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 3, Stopping: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-						Create:     1,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 3, Stopping: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+					Create:     1,
+				}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 3 running, and 1 stopping, no creations/deletions should occur since the desired state is already achieved.
@@ -312,11 +312,11 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    3,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 3, Desired: 3, Stopping: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 3, Desired: 3, Stopping: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+				}, actions)
 			},
 		},
 		// With one prebuild desired and one deleting, a new prebuild will be created.
@@ -326,12 +326,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Desired: 1, Deleting: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-						Create:     1,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Desired: 1, Deleting: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+					Create:     1,
+				}, actions)
 			},
 		},
 		// With 2 prebuilds desired, 1 running, and 1 deleting, a new prebuild will be created.
@@ -341,12 +341,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    1,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Deleting: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-						Create:     1,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Deleting: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+					Create:     1,
+				}, actions)
 			},
 		},
 		// With 2 prebuilds desired, 2 running, and 1 deleting, no creations/deletions should occur since the desired state is already achieved.
@@ -356,11 +356,11 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Deleting: 1}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{
-						ActionType: prebuilds.ActionTypeCreate,
-					}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Deleting: 1}, state)
+				validateActions(t, prebuilds.ReconciliationActions{
+					ActionType: prebuilds.ActionTypeCreate,
+				}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 1 running, and 2 starting, no creations should occur since the builds are in progress.
@@ -370,9 +370,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    1,
 			inProgress: 2,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
-				return validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 3, Starting: 2}, state) &&
-					validateActions(t, prebuilds.ReconciliationActions{ActionType: prebuilds.ActionTypeCreate, Create: 0}, actions)
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 3, Starting: 2}, state)
+				validateActions(t, prebuilds.ReconciliationActions{ActionType: prebuilds.ActionTypeCreate, Create: 0}, actions)
 			},
 		},
 		// With 3 prebuilds desired, 5 running, and 2 deleting, no deletions should occur since the builds are in progress.
@@ -382,17 +382,17 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    5,
 			inProgress: 2,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) bool {
+			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
 				expectedState := prebuilds.ReconciliationState{Actual: 5, Desired: 3, Deleting: 2, Extraneous: 2}
 				expectedActions := prebuilds.ReconciliationActions{
 					ActionType: prebuilds.ActionTypeDelete,
 				}
 
-				return validateState(t, expectedState, state) &&
-					assert.EqualValuesf(t, expectedActions.ActionType, actions.ActionType, "'ActionType' did not match expectation") &&
-					assert.Len(t, actions.DeleteIDs, 2, "'deleteIDs' did not match expectation") &&
-					assert.EqualValuesf(t, expectedActions.Create, actions.Create, "'create' did not match expectation") &&
-					assert.EqualValuesf(t, expectedActions.BackoffUntil, actions.BackoffUntil, "'BackoffUntil' did not match expectation")
+				validateState(t, expectedState, state)
+				assert.EqualValuesf(t, expectedActions.ActionType, actions.ActionType, "'ActionType' did not match expectation")
+				assert.Len(t, actions.DeleteIDs, 2, "'deleteIDs' did not match expectation")
+				assert.EqualValuesf(t, expectedActions.Create, actions.Create, "'create' did not match expectation")
+				assert.EqualValuesf(t, expectedActions.BackoffUntil, actions.BackoffUntil, "'BackoffUntil' did not match expectation")
 			},
 		},
 	}
@@ -447,7 +447,7 @@ func TestInProgressActions(t *testing.T) {
 			state := ps.CalculateState()
 			actions, err := ps.CalculateActions(clock, backoffInterval)
 			require.NoError(t, err)
-			require.True(t, tc.checkFn(*state, *actions))
+			tc.checkFn(*state, *actions)
 		})
 	}
 }
@@ -747,21 +747,12 @@ func prebuiltWorkspace(
 	return entry
 }
 
-func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState) bool {
-	return assert.EqualValuesf(t, expected.Desired, actual.Desired, "'desired' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Actual, actual.Actual, "'actual' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Eligible, actual.Eligible, "'eligible' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Extraneous, actual.Extraneous, "'extraneous' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Starting, actual.Starting, "'starting' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Stopping, actual.Stopping, "'stopping' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Deleting, actual.Deleting, "'deleting' did not match expectation")
+func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState) {
+	require.Equal(t, expected, actual)
 }
 
 // validateActions is a convenience func to make tests more readable; it exploits the fact that the default states for
 // prebuilds align with zero values.
-func validateActions(t *testing.T, expected, actual prebuilds.ReconciliationActions) bool {
-	return assert.EqualValuesf(t, expected.ActionType, actual.ActionType, "'ActionType' did not match expectation") &&
-		assert.EqualValuesf(t, expected.DeleteIDs, actual.DeleteIDs, "'deleteIDs' did not match expectation") &&
-		assert.EqualValuesf(t, expected.Create, actual.Create, "'create' did not match expectation") &&
-		assert.EqualValuesf(t, expected.BackoffUntil, actual.BackoffUntil, "'BackoffUntil' did not match expectation")
+func validateActions(t *testing.T, expected, actual prebuilds.ReconciliationActions) {
+	require.Equal(t, expected, actual)
 }
