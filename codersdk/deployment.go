@@ -791,6 +791,19 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	// ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.
+	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval
+	// when errors occur during reconciliation.
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffLookback determines the time window to look back when calculating
+	// the number of failed prebuilds, which influences the backoff strategy.
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"

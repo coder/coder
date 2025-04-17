@@ -64,7 +64,7 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
-	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 	// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 	CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)

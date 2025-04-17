@@ -14,6 +14,11 @@ import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Stack } from "components/Stack/Stack";
 import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "components/StatusIndicator/StatusIndicator";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -25,18 +30,25 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
-import { getDisplayWorkspaceTemplateName } from "utils/workspace";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+	getDisplayWorkspaceTemplateName,
+	lastUsedMessage,
+} from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
+
+dayjs.extend(relativeTime);
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
@@ -125,8 +137,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					</TableHead>
 					{hasAppStatus && <TableHead className="w-2/6">Activity</TableHead>}
 					<TableHead className="w-2/6">Template</TableHead>
-					<TableHead className="w-1/6">Last used</TableHead>
-					<TableHead className="w-1/6">Status</TableHead>
+					<TableHead className="w-2/6">Status</TableHead>
 					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
@@ -248,26 +259,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
-							<TableCell>
-								<LastUsed lastUsedAt={workspace.last_used_at} />
-							</TableCell>
-
-							<TableCell>
-								<div className="flex items-center gap-2">
-									<WorkspaceStatusBadge workspace={workspace} />
-									{workspace.latest_build.status === "running" &&
-										!workspace.health.healthy && (
-											<InfoTooltip
-												type="warning"
-												title="Workspace is unhealthy"
-												message="Your workspace is running but some agents are unhealthy."
-											/>
-										)}
-									{workspace.dormant_at && (
-										<WorkspaceDormantBadge workspace={workspace} />
-									)}
-								</div>
-							</TableCell>
+							<WorkspaceStatusCell workspace={workspace} />
 
 							<TableCell>
 								<div className="flex pl-4">
@@ -345,14 +337,11 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<AvatarDataSkeleton />
 				</TableCell>
-				<TableCell className="w-1/6">
-					<Skeleton variant="text" width="75%" />
-				</TableCell>
-				<TableCell className="w-1/6">
-					<Skeleton variant="text" width="75%" />
+				<TableCell className="w-2/6">
+					<Skeleton variant="text" width="50%" />
 				</TableCell>
 				<TableCell className="w-0">
-					<Skeleton variant="text" width="75%" />
+					<Skeleton variant="text" width="25%" />
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>
@@ -361,4 +350,52 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 
 const cantBeChecked = (workspace: Workspace) => {
 	return ["deleting", "pending"].includes(workspace.latest_build.status);
+};
+
+type WorkspaceStatusCellProps = {
+	workspace: Workspace;
+};
+
+const variantByStatusType: Record<
+	DisplayWorkspaceStatusType,
+	StatusIndicatorProps["variant"]
+> = {
+	active: "pending",
+	inactive: "inactive",
+	success: "success",
+	error: "failed",
+	danger: "warning",
+	warning: "warning",
+};
+
+const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
+	const { text, type } = getDisplayWorkspaceStatus(
+		workspace.latest_build.status,
+		workspace.latest_build.job,
+	);
+
+	return (
+		<TableCell>
+			<div className="flex flex-col">
+				<StatusIndicator variant={variantByStatusType[type]}>
+					<StatusIndicatorDot />
+					{text}
+					{workspace.latest_build.status === "running" &&
+						!workspace.health.healthy && (
+							<InfoTooltip
+								type="warning"
+								title="Workspace is unhealthy"
+								message="Your workspace is running but some agents are unhealthy."
+							/>
+						)}
+					{workspace.dormant_at && (
+						<WorkspaceDormantBadge workspace={workspace} />
+					)}
+				</StatusIndicator>
+				<span className="text-xs font-medium text-content-secondary ml-6">
+					{lastUsedMessage(workspace.last_used_at)}
+				</span>
+			</div>
+		</TableCell>
+	);
 };
