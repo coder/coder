@@ -21,7 +21,6 @@ type Enqueuer interface {
 }
 
 type FakeEnqueuer struct {
-	// authorizer rbac.Authorizer
 	mu    sync.Mutex
 	sent  []*FakeNotification
 	Store database.Store
@@ -34,40 +33,6 @@ type FakeNotification struct {
 	CreatedBy          string
 	Targets            []uuid.UUID
 }
-
-/*
-// TODO: replace this with actual calls to dbauthz.
-// See: https://github.com/coder/coder/issues/15481
-func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
-	if f.mu.TryLock() {
-		panic("Developer error: do not call assertRBACNoLock outside of a mutex lock!")
-	}
-
-	// If we get here, we are locked.
-	if f.authorizer == nil {
-		f.authorizer = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	}
-
-	act, ok := dbauthz.ActorFromContext(ctx)
-	if !ok {
-		panic("Developer error: no actor in context, you may need to use dbauthz.AsNotifier(ctx)")
-	}
-
-	for _, a := range []policy.Action{policy.ActionCreate, policy.ActionRead} {
-		err := f.authorizer.Authorize(ctx, act, a, rbac.ResourceNotificationMessage)
-		if err == nil {
-			return
-		}
-
-		if rbac.IsUnauthorizedError(err) {
-			panic(fmt.Sprintf("Developer error: not authorized to %s %s. "+
-				"Ensure that you are using dbauthz.AsXXX with an actor that has "+
-				"policy.ActionCreate on rbac.ResourceNotificationMessage", a, rbac.ResourceNotificationMessage.Type))
-		}
-		panic("Developer error: failed to check auth:" + err.Error())
-	}
-}
-*/
 
 func (f *FakeEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	return f.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
@@ -82,11 +47,23 @@ func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, template
 	defer f.mu.Unlock()
 	id := uuid.New()
 	var err error
+
+	// To avoid a duplicate notification, make a unique-enough payload out of what
+	// we have.
+	fakePayload := make(map[string]any)
+	fakePayload["template_id"] = templateID
+	fakePayload["labels"] = labels
+	fakePayload["data"] = data
+	fakePayloadBytes, err := json.Marshal(fakePayload)
+	if err != nil {
+		return nil, err
+	}
+
 	if err = f.Store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
-		Payload:                json.RawMessage(`{}`),
+		Payload:                fakePayloadBytes,
 		Method:                 database.NotificationMethodInbox,
 		Targets:                targets,
 		CreatedBy:              createdBy,
