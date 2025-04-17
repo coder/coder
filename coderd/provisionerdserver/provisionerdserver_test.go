@@ -2442,14 +2442,11 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				// notifEnq := &notificationstest.FakeEnqueuer{}
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
 				ignoreLogErrors := true
-				srv, db, ps, pd, notifEnq := setup(t, ignoreLogErrors, &overrides{
-					// notificationEnqueuer: notifEnq,
-				})
+				srv, db, ps, pd, notifEnq := setup(t, ignoreLogErrors, &overrides{})
 
 				user := dbgen.User(t, db, database.User{})
 				initiator := user
@@ -2532,10 +2529,7 @@ func TestNotifications(t *testing.T) {
 		ctx := context.Background()
 
 		// given
-		// notifEnq := &notificationstest.FakeEnqueuer{}
-		srv, db, ps, pd, notifEnq := setup(t, true /* ignoreLogErrors */, &overrides{
-			// notificationEnqueuer: notifEnq
-		})
+		srv, db, ps, pd, notifEnq := setup(t, true /* ignoreLogErrors */, &overrides{})
 
 		templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		_ /* other template admin, should not receive notification */ = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
@@ -2667,11 +2661,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	auditPtr.Store(&auditor)
 	pollDur = ov.acquireJobLongPollDuration
 	notifEnq := &notificationstest.FakeEnqueuer{Store: db}
-	// if ov.notificationEnqueuer != nil {
-	// notifEnq = ov.notificationEnqueuer
-	// } else {
-	// notifEnq = notifications.NewNoopEnqueuer()
-	// }
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
