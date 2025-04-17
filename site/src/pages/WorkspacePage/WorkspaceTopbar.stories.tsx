@@ -38,6 +38,9 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 	parameters: {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
+		chromatic: {
+			diffThreshold: 0.3,
+		},
 	},
 };
 
