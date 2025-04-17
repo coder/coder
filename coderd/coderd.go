@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"io"
 	"net/http"
 	"net/url"
@@ -595,6 +596,7 @@ func New(options *Options) *API {
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
+	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -1562,6 +1564,7 @@ type API struct {
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
 	FileCache          files.Cache
+	PrebuildsClaimer   atomic.Pointer[prebuilds.Claimer]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

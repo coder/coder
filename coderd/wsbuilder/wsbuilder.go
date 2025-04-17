@@ -75,7 +75,9 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
-	prebuild bool
+	prebuild                bool
+	prebuildClaimedBy       uuid.UUID
+	runningWorkspaceAgentID uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -175,6 +177,19 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
 	b.prebuild = true
+	return b
+}
+
+func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
+	// nolint: revive
+	b.prebuildClaimedBy = userID
+	return b
+}
+
+// RunningWorkspaceAgentID is only used for prebuilds; see the associated field in `provisionerdserver.WorkspaceProvisionJob`.
+func (b Builder) RunningWorkspaceAgentID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.runningWorkspaceAgentID = id
 	return b
 }
 
@@ -309,9 +324,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-		LogLevel:         b.logLevel,
-		IsPrebuild:       b.prebuild,
+		WorkspaceBuildID:        workspaceBuildID,
+		LogLevel:                b.logLevel,
+		IsPrebuild:              b.prebuild,
+		PrebuildClaimedByUser:   b.prebuildClaimedBy,
+		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{
@@ -624,6 +641,11 @@ func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBui
 }
 
 func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, error) {
+	// TODO: exclude preset params from this list instead of returning nothing?
+	if b.prebuildClaimedBy != uuid.Nil {
+		return nil, nil
+	}
+
 	if b.lastBuildParameters != nil {
 		return *b.lastBuildParameters, nil
 	}
