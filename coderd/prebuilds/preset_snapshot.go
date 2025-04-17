@@ -91,9 +91,10 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 		extraneous int32
 	)
 
+	// #nosec G115 - Safe conversion as p.Running slice length is expected to be within int32 range
+	actual = int32(len(p.Running))
+
 	if p.isActive() {
-		// #nosec G115 - Safe conversion as p.Running slice length is expected to be within int32 range
-		actual = int32(len(p.Running))
 		desired = p.Preset.DesiredInstances.Int32
 		eligible = p.countEligible()
 		extraneous = max(actual-desired, 0)
