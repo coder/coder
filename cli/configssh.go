@@ -457,7 +457,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if len(res.Workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", coderdConfig.HostnamePrefix, res.Workspaces[0].Name)
+				if configOptions.hostnameSuffix != "" {
+					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s.%s\n", res.Workspaces[0].Name, configOptions.hostnameSuffix)
+				} else if configOptions.userHostPrefix != "" {
+					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", configOptions.userHostPrefix, res.Workspaces[0].Name)
+				}
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
 			}
