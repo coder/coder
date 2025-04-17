@@ -106,6 +106,64 @@ func TestPrometheus(t *testing.T) {
 		require.Equal(t, "/api/v2/users/{user}", concurrentRequests["path"])
 		require.Equal(t, "GET", concurrentRequests["method"])
 	})
+
+	t.Run("StaticRoute", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		promMW := httpmw.Prometheus(reg)
+
+		r := chi.NewRouter()
+		r.Use(promMW)
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		r.Get("/static/", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		req := httptest.NewRequest("GET", "/static/bundle.js", nil)
+		sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+
+		r.ServeHTTP(sw, req)
+
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+		require.Greater(t, len(metrics), 0)
+		metricLabels := getMetricLabels(metrics)
+
+		reqProcessed, ok := metricLabels["coderd_api_requests_processed_total"]
+		require.True(t, ok, "coderd_api_requests_processed_total metric not found")
+		require.Equal(t, "STATIC", reqProcessed["path"])
+		require.Equal(t, "GET", reqProcessed["method"])
+	})
+
+	t.Run("UnknownRoute", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		promMW := httpmw.Prometheus(reg)
+
+		r := chi.NewRouter()
+		r.Use(promMW)
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		r.Get("/api/v2/users/{user}", func(w http.ResponseWriter, r *http.Request) {})
+
+		req := httptest.NewRequest("GET", "/api/v2/weird_path", nil)
+		sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+
+		r.ServeHTTP(sw, req)
+
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+		require.Greater(t, len(metrics), 0)
+		metricLabels := getMetricLabels(metrics)
+
+		reqProcessed, ok := metricLabels["coderd_api_requests_processed_total"]
+		require.True(t, ok, "coderd_api_requests_processed_total metric not found")
+		require.Equal(t, "UNKNOWN", reqProcessed["path"])
+		require.Equal(t, "GET", reqProcessed["method"])
+	})
 }
 
 func getMetricLabels(metrics []*cm.MetricFamily) map[string]map[string]string {
