@@ -10242,12 +10242,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Deprecated: this field is unused and will be removed in a future version.",
                     "type": "string"
                 },
                 "message": {
                     "type": "string"
                 },
                 "needs_user_attention": {
+                    "description": "Deprecated: this field is unused and will be removed in a future version.",
                     "type": "boolean"
                 },
                 "state": {
@@ -11431,7 +11433,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateWorkspaceRequest": {
-            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.",
+            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used. Workspace names: - Must start with a letter or number - Can only contain letters, numbers, and hyphens - Cannot contain spaces or special characters - Cannot be named ` + "`" + `new` + "`" + ` or ` + "`" + `create` + "`" + ` - Must be unique within your workspaces - Maximum length of 32 characters",
             "type": "object",
             "required": [
                 "name"
@@ -16925,7 +16927,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "icon": {
-                    "description": "Icon is an external URL to an icon that will be rendered in the UI.",
+                    "description": "Deprecated: This field is unused and will be removed in a future version.\nIcon is an external URL to an icon that will be rendered in the UI.",
                     "type": "string"
                 },
                 "id": {
@@ -16936,6 +16938,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "needs_user_attention": {
+                    "description": "Deprecated: This field is unused and will be removed in a future version.\nNeedsUserAttention specifies whether the status needs user attention.",
                     "type": "boolean"
                 },
                 "state": {

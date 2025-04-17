@@ -1606,6 +1606,11 @@
 							"path": "reference/cli/users_delete.md"
 						},
 						{
+							"title": "users edit-roles",
+							"description": "Edit a user's roles by username or id",
+							"path": "reference/cli/users_edit-roles.md"
+						},
+						{
 							"title": "users list",
 							"path": "reference/cli/users_list.md"
 						},

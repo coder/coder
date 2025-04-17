@@ -591,6 +591,9 @@ export interface DangerousConfig {
 	readonly allow_all_cors: boolean;
 }
 
+// From codersdk/database.go
+export const DatabaseNotReachable = "database not reachable";
+
 // From healthsdk/healthsdk.go
 export interface DatabaseReport extends BaseReport {
 	readonly healthy: boolean;
@@ -3243,6 +3246,13 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
+	readonly running: boolean;
+	readonly container?: WorkspaceAgentContainer;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainersResponse {
+	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 }
 
 // From codersdk/workspaceagents.go
@@ -3452,10 +3462,10 @@ export interface WorkspaceAppStatus {
 	readonly agent_id: string;
 	readonly app_id: string;
 	readonly state: WorkspaceAppStatusState;
-	readonly needs_user_attention: boolean;
 	readonly message: string;
 	readonly uri: string;
 	readonly icon: string;
+	readonly needs_user_attention: boolean;
 }
 
 // From codersdk/workspaceapps.go

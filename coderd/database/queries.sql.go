@@ -5680,8 +5680,13 @@ SELECT
 FROM
     organizations
 WHERE
-    -- Optionally include deleted organizations
-    deleted = $2 AND
+    -- Optionally provide a filter for deleted organizations.
+  	CASE WHEN
+  	    $2 :: boolean IS NULL THEN
+			true
+		ELSE
+			deleted = $2
+	END AND
     id = ANY(
         SELECT
             organization_id
@@ -5693,8 +5698,8 @@ WHERE
 `
 
 type GetOrganizationsByUserIDParams struct {
-	UserID  uuid.UUID `db:"user_id" json:"user_id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
+	UserID  uuid.UUID    `db:"user_id" json:"user_id"`
+	Deleted sql.NullBool `db:"deleted" json:"deleted"`
 }
 
 func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error) {
@@ -12066,10 +12071,10 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool)
 
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
-	-- username is returned just to help for logging purposes
+	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status,
+	id, username, status, email,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
@@ -12110,6 +12115,7 @@ type GetAuthorizationUserRolesRow struct {
 	ID       uuid.UUID  `db:"id" json:"id"`
 	Username string     `db:"username" json:"username"`
 	Status   UserStatus `db:"status" json:"status"`
+	Email    string     `db:"email" json:"email"`
 	Roles    []string   `db:"roles" json:"roles"`
 	Groups   []string   `db:"groups" json:"groups"`
 }
@@ -12123,6 +12129,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 		&i.ID,
 		&i.Username,
 		&i.Status,
+		&i.Email,
 		pq.Array(&i.Roles),
 		pq.Array(&i.Groups),
 	)
@@ -15600,8 +15607,8 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 
 const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
 SELECT DISTINCT ON (workspace_id)
-  id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
-FROM workspace_app_statuses 
+  id, created_at, agent_id, app_id, workspace_id, state, message, uri
+FROM workspace_app_statuses
 WHERE workspace_id = ANY($1 :: uuid[])
 ORDER BY workspace_id, created_at DESC
 `
@@ -15622,10 +15629,8 @@ func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Con
 			&i.AppID,
 			&i.WorkspaceID,
 			&i.State,
-			&i.NeedsUserAttention,
 			&i.Message,
 			&i.Uri,
-			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -15676,7 +15681,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 }
 
 const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
-SELECT id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
+SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
@@ -15695,10 +15700,8 @@ func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []
 			&i.AppID,
 			&i.WorkspaceID,
 			&i.State,
-			&i.NeedsUserAttention,
 			&i.Message,
 			&i.Uri,
-			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -15944,22 +15947,20 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 }
 
 const insertWorkspaceAppStatus = `-- name: InsertWorkspaceAppStatus :one
-INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, needs_user_attention, uri, icon)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
+INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, uri)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, created_at, agent_id, app_id, workspace_id, state, message, uri
 `
 
 type InsertWorkspaceAppStatusParams struct {
-	ID                 uuid.UUID               `db:"id" json:"id"`
-	CreatedAt          time.Time               `db:"created_at" json:"created_at"`
-	WorkspaceID        uuid.UUID               `db:"workspace_id" json:"workspace_id"`
-	AgentID            uuid.UUID               `db:"agent_id" json:"agent_id"`
-	AppID              uuid.UUID               `db:"app_id" json:"app_id"`
-	State              WorkspaceAppStatusState `db:"state" json:"state"`
-	Message            string                  `db:"message" json:"message"`
-	NeedsUserAttention bool                    `db:"needs_user_attention" json:"needs_user_attention"`
-	Uri                sql.NullString          `db:"uri" json:"uri"`
-	Icon               sql.NullString          `db:"icon" json:"icon"`
+	ID          uuid.UUID               `db:"id" json:"id"`
+	CreatedAt   time.Time               `db:"created_at" json:"created_at"`
+	WorkspaceID uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	AgentID     uuid.UUID               `db:"agent_id" json:"agent_id"`
+	AppID       uuid.UUID               `db:"app_id" json:"app_id"`
+	State       WorkspaceAppStatusState `db:"state" json:"state"`
+	Message     string                  `db:"message" json:"message"`
+	Uri         sql.NullString          `db:"uri" json:"uri"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error) {
@@ -15971,9 +15972,7 @@ func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWor
 		arg.AppID,
 		arg.State,
 		arg.Message,
-		arg.NeedsUserAttention,
 		arg.Uri,
-		arg.Icon,
 	)
 	var i WorkspaceAppStatus
 	err := row.Scan(
@@ -15983,10 +15982,8 @@ func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWor
 		&i.AppID,
 		&i.WorkspaceID,
 		&i.State,
-		&i.NeedsUserAttention,
 		&i.Message,
 		&i.Uri,
-		&i.Icon,
 	)
 	return i, err
 }

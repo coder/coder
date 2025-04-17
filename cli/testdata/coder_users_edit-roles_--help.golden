@@ -1,0 +1,18 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder users edit-roles [flags] <username|user_id>
+
+  Edit a user's roles by username or id
+
+OPTIONS:
+      --roles string-array
+          A list of roles to give to the user. This removes any existing roles
+          the user may have. The available roles are: auditor, member, owner,
+          template-admin, user-admin.
+
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

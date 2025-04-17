@@ -200,7 +200,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 							className="min-w-60 max-w-3xl"
 							value={coderRoles}
 							onChange={setCoderRoles}
-							defaultOptions={roles.map((role) => ({
+							options={roles.map((role) => ({
 								label: role.display_name || role.name,
 								value: role.name,
 							}))}

@@ -943,9 +943,9 @@ func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 
 	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
 
-	testutil.RequireSendCtx(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
+	testutil.RequireSend(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
 
-	_ = testutil.RequireRecvCtx(ctx, t, ch)
+	_ = testutil.TryReceive(ctx, t, ch)
 }
 
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {

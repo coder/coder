@@ -229,6 +229,9 @@ func TestDockerDevcontainerCLI(t *testing.T) {
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("skipping Docker test; set CODER_TEST_USE_DOCKER=1 to run")
 	}
+	if _, err := exec.LookPath("devcontainer"); err != nil {
+		t.Fatal("this test requires the devcontainer CLI: npm install -g @devcontainers/cli")
+	}
 
 	// Connect to Docker.
 	pool, err := dockertest.NewPool("")
