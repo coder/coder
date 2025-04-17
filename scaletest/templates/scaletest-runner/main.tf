@@ -712,14 +712,14 @@ resource "coder_agent" "main" {
 }
 
 module "code-server" {
-  source          = "https://registry.coder.com/modules/code-server"
+  source          = "https://registry.coder.com/modules/coder/code-server"
   agent_id        = coder_agent.main.id
   install_version = "4.8.3"
   folder          = local.scaletest_run_dir
 }
 
 module "filebrowser" {
-  source   = "https://registry.coder.com/modules/filebrowser"
+  source   = "https://registry.coder.com/modules/coder/filebrowser"
   agent_id = coder_agent.main.id
   folder   = local.scaletest_run_dir
 }

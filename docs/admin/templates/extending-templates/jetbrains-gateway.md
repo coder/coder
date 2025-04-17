@@ -40,12 +40,12 @@ Add the following command to your template's `startup_script`:
 
 ## Configure JetBrains Gateway Module
 
-If you are using our [jetbrains-gateway](https://registry.coder.com/modules/jetbrains-gateway) module, you can configure it by adding the following snippet to your template:
+If you are using our [jetbrains-gateway](https://registry.coder.com/modules/jetbrains/jetbrains-gateway) module, you can configure it by adding the following snippet to your template:
 
 ```tf
 module "jetbrains_gateway" {
   count          = data.coder_workspace.me.start_count
-  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
+  source         = "registry.coder.com/modules/jetbrains/jetbrains-gateway/coder"
   version        = "1.0.28"
   agent_id       = coder_agent.main.id
   folder         = "/home/coder/example"

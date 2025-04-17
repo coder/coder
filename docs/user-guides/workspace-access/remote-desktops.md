@@ -52,7 +52,7 @@ The default username is `Administrator` and password is `coderRDP!`.
 
 ## RDP Web
 
-Our [WebRDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
+Our [WebRDP](https://registry.coder.com/modules/coder/windows-rdp) module in the Coder
 Registry adds a one-click button to open an RDP session in the browser. This
 requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
@@ -61,7 +61,7 @@ on our registry for setup.
 
 ## Amazon DCV Windows
 
-Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows)
+Our [Amazon DCV Windows](https://registry.coder.com/modules/coder/amazon-dcv-windows)
 module adds a one-click button to open an Amazon DCV session in the browser.
 This requires just a few lines of Terraform in your template, see the
 documentation on our registry for setup.

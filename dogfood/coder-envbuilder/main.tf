@@ -109,14 +109,14 @@ data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 module "slackme" {
-  source           = "registry.coder.com/modules/slackme/coder"
+  source           = "registry.coder.com/modules/coder/slackme/coder"
   version          = "1.0.2"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
-  source   = "registry.coder.com/modules/dotfiles/coder"
+  source   = "registry.coder.com/modules/coder/dotfiles/coder"
   version  = "1.0.15"
   agent_id = coder_agent.dev.id
 }
@@ -128,7 +128,7 @@ module "personalize" {
 }
 
 module "code-server" {
-  source                  = "registry.coder.com/modules/code-server/coder"
+  source                  = "registry.coder.com/modules/coder/code-server/coder"
   version                 = "1.0.15"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
@@ -136,7 +136,7 @@ module "code-server" {
 }
 
 module "jetbrains_gateway" {
-  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
+  source         = "registry.coder.com/modules/jetbrains/jetbrains-gateway/coder"
   version        = "1.0.13"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
@@ -147,13 +147,13 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
+  source   = "registry.coder.com/modules/coder/filebrowser/coder"
   version  = "1.0.8"
   agent_id = coder_agent.dev.id
 }
 
 module "coder-login" {
-  source   = "registry.coder.com/modules/coder-login/coder"
+  source   = "registry.coder.com/modules/coder/coder-login/coder"
   version  = "1.0.15"
   agent_id = coder_agent.dev.id
 }

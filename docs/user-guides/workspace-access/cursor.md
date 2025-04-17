@@ -4,7 +4,7 @@
 
 Follow this guide to use Cursor to access your Coder workspaces.
 
-If your team uses Cursor regularly, ask your Coder administrator to add a [Cursor module](https://registry.coder.com/modules/cursor) to your template.
+If your team uses Cursor regularly, ask your Coder administrator to add a [Cursor module](https://registry.coder.com/modules/coder/cursor) to your template.
 
 ## Install Cursor
 

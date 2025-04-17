@@ -15,9 +15,9 @@ variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
 }
 
-# See https://registry.coder.com/modules/gcp-region
+# See https://registry.coder.com/modules/coder/gcp-region
 module "gcp_region" {
-  source = "registry.coder.com/modules/gcp-region/coder"
+  source = "registry.coder.com/modules/coder/gcp-region/coder"
 
   # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = ">= 1.0.0"
@@ -91,10 +91,10 @@ resource "coder_agent" "main" {
   }
 }
 
-# See https://registry.coder.com/modules/code-server
+# See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
   count  = data.coder_workspace.me.start_count
-  source = "registry.coder.com/modules/code-server/coder"
+  source = "registry.coder.com/modules/coder/code-server/coder"
 
   # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = ">= 1.0.0"
@@ -103,10 +103,10 @@ module "code-server" {
   order    = 1
 }
 
-# See https://registry.coder.com/modules/jetbrains-gateway
+# See https://registry.coder.com/modules/jetbrains/jetbrains-gateway
 module "jetbrains_gateway" {
   count  = data.coder_workspace.me.start_count
-  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+  source = "registry.coder.com/modules/jetbrains/jetbrains-gateway/coder"
 
   # JetBrains IDEs to make available for the user to select
   jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]

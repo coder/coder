@@ -20,8 +20,8 @@ The most straight-forward way to authenticate your template with Artifactory is
 by using our official Coder [modules](https://registry.coder.com). We publish
 two type of modules that automate the JFrog Artifactory and Coder integration.
 
-1. [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth)
-1. [JFrog-Token](https://registry.coder.com/modules/jfrog-token)
+1. [JFrog-OAuth](https://registry.coder.com/modules/jfrog/jfrog-oauth)
+1. [JFrog-Token](https://registry.coder.com/modules/jfrog/jfrog-token)
 
 ### JFrog-OAuth
 
@@ -68,12 +68,12 @@ To set this up, follow these steps:
    CODER_EXTERNAL_AUTH_1_SCOPES="applied-permissions/user"
    ```
 
-1. Create or edit a Coder template and use the [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth) module to configure the integration:
+1. Create or edit a Coder template and use the [JFrog-OAuth](https://registry.coder.com/modules/jfrog/jfrog-oauth) module to configure the integration:
 
    ```tf
    module "jfrog" {
      count          = data.coder_workspace.me.start_count
-     source         = "registry.coder.com/modules/jfrog-oauth/coder"
+     source         = "registry.coder.com/modules/jfrog/jfrog-oauth/coder"
      version        = "1.0.19"
      agent_id       = coder_agent.example.id
      jfrog_url      = "https://example.jfrog.io"
@@ -100,7 +100,7 @@ To set this up, follow these steps:
 
 1. Get a JFrog access token from your Artifactory instance. The token must be an [admin token](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token) with scope `applied-permissions/admin`.
 
-1. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to configure the integration and pass the admin token. It is recommended to store the token in a sensitive Terraform variable to prevent it from being displayed in plain text in the terraform state:
+1. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog/jfrog-token) module to configure the integration and pass the admin token. It is recommended to store the token in a sensitive Terraform variable to prevent it from being displayed in plain text in the terraform state:
 
    ```tf
    variable "artifactory_access_token" {
@@ -109,7 +109,7 @@ To set this up, follow these steps:
    }
 
    module "jfrog" {
-     source                   = "registry.coder.com/modules/jfrog-token/coder"
+     source                   = "registry.coder.com/modules/jfrog/jfrog-token/coder"
      version                  = "1.0.30"
      agent_id                 = coder_agent.example.id
      jfrog_url                = "https://XXXX.jfrog.io"
