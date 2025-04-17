@@ -268,6 +268,9 @@ func (s *GroupSyncSettings) Set(v string) error {
 }
 
 func (s *GroupSyncSettings) String() string {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
 	return runtimeconfig.JSONString(s)
 }
 
