@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -203,6 +205,20 @@ func TestAcquireJob(t *testing.T) {
 					GroupID: group1.ID,
 				})
 				require.NoError(t, err)
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: pd.OrganizationID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
+				// Add extra erronous roles
+				secondOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: secondOrg.ID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
 				link := dbgen.UserLink(t, db, database.UserLink{
 					LoginType:        database.LoginTypeOIDC,
 					UserID:           user.ID,
@@ -350,7 +366,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerEmail:           user.Email,
 					WorkspaceOwnerName:            user.Name,
 					WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
-					WorkspaceOwnerGroups:          []string{group1.Name},
+					WorkspaceOwnerGroups:          []string{"Everyone", group1.Name},
 					WorkspaceId:                   workspace.ID.String(),
 					WorkspaceOwnerId:              user.ID.String(),
 					TemplateId:                    template.ID.String(),
@@ -361,11 +377,15 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
-					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: "member", OrgId: pd.OrganizationID.String()}},
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
 				}
 				if prebuiltWorkspace {
 					wantedMetadata.IsPrebuild = true
 				}
+
+				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
 				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 						WorkspaceBuildId: build.ID.String(),
@@ -466,6 +486,13 @@ func TestAcquireJob(t *testing.T) {
 
 			job, err := tc.acquire(ctx, srv)
 			require.NoError(t, err)
+
+			// sort
+			if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+				slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
+			}
 
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
