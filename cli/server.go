@@ -2160,6 +2160,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V13).
 			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
+			// Default BinaryRepositoryURL repo1.maven.apache.org is flaky.
+			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
 			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
 			CachePath(cachePath).
