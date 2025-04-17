@@ -211,6 +211,14 @@ func TestAcquireJob(t *testing.T) {
 					Roles:          []string{rbac.RoleOrgAuditor()},
 				})
 
+				// Add extra erronous roles
+				secondOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: secondOrg.ID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
 				link := dbgen.UserLink(t, db, database.UserLink{
 					LoginType:        database.LoginTypeOIDC,
 					UserID:           user.ID,

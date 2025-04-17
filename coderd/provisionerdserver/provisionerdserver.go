@@ -603,6 +603,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		roles, err := allUserRoles.RoleNames()
 		if err == nil {
 			for _, role := range roles {
+				if role.OrganizationID != uuid.Nil && role.OrganizationID != s.OrganizationID {
+					continue // Only include site wide and org specific roles
+				}
+
 				orgID := role.OrganizationID.String()
 				if role.OrganizationID == uuid.Nil {
 					orgID = ""
