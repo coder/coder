@@ -2350,10 +2350,13 @@ func (q *FakeQuerier) DeleteOrganizationMember(ctx context.Context, arg database
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	deleted := slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
-		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	deleted := false
+	q.data.organizationMembers = slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		match := member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+		deleted = deleted || match
+		return match
 	})
-	if len(deleted) == 0 {
+	if !deleted {
 		return sql.ErrNoRows
 	}
 
@@ -4143,6 +4146,9 @@ func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrgan
 		if args.Name != "" && !strings.EqualFold(org.Name, args.Name) {
 			continue
 		}
+		if args.Deleted != org.Deleted {
+			continue
+		}
 		tmp = append(tmp, org)
 	}
 
@@ -4159,7 +4165,11 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, arg database.G
 			continue
 		}
 		for _, organization := range q.organizations {
-			if organization.ID != organizationMember.OrganizationID || organization.Deleted != arg.Deleted {
+			if organization.ID != organizationMember.OrganizationID {
+				continue
+			}
+
+			if arg.Deleted.Valid && organization.Deleted != arg.Deleted.Bool {
 				continue
 			}
 			organizations = append(organizations, organization)
