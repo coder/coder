@@ -151,6 +151,7 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 
 	// Also signal the processing loop when a notification is enqueued.
 	if stopListen, err := n.ps.Subscribe(EventNotificationEnqueued, func(ctx context.Context, _ []byte) {
+		n.log.Debug(n.outerCtx, "got pubsub event", slog.F("event", EventNotificationEnqueued))
 		c := make(chan struct{})
 		select {
 		case <-ctx.Done():
@@ -170,10 +171,9 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		defer stopListen()
 	}
 
-	// Note the order of operations here.
-	_ = tick.Wait() // will block until gracefulCtx is done
-	close(loopTick) // happens immediately
-	<-loopDone      // wait for the current processing loop to finish
+	_ = tick.Wait() // Block until the ticker exits. This will be after gracefulCtx is canceled.
+	close(loopTick) // Signal the processing goroutine to stop.
+	<-loopDone      // Wait for the processing goroutine to exit.
 
 	// only errors we can return are context errors.  Only return an error if the outer context
 	// was canceled, not if we were gracefully stopped.
