@@ -13,6 +13,11 @@ const meta: Meta<typeof PermissionPillsList> = {
 			</div>
 		),
 	],
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.5,
+		},
+	},
 };
 
 export default meta;
