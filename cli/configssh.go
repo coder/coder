@@ -48,13 +48,17 @@ const (
 type sshConfigOptions struct {
 	waitEnum string
 	// Deprecated: moving away from prefix to hostnameSuffix
-	userHostPrefix   string
-	hostnameSuffix   string
-	sshOptions       []string
-	disableAutostart bool
-	header           []string
-	headerCommand    string
-	removedKeys      map[string]bool
+	userHostPrefix      string
+	hostnameSuffix      string
+	sshOptions          []string
+	disableAutostart    bool
+	header              []string
+	headerCommand       string
+	removedKeys         map[string]bool
+	globalConfigPath    string
+	coderBinaryPath     string
+	skipProxyCommand    bool
+	forceUnixSeparators bool
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -107,6 +111,80 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 		o.hostnameSuffix == other.hostnameSuffix
 }
 
+func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
+	escapedCoderBinary, err := sshConfigExecEscape(o.coderBinaryPath, o.forceUnixSeparators)
+	if err != nil {
+		return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
+	}
+
+	escapedGlobalConfig, err := sshConfigExecEscape(o.globalConfigPath, o.forceUnixSeparators)
+	if err != nil {
+		return xerrors.Errorf("escape global config for ssh failed: %w", err)
+	}
+
+	rootFlags := fmt.Sprintf("--global-config %s", escapedGlobalConfig)
+	for _, h := range o.header {
+		rootFlags += fmt.Sprintf(" --header %q", h)
+	}
+	if o.headerCommand != "" {
+		rootFlags += fmt.Sprintf(" --header-command %q", o.headerCommand)
+	}
+
+	flags := ""
+	if o.waitEnum != "auto" {
+		flags += " --wait=" + o.waitEnum
+	}
+	if o.disableAutostart {
+		flags += " --disable-autostart=true"
+	}
+
+	// Prefix block:
+	if o.userHostPrefix != "" {
+		_, _ = buf.WriteString("Host")
+
+		_, _ = buf.WriteString(" ")
+		_, _ = buf.WriteString(o.userHostPrefix)
+		_, _ = buf.WriteString("*\n")
+
+		for _, v := range o.sshOptions {
+			_, _ = buf.WriteString("\t")
+			_, _ = buf.WriteString(v)
+			_, _ = buf.WriteString("\n")
+		}
+		if !o.skipProxyCommand && o.userHostPrefix != "" {
+			_, _ = buf.WriteString("\t")
+			_, _ = fmt.Fprintf(buf,
+				"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
+				escapedCoderBinary, rootFlags, flags, o.userHostPrefix,
+			)
+			_, _ = buf.WriteString("\n")
+		}
+	}
+
+	// Suffix block
+	if o.hostnameSuffix == "" {
+		return nil
+	}
+	_, _ = fmt.Fprintf(buf, "\nHost *.%s\n", o.hostnameSuffix)
+	for _, v := range o.sshOptions {
+		_, _ = buf.WriteString("\t")
+		_, _ = buf.WriteString(v)
+		_, _ = buf.WriteString("\n")
+	}
+	// the ^^ options should always apply, but we only want to use the proxy command if Coder Connect is not running.
+	if !o.skipProxyCommand {
+		_, _ = fmt.Fprintf(buf, "\nMatch host *.%s !exec \"%s connect exists %%h\"\n",
+			o.hostnameSuffix, escapedCoderBinary)
+		_, _ = buf.WriteString("\t")
+		_, _ = fmt.Fprintf(buf,
+			"ProxyCommand %s %s ssh --stdio%s --hostname-suffix %s %%h",
+			escapedCoderBinary, rootFlags, flags, o.hostnameSuffix,
+		)
+		_, _ = buf.WriteString("\n")
+	}
+	return nil
+}
+
 // slicesSortedEqual compares two slices without side-effects or regard to order.
 func slicesSortedEqual[S ~[]E, E constraints.Ordered](a, b S) bool {
 	if len(a) != len(b) {
@@ -147,13 +225,11 @@ func (o sshConfigOptions) asList() (list []string) {
 
 func (r *RootCmd) configSSH() *serpent.Command {
 	var (
-		sshConfigFile       string
-		sshConfigOpts       sshConfigOptions
-		usePreviousOpts     bool
-		dryRun              bool
-		skipProxyCommand    bool
-		forceUnixSeparators bool
-		coderCliPath        string
+		sshConfigFile   string
+		sshConfigOpts   sshConfigOptions
+		usePreviousOpts bool
+		dryRun          bool
+		coderCliPath    string
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -177,7 +253,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
-			if sshConfigOpts.waitEnum != "auto" && skipProxyCommand {
+			if sshConfigOpts.waitEnum != "auto" && sshConfigOpts.skipProxyCommand {
 				// The wait option is applied to the ProxyCommand. If the user
 				// specifies skip-proxy-command, then wait cannot be applied.
 				return xerrors.Errorf("cannot specify both --skip-proxy-command and --wait")
@@ -207,18 +283,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					return err
 				}
 			}
-
-			escapedCoderBinary, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
-			if err != nil {
-				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
-			}
-
 			root := r.createConfig()
-			escapedGlobalConfig, err := sshConfigExecEscape(string(root), forceUnixSeparators)
-			if err != nil {
-				return xerrors.Errorf("escape global config for ssh failed: %w", err)
-			}
-
 			homedir, err := os.UserHomeDir()
 			if err != nil {
 				return xerrors.Errorf("user home dir failed: %w", err)
@@ -320,93 +385,14 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				coderdConfig.HostnamePrefix = "coder."
 			}
 
-			if sshConfigOpts.userHostPrefix != "" {
-				// Override with user flag.
-				coderdConfig.HostnamePrefix = sshConfigOpts.userHostPrefix
-			}
-			if sshConfigOpts.hostnameSuffix != "" {
-				// Override with user flag.
-				coderdConfig.HostnameSuffix = sshConfigOpts.hostnameSuffix
-			}
-
-			// Write agent configuration.
-			defaultOptions := []string{
-				"ConnectTimeout=0",
-				"StrictHostKeyChecking=no",
-				// Without this, the "REMOTE HOST IDENTITY CHANGED"
-				// message will appear.
-				"UserKnownHostsFile=/dev/null",
-				// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
-				// message from appearing on every SSH. This happens because we ignore the known hosts.
-				"LogLevel ERROR",
-			}
-
-			if !skipProxyCommand {
-				rootFlags := fmt.Sprintf("--global-config %s", escapedGlobalConfig)
-				for _, h := range sshConfigOpts.header {
-					rootFlags += fmt.Sprintf(" --header %q", h)
-				}
-				if sshConfigOpts.headerCommand != "" {
-					rootFlags += fmt.Sprintf(" --header-command %q", sshConfigOpts.headerCommand)
-				}
-
-				flags := ""
-				if sshConfigOpts.waitEnum != "auto" {
-					flags += " --wait=" + sshConfigOpts.waitEnum
-				}
-				if sshConfigOpts.disableAutostart {
-					flags += " --disable-autostart=true"
-				}
-				if coderdConfig.HostnamePrefix != "" {
-					flags += " --ssh-host-prefix " + coderdConfig.HostnamePrefix
-				}
-				if coderdConfig.HostnameSuffix != "" {
-					flags += " --hostname-suffix " + coderdConfig.HostnameSuffix
-				}
-				defaultOptions = append(defaultOptions, fmt.Sprintf(
-					"ProxyCommand %s %s ssh --stdio%s %%h",
-					escapedCoderBinary, rootFlags, flags,
-				))
-			}
-
-			// Create a copy of the options so we can modify them.
-			configOptions := sshConfigOpts
-			configOptions.sshOptions = nil
-
-			// User options first (SSH only uses the first
-			// option unless it can be given multiple times)
-			for _, opt := range sshConfigOpts.sshOptions {
-				err := configOptions.addOptions(opt)
-				if err != nil {
-					return xerrors.Errorf("add flag config option %q: %w", opt, err)
-				}
-			}
-
-			// Deployment options second, allow them to
-			// override standard options.
-			for k, v := range coderdConfig.SSHConfigOptions {
-				opt := fmt.Sprintf("%s %s", k, v)
-				err := configOptions.addOptions(opt)
-				if err != nil {
-					return xerrors.Errorf("add coderd config option %q: %w", opt, err)
-				}
-			}
-
-			// Finally, add the standard options.
-			if err := configOptions.addOptions(defaultOptions...); err != nil {
+			configOptions, err := mergeSSHOptions(sshConfigOpts, coderdConfig, string(root), coderBinary)
+			if err != nil {
 				return err
 			}
-
-			hostBlock := []string{
-				sshConfigHostLinePatterns(coderdConfig),
+			err = configOptions.writeToBuffer(buf)
+			if err != nil {
+				return err
 			}
-			// Prefix with '\t'
-			for _, v := range configOptions.sshOptions {
-				hostBlock = append(hostBlock, "\t"+v)
-			}
-
-			_, _ = buf.WriteString(strings.Join(hostBlock, "\n"))
-			_ = buf.WriteByte('\n')
 
 			sshConfigWriteSectionEnd(buf)
 
@@ -523,7 +509,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Flag:        "skip-proxy-command",
 			Env:         "CODER_SSH_SKIP_PROXY_COMMAND",
 			Description: "Specifies whether the ProxyCommand option should be skipped. Useful for testing.",
-			Value:       serpent.BoolOf(&skipProxyCommand),
+			Value:       serpent.BoolOf(&sshConfigOpts.skipProxyCommand),
 			Hidden:      true,
 		},
 		{
@@ -564,7 +550,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
 				"This might be an issue in Windows machine that use a unix-like shell. " +
 				"This flag forces the use of unix file paths (the forward slash '/').",
-			Value: serpent.BoolOf(&forceUnixSeparators),
+			Value: serpent.BoolOf(&sshConfigOpts.forceUnixSeparators),
 			// On non-windows showing this command is useless because it is a noop.
 			// Hide vs disable it though so if a command is copied from a Windows
 			// machine to a unix machine it will still work and not throw an
@@ -575,6 +561,63 @@ func (r *RootCmd) configSSH() *serpent.Command {
 	}
 
 	return cmd
+}
+
+func mergeSSHOptions(
+	user sshConfigOptions, coderd codersdk.SSHConfigResponse, globalConfigPath, coderBinaryPath string,
+) (
+	sshConfigOptions, error,
+) {
+	// Write agent configuration.
+	defaultOptions := []string{
+		"ConnectTimeout=0",
+		"StrictHostKeyChecking=no",
+		// Without this, the "REMOTE HOST IDENTITY CHANGED"
+		// message will appear.
+		"UserKnownHostsFile=/dev/null",
+		// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
+		// message from appearing on every SSH. This happens because we ignore the known hosts.
+		"LogLevel ERROR",
+	}
+
+	// Create a copy of the options so we can modify them.
+	configOptions := user
+	configOptions.sshOptions = nil
+
+	configOptions.globalConfigPath = globalConfigPath
+	configOptions.coderBinaryPath = coderBinaryPath
+	// user config takes precedence
+	if user.userHostPrefix == "" {
+		configOptions.userHostPrefix = coderd.HostnamePrefix
+	}
+	if user.hostnameSuffix == "" {
+		configOptions.hostnameSuffix = coderd.HostnameSuffix
+	}
+
+	// User options first (SSH only uses the first
+	// option unless it can be given multiple times)
+	for _, opt := range user.sshOptions {
+		err := configOptions.addOptions(opt)
+		if err != nil {
+			return sshConfigOptions{}, xerrors.Errorf("add flag config option %q: %w", opt, err)
+		}
+	}
+
+	// Deployment options second, allow them to
+	// override standard options.
+	for k, v := range coderd.SSHConfigOptions {
+		opt := fmt.Sprintf("%s %s", k, v)
+		err := configOptions.addOptions(opt)
+		if err != nil {
+			return sshConfigOptions{}, xerrors.Errorf("add coderd config option %q: %w", opt, err)
+		}
+	}
+
+	// Finally, add the standard options.
+	if err := configOptions.addOptions(defaultOptions...); err != nil {
+		return sshConfigOptions{}, err
+	}
+	return configOptions, nil
 }
 
 //nolint:revive
@@ -843,20 +886,4 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		b = nil
 	}
 	return b, nil
-}
-
-func sshConfigHostLinePatterns(config codersdk.SSHConfigResponse) string {
-	builder := strings.Builder{}
-	// by inspection, WriteString always returns nil error
-	_, _ = builder.WriteString("Host")
-	if config.HostnamePrefix != "" {
-		_, _ = builder.WriteString(" ")
-		_, _ = builder.WriteString(config.HostnamePrefix)
-		_, _ = builder.WriteString("*")
-	}
-	if config.HostnameSuffix != "" {
-		_, _ = builder.WriteString(" *.")
-		_, _ = builder.WriteString(config.HostnameSuffix)
-	}
-	return builder.String()
 }
