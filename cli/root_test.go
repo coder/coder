@@ -10,12 +10,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -9,7 +9,6 @@ import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
-	Template,
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -32,6 +31,7 @@ import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+import { API } from "api/api";
 import {
 	type CreateWorkspacePermissions,
 	createWorkspaceChecks,
@@ -47,8 +47,9 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const [currentResponse, setCurrentResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const [wsResponseId, setWSResponseId] = useState<number>(0);
-	const sendMessage = (message: DynamicParametersRequest) => {};
+	const [wsResponseId, setWSResponseId] = useState<number>(-1);
+	const ws = useRef<WebSocket | null>(null);
+	const [wsError, setWsError] = useState<Error | null>(null);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -80,6 +81,49 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
+	const onMessage = useCallback((response: DynamicParametersResponse) => {
+		setCurrentResponse((prev) => {
+			if (prev?.id === response.id) {
+				return prev;
+			}
+			return response;
+		});
+	}, []);
+
+	// Initialize the WebSocket connection when there is a valid template version ID
+	useEffect(() => {
+		if (!realizedVersionId) {
+			return;
+		}
+
+		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
+			onMessage,
+			onError: (error) => {
+				setWsError(error);
+			},
+		});
+
+		ws.current = socket;
+
+		return () => {
+			socket.close();
+		};
+	}, [realizedVersionId, onMessage]);
+
+	const sendMessage = useCallback((formValues: Record<string, string>) => {
+		setWSResponseId((prevId) => {
+			const request: DynamicParametersRequest = {
+				id: prevId + 1,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				return prevId + 1;
+			}
+			return prevId;
+		});
+	}, []);
+
 	const organizationId = templateQuery.data?.organization_id;
 
 	const {
@@ -90,7 +134,9 @@ const CreateWorkspacePageExperimental: FC = () => {
 	} = useExternalAuth(realizedVersionId);
 
 	const isLoadingFormData =
-		templateQuery.isLoading || permissionsQuery.isLoading;
+		ws.current?.readyState !== WebSocket.OPEN ||
+		templateQuery.isLoading ||
+		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isLoading
@@ -189,11 +235,12 @@ const CreateWorkspacePageExperimental: FC = () => {
 				<CreateWorkspacePageViewExperimental
 					mode={mode}
 					defaultName={defaultName}
-					diagnostics={currentResponse.diagnostics}
+					diagnostics={currentResponse?.diagnostics ?? []}
 					disabledParams={disabledParams}
 					defaultOwner={me}
 					autofillParameters={autofillParameters}
 					error={
+						wsError ||
 						createWorkspaceMutation.error ||
 						autoCreateError ||
 						loadFormDataError ||
@@ -210,7 +257,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isLoading}
-					setWSResponseId={setWSResponseId}
 					sendMessage={sendMessage}
 					onCancel={() => {
 						navigate(-1);

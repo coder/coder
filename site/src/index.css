@@ -31,6 +31,7 @@
 		--surface-red: 0 93% 94%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
+		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
 		--border-warning: 27 96% 61%;
 		--border-hover: 240 5% 34%;
@@ -70,6 +71,7 @@
 		--surface-red: 0 75% 15%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
+		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
 		--border-warning: 31 97% 72%;
 		--border-hover: 240, 5%, 34%;

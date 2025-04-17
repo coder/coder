@@ -20,11 +20,12 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/quartz"
-	"github.com/coder/websocket"
 )
 
 var ErrSkipClose = xerrors.New("skip tailnet close")
@@ -128,19 +129,16 @@ func init() {
 	}
 }
 
-type resolver interface {
+type Resolver interface {
 	LookupIP(ctx context.Context, network, host string) ([]net.IP, error)
 }
 
 type Client struct {
 	client *codersdk.Client
-
-	// overridden in tests
-	resolver resolver
 }
 
 func New(c *codersdk.Client) *Client {
-	return &Client{client: c, resolver: net.DefaultResolver}
+	return &Client{client: c}
 }
 
 // AgentConnectionInfo returns required information for establishing
@@ -392,6 +390,12 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
 }
 
+func WithTestOnlyCoderContextResolver(ctx context.Context, r Resolver) context.Context {
+	return context.WithValue(ctx, dnsResolverContextKey{}, r)
+}
+
+type dnsResolverContextKey struct{}
+
 type CoderConnectQueryOptions struct {
 	HostnameSuffix string
 }
@@ -409,15 +413,32 @@ func (c *Client) IsCoderConnectRunning(ctx context.Context, o CoderConnectQueryO
 		suffix = info.HostnameSuffix
 	}
 	domainName := fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, suffix)
+	return ExistsViaCoderConnect(ctx, domainName)
+}
+
+func testOrDefaultResolver(ctx context.Context) Resolver {
+	// check the context for a non-default resolver. This is only used in testing.
+	resolver, ok := ctx.Value(dnsResolverContextKey{}).(Resolver)
+	if !ok || resolver == nil {
+		resolver = net.DefaultResolver
+	}
+	return resolver
+}
+
+// ExistsViaCoderConnect checks if the given hostname exists via Coder Connect. This doesn't guarantee the
+// workspace is actually reachable, if, for example, its agent is unhealthy, but rather that Coder Connect knows about
+// the workspace and advertises the hostname via DNS.
+func ExistsViaCoderConnect(ctx context.Context, hostname string) (bool, error) {
+	resolver := testOrDefaultResolver(ctx)
 	var dnsError *net.DNSError
-	ips, err := c.resolver.LookupIP(ctx, "ip6", domainName)
+	ips, err := resolver.LookupIP(ctx, "ip6", hostname)
 	if xerrors.As(err, &dnsError) {
 		if dnsError.IsNotFound {
 			return false, nil
 		}
 	}
 	if err != nil {
-		return false, xerrors.Errorf("lookup DNS %s: %w", domainName, err)
+		return false, xerrors.Errorf("lookup DNS %s: %w", hostname, err)
 	}
 
 	// The returned IP addresses are probably from the Coder Connect DNS server, but there are sometimes weird captive
