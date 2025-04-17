@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -229,9 +228,6 @@ func TestDockerDevcontainerCLI(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("skipping Docker test; set CODER_TEST_USE_DOCKER=1 to run")
-	}
-	if runtime.GOOS != "linux" {
-		t.Skip("Skipping on non-Linux OS")
 	}
 	if _, err := exec.LookPath("devcontainer"); err != nil {
 		t.Fatal("this test requires the devcontainer CLI: npm install -g @devcontainers/cli")
