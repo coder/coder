@@ -653,7 +653,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		// random value.
 		originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
 		require.NoError(t, err)
-		originalPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		originalPeerID := testutil.TryReceive(ctx, t, resumeTokenProvider.generateCalls)
 		require.NotEqual(t, originalPeerID, uuid.Nil)
 
 		// Connect with a valid resume token, and ensure that the peer ID is set to
@@ -661,9 +661,9 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		clock.Advance(time.Second)
 		newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, originalResumeToken)
 		require.NoError(t, err)
-		verifiedToken := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
+		verifiedToken := testutil.TryReceive(ctx, t, resumeTokenProvider.verifyCalls)
 		require.Equal(t, originalResumeToken, verifiedToken)
-		newPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		newPeerID := testutil.TryReceive(ctx, t, resumeTokenProvider.generateCalls)
 		require.Equal(t, originalPeerID, newPeerID)
 		require.NotEqual(t, originalResumeToken, newResumeToken)
 
@@ -677,7 +677,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "resume_token", sdkErr.Validations[0].Field)
-		verifiedToken = testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
+		verifiedToken = testutil.TryReceive(ctx, t, resumeTokenProvider.verifyCalls)
 		require.Equal(t, "invalid", verifiedToken)
 
 		select {
@@ -725,7 +725,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		// random value.
 		originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
 		require.NoError(t, err)
-		originalPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		originalPeerID := testutil.TryReceive(ctx, t, resumeTokenProvider.generateCalls)
 		require.NotEqual(t, originalPeerID, uuid.Nil)
 
 		// Connect with an outdated token, and ensure that the peer ID is set to a
@@ -739,9 +739,9 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		clock.Advance(time.Second)
 		newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, outdatedToken)
 		require.NoError(t, err)
-		verifiedToken := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
+		verifiedToken := testutil.TryReceive(ctx, t, resumeTokenProvider.verifyCalls)
 		require.Equal(t, outdatedToken, verifiedToken)
-		newPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		newPeerID := testutil.TryReceive(ctx, t, resumeTokenProvider.generateCalls)
 		require.NotEqual(t, originalPeerID, newPeerID)
 		require.NotEqual(t, originalResumeToken, newResumeToken)
 	})
@@ -1912,8 +1912,8 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	// testing it is not straightforward.
 	db.err.Store(&wantErr)
 
-	testutil.RequireRecvCtx(ctx, t, metadataDone)
-	testutil.RequireRecvCtx(ctx, t, postDone)
+	testutil.TryReceive(ctx, t, metadataDone)
+	testutil.TryReceive(ctx, t, postDone)
 }
 
 func TestWorkspaceAgent_Startup(t *testing.T) {
@@ -2358,7 +2358,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			defer wsConn.Close(websocket.StatusNormalClosure, "done")
 
 			// Check telemetry
-			snapshot := testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
+			snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
 			require.Len(t, snapshot.UserTailnetConnections, 1)
 			telemetryConnection := snapshot.UserTailnetConnections[0]
 			require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
@@ -2373,7 +2373,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			err = wsConn.Close(websocket.StatusNormalClosure, "done")
 			require.NoError(t, err)
 
-			snapshot = testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
+			snapshot = testutil.TryReceive(ctx, t, fTelemetry.snapshots)
 			require.Len(t, snapshot.UserTailnetConnections, 1)
 			telemetryDisconnection := snapshot.UserTailnetConnections[0]
 			require.Equal(t, memberUser.ID.String(), telemetryDisconnection.UserID)

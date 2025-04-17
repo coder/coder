@@ -193,11 +193,11 @@ func TestClaimPrebuild(t *testing.T) {
 				ps, err := state.FilterByPreset(preset.ID)
 				require.NoError(t, err)
 				require.NotNil(t, ps)
-				actions, err := reconciler.DetermineActions(ctx, *ps)
+				actions, err := reconciler.CalculateActions(ctx, *ps)
 				require.NoError(t, err)
 				require.NotNil(t, actions)
 
-				require.NoError(t, reconciler.Reconcile(ctx, *ps, *actions))
+				require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
 			}
 
 			// Given: a set of running, eligible prebuilds eventually starts up.
@@ -306,11 +306,9 @@ func TestClaimPrebuild(t *testing.T) {
 				for _, preset := range presets {
 					ps, err := state.FilterByPreset(preset.ID)
 					require.NoError(t, err)
-					actions, err := reconciler.DetermineActions(ctx, *ps)
-					require.NoError(t, err)
 
 					// Then: the reconciliation takes place without error.
-					require.NoError(t, reconciler.Reconcile(ctx, *ps, *actions))
+					require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
 				}
 			}
 

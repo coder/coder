@@ -108,7 +108,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			_ = sub.Close()
 		})
 
-		update := testutil.RequireRecvCtx(ctx, t, sub.Updates())
+		update := testutil.TryReceive(ctx, t, sub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})
@@ -185,7 +185,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			WorkspaceID: ws1ID,
 		})
 
-		update = testutil.RequireRecvCtx(ctx, t, sub.Updates())
+		update = testutil.TryReceive(ctx, t, sub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})
@@ -284,7 +284,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			DeletedAgents:     []*proto.Agent{},
 		}
 
-		update := testutil.RequireRecvCtx(ctx, t, sub.Updates())
+		update := testutil.TryReceive(ctx, t, sub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})
@@ -296,7 +296,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			_ = resub.Close()
 		})
 
-		update = testutil.RequireRecvCtx(ctx, t, resub.Updates())
+		update = testutil.TryReceive(ctx, t, resub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})

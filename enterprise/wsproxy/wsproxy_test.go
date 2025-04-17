@@ -780,7 +780,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		require.NoError(t, err, "failed to force proxy to re-register")
 
 		// Wait for the ping to fail.
-		replicaErr := testutil.RequireRecvCtx(ctx, t, replicaPingErr)
+		replicaErr := testutil.TryReceive(ctx, t, replicaPingErr)
 		require.NotEmpty(t, replicaErr, "replica ping error")
 
 		// GET /healthz-report
@@ -858,7 +858,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 
 		// Wait for the ping to fail.
 		for {
-			replicaErr := testutil.RequireRecvCtx(ctx, t, replicaPingErr)
+			replicaErr := testutil.TryReceive(ctx, t, replicaPingErr)
 			t.Log("replica ping error:", replicaErr)
 			if replicaErr != "" {
 				break
@@ -892,7 +892,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 
 		// Wait for the ping to be skipped.
 		for {
-			replicaErr := testutil.RequireRecvCtx(ctx, t, replicaPingErr)
+			replicaErr := testutil.TryReceive(ctx, t, replicaPingErr)
 			t.Log("replica ping error:", replicaErr)
 			// Should be empty because there are no more peers. This was where
 			// the regression was.

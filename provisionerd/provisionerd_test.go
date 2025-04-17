@@ -1270,6 +1270,11 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 		return nil
 	}
 	err := stream.Send(a.job)
-	assert.NoError(a.t, err)
+	// dRPC is racy, and sometimes will return context.Canceled after it has successfully sent the message if we cancel
+	// right away, e.g. in unit tests that complete. So, just swallow the error in that case. If we are canceled before
+	// the job was acquired, presumably something else in the test will have failed.
+	if !xerrors.Is(err, context.Canceled) {
+		assert.NoError(a.t, err)
+	}
 	return nil
 }

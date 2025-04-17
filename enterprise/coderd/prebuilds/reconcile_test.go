@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/util/slice"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/types/ptr"
@@ -314,8 +316,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 							logger := slogtest.Make(
 								t, &slogtest.Options{IgnoreErrors: true},
 							).Leveled(slog.LevelDebug)
-							db, pubsub := dbtestutil.NewDB(t)
-							controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
+							db, pubSub := dbtestutil.NewDB(t)
+							controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
 
 							ownerID := uuid.New()
 							dbgen.User(t, db, database.User{
@@ -327,7 +329,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								t,
 								clock,
 								db,
-								pubsub,
+								pubSub,
 								org.ID,
 								ownerID,
 								template.ID,
@@ -343,7 +345,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								t,
 								clock,
 								db,
-								pubsub,
+								pubSub,
 								prebuildLatestTransition,
 								prebuildJobStatus,
 								org.ID,
@@ -355,7 +357,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 							if !templateVersionActive {
 								// Create a new template version and mark it as active
 								// This marks the template version that we care about as inactive
-								setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
+								setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
 							}
 
 							// Run the reconciliation multiple times to ensure idempotency
@@ -399,6 +401,289 @@ func TestPrebuildReconciliation(t *testing.T) {
 	}
 }
 
+func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	prebuildLatestTransition := database.WorkspaceTransitionStart
+	prebuildJobStatus := database.ProvisionerJobStatusRunning
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(
+		ctx,
+		t,
+		clock,
+		db,
+		pubSub,
+		org.ID,
+		ownerID,
+		template.ID,
+	)
+	preset := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		4,
+		uuid.New().String(),
+	)
+	preset2 := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		10,
+		uuid.New().String(),
+	)
+	prebuildIDs := make([]uuid.UUID, 0)
+	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
+		prebuild := setupTestDBPrebuild(
+			t,
+			clock,
+			db,
+			pubSub,
+			prebuildLatestTransition,
+			prebuildJobStatus,
+			org.ID,
+			preset,
+			template.ID,
+			templateVersionID,
+		)
+		prebuildIDs = append(prebuildIDs, prebuild.ID)
+	}
+
+	// Run the reconciliation multiple times to ensure idempotency
+	// 8 was arbitrary, but large enough to reasonably trust the result
+	for i := 1; i <= 8; i++ {
+		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+
+		newPrebuildCount := 0
+		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+		require.NoError(t, err)
+		for _, workspace := range workspaces {
+			if slice.Contains(prebuildIDs, workspace.ID) {
+				continue
+			}
+			newPrebuildCount++
+		}
+
+		// NOTE: preset1 doesn't block creation of instances in preset2
+		require.Equal(t, preset2.DesiredInstances.Int32, int32(newPrebuildCount)) // nolint:gosec
+	}
+}
+
+func TestInvalidPreset(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(
+		ctx,
+		t,
+		clock,
+		db,
+		pubSub,
+		org.ID,
+		ownerID,
+		template.ID,
+	)
+	// Add required param, which is not set in preset. It means that creating of prebuild will constantly fail.
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: templateVersionID,
+		Name:              "required-param",
+		Description:       "required param to make sure creating prebuild will fail",
+		Type:              "bool",
+		DefaultValue:      "",
+		Required:          true,
+	})
+	setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		1,
+		uuid.New().String(),
+	)
+
+	// Run the reconciliation multiple times to ensure idempotency
+	// 8 was arbitrary, but large enough to reasonably trust the result
+	for i := 1; i <= 8; i++ {
+		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+
+		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+		require.NoError(t, err)
+		newPrebuildCount := len(workspaces)
+
+		// NOTE: we don't have any new prebuilds, because their creation constantly fails.
+		require.Equal(t, int32(0), int32(newPrebuildCount)) // nolint:gosec
+	}
+}
+
+func TestRunLoop(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	prebuildLatestTransition := database.WorkspaceTransitionStart
+	prebuildJobStatus := database.ProvisionerJobStatusRunning
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	backoffInterval := time.Minute
+	cfg := codersdk.PrebuildsConfig{
+		// Given: explicitly defined backoff configuration to validate timings.
+		ReconciliationBackoffLookback: serpent.Duration(muchEarlier * -10), // Has to be positive.
+		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
+		ReconciliationInterval:        serpent.Duration(time.Second),
+	}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock)
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(
+		ctx,
+		t,
+		clock,
+		db,
+		pubSub,
+		org.ID,
+		ownerID,
+		template.ID,
+	)
+	preset := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		4,
+		uuid.New().String(),
+	)
+	preset2 := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		10,
+		uuid.New().String(),
+	)
+	prebuildIDs := make([]uuid.UUID, 0)
+	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
+		prebuild := setupTestDBPrebuild(
+			t,
+			clock,
+			db,
+			pubSub,
+			prebuildLatestTransition,
+			prebuildJobStatus,
+			org.ID,
+			preset,
+			template.ID,
+			templateVersionID,
+		)
+		prebuildIDs = append(prebuildIDs, prebuild.ID)
+	}
+	getNewPrebuildCount := func() int32 {
+		newPrebuildCount := 0
+		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+		require.NoError(t, err)
+		for _, workspace := range workspaces {
+			if slice.Contains(prebuildIDs, workspace.ID) {
+				continue
+			}
+			newPrebuildCount++
+		}
+
+		return int32(newPrebuildCount) // nolint:gosec
+	}
+
+	// we need to wait until ticker is initialized, and only then use clock.Advance()
+	// otherwise clock.Advance() will be ignored
+	trap := clock.Trap().NewTicker()
+	go controller.RunLoop(ctx)
+	// wait until ticker is initialized
+	trap.MustWait(ctx).Release()
+	// start 1st iteration of ReconciliationLoop
+	// NOTE: at this point MustWait waits that iteration is started (ReconcileAll is called), but it doesn't wait until it completes
+	clock.Advance(cfg.ReconciliationInterval.Value()).MustWait(ctx)
+
+	// wait until ReconcileAll is completed
+	// TODO: is it possible to avoid Eventually and replace it with quartz?
+	// Ideally to have all control on test-level, and be able to advance loop iterations from the test.
+	require.Eventually(t, func() bool {
+		newPrebuildCount := getNewPrebuildCount()
+
+		// NOTE: preset1 doesn't block creation of instances in preset2
+		return preset2.DesiredInstances.Int32 == newPrebuildCount
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// setup one more preset with 5 prebuilds
+	preset3 := setupTestDBPreset(
+		t,
+		db,
+		templateVersionID,
+		5,
+		uuid.New().String(),
+	)
+	newPrebuildCount := getNewPrebuildCount()
+	// nothing changed, because we didn't trigger a new iteration of a loop
+	require.Equal(t, preset2.DesiredInstances.Int32, newPrebuildCount)
+
+	// start 2nd iteration of ReconciliationLoop
+	// NOTE: at this point MustWait waits that iteration is started (ReconcileAll is called), but it doesn't wait until it completes
+	clock.Advance(cfg.ReconciliationInterval.Value()).MustWait(ctx)
+
+	// wait until ReconcileAll is completed
+	require.Eventually(t, func() bool {
+		newPrebuildCount := getNewPrebuildCount()
+
+		// both prebuilds for preset2 and preset3 were created
+		return preset2.DesiredInstances.Int32+preset3.DesiredInstances.Int32 == newPrebuildCount
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// gracefully stop the reconciliation loop
+	controller.Stop(ctx, nil)
+}
+
 func TestFailedBuildBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -437,18 +722,19 @@ func TestFailedBuildBackoff(t *testing.T) {
 	}
 
 	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
-	state, err := reconciler.SnapshotState(ctx, db)
+	snapshot, err := reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	require.Len(t, state.Presets, 1)
-	presetState, err := state.FilterByPreset(preset.ID)
+	require.Len(t, snapshot.Presets, 1)
+	presetState, err := snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	actions, err := reconciler.DetermineActions(ctx, *presetState)
+	state := presetState.CalculateState()
+	actions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
 
 	// Then: the backoff time is in the future, no prebuilds are running, and we won't create any new prebuilds.
-	require.EqualValues(t, 0, actions.Actual)
+	require.EqualValues(t, 0, state.Actual)
 	require.EqualValues(t, 0, actions.Create)
-	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, desiredInstances, state.Desired)
 	require.True(t, clock.Now().Before(actions.BackoffUntil))
 
 	// Then: the backoff time is as expected based on the number of failed builds.
@@ -457,32 +743,34 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
 
 	// When: advancing to the next tick which is still within the backoff time.
-	clock.Advance(clock.Until(clock.Now().Add(cfg.ReconciliationInterval.Value())))
+	clock.Advance(cfg.ReconciliationInterval.Value())
 
 	// Then: the backoff interval will not have changed.
-	state, err = reconciler.SnapshotState(ctx, db)
+	snapshot, err = reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	presetState, err = state.FilterByPreset(preset.ID)
+	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	newActions, err := reconciler.DetermineActions(ctx, *presetState)
+	newState := presetState.CalculateState()
+	newActions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, newActions.Actual)
+	require.EqualValues(t, 0, newState.Actual)
 	require.EqualValues(t, 0, newActions.Create)
-	require.EqualValues(t, desiredInstances, newActions.Desired)
+	require.EqualValues(t, desiredInstances, newState.Desired)
 	require.EqualValues(t, actions.BackoffUntil, newActions.BackoffUntil)
 
 	// When: advancing beyond the backoff time.
 	clock.Advance(clock.Until(actions.BackoffUntil.Add(time.Second)))
 
 	// Then: we will attempt to create a new prebuild.
-	state, err = reconciler.SnapshotState(ctx, db)
+	snapshot, err = reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	presetState, err = state.FilterByPreset(preset.ID)
+	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	actions, err = reconciler.DetermineActions(ctx, *presetState)
+	state = presetState.CalculateState()
+	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, actions.Actual)
-	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, 0, state.Actual)
+	require.EqualValues(t, desiredInstances, state.Desired)
 	require.EqualValues(t, desiredInstances, actions.Create)
 
 	// When: the desired number of new prebuild are provisioned, but one fails again.
@@ -495,14 +783,15 @@ func TestFailedBuildBackoff(t *testing.T) {
 	}
 
 	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
-	state, err = reconciler.SnapshotState(ctx, db)
+	snapshot, err = reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	presetState, err = state.FilterByPreset(preset.ID)
+	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	actions, err = reconciler.DetermineActions(ctx, *presetState)
+	state = presetState.CalculateState()
+	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, actions.Actual)
-	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, 1, state.Actual)
+	require.EqualValues(t, desiredInstances, state.Desired)
 	require.EqualValues(t, 0, actions.Create)
 	require.EqualValues(t, 3, presetState.Backoff.NumFailed)
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
@@ -548,6 +837,7 @@ func TestReconciliationLock(t *testing.T) {
 	wg.Wait()
 }
 
+// nolint:revive // It's a control flag, but this is a test.
 func setupTestDBTemplate(
 	t *testing.T,
 	db database.Store,

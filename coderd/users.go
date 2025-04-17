@@ -1340,7 +1340,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 
 	organizations, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
 		UserID:  user.ID,
-		Deleted: false,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
