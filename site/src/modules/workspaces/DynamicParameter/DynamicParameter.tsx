@@ -22,6 +22,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import { Slider } from "components/Slider/Slider";
 import { Switch } from "components/Switch/Switch";
 import {
 	Tooltip,
@@ -91,7 +92,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 				</span>
 			)}
 
-			<div className="flex flex-col gap-1.5">
+			<div className="flex flex-col w-full">
 				<Label className="flex gap-2 flex-wrap text-sm font-medium">
 					{displayName}
 
@@ -129,6 +130,11 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
+					)}
+					{parameter.form_type === "slider" && (
+						<output className="ml-auto font-semibold">
+							{parameter.value.value}
+						</output>
 					)}
 				</Label>
 
@@ -278,6 +284,23 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					</Label>
 				</div>
 			);
+
+		case "slider":
+			return (
+				<Slider
+					className="mt-2"
+					defaultValue={[
+						Number(
+							parameter.default_value.valid ? parameter.default_value.value : 0,
+						),
+					]}
+					onValueChange={([value]) => onChange(value.toString())}
+					min={parameter.validations[0]?.validation_min ?? 0}
+					max={parameter.validations[0]?.validation_max ?? 100}
+					disabled={disabled}
+				/>
+			);
+
 		case "input": {
 			const inputType = parameter.type === "number" ? "number" : "text";
 			const inputProps: Record<string, unknown> = {};
