@@ -86,7 +86,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 			if (prev?.id === response.id) {
 				return prev;
 			}
-			return response;
+			return structuredClone(response);
 		});
 	}, []);
 
