@@ -901,6 +901,12 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				Instances: prebuildInstances,
 			},
 		}
+		// TODO: more than 1 allowable?
+		if len(preset.Prebuilds) == 1 {
+			protoPreset.Prebuild = &proto.Prebuild{
+				Instances: int32(preset.Prebuilds[0].Instances),
+			}
+		}
 
 		if slice.Contains(duplicatedPresetNames, preset.Name) {
 			duplicatedPresetNames = append(duplicatedPresetNames, preset.Name)

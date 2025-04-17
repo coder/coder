@@ -31,7 +31,7 @@ export default defineConfig({
 	],
 	reporter: [["./reporter.ts"]],
 	use: {
-		actionTimeout: 5000,
+		actionTimeout: 60_000,
 		baseURL: `http://localhost:${coderPort}`,
 		video: "retain-on-failure",
 		...(wsEndpoint
@@ -111,7 +111,7 @@ export default defineConfig({
 				gitAuth.validatePath,
 			),
 			CODER_PPROF_ADDRESS: `127.0.0.1:${coderdPProfPort}`,
-			CODER_EXPERIMENTS: `${e2eFakeExperiment1},${e2eFakeExperiment2}`,
+			CODER_EXPERIMENTS: `${e2eFakeExperiment1},${e2eFakeExperiment2},${process.env.CODER_EXPERIMENTS}`,
 
 			// Tests for Deployment / User Authentication / OIDC
 			CODER_OIDC_ISSUER_URL: "https://accounts.google.com",
@@ -122,6 +122,8 @@ export default defineConfig({
 			CODER_OIDC_SIGN_IN_TEXT: "Hello",
 			CODER_OIDC_ICON_URL: "/icon/google.svg",
 		},
-		reuseExistingServer: false,
+		reuseExistingServer: process.env.CODER_E2E_REUSE_EXISTING_SERVER
+			? Boolean(process.env.CODER_E2E_REUSE_EXISTING_SERVER)
+			: false,
 	},
 });

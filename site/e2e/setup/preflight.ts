@@ -36,7 +36,7 @@ export default function () {
 		throw new Error(msg);
 	}
 
-	if (!process.env.CI) {
+	if (!process.env.CI && !process.env.CODER_E2E_REUSE_EXISTING_SERVER) {
 		console.info("==> make site/e2e/bin/coder");
 		execSync("make site/e2e/bin/coder", {
 			cwd: path.join(__dirname, "../../../"),

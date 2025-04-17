@@ -529,3 +529,6 @@ require (
 	google.golang.org/genai v0.7.0 // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
 )
+
+// TODO: remove this once code merged upstream
+replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1.0.20250415114329-82d12ec030e9

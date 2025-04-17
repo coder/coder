@@ -8244,6 +8244,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/reinit": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent reinitialization",
+                "operationId": "get-workspace-agent-reinitialization",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ReinitializationResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/rpc": {
             "get": {
                 "security": [
@@ -10289,6 +10314,26 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.ReinitializationReason": {
+            "type": "string",
+            "enum": [
+                "prebuild_claimed"
+            ],
+            "x-enum-varnames": [
+                "ReinitializeReasonPrebuildClaimed"
+            ]
+        },
+        "agentsdk.ReinitializationResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "reason": {
+                    "$ref": "#/definitions/agentsdk.ReinitializationReason"
+                }
+            }
+        },
         "coderd.SCIMUser": {
             "type": "object",
             "properties": {
@@ -11445,6 +11490,9 @@ const docTemplate = `{
                 "autostart_schedule": {
                     "type": "string"
                 },
+                "claim_prebuild_if_available": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -11912,6 +11960,8 @@ const docTemplate = `{
                 "wildcard_access_url": {
                     "type": "string"
                 },
+                "workspace_prebuilds": {
+                    "$ref": "#/definitions/codersdk.PrebuildsConfig"
                 "workspace_hostname_suffix": {
                     "type": "string"
                 },
@@ -11993,6 +12043,7 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
+                "workspace-prebuilds",
                 "web-push",
                 "dynamic-parameters"
             ],
@@ -12002,6 +12053,7 @@ const docTemplate = `{
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspacePrebuilds": "Enables the new workspace prebuilds feature.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
@@ -12009,6 +12061,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
+                "ExperimentWorkspacePrebuilds",
                 "ExperimentWebPush",
                 "ExperimentDynamicParameters"
             ]
@@ -13640,6 +13693,20 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PrebuildsConfig": {
+            "type": "object",
+            "properties": {
+                "reconciliation_backoff_interval": {
+                    "type": "integer"
+                },
+                "reconciliation_backoff_lookback": {
+                    "type": "integer"
+                },
+                "reconciliation_interval": {
+                    "type": "integer"
                 }
             }
         },

@@ -1341,7 +1341,6 @@ func TestUserLastSeenFilter(t *testing.T) {
 			LastSeenBefore: now.Add(time.Hour * -24),
 		})
 		require.NoError(t, err)
-		database.ConvertUserRows(beforeToday)
 
 		requireUsersMatch(t, []database.User{yesterday, lastWeek}, beforeToday, "before today")
 
@@ -4366,5 +4365,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
-	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
+	foundUsers := database.ConvertUserRows(found)
+	require.ElementsMatch(t, expected, foundUsers, msg)
 }

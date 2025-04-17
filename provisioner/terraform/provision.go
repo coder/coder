@@ -272,8 +272,9 @@ func provisionEnv(
 	)
 	if metadata.GetIsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	} else {
+		env = append(env, provider.RunningAgentTokenEnvironmentVariable()+"="+metadata.GetRunningWorkspaceAgentToken())
 	}
-
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
