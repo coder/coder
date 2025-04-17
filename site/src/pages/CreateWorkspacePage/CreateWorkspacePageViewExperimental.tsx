@@ -117,8 +117,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 				rich_parameter_values:
 					useValidationSchemaForDynamicParameters(parameters),
 			}),
-			enableReinitialize: true,
-			validateOnChange: false,
+			enableReinitialize: false,
+			validateOnChange: true,
 			validateOnBlur: true,
 			onSubmit: (request) => {
 				if (!hasAllRequiredExternalAuth) {
