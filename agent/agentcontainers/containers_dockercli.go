@@ -24,19 +24,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DockerCLILister is a ContainerLister that lists containers using the docker CLI
-type DockerCLILister struct {
-	execer agentexec.Execer
-}
-
-var _ Lister = &DockerCLILister{}
-
-func NewDocker(execer agentexec.Execer) Lister {
-	return &DockerCLILister{
-		execer: agentexec.DefaultExecer,
-	}
-}
-
 // DockerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
 // information about a container.
 type DockerEnvInfoer struct {
@@ -241,6 +228,19 @@ func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...strin
 	return stdout, stderr, err
 }
 
+// DockerCLILister is a ContainerLister that lists containers using the docker CLI
+type DockerCLILister struct {
+	execer agentexec.Execer
+}
+
+var _ Lister = &DockerCLILister{}
+
+func NewDocker(execer agentexec.Execer, opts ...func(*DockerCLILister)) Lister {
+	return &DockerCLILister{
+		execer: agentexec.DefaultExecer,
+	}
+}
+
 func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	// List all container IDs, one per line, with no truncation
@@ -310,19 +310,24 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 // runDockerInspect is a helper function that runs `docker inspect` on the given
 // container IDs and returns the parsed output.
 // The stderr output is also returned for logging purposes.
-func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) (stdout, stderr []byte, err error) {
+func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) (stdout, stderr []byte, retErr error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd := execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
-	err = cmd.Run()
+	err := cmd.Run()
 	stdout = bytes.TrimSpace(stdoutBuf.Bytes())
 	stderr = bytes.TrimSpace(stderrBuf.Bytes())
 	if err != nil {
-		return stdout, stderr, err
+		if bytes.Contains(stderr, []byte("No such object:")) {
+			// This can happen if a container is deleted between the time we check for its existence and the time we inspect it.
+			retErr = nil
+		} else {
+			retErr = err
+		}
 	}
 
-	return stdout, stderr, nil
+	return stdout, stderr, retErr
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI
