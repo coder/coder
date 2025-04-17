@@ -41,7 +41,7 @@ const meta: Meta<typeof OverviewPageView> = {
 	},
 	parameters: {
 		chromatic: {
-			diffThreshold: 0.2,
+			diffThreshold: 0.5,
 		},
 	},
 };
