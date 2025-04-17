@@ -55,7 +55,6 @@ module.exports = {
 					DEFAULT: "hsl(var(--border-default))",
 					warning: "hsl(var(--border-warning))",
 					destructive: "hsl(var(--border-destructive))",
-					warning: "hsl(var(--border-warning))",
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
 				},
