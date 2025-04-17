@@ -252,7 +252,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	return (
 		<>
-			<div className="absolute sticky top-5 ml-10">
+			<div className="sticky top-5 ml-10">
 				<button
 					onClick={onCancel}
 					type="button"

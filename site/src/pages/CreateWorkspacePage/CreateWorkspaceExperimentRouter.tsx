@@ -1,5 +1,5 @@
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { createContext, type FC } from "react";
+import { createContext, type FC, useState } from "react";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
 import { useParams } from "react-router-dom";
@@ -24,16 +24,26 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		if (templateQuery.isLoading) {
 			return <Loader />;
 		}
-
 		if (!templateQuery.data) {
 			return <ErrorAlert error={templateQuery.error} />;
 		}
 
-		const hasOptedOut =
-			localStorage.Item(`parameters.${templateQuery.data.id}.optOut`) == "true";
+		const optOut = `parameters.${templateQuery.data.id}.optOut`;
+		const [optedOut, setOptedOut] = useState(
+			localStorage.getItem(optOut) == "true",
+		);
+
+		const toggleOptedOut = () => {
+			setOptedOut((prev) => {
+				const next = !prev;
+				localStorage.setItem(optOut, next.toString());
+				return next;
+			});
+		};
+
 		return (
-			<CreateWorkspaceContext.Provider value={{}}>
-				{hasOptedOut ? (
+			<CreateWorkspaceContext.Provider value={{ toggleOptedOut }}>
+				{optedOut ? (
 					<CreateWorkspacePage />
 				) : (
 					<CreateWorkspacePageExperimental />
@@ -47,4 +57,6 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 
 export default CreateWorkspaceExperimentRouter;
 
-const CreateWorkspaceContext = createContext<{}>({});
+const CreateWorkspaceContext = createContext<
+	{ toggleOptedOut: () => void } | undefined
+>(undefined);
