@@ -8,10 +8,6 @@ terraform {
 
 data "coder_workspace_owner" "me" {}
 
-output "groups" {
-  value = data.coder_workspace_owner.me.groups
-}
-
 data "coder_parameter" "group" {
   name    = "group"
   default = try(data.coder_workspace_owner.me.groups[0], "")
