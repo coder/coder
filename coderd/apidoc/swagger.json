@@ -10710,11 +10710,11 @@
 				"wildcard_access_url": {
 					"type": "string"
 				},
-				"workspace_prebuilds": {
-					"$ref": "#/definitions/codersdk.PrebuildsConfig"
-				},
 				"workspace_hostname_suffix": {
 					"type": "string"
+				},
+				"workspace_prebuilds": {
+					"$ref": "#/definitions/codersdk.PrebuildsConfig"
 				},
 				"write_config": {
 					"type": "boolean"
@@ -12385,12 +12385,15 @@
 			"type": "object",
 			"properties": {
 				"reconciliation_backoff_interval": {
+					"description": "ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval\nwhen errors occur during reconciliation.",
 					"type": "integer"
 				},
 				"reconciliation_backoff_lookback": {
+					"description": "ReconciliationBackoffLookback determines the time window to look back when calculating\nthe number of failed prebuilds, which influences the backoff strategy.",
 					"type": "integer"
 				},
 				"reconciliation_interval": {
+					"description": "ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.",
 					"type": "integer"
 				}
 			}
