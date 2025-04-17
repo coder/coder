@@ -162,6 +162,26 @@ Use `ping` in a Command Prompt or PowerShell terminal to verify the connection t
 
 </div>
 
+## Sync a local directory with your workspace
+
+If you're working offline or adding screenshots to your documentation, Coder Desktop file sync can make it easier to move files to your workspace.
+
+1. Create a new local directory.
+
+   If you select an existing clone of your repository, Desktop will recognize it as conflicting files.
+
+1. In the Coder Desktop app, select **File sync**.
+
+   ![Coder Desktop File Sync screen](../../images/user-guides/desktop/coder-desktop-file-sync.png)
+
+1. Select the **+** in the corner to select the local path, workspace, and remote path, then select **Add**:
+
+   ![Coder Desktop File Sync add paths](../../images/user-guides/desktop/coder-desktop-file-sync-add.png)
+
+1. File sync clones your workspace directory to your local directory, then watches for changes:
+
+   ![Coder Desktop File Sync watching](../../images/user-guides/desktop/coder-desktop-file-sync-watching.png)
+
 ## Accessing web apps in a secure browser context
 
 Some web applications require a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) to function correctly.
