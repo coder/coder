@@ -95,9 +95,8 @@ the NAT configuration, or deploy an internal STUN server.
 
 If a network interface on the side of either the client or agent has an MTU
 smaller than 1378, any direct connections form may have degraded quality or
-performance, as IP packets are fragmented. `coder ping` will indicate if this is
-the case by inspecting network interfaces on both the client and the workspace
-agent.
+might hang entirely. `coder ping` will indicate if this is the case by inspecting
+network interfaces on both the client and the workspace agent.
 
 If another interface cannot be used, and the MTU cannot be changed, you may need
 to disable direct connections, and relay all traffic via DERP instead, which
