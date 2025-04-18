@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
@@ -29,7 +28,14 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -47,6 +53,8 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
+import { NewFormContext } from "./CreateWorkspaceExperimentRouter";
+
 export const Language = {
 	duplicationWarning:
 		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
@@ -98,6 +106,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	onSubmit,
 	onCancel,
 }) => {
+	const newFormContext = useContext(NewFormContext);
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -237,6 +246,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 				</Stack>
 			</PageHeader>
+
+			{newFormContext && (
+				<button type="button" onClick={newFormContext.toggleOptedOut}>
+					Try out the new workspace creation flow ✨
+				</button>
+			)}
 
 			<HorizontalForm
 				name="create-workspace-form"

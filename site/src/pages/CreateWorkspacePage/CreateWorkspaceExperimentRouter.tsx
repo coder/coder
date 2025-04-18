@@ -1,12 +1,12 @@
+import { templateByName } from "api/queries/templates";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { createContext, type FC, useState } from "react";
+import { type FC, createContext } from "react";
+import { useQuery } from "react-query";
+import { useParams } from "react-router-dom";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
-import { useParams } from "react-router-dom";
-import { useQuery } from "react-query";
-import { templateByName } from "api/queries/templates";
-import { Loader } from "components/Loader/Loader";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const CreateWorkspaceExperimentRouter: FC = () => {
 	const { experiments } = useDashboard();
@@ -20,35 +20,47 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 			: { enabled: false },
 	);
 
+	const optOutQuery = useQuery(
+		templateQuery.data
+			? {
+					queryKey: [
+						organizationName,
+						"template",
+						templateQuery.data.id,
+						"optOut",
+					],
+					queryFn: () => ({
+						templateId: templateQuery.data.id,
+						optedOut:
+							localStorage.getItem(optOutKey(templateQuery.data.id)) === "true",
+					}),
+				}
+			: { enabled: false },
+	);
+
 	if (dynamicParametersEnabled) {
-		if (templateQuery.isLoading) {
+		if (optOutQuery.isLoading) {
 			return <Loader />;
 		}
-		if (!templateQuery.data) {
-			return <ErrorAlert error={templateQuery.error} />;
+		if (!optOutQuery.data) {
+			return <ErrorAlert error={optOutQuery.error} />;
 		}
 
-		const optOut = `parameters.${templateQuery.data.id}.optOut`;
-		const [optedOut, setOptedOut] = useState(
-			localStorage.getItem(optOut) == "true",
-		);
-
 		const toggleOptedOut = () => {
-			setOptedOut((prev) => {
-				const next = !prev;
-				localStorage.setItem(optOut, next.toString());
-				return next;
-			});
+			const key = optOutKey(optOutQuery.data.templateId);
+			const current = localStorage.getItem(key) === "true";
+			localStorage.setItem(key, (!current).toString());
+			optOutQuery.refetch();
 		};
 
 		return (
-			<CreateWorkspaceContext.Provider value={{ toggleOptedOut }}>
-				{optedOut ? (
+			<NewFormContext.Provider value={{ toggleOptedOut }}>
+				{optOutQuery.data.optedOut ? (
 					<CreateWorkspacePage />
 				) : (
 					<CreateWorkspacePageExperimental />
 				)}
-			</CreateWorkspaceContext.Provider>
+			</NewFormContext.Provider>
 		);
 	}
 
@@ -57,6 +69,8 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 
 export default CreateWorkspaceExperimentRouter;
 
-const CreateWorkspaceContext = createContext<
+const optOutKey = (id: string) => `parameters.${id}.optOut`;
+
+export const NewFormContext = createContext<
 	{ toggleOptedOut: () => void } | undefined
 >(undefined);

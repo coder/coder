@@ -34,7 +34,9 @@ export const templateByName = (
 ): QueryOptions<Template> => {
 	return {
 		queryKey: templateByNameKey(organization, name),
-		queryFn: async () => API.getTemplateByName(organization, name),
+		queryFn: async () => {
+			return API.getTemplateByName(organization, name);
+		},
 	};
 };
 

@@ -22,7 +22,14 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, useCallback, useEffect, useId, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useContext,
+	useEffect,
+	useId,
+	useState,
+} from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
@@ -32,6 +39,7 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
+import { NewFormContext } from "./CreateWorkspaceExperimentRouter";
 
 export interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
@@ -89,6 +97,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
+	const newFormContext = useContext(NewFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -269,6 +278,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 				</header>
+
+				{newFormContext && (
+					<button type="button" onClick={newFormContext.toggleOptedOut}>
+						Go back to the classic workspace creation flow
+					</button>
+				)}
 
 				<form
 					onSubmit={form.handleSubmit}

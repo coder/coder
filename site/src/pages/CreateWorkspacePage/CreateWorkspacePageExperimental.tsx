@@ -69,10 +69,11 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
-	const templateVersionPresetsQuery = useQuery({
-		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: templateQuery.data !== undefined,
-	});
+	const templateVersionPresetsQuery = useQuery(
+		templateQuery.data
+			? templateVersionPresets(templateQuery.data.active_version_id)
+			: { enabled: false },
+	);
 	const permissionsQuery = useQuery(
 		templateQuery.data
 			? checkAuthorization({
