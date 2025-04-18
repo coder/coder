@@ -15,4 +15,7 @@ var GoleakOptions []goleak.Option = []goleak.Option{
 	goleak.IgnoreTopFunction("gopkg.in/natefinch/lumberjack%2ev2.(*Logger).mill.func1"),
 	// The pq library appears to leave around a goroutine after Close().
 	goleak.IgnoreTopFunction("github.com/lib/pq.NewDialListener"),
+	// database/sql does not immediately close connections after Close().
+	// See: https://github.com/golang/go/issues/50616
+	goleak.IgnoreTopFunction("database/sql.(*DB).connectionOpener"),
 }
