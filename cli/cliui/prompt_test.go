@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -230,6 +231,9 @@ func TestPasswordTerminalState(t *testing.T) {
 		passwordHelper()
 		return
 	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on windows. PTY doesn't read ptty.Write correctly.")
+	}
 	t.Parallel()
 
 	ptty := ptytest.New(t)
@@ -250,7 +254,8 @@ func TestPasswordTerminalState(t *testing.T) {
 	ptty.Write('e')
 	ptty.Write('s')
 	ptty.Write('t')
-	ptty.ExpectMatch("****")
+	ptty.Write('\b')
+	ptty.ExpectMatch("***")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
