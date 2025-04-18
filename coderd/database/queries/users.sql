@@ -148,6 +148,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
+-- name: GetUserTerminalFontSize :one
+SELECT
+	value as terminal_font_size
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'terminal_font_size';
+
+-- name: UpdateUserTerminalFontSize :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'terminal_font_size', @terminal_font_size)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @terminal_font_size
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'terminal_font_size'
+RETURNING *;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users

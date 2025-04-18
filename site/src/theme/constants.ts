@@ -27,6 +27,7 @@ export const terminalFontLabels: Record<TerminalFontName, string> = {
 	"": "", // needed for enum completeness, otherwise fails the build
 };
 export const DEFAULT_TERMINAL_FONT = "ibm-plex-mono";
+export const DEFAULT_TERMINAL_FONT_SIZE = 16;
 
 export const navHeight = 62;
 export const containerWidth = 1380;
