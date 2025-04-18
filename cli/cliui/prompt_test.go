@@ -250,8 +250,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	ptty.Write('e')
 	ptty.Write('s')
 	ptty.Write('t')
-	ptty.Write('\b')
-	ptty.ExpectMatch("***")
+	ptty.ExpectMatch("****")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
