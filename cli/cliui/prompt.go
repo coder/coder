@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
@@ -22,6 +22,7 @@ type PromptOptions struct {
 	Text      string
 	Default   string
 	Secret    bool
+	Mask      rune
 	IsConfirm bool
 	Validate  func(string) error
 }
@@ -90,8 +91,53 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
-			// we don't install a signal handler here because speakeasy has its own
-			line, err = speakeasy.Ask("")
+			// Set terminal to raw mode
+			oldState, err := term.MakeRaw(int(inFile.Fd()))
+			if err != nil {
+				errCh <- err
+				return
+			}
+			defer func() {
+				_ = term.Restore(int(inFile.Fd()), oldState)
+			}()
+
+			// Read input character by character
+			buf := make([]byte, 1)
+			for {
+				n, err := inv.Stdin.Read(buf)
+				if err != nil || n == 0 {
+					break
+				}
+
+				// Handle special characters
+				switch buf[0] {
+				case '\r', '\n': // Enter
+					_, _ = fmt.Fprint(inv.Stdout, "\n")
+					lineCh <- line
+					return
+				case 3: // Ctrl+C
+					_, _ = fmt.Fprint(inv.Stdout, "\n")
+					errCh <- ErrCanceled
+					return
+				case 8, 127: // Backspace/Delete
+					if len(line) > 0 {
+						line = line[:len(line)-1]
+						// Move cursor back, print space, move cursor back again
+						_, _ = fmt.Fprint(inv.Stdout, "\b \b")
+					}
+				default:
+					// Only append printable characters
+					if buf[0] >= 32 && buf[0] <= 126 {
+						line += string(buf[0])
+						// Print the mask character
+						if opts.Mask == 0 {
+							_, _ = fmt.Fprint(inv.Stdout, "")
+						} else {
+							_, _ = fmt.Fprint(inv.Stdout, string(opts.Mask))
+						}
+					}
+				}
+			}
 		} else {
 			signal.Notify(interrupt, os.Interrupt)
 			defer signal.Stop(interrupt)

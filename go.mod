@@ -83,7 +83,6 @@ require (
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/aws/smithy-go v1.22.3
-	github.com/bgentry/speakeasy v0.2.0
 	github.com/bramvdbogaerde/go-scp v1.5.0
 	github.com/briandowns/spinner v1.23.0
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
