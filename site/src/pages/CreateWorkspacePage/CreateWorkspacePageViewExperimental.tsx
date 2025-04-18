@@ -260,7 +260,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</button>
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-sm mx-auto">
-				<header className="flex flex-col gap-2 mt-10">
+				<header className="flex flex-col items-start gap-2 mt-10">
 					<div className="flex items-center gap-2">
 						<Avatar
 							variant="icon"
@@ -277,13 +277,17 @@ export const CreateWorkspacePageViewExperimental: FC<
 					<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-				</header>
 
-				{newFormContext && (
-					<button type="button" onClick={newFormContext.toggleOptedOut}>
-						Go back to the classic workspace creation flow
-					</button>
-				)}
+					{newFormContext && (
+						<Button
+							size="sm"
+							variant="subtle"
+							onClick={newFormContext.toggleOptedOut}
+						>
+							Go back to the classic workspace creation flow
+						</Button>
+					)}
+				</header>
 
 				<form
 					onSubmit={form.handleSubmit}

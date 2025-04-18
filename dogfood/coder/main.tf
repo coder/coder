@@ -42,10 +42,10 @@ data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
   default     = "codercom/oss-dogfood:latest"
-  description = "The Docker image used to run your workspace."
+  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
   option {
-    icon  = "/icon/ubuntu.svg"
-    name  = "Dogfood Ubuntu"
+    icon  = "/icon/coder.svg"
+    name  = "Dogfood (Default)"
     value = "codercom/oss-dogfood:latest"
   }
   option {

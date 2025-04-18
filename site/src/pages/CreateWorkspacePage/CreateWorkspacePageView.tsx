@@ -220,9 +220,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader
 				actions={
-					<Button size="sm" variant="outline" onClick={onCancel}>
-						Cancel
-					</Button>
+					<>
+						{newFormContext && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={newFormContext.toggleOptedOut}
+							>
+								Try out the new workspace creation flow ✨
+							</Button>
+						)}
+						<Button size="sm" variant="outline" onClick={onCancel}>
+							Cancel
+						</Button>
+					</>
 				}
 			>
 				<Stack direction="row">
@@ -246,12 +257,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 				</Stack>
 			</PageHeader>
-
-			{newFormContext && (
-				<button type="button" onClick={newFormContext.toggleOptedOut}>
-					Try out the new workspace creation flow ✨
-				</button>
-			)}
 
 			<HorizontalForm
 				name="create-workspace-form"
