@@ -1,0 +1,107 @@
+name: Docs Preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Generate docs preview
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # needed for commenting on PRs
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          set -euo pipefail
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@27ae6b33eaed7bf87272fdeb9f1c54f9facc9d99 # v45.0.7
+        with:
+          files: |
+            docs/**
+
+      - name: Debug changed files
+        run: |
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "JSON format: ${{ steps.changed-files.outputs.all_changed_files_json }}"
+
+      - name: Check if manifest changed
+        id: manifest-check
+        run: |
+          echo "changed=${{ contains(steps.changed-files.outputs.all_changed_files, 'docs/manifest.json') }}" >> $GITHUB_OUTPUT
+
+      - name: Generate docs preview
+        id: docs-preview
+        uses: ./.github/actions/docs-preview
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          changed-files: ${{ steps.changed-files.outputs.all_changed_files_json }}
+          manifest-changed: ${{ steps.manifest-check.outputs.changed }}
+
+      - name: Debug outputs
+        run: |
+          echo "Has changes: ${{ steps.docs-preview.outputs.has_changes }}"
+          echo "URL: ${{ steps.docs-preview.outputs.url }}"
+          echo "Changed files:"
+          echo "${{ steps.docs-preview.outputs.changed_files }}"
+
+      - name: Find existing comment
+        if: steps.docs-preview.outputs.has_changes == 'true'
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+        id: find-comment
+        with:
+          issue-number: ${{ env.PR_NUMBER }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## 📚 Docs Preview'
+          direction: last
+
+      - name: Create or update preview comment
+        if: steps.docs-preview.outputs.has_changes == 'true'
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ env.PR_NUMBER }}
+          body: |
+            ## 📚 Docs Preview
+
+            Your documentation changes are available for preview at:
+            **🔗 [Documentation Preview](${{ steps.docs-preview.outputs.url }})**
+
+            ### Changed Documentation Files
+            ${{ steps.docs-preview.outputs.changed_files }}
+
+            ${{ steps.docs-preview.outputs.has_new_docs == 'true' && '### Newly Added Documentation' || '' }}
+            ${{ steps.docs-preview.outputs.has_new_docs == 'true' && steps.docs-preview.outputs.new_docs || '' }}
+
+            ${{ steps.docs-preview.outputs.has_new_docs == 'true' && '### Preview Links for New Docs' || '' }}
+            ${{ steps.docs-preview.outputs.has_new_docs == 'true' && steps.docs-preview.outputs.preview_links || '' }}
+
+            ---
+            <sub>🤖 This comment is automatically generated and updated when documentation changes.</sub>
+          edit-mode: replace
+          reactions: eyes
+          reactions-edit-mode: replace
