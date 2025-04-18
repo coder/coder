@@ -176,7 +176,12 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					disabled={disabled}
 				>
 					<SelectTrigger>
-						<SelectValue placeholder="Select option" />
+						<SelectValue
+							placeholder={
+								(parameter.styling as { placeholder?: string })?.placeholder ||
+								"Select option"
+							}
+						/>
 					</SelectTrigger>
 					<SelectContent>
 						{parameter.options.map((option) => (
@@ -219,7 +224,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						onChange(JSON.stringify(values));
 					}}
 					hidePlaceholderWhenSelected
-					placeholder="Select option"
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder ||
+						"Select option"
+					}
 					emptyIndicator={
 						<p className="text-center text-md text-content-primary">
 							No results found
@@ -338,7 +346,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					onChange={(e) => onChange(e.target.value)}
 					disabled={disabled}
 					placeholder={
-						(parameter.styling as { placehholder?: string })?.placehholder
+						(parameter.styling as { placeholder?: string })?.placeholder
 					}
 					{...inputProps}
 				/>
