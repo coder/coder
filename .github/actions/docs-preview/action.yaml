@@ -1,0 +1,192 @@
+name: 'Docs Preview Action'
+description: 'A composite action to provide Vercel preview links for documentation changes'
+author: 'Coder'
+inputs:
+  github-token:
+    description: 'GitHub token for API operations'
+    required: true
+  docs-dir:
+    description: 'Path to the docs directory'
+    required: false
+    default: 'docs'
+  vercel-domain:
+    description: 'DEPRECATED - Previously for Vercel, now using different URL format'
+    required: false
+    default: 'coder-docs-git'
+  changed-files:
+    description: 'JSON string of changed files (from tj-actions/changed-files)'
+    required: true
+  manifest-changed:
+    description: 'Boolean indicating if manifest.json has changed (from tj-actions/changed-files)'
+    required: true
+
+outputs:
+  has_changes:
+    description: 'Boolean indicating if documentation files have changed'
+    value: ${{ steps.docs-analysis.outputs.has_changes }}
+  changed_files:
+    description: 'List of changed documentation files formatted for comment'
+    value: ${{ steps.docs-analysis.outputs.changed_files }}
+  url:
+    description: 'Vercel preview URL'
+    value: ${{ steps.vercel-preview.outputs.url }}
+  has_new_docs:
+    description: 'Boolean indicating if new docs were added in manifest.json'
+    value: ${{ steps.manifest-analysis.outputs.has_new_docs || 'false' }}
+  new_docs:
+    description: 'List of newly added docs formatted for comment'
+    value: ${{ steps.manifest-analysis.outputs.new_docs || '' }}
+  preview_links:
+    description: 'List of preview links for newly added docs'
+    value: ${{ steps.manifest-analysis.outputs.preview_links || '' }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set security environment
+      shell: bash
+      run: |
+        # Secure the environment by clearing potentially harmful variables
+        unset HISTFILE
+        umask 077
+        
+        # Validate that docs directory exists
+        if [ ! -d "${{ inputs.docs-dir }}" ]; then
+          echo "::error::Docs directory '${{ inputs.docs-dir }}' does not exist"
+          exit 1
+        fi
+
+    - name: Debug inputs
+      shell: bash
+      run: |
+        echo "Docs dir: ${{ inputs.docs-dir }}"
+        echo "Manifest changed: ${{ inputs.manifest-changed }}"
+        echo "First few changed files:"
+        echo '${{ inputs.changed-files }}' | jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' | head -n 5
+
+    - name: Analyze docs changes
+      id: docs-analysis
+      shell: bash
+      run: |
+        # Parse changed files from input and write to temp file with strict permissions
+        echo '${{ inputs.changed-files }}' > changed_files.json
+        
+        # Count total changed doc files
+        DOC_FILES_COUNT=$(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' changed_files.json | wc -l)
+        echo "doc_files_count=$DOC_FILES_COUNT" >> $GITHUB_OUTPUT
+        
+        # Force to true for debugging
+        DOC_FILES_COUNT=1
+        
+        # Get branch name for URLs
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+        
+        # Format changed files for comment with clickable links
+        FORMATTED_FILES=""
+        while read -r file_path; do
+          [ -z "$file_path" ] && continue
+          
+          # Create direct link to file
+          # Remove .md extension and docs/ prefix for the URL path
+          url_path=$(echo "$file_path" | sed 's/^docs\///' | sed 's/\.md$//')
+          file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+          
+          # Add the formatted line with link
+          FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
+        done < <(jq -r '.[] | select(startswith("${{ inputs.docs-dir }}/"))' changed_files.json)
+        
+        # Add a minimum placeholder if no files found
+        if [ -z "$FORMATTED_FILES" ]; then
+          # Hardcode a test example that links directly to the parameters.md file
+          FORMATTED_FILES="- [docs/admin/templates/extending-templates/parameters.md](https://coder.com/docs/@${BRANCH_NAME}/admin/templates/extending-templates/parameters)\n"
+        fi
+        
+        echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Determine if docs have changed - force true for testing
+        echo "has_changes=true" >> $GITHUB_OUTPUT
+        
+        # Clean up sensitive file
+        rm -f changed_files.json
+
+    - name: Generate Vercel preview URL
+      id: vercel-preview
+      if: steps.docs-analysis.outputs.has_changes == 'true'
+      shell: bash
+      run: |
+        # Get PR branch name for Vercel preview URL
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+        
+        # Input validation - ensure branch name is valid
+        if [ -z "$BRANCH_NAME" ]; then
+          echo "::error::Could not determine branch name"
+          exit 1
+        fi
+        
+        # For debugging
+        echo "Branch name: $BRANCH_NAME"
+        
+        # Create the correct Vercel preview URL
+        VERCEL_PREVIEW_URL="https://coder.com/docs/@$BRANCH_NAME"
+        echo "url=$VERCEL_PREVIEW_URL" >> $GITHUB_OUTPUT
+
+    - name: Analyze manifest changes
+      id: manifest-analysis
+      if: inputs.manifest-changed == 'true'
+      shell: bash
+      run: |
+        # Get PR number for links
+        PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+        
+        # Get the base SHA for diff
+        BASE_SHA=$(git merge-base HEAD origin/main)
+        
+        # Extract new docs from manifest.json diff with safe patterns
+        NEW_DOCS=$(git diff "$BASE_SHA"..HEAD -- "${{ inputs.docs-dir }}/manifest.json" | grep -E '^\+.*"path":' | sed -E 's/.*"path": *"(.*)".*/\1/g')
+        
+        if [ -n "$NEW_DOCS" ]; then
+          echo "has_new_docs=true" >> $GITHUB_OUTPUT
+          
+          # Format new docs for comment
+          FORMATTED_NEW_DOCS=$(echo "$NEW_DOCS" | sort | uniq | grep -v "^$" | sed 's/^/- `/g' | sed 's/$/`/g')
+          echo "new_docs<<EOF" >> $GITHUB_OUTPUT
+          echo "$FORMATTED_NEW_DOCS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Generate preview links for new docs
+          PREVIEW_LINKS=""
+          while IFS= read -r doc_path; do
+            # Skip empty lines
+            [ -z "$doc_path" ] && continue
+            
+            # Clean the path and sanitize
+            clean_path=${doc_path#./}
+            clean_path=$(echo "$clean_path" | tr -cd 'a-zA-Z0-9_./-')
+            
+            # Get branch name for URLs
+            BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+            
+            # Generate preview URL with correct format
+            url_path=$(echo "$clean_path" | sed 's/\.md$//')
+            preview_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+            
+            # Extract doc title or use filename safely
+            if [ -f "$doc_path" ]; then
+              title=$(grep -m 1 "^# " "$doc_path" | sed 's/^# //')
+              title=$(echo "$title" | tr -cd 'a-zA-Z0-9 _.,-')
+              [ -z "$title" ] && title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
+            else
+              title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
+            fi
+            
+            PREVIEW_LINKS="${PREVIEW_LINKS}- [$title]($preview_url)\n"
+          done <<< "$NEW_DOCS"
+          
+          echo "preview_links<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$PREVIEW_LINKS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "has_new_docs=false" >> $GITHUB_OUTPUT
+        fi
