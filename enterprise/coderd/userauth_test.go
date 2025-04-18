@@ -462,7 +462,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 	})
 
-	t.Run("Groups", func(t *testing.T) {
+	t.Run("GroupSync", func(t *testing.T) {
 		t.Parallel()
 
 		// Assigns does a simple test of assigning a user to a group based
@@ -494,7 +494,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{groupName})
+			runner.AssertDefaultGroups(t, "alice", []string{groupName})
 			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
@@ -529,7 +529,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{coderGroupName})
+			runner.AssertDefaultGroups(t, "alice", []string{coderGroupName})
 			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
@@ -566,13 +566,13 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{groupName})
+			runner.AssertDefaultGroups(t, "alice", []string{groupName})
 
 			// Refresh without the group claim
 			runner.ForceRefresh(t, client, jwt.MapClaims{
 				"email": "alice@coder.com",
 			})
-			runner.AssertGroups(t, "alice", []string{})
+			runner.AssertDefaultGroups(t, "alice", []string{})
 			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
@@ -604,7 +604,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{groupName})
+			runner.AssertDefaultGroups(t, "alice", []string{groupName})
 
 			// Refresh without the group claim
 			_, resp = runner.Login(t, jwt.MapClaims{
@@ -612,7 +612,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":   sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{})
+			runner.AssertDefaultGroups(t, "alice", []string{})
 			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
@@ -636,7 +636,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{})
+			runner.AssertDefaultGroups(t, "alice", []string{})
 		})
 
 		// Updating groups where the claimed group does not exist creates
@@ -662,7 +662,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{groupName})
+			runner.AssertDefaultGroups(t, "alice", []string{groupName})
 		})
 
 		// Some IDPs (ADFS) send the "string" type vs "[]string" if only
@@ -691,7 +691,7 @@ func TestUserOIDC(t *testing.T) {
 				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertGroups(t, "alice", []string{groupName})
+			runner.AssertDefaultGroups(t, "alice", []string{groupName})
 		})
 
 		t.Run("GroupAllowList", func(t *testing.T) {
@@ -728,6 +728,85 @@ func TestUserOIDC(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			_, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
+		})
+	})
+
+	// Mixing multiple syncing types in 1
+	t.Run("MixedSync", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("AutoCreate", func(t *testing.T) {
+			t.Parallel()
+
+			const groupClaim = "custom-groups"
+			const groupName = "allow-make-me"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+				},
+			})
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			secondOrg := runner.CreateOrganization(t, "second")
+
+			_, err := runner.AdminClient.PatchOrganizationIDPSyncSettings(ctx, codersdk.OrganizationSyncSettings{
+				Field: groupClaim,
+				Mapping: map[string][]uuid.UUID{
+					groupName: {secondOrg.ID},
+				},
+				AssignDefault: true,
+			})
+			require.NoError(t, err, "set org sync")
+
+			_, err = runner.AdminClient.PatchGroupIDPSyncSettings(ctx, secondOrg.ID.String(), codersdk.GroupSyncSettings{
+				Field:             groupClaim,
+				Mapping:           map[string][]uuid.UUID{},
+				RegexFilter:       regexp.MustCompile("^allow-.*$"),
+				AutoCreateMissing: true,
+				LegacyNameMapping: nil,
+			})
+			require.NoError(t, err, "set group sync")
+
+			// Create the group
+			group, err := runner.AdminClient.CreateGroup(ctx, secondOrg.ID, codersdk.CreateGroupRequest{
+				Name: groupName,
+			})
+			require.NoError(t, err)
+
+			version := coderdtest.CreateTemplateVersion(t, runner.AdminClient, secondOrg.ID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, runner.AdminClient, version.ID)
+			tpl := coderdtest.CreateTemplate(t, runner.AdminClient, secondOrg.ID, version.ID)
+			err = runner.AdminClient.UpdateTemplateACL(ctx, tpl.ID, codersdk.UpdateTemplateACL{
+				UserPerms: nil,
+				GroupPerms: map[string]codersdk.TemplateRole{
+					secondOrg.ID.String(): codersdk.TemplateRoleDeleted,
+					group.ID.String():     codersdk.TemplateRoleUse,
+				},
+			})
+			require.NoError(t, err)
+
+			user, resp := runner.Login(t, jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{"random", groupName, "1500225f-1667-4b39-b7d0-d56ebc3504b4", "_!@#&"},
+				"sub":      uuid.New(),
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, secondOrg.ID, "alice", []string{groupName})
+
+			userData, err := user.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+
+			// Create a workspace & template
+			workspace, err := runner.AdminClient.CreateUserWorkspace(ctx, userData.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateID: tpl.ID,
+				Name:       "test-workspace",
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, runner.AdminClient, workspace.LatestBuild.ID)
+
+			wrks, err := user.Workspaces(ctx, codersdk.WorkspaceFilter{})
+			require.NoError(t, err)
+			require.Len(t, wrks.Workspaces, 1)
 		})
 	})
 
@@ -1090,9 +1169,12 @@ func TestEnterpriseUserLogin(t *testing.T) {
 // oidcTestRunner is just a helper to setup and run oidc tests.
 // An actual Coderd instance is used to run the tests.
 type oidcTestRunner struct {
-	AdminClient *codersdk.Client
-	AdminUser   codersdk.User
-	API         *coderden.API
+	AdminClient         *codersdk.Client
+	AdminUser           codersdk.User
+	API                 *coderden.API
+	DefaultOrganization uuid.UUID
+
+	Organizations map[string]codersdk.Organization
 
 	// Login will call the OIDC flow with an unauthenticated client.
 	// The IDP will return the idToken claims.
@@ -1103,6 +1185,8 @@ type oidcTestRunner struct {
 	// It just calls the /users/me endpoint to trigger the refresh.
 	ForceRefresh     func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims)
 	ExpireOauthToken func(t *testing.T, client *codersdk.Client)
+
+	orgs map[string]codersdk.Organization
 }
 
 type oidcTestConfig struct {
@@ -1112,6 +1196,35 @@ type oidcTestConfig struct {
 	Config           func(cfg *coderd.OIDCConfig)
 	DeploymentValues func(dv *codersdk.DeploymentValues)
 	FakeOpts         []oidctest.FakeIDPOpt
+}
+
+func (r *oidcTestRunner) CreateOrganization(t *testing.T, name string) codersdk.Organization {
+	t.Helper()
+	org := coderdenttest.CreateOrganization(t, r.AdminClient, coderdenttest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	}, func(request *codersdk.CreateOrganizationRequest) {
+		request.Name = name
+	})
+
+	r.orgs[name] = org
+	return org
+}
+
+func (r *oidcTestRunner) OrganizationNamesToUUIDs(t *testing.T, name ...string) []uuid.UUID {
+	t.Helper()
+
+	orgs := make([]uuid.UUID, 0, len(name))
+	for _, n := range name {
+		if org, ok := r.orgs[n]; ok {
+			orgs = append(orgs, org.ID)
+			continue
+		}
+
+		org, err := r.AdminClient.OrganizationByName(t.Context(), n)
+		require.NoError(t, err, "get organization by name")
+		orgs = append(orgs, org.ID)
+	}
+	return orgs
 }
 
 func (r *oidcTestRunner) AssertOrganizations(t *testing.T, userIdent string, includeDefault bool, expected []uuid.UUID) {
@@ -1150,7 +1263,7 @@ func (r *oidcTestRunner) AssertRoles(t *testing.T, userIdent string, roles []str
 	require.ElementsMatch(t, roles, roleNames, "expected roles")
 }
 
-func (r *oidcTestRunner) AssertGroups(t *testing.T, userIdent string, groups []string) {
+func (r *oidcTestRunner) AssertGroups(t *testing.T, orgID uuid.UUID, userIdent string, groups []string) {
 	t.Helper()
 
 	if !slice.Contains(groups, database.EveryoneGroup) {
@@ -1161,22 +1274,27 @@ func (r *oidcTestRunner) AssertGroups(t *testing.T, userIdent string, groups []s
 		groups = cpy
 	}
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	user, err := r.AdminClient.User(ctx, userIdent)
-	require.NoError(t, err)
-
-	allGroups, err := r.AdminClient.GroupsByOrganization(ctx, user.OrganizationIDs[0])
+	allGroups, err := r.AdminClient.Groups(ctx, codersdk.GroupArguments{
+		Organization: orgID.String(),
+		HasMember:    userIdent,
+	})
 	require.NoError(t, err)
 
 	userInGroups := []string{}
 	for _, g := range allGroups {
 		for _, mem := range g.Members {
-			if mem.ID == user.ID {
+			if mem.Username == userIdent || mem.ID.String() == userIdent {
 				userInGroups = append(userInGroups, g.Name)
 			}
 		}
 	}
 
 	require.ElementsMatch(t, groups, userInGroups, "expected groups")
+}
+
+func (r *oidcTestRunner) AssertDefaultGroups(t *testing.T, userIdent string, groups []string) {
+	t.Helper()
+	r.AssertGroups(t, r.DefaultOrganization, userIdent, groups)
 }
 
 func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
@@ -1197,16 +1315,18 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	if settings.DeploymentValues != nil {
 		settings.DeploymentValues(dv)
 	}
-	owner, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+	owner, _, api, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			OIDCConfig:       cfg,
-			DeploymentValues: dv,
+			OIDCConfig:               cfg,
+			DeploymentValues:         dv,
+			IncludeProvisionerDaemon: true,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureUserRoleManagement:    1,
-				codersdk.FeatureTemplateRBAC:          1,
-				codersdk.FeatureMultipleOrganizations: 1,
+				codersdk.FeatureUserRoleManagement:         1,
+				codersdk.FeatureTemplateRBAC:               1,
+				codersdk.FeatureMultipleOrganizations:      1,
+				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		},
 	})
@@ -1216,11 +1336,13 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	helper := oidctest.NewLoginHelper(owner, fake)
 
 	return &oidcTestRunner{
-		AdminClient:  owner,
-		AdminUser:    admin,
-		API:          api,
-		Login:        helper.Login,
-		AttemptLogin: helper.AttemptLogin,
+		orgs:                map[string]codersdk.Organization{},
+		AdminClient:         owner,
+		AdminUser:           admin,
+		API:                 api,
+		DefaultOrganization: first.OrganizationID,
+		Login:               helper.Login,
+		AttemptLogin:        helper.AttemptLogin,
 		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) {
 			helper.ForceRefresh(t, api.Database, client, idToken)
 		},
