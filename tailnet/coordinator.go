@@ -24,7 +24,9 @@ const (
 	// dropping updates
 	ResponseBufferSize = 512
 	// RequestBufferSize is the max number of requests to buffer per connection
-	RequestBufferSize = 32
+	RequestBufferSize        = 32
+	CloseErrOverwritten      = "peer ID overwritten by new connection"
+	CloseErrCoordinatorClose = "coordinator closed"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
@@ -97,6 +99,18 @@ var (
 	ErrAlreadyRemoved = xerrors.New("already removed")
 )
 
+type AuthorizationError struct {
+	Wrapped error
+}
+
+func (e AuthorizationError) Error() string {
+	return fmt.Sprintf("authorization: %s", e.Wrapped.Error())
+}
+
+func (e AuthorizationError) Unwrap() error {
+	return e.Wrapped
+}
+
 // NewCoordinator constructs a new in-memory connection coordinator. This
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
@@ -161,8 +175,12 @@ func (c *coordinator) Coordinate(
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		p.reqLoop(ctx, logger, c.core.handleRequest)
-		err := c.core.lostPeer(p)
+		loopErr := p.reqLoop(ctx, logger, c.core.handleRequest)
+		closeErrStr := ""
+		if loopErr != nil {
+			closeErrStr = loopErr.Error()
+		}
+		err := c.core.lostPeer(p, closeErrStr)
 		if xerrors.Is(err, ErrClosed) || xerrors.Is(err, ErrAlreadyRemoved) {
 			return
 		}
@@ -227,7 +245,7 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 	}
 
 	if err := pr.auth.Authorize(ctx, req); err != nil {
-		return xerrors.Errorf("authorize request: %w", err)
+		return AuthorizationError{Wrapped: err}
 	}
 
 	if req.UpdateSelf != nil {
@@ -270,7 +288,7 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 		}
 	}
 	if req.Disconnect != nil {
-		c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "graceful disconnect")
+		c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "graceful disconnect", "")
 	}
 	if rfhs := req.ReadyForHandshake; rfhs != nil {
 		err := c.handleReadyForHandshakeLocked(pr, rfhs)
@@ -344,7 +362,7 @@ func (c *core) updateTunnelPeersLocked(id uuid.UUID, n *proto.Node, k proto.Coor
 		err := other.updateMappingLocked(id, n, k, reason)
 		if err != nil {
 			other.logger.Error(context.Background(), "failed to update mapping", slog.Error(err))
-			c.removePeerLocked(other.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update")
+			c.removePeerLocked(other.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update", "failed to update tunnel peer mapping")
 		}
 	}
 }
@@ -360,7 +378,8 @@ func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
 			err := src.updateMappingLocked(dstID, dst.node, proto.CoordinateResponse_PeerUpdate_NODE, "add tunnel")
 			if err != nil {
 				src.logger.Error(context.Background(), "failed update of tunnel src", slog.Error(err))
-				c.removePeerLocked(src.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update")
+				c.removePeerLocked(src.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update",
+					"failed to update tunnel dest mapping")
 				// if the source fails, then the tunnel is also removed and there is no reason to continue
 				// processing.
 				return err
@@ -370,7 +389,8 @@ func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
 			err := dst.updateMappingLocked(src.id, src.node, proto.CoordinateResponse_PeerUpdate_NODE, "add tunnel")
 			if err != nil {
 				dst.logger.Error(context.Background(), "failed update of tunnel dst", slog.Error(err))
-				c.removePeerLocked(dst.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update")
+				c.removePeerLocked(dst.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update",
+					"failed to update tunnel src mapping")
 			}
 		}
 	}
@@ -381,7 +401,7 @@ func (c *core) removeTunnelLocked(src *peer, dstID uuid.UUID) error {
 	err := src.updateMappingLocked(dstID, nil, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "remove tunnel")
 	if err != nil {
 		src.logger.Error(context.Background(), "failed to update", slog.Error(err))
-		c.removePeerLocked(src.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update")
+		c.removePeerLocked(src.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update", "failed to remove tunnel dest mapping")
 		// removing the peer also removes all other tunnels and notifies destinations, so it's safe to
 		// return here.
 		return err
@@ -391,7 +411,7 @@ func (c *core) removeTunnelLocked(src *peer, dstID uuid.UUID) error {
 		err = dst.updateMappingLocked(src.id, nil, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "remove tunnel")
 		if err != nil {
 			dst.logger.Error(context.Background(), "failed to update", slog.Error(err))
-			c.removePeerLocked(dst.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update")
+			c.removePeerLocked(dst.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "failed update", "failed to remove tunnel src mapping")
 			// don't return here because we still want to remove the tunnel, and an error at the
 			// destination doesn't count as an error removing the tunnel at the source.
 		}
@@ -413,6 +433,11 @@ func (c *core) initPeer(p *peer) error {
 	if old, ok := c.peers[p.id]; ok {
 		// rare and interesting enough to log at Info, but it isn't an error per se
 		old.logger.Info(context.Background(), "overwritten by new connection")
+		select {
+		case old.resps <- &proto.CoordinateResponse{Error: CloseErrOverwritten}:
+		default:
+			// pass
+		}
 		close(old.resps)
 		p.overwrites = old.overwrites + 1
 	}
@@ -433,7 +458,7 @@ func (c *core) initPeer(p *peer) error {
 
 // removePeer removes and cleans up a lost peer.  It updates all peers it shares a tunnel with, deletes
 // all tunnels from which the removed peer is the source.
-func (c *core) lostPeer(p *peer) error {
+func (c *core) lostPeer(p *peer, closeErr string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.logger.Debug(context.Background(), "lostPeer", slog.F("peer_id", p.id))
@@ -443,11 +468,11 @@ func (c *core) lostPeer(p *peer) error {
 	if existing, ok := c.peers[p.id]; !ok || existing != p {
 		return ErrAlreadyRemoved
 	}
-	c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_LOST, "lost")
+	c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_LOST, "lost", closeErr)
 	return nil
 }
 
-func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_PeerUpdate_Kind, reason string) {
+func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_PeerUpdate_Kind, reason, closeErr string) {
 	p, ok := c.peers[id]
 	if !ok {
 		c.logger.Critical(context.Background(), "removed non-existent peer %s", id)
@@ -455,6 +480,13 @@ func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_Peer
 	}
 	c.updateTunnelPeersLocked(id, nil, kind, reason)
 	c.tunnels.removeAll(id)
+	if closeErr != "" {
+		select {
+		case p.resps <- &proto.CoordinateResponse{Error: closeErr}:
+		default:
+			// blocked, pass.
+		}
+	}
 	close(p.resps)
 	delete(c.peers, id)
 }
@@ -487,7 +519,8 @@ func (c *core) close() error {
 	for id := range c.peers {
 		// when closing, mark them as LOST so that we don't disrupt in-progress
 		// connections.
-		c.removePeerLocked(id, proto.CoordinateResponse_PeerUpdate_LOST, "coordinator close")
+		c.removePeerLocked(id, proto.CoordinateResponse_PeerUpdate_LOST, "coordinator close",
+			CloseErrCoordinatorClose)
 	}
 	return nil
 }

@@ -113,6 +113,7 @@ func (c *connIO) recvLoop() {
 		select {
 		case <-c.coordCtx.Done():
 			c.logger.Debug(c.coordCtx, "exiting io recvLoop; coordinator exit")
+			_ = c.Enqueue(&proto.CoordinateResponse{Error: agpl.CloseErrCoordinatorClose})
 			return
 		case <-c.peerCtx.Done():
 			c.logger.Debug(c.peerCtx, "exiting io recvLoop; peer context canceled")
@@ -123,6 +124,9 @@ func (c *connIO) recvLoop() {
 				return
 			}
 			if err := c.handleRequest(req); err != nil {
+				if !xerrors.Is(err, errDisconnect) {
+					_ = c.Enqueue(&proto.CoordinateResponse{Error: err.Error()})
+				}
 				return
 			}
 		}
@@ -136,7 +140,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	err := c.auth.Authorize(c.peerCtx, req)
 	if err != nil {
 		c.logger.Warn(c.peerCtx, "unauthorized request", slog.Error(err))
-		return xerrors.Errorf("authorize request: %w", err)
+		return agpl.AuthorizationError{Wrapped: err}
 	}
 
 	if req.UpdateSelf != nil {
