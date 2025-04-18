@@ -284,6 +284,11 @@ func (c *BasicCoordination) respLoop() {
 			return
 		}
 
+		if resp.Error != "" {
+			c.logger.Error(context.Background(),
+				"coordination protocol error", slog.F("error", resp.Error))
+		}
+
 		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			c.logger.Debug(context.Background(), "failed to update peers", slog.Error(err))

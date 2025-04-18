@@ -230,12 +230,20 @@ func (p *Peer) AssertEventuallyLost(other uuid.UUID) {
 	}
 }
 
-func (p *Peer) AssertEventuallyResponsesClosed() {
+func (p *Peer) AssertEventuallyResponsesClosed(expectedError string) {
+	gotErr := false
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
 		if xerrors.Is(err, errResponsesClosed) {
+			if !gotErr && expectedError != "" {
+				p.t.Errorf("responses closed without error '%s'", expectedError)
+			}
 			return
+		}
+		if err != nil && expectedError != "" && err.Error() == expectedError {
+			gotErr = true
+			continue
 		}
 		if !assert.NoError(p.t, err) {
 			return
