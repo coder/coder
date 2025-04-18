@@ -109,6 +109,7 @@ func main() {
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Enter password",
 				Secret: true,
+				Mask:   '*',
 			})
 			return err
 		},

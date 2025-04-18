@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -181,6 +180,28 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "valid", resp)
 	})
+
+	t.Run("MaskedSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+				Text:   "Password:",
+				Secret: true,
+				Mask:   '*',
+			}, nil)
+			assert.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Password: ")
+
+		ptty.WriteLine("test")
+
+		resp := testutil.TryReceive(ctx, t, doneChan)
+		require.Equal(t, "test", resp)
+	})
 }
 
 func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {
@@ -212,10 +233,6 @@ func TestPasswordTerminalState(t *testing.T) {
 	t.Parallel()
 
 	ptty := ptytest.New(t)
-	ptyWithFlags, ok := ptty.PTY.(pty.WithFlags)
-	if !ok {
-		t.Skip("unable to check PTY local echo on this platform")
-	}
 
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
@@ -229,21 +246,17 @@ func TestPasswordTerminalState(t *testing.T) {
 	defer process.Kill()
 
 	ptty.ExpectMatch("Password: ")
-
-	require.Eventually(t, func() bool {
-		echo, err := ptyWithFlags.EchoEnabled()
-		return err == nil && !echo
-	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
+	ptty.Write('t')
+	ptty.Write('e')
+	ptty.Write('s')
+	ptty.Write('t')
+	ptty.Write('\b')
+	ptty.ExpectMatch("***")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
 	_, err = process.Wait()
 	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		echo, err := ptyWithFlags.EchoEnabled()
-		return err == nil && echo
-	}, testutil.WaitShort, testutil.IntervalMedium, "echo is off after reading password")
 }
 
 // nolint:unused
@@ -253,6 +266,7 @@ func passwordHelper() {
 			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,
+				Mask:   '*',
 			})
 			return nil
 		},

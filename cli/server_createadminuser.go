@@ -136,6 +136,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				newUserPassword, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Password",
 					Secret: true,
+					Mask:   '*',
 					Validate: func(val string) error {
 						if val == "" {
 							return xerrors.New("password cannot be empty")
@@ -151,6 +152,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Confirm password",
 					Secret: true,
+					Mask:   '*',
 					Validate: func(val string) error {
 						if val != newUserPassword {
 							return xerrors.New("passwords do not match")
