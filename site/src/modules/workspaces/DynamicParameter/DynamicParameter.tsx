@@ -24,6 +24,7 @@ import {
 } from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Switch } from "components/Switch/Switch";
+import { Textarea } from "components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -298,6 +299,18 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					min={parameter.validations[0]?.validation_min ?? 0}
 					max={parameter.validations[0]?.validation_max ?? 100}
 					disabled={disabled}
+				/>
+			);
+
+		case "textarea":
+			return (
+				<Textarea
+					defaultValue={defaultValue}
+					onChange={(e) => onChange(e.target.value)}
+					disabled={disabled}
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder
+					}
 				/>
 			);
 
