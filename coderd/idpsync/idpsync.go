@@ -186,7 +186,9 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 	// The simple case is the type is exactly what we expected
 	asStringArray, ok := claim.([]string)
 	if ok {
-		return asStringArray, nil
+		cpy := make([]string, len(asStringArray))
+		copy(cpy, asStringArray)
+		return cpy, nil
 	}
 
 	asArray, ok := claim.([]interface{})
