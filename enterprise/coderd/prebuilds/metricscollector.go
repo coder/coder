@@ -16,19 +16,19 @@ import (
 var (
 	labels               = []string{"template_name", "preset_name", "organization_name"}
 	createdPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilds_created",
+		"coderd_prebuilds_created_total",
 		"The number of prebuilds that have been created to meet the desired count set by presets.",
 		labels,
 		nil,
 	)
 	failedPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilds_failed",
+		"coderd_prebuilds_failed_total",
 		"The number of prebuilds that failed to build during creation.",
 		labels,
 		nil,
 	)
 	claimedPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilds_claimed",
+		"coderd_prebuilds_claimed_total",
 		"The number of prebuilds that were claimed by a user. Each count means that a user created a workspace using a preset and was assigned a prebuild instead of a brand new workspace.",
 		labels,
 		nil,
