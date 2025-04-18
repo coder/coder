@@ -104,7 +104,7 @@ resource "coder_agent" "main" {
 }
 
 module "git-clone" {
-  source   = "registry.coder.com/modules/git-clone/coder"
+  source   = "registry.coder.com/modules/coder/git-clone/coder"
   version  = "1.0.2"
   agent_id = local.agent_id
   url      = data.coder_parameter.git_repo.value
@@ -112,20 +112,20 @@ module "git-clone" {
 }
 
 module "code-server" {
-  source   = "registry.coder.com/modules/code-server/coder"
+  source   = "registry.coder.com/modules/coder/code-server/coder"
   version  = "1.0.2"
   agent_id = local.agent_id
   folder   = local.repo_base_dir
 }
 
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
+  source   = "registry.coder.com/modules/coder/filebrowser/coder"
   version  = "1.0.2"
   agent_id = local.agent_id
 }
 
 module "coder-login" {
-  source   = "registry.coder.com/modules/coder-login/coder"
+  source   = "registry.coder.com/modules/coder/coder-login/coder"
   version  = "1.0.2"
   agent_id = local.agent_id
 }

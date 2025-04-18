@@ -20,7 +20,7 @@ your workspace automatically.
 
 > [!NOTE]
 > Template admins: this can be enabled quite easily with a our
-> [dotfiles module](https://registry.coder.com/modules/dotfiles) using just a
+> [dotfiles module](https://registry.coder.com/modules/coder/dotfiles) using just a
 > few lines in the template.
 
 ## Personalize script
@@ -40,7 +40,7 @@ sudo apt install -y neovim fish cargo
 
 > [!NOTE]
 > Template admins: refer to
-> [this module](https://registry.coder.com/modules/personalize) to enable the
+> [this module](https://registry.coder.com/modules/coder/personalize) to enable the
 > `~/personalize` script on templates.
 
 ## Setup script support

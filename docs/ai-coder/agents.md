@@ -43,7 +43,7 @@ complex and focused tasks where an IDE is strictly required.
 
 | Agent                       | Supported Models                  | Coder Support                                                |
 |-----------------------------|-----------------------------------|--------------------------------------------------------------|
-| Cursor (Agent Mode)         | Most popular AI models + gateways | ✅ [Cursor Module](https://registry.coder.com/modules/cursor) |
+| Cursor (Agent Mode)         | Most popular AI models + gateways | ✅ [Cursor Module](https://registry.coder.com/modules/coder/cursor) |
 | Windsurf (Agents and Flows) | Most popular AI models + gateways | ✅ via Remote SSH                                             |
 | Cline                       | Most popular AI models + gateways | ✅ via VS Code Extension                                      |
 

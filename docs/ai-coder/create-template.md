@@ -35,8 +35,8 @@ This can be done in the Coder UI:
 We currently publish a module for Claude Code and Goose. Additional modules are
 [coming soon](./agents.md).
 
-- [Add the Claude Code module](https://registry.coder.com/modules/claude-code)
-- [Add the Goose module](https://registry.coder.com/modules/goose)
+- [Add the Claude Code module](https://registry.coder.com/modules/coder/claude-code)
+- [Add the Goose module](https://registry.coder.com/modules/coder/goose)
 
 Follow the instructions in the Coder Registry to install the module. Be sure to
 enable the `experiment_use_screen` and `experiment_report_tasks` variables to

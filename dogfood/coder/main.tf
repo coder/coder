@@ -142,7 +142,7 @@ data "coder_workspace_tags" "tags" {
 
 module "slackme" {
   count            = data.coder_workspace.me.start_count
-  source           = "dev.registry.coder.com/modules/slackme/coder"
+  source           = "dev.registry.coder.com/modules/coder/slackme/coder"
   version          = ">= 1.0.0"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
@@ -150,14 +150,14 @@ module "slackme" {
 
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/dotfiles/coder"
+  source   = "dev.registry.coder.com/modules/coder/dotfiles/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/git-clone/coder"
+  source   = "dev.registry.coder.com/modules/coder/git-clone/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
@@ -166,14 +166,14 @@ module "git-clone" {
 
 module "personalize" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/personalize/coder"
+  source   = "dev.registry.coder.com/modules/coder/personalize/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   count                   = data.coder_workspace.me.start_count
-  source                  = "dev.registry.coder.com/modules/code-server/coder"
+  source                  = "dev.registry.coder.com/modules/coder/code-server/coder"
   version                 = ">= 1.0.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
@@ -182,7 +182,7 @@ module "code-server" {
 
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
-  source                  = "registry.coder.com/modules/vscode-web/coder"
+  source                  = "registry.coder.com/modules/coder/vscode-web/coder"
   version                 = ">= 1.0.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
@@ -193,7 +193,7 @@ module "vscode-web" {
 
 module "jetbrains" {
   count    = data.coder_workspace.me.start_count
-  source   = "git::https://github.com/coder/modules.git//jetbrains?ref=jetbrains"
+  source   = "git::https://github.com/coder/registry.git//registry/coder/jetbrains?ref=jetbrains"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
   options  = ["WS", "GO"]
@@ -204,7 +204,7 @@ module "jetbrains" {
 
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/modules/filebrowser/coder"
+  source     = "dev.registry.coder.com/modules/coder/filebrowser/coder"
   version    = ">= 1.0.0"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
@@ -212,14 +212,14 @@ module "filebrowser" {
 
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/coder-login/coder"
+  source   = "dev.registry.coder.com/modules/coder/coder-login/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/cursor/coder"
+  source   = "dev.registry.coder.com/modules/coder/cursor/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir

@@ -101,12 +101,12 @@ VS Code supports launching a local web client using the `code serve-web`
 command. To add VS Code web as a web IDE, you have two options.
 
 1. Install using the
-   [vscode-web module](https://registry.coder.com/modules/vscode-web) from the
+   [vscode-web module](https://registry.coder.com/modules/coder/vscode-web) from the
    coder registry.
 
    ```tf
    module "vscode-web" {
-     source         = "registry.coder.com/modules/vscode-web/coder"
+     source         = "registry.coder.com/modules/coder/vscode-web/coder"
      version        = "1.0.14"
      agent_id       = coder_agent.main.id
      accept_license = true
@@ -153,12 +153,12 @@ command. To add VS Code web as a web IDE, you have two options.
 ## Jupyter Notebook
 
 To use Jupyter Notebook in your workspace, you can install it by using the
-[Jupyter Notebook module](https://registry.coder.com/modules/jupyter-notebook)
+[Jupyter Notebook module](https://registry.coder.com/modules/coder/jupyter-notebook)
 from the Coder registry:
 
 ```tf
 module "jupyter-notebook" {
-  source   = "registry.coder.com/modules/jupyter-notebook/coder"
+  source   = "registry.coder.com/modules/coder/jupyter-notebook/coder"
   version  = "1.0.19"
   agent_id = coder_agent.example.id
 }
@@ -205,7 +205,7 @@ Or Alternatively, you can use the JupyterLab module from the Coder registry:
 
 ```tf
 module "jupyter" {
-  source   = "registry.coder.com/modules/jupyter-lab/coder"
+  source   = "registry.coder.com/modules/coder/jupyter-lab/coder"
   version  = "1.0.0"
   agent_id = coder_agent.main.id
 }
@@ -302,12 +302,12 @@ resource "coder_app" "airflow" {
 }
 ```
 
-or use the [Airflow module](https://registry.coder.com/modules/apache-airflow)
+or use the [Airflow module](https://registry.coder.com/modules/nataindata/apache-airflow)
 from the Coder registry:
 
 ```tf
 module "airflow" {
-  source   = "registry.coder.com/modules/airflow/coder"
+  source   = "registry.coder.com/modules/nataindata/airflow/coder"
   version  = "1.0.13"
   agent_id = coder_agent.main.id
 }
@@ -355,12 +355,12 @@ resource "coder_app" "filebrowser" {
 ```
 
 Or alternatively, you can use the
-[`filebrowser`](https://registry.coder.com/modules/filebrowser) module from the
+[`filebrowser`](https://registry.coder.com/modules/coder/filebrowser) module from the
 Coder registry:
 
 ```tf
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
+  source   = "registry.coder.com/modules/coder/filebrowser/coder"
   version  = "1.0.8"
   agent_id = coder_agent.main.id
 }

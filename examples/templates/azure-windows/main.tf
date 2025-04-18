@@ -16,9 +16,9 @@ provider "azurerm" {
 provider "coder" {}
 data "coder_workspace" "me" {}
 
-# See https://registry.coder.com/modules/azure-region
+# See https://registry.coder.com/modules/coder/azure-region
 module "azure_region" {
-  source = "registry.coder.com/modules/azure-region/coder"
+  source = "registry.coder.com/modules/coder/azure-region/coder"
 
   # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = ">= 1.0.0"
@@ -26,9 +26,9 @@ module "azure_region" {
   default = "eastus"
 }
 
-# See https://registry.coder.com/modules/windows-rdp
+# See https://registry.coder.com/modules/coder/windows-rdp
 module "windows_rdp" {
-  source = "registry.coder.com/modules/windows-rdp/coder"
+  source = "registry.coder.com/modules/coder/windows-rdp/coder"
 
   # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = ">= 1.0.0"
