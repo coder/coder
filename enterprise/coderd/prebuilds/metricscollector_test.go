@@ -158,7 +158,7 @@ func TestMetricsCollector(t *testing.T) {
 						ownerID := ownerID // capture for parallel
 						for _, templateDeleted := range test.templateDeleted {
 							templateDeleted := templateDeleted // capture for parallel
-							t.Run(fmt.Sprintf("transition:%s/jobStatus:%s", transition, jobStatus), func(t *testing.T) {
+							t.Run(fmt.Sprintf("%v/transition:%s/jobStatus:%s", test.name, transition, jobStatus), func(t *testing.T) {
 								t.Parallel()
 
 								logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

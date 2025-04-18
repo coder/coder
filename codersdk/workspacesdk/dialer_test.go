@@ -80,15 +80,15 @@ func TestWebsocketDialer_TokenController(t *testing.T) {
 		clientCh <- clients
 	}()
 
-	call := testutil.RequireRecvCtx(ctx, t, fTokenProv.tokenCalls)
+	call := testutil.TryReceive(ctx, t, fTokenProv.tokenCalls)
 	call <- tokenResponse{"test token", true}
 	gotToken := <-dialTokens
 	require.Equal(t, "test token", gotToken)
 
-	clients := testutil.RequireRecvCtx(ctx, t, clientCh)
+	clients := testutil.TryReceive(ctx, t, clientCh)
 	clients.Closer.Close()
 
-	err = testutil.RequireRecvCtx(ctx, t, wsErr)
+	err = testutil.TryReceive(ctx, t, wsErr)
 	require.NoError(t, err)
 
 	clientCh = make(chan tailnet.ControlProtocolClients, 1)
@@ -98,16 +98,16 @@ func TestWebsocketDialer_TokenController(t *testing.T) {
 		clientCh <- clients
 	}()
 
-	call = testutil.RequireRecvCtx(ctx, t, fTokenProv.tokenCalls)
+	call = testutil.TryReceive(ctx, t, fTokenProv.tokenCalls)
 	call <- tokenResponse{"test token", false}
 	gotToken = <-dialTokens
 	require.Equal(t, "", gotToken)
 
-	clients = testutil.RequireRecvCtx(ctx, t, clientCh)
+	clients = testutil.TryReceive(ctx, t, clientCh)
 	require.Nil(t, clients.WorkspaceUpdates)
 	clients.Closer.Close()
 
-	err = testutil.RequireRecvCtx(ctx, t, wsErr)
+	err = testutil.TryReceive(ctx, t, wsErr)
 	require.NoError(t, err)
 }
 
@@ -165,10 +165,10 @@ func TestWebsocketDialer_NoTokenController(t *testing.T) {
 	gotToken := <-dialTokens
 	require.Equal(t, "", gotToken)
 
-	clients := testutil.RequireRecvCtx(ctx, t, clientCh)
+	clients := testutil.TryReceive(ctx, t, clientCh)
 	clients.Closer.Close()
 
-	err = testutil.RequireRecvCtx(ctx, t, wsErr)
+	err = testutil.TryReceive(ctx, t, wsErr)
 	require.NoError(t, err)
 }
 
@@ -233,12 +233,12 @@ func TestWebsocketDialer_ResumeTokenFailure(t *testing.T) {
 		errCh <- err
 	}()
 
-	call := testutil.RequireRecvCtx(ctx, t, fTokenProv.tokenCalls)
+	call := testutil.TryReceive(ctx, t, fTokenProv.tokenCalls)
 	call <- tokenResponse{"test token", true}
 	gotToken := <-dialTokens
 	require.Equal(t, "test token", gotToken)
 
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.Error(t, err)
 
 	// redial should not use the token
@@ -251,10 +251,10 @@ func TestWebsocketDialer_ResumeTokenFailure(t *testing.T) {
 	gotToken = <-dialTokens
 	require.Equal(t, "", gotToken)
 
-	clients := testutil.RequireRecvCtx(ctx, t, clientCh)
+	clients := testutil.TryReceive(ctx, t, clientCh)
 	require.Error(t, err)
 	clients.Closer.Close()
-	err = testutil.RequireRecvCtx(ctx, t, wsErr)
+	err = testutil.TryReceive(ctx, t, wsErr)
 	require.NoError(t, err)
 
 	// Successful dial should reset to using token again
@@ -262,11 +262,11 @@ func TestWebsocketDialer_ResumeTokenFailure(t *testing.T) {
 		_, err := uut.Dial(ctx, fTokenProv)
 		errCh <- err
 	}()
-	call = testutil.RequireRecvCtx(ctx, t, fTokenProv.tokenCalls)
+	call = testutil.TryReceive(ctx, t, fTokenProv.tokenCalls)
 	call <- tokenResponse{"test token", true}
 	gotToken = <-dialTokens
 	require.Equal(t, "test token", gotToken)
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.Error(t, err)
 }
 
@@ -305,7 +305,7 @@ func TestWebsocketDialer_UplevelVersion(t *testing.T) {
 		errCh <- err
 	}()
 
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
@@ -387,7 +387,7 @@ func TestWebsocketDialer_WorkspaceUpdates(t *testing.T) {
 
 	clients.Closer.Close()
 
-	err = testutil.RequireRecvCtx(ctx, t, wsErr)
+	err = testutil.TryReceive(ctx, t, wsErr)
 	require.NoError(t, err)
 }
 

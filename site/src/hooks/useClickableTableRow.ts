@@ -13,9 +13,9 @@
  * It might not make sense to test this hook until the underlying design
  * problems are fixed.
  */
-import { type CSSObject, useTheme } from "@emotion/react";
 import type { TableRowProps } from "@mui/material/TableRow";
 import type { MouseEventHandler } from "react";
+import { cn } from "utils/cn";
 import {
 	type ClickableAriaRole,
 	type UseClickableResult,
@@ -26,7 +26,7 @@ type UseClickableTableRowResult<
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = UseClickableResult<HTMLTableRowElement, TRole> &
 	TableRowProps & {
-		css: CSSObject;
+		className: string;
 		hover: true;
 		onAuxClick: MouseEventHandler<HTMLTableRowElement>;
 	};
@@ -54,23 +54,13 @@ export const useClickableTableRow = <
 	onAuxClick: externalOnAuxClick,
 }: UseClickableTableRowConfig<TRole>): UseClickableTableRowResult<TRole> => {
 	const clickableProps = useClickable(onClick, (role ?? "button") as TRole);
-	const theme = useTheme();
 
 	return {
 		...clickableProps,
-		css: {
-			cursor: "pointer",
-
-			"&:focus": {
-				outline: `1px solid ${theme.palette.primary.main}`,
-				outlineOffset: -1,
-			},
-
-			"&:last-of-type": {
-				borderBottomLeftRadius: 8,
-				borderBottomRightRadius: 8,
-			},
-		},
+		className: cn([
+			"cursor-pointer hover:outline focus:outline outline-1 -outline-offset-1 outline-border-hover",
+			"first:rounded-t-md last:rounded-b-md",
+		]),
 		hover: true,
 		onDoubleClick,
 		onAuxClick: (event) => {

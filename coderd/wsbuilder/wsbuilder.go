@@ -61,18 +61,19 @@ type Builder struct {
 	store database.Store
 
 	// cache of objects, so we only fetch once
-	template                     *database.Template
-	templateVersion              *database.TemplateVersion
-	templateVersionJob           *database.ProvisionerJob
-	templateVersionParameters    *[]database.TemplateVersionParameter
-	templateVersionVariables     *[]database.TemplateVersionVariable
-	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
-	lastBuild                    *database.WorkspaceBuild
-	lastBuildErr                 *error
-	lastBuildParameters          *[]database.WorkspaceBuildParameter
-	lastBuildJob                 *database.ProvisionerJob
-	parameterNames               *[]string
-	parameterValues              *[]string
+	template                             *database.Template
+	templateVersion                      *database.TemplateVersion
+	templateVersionJob                   *database.ProvisionerJob
+	templateVersionParameters            *[]database.TemplateVersionParameter
+	templateVersionVariables             *[]database.TemplateVersionVariable
+	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
+	lastBuild                            *database.WorkspaceBuild
+	lastBuildErr                         *error
+	lastBuildParameters                  *[]database.WorkspaceBuildParameter
+	lastBuildJob                         *database.ProvisionerJob
+	parameterNames                       *[]string
+	parameterValues                      *[]string
+	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
 	prebuild                bool
 	prebuildClaimedBy       uuid.UUID
@@ -582,6 +583,14 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last build parameters", err}
 	}
+	if b.templateVersionPresetID != uuid.Nil {
+		// Fetch and cache these, since we'll need them to override requested values if a preset was chosen
+		presetParameters, err := b.store.GetPresetParametersByPresetID(b.ctx, b.templateVersionPresetID)
+		if err != nil {
+			return nil, nil, BuildError{http.StatusInternalServerError, "failed to get preset parameters", err}
+		}
+		b.templateVersionPresetParameterValues = presetParameters
+	}
 	err = b.verifyNoLegacyParameters()
 	if err != nil {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
@@ -614,6 +623,15 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 }
 
 func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBuildParameter {
+	for _, v := range b.templateVersionPresetParameterValues {
+		if v.Name == name {
+			return &codersdk.WorkspaceBuildParameter{
+				Name:  v.Name,
+				Value: v.Value,
+			}
+		}
+	}
+
 	for _, v := range b.richParameterValues {
 		if v.Name == name {
 			return &v

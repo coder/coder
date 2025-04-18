@@ -101,30 +101,26 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 	}
 
-	state, err := mc.reconciler.SnapshotState(ctx, mc.database)
+	snapshot, err := mc.reconciler.SnapshotState(ctx, mc.database)
 	if err != nil {
 		mc.logger.Error(ctx, "failed to get latest prebuild state", slog.Error(err))
 		return
 	}
 
-	for _, preset := range state.Presets {
+	for _, preset := range snapshot.Presets {
 		if !preset.UsingActiveVersion {
 			continue
 		}
 
-		presetState, err := state.FilterByPreset(preset.ID)
+		presetSnapshot, err := snapshot.FilterByPreset(preset.ID)
 		if err != nil {
 			mc.logger.Error(ctx, "failed to filter by preset", slog.Error(err))
 			continue
 		}
-		actions, err := mc.reconciler.DetermineActions(ctx, *presetState)
-		if err != nil {
-			mc.logger.Error(ctx, "failed to determine actions", slog.Error(err))
-			continue
-		}
+		state := presetSnapshot.CalculateState()
 
-		metricsCh <- prometheus.MustNewConstMetric(desiredPrebuildsDesc, prometheus.GaugeValue, float64(actions.Desired), preset.TemplateName, preset.Name, preset.OrganizationName)
-		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(actions.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
-		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(actions.Eligible), preset.TemplateName, preset.Name, preset.OrganizationName)
+		metricsCh <- prometheus.MustNewConstMetric(desiredPrebuildsDesc, prometheus.GaugeValue, float64(state.Desired), preset.TemplateName, preset.Name, preset.OrganizationName)
+		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(state.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
+		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(state.Eligible), preset.TemplateName, preset.Name, preset.OrganizationName)
 	}
 }

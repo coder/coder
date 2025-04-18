@@ -392,6 +392,12 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
+// WorkspaceAgentDevcontainersResponse is the response to the devcontainers
+// request.
+type WorkspaceAgentDevcontainersResponse struct {
+	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
+}
+
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
@@ -399,6 +405,10 @@ type WorkspaceAgentDevcontainer struct {
 	Name            string    `json:"name"`
 	WorkspaceFolder string    `json:"workspace_folder"`
 	ConfigPath      string    `json:"config_path,omitempty"`
+
+	// Additional runtime fields.
+	Running   bool                     `json:"running"`
+	Container *WorkspaceAgentContainer `json:"container,omitempty"`
 }
 
 // WorkspaceAgentContainer describes a devcontainer of some sort

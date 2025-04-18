@@ -3251,6 +3251,13 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
+	readonly running: boolean;
+	readonly container?: WorkspaceAgentContainer;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainersResponse {
+	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 }
 
 // From codersdk/workspaceagents.go

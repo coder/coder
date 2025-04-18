@@ -1507,7 +1507,7 @@ None
 }
 ```
 
-CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.
+CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used. Workspace names: - Must start with a letter or number - Can only contain letters, numbers, and hyphens - Cannot contain spaces or special characters - Cannot be named `new` or `create` - Must be unique within your workspaces - Maximum length of 32 characters
 
 ### Properties
 
@@ -2199,12 +2199,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
+    "workspace_hostname_suffix": "string",
     "workspace_prebuilds": {
       "reconciliation_backoff_interval": 0,
       "reconciliation_backoff_lookback": 0,
       "reconciliation_interval": 0
     },
-    "workspace_hostname_suffix": "string",
     "write_config": true
   },
   "options": [
@@ -2684,12 +2684,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
   "wildcard_access_url": "string",
+  "workspace_hostname_suffix": "string",
   "workspace_prebuilds": {
     "reconciliation_backoff_interval": 0,
     "reconciliation_backoff_lookback": 0,
     "reconciliation_interval": 0
   },
-  "workspace_hostname_suffix": "string",
   "write_config": true
 }
 ```
@@ -2758,8 +2758,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
 | `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
-| `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
 | `workspace_hostname_suffix`          | string                                                                                               | false    |              |                                                                    |
+| `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp
@@ -4713,11 +4713,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                              | Type    | Required | Restrictions | Description |
-|-----------------------------------|---------|----------|--------------|-------------|
-| `reconciliation_backoff_interval` | integer | false    |              |             |
-| `reconciliation_backoff_lookback` | integer | false    |              |             |
-| `reconciliation_interval`         | integer | false    |              |             |
+| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                     |
+|-----------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                          |
+| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy. |
+| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                   |
 
 ## codersdk.Preset
 

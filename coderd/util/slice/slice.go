@@ -66,6 +66,19 @@ func Contains[T comparable](haystack []T, needle T) bool {
 	})
 }
 
+func CountMatchingPairs[A, B any](a []A, b []B, match func(A, B) bool) int {
+	count := 0
+	for _, a := range a {
+		for _, b := range b {
+			if match(a, b) {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
 // Find returns the first element that satisfies the condition.
 func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	for _, hay := range haystack {

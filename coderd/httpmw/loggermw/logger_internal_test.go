@@ -146,7 +146,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
 	// Wait for the log from within the handler
-	newEntry := testutil.RequireRecvCtx(ctx, t, sink.newEntries)
+	newEntry := testutil.TryReceive(ctx, t, sink.newEntries)
 	require.Equal(t, newEntry.Message, "GET")
 
 	// Signal the websocket handler to return (and read to handle the close frame)
@@ -155,7 +155,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	require.ErrorAs(t, err, &websocket.CloseError{}, "websocket read should fail with close error")
 
 	// Wait for the request to finish completely and verify we only logged once
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 	require.Len(t, sink.entries, 1, "log was written twice")
 }
 

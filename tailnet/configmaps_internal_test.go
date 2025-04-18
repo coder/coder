@@ -40,7 +40,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
 	uut.setAddresses(addrs)
 
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
 	require.Equal(t, addrs, nm.Addresses)
 
 	// here were in the middle of a reconfig, blocked on a channel write to fEng.reconfig
@@ -55,22 +55,22 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 	}
 	uut.setAddresses(addrs2)
 
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Equal(t, addrs, r.wg.Addresses)
 	require.Equal(t, addrs, r.router.LocalAddrs)
-	f := testutil.RequireRecvCtx(ctx, t, fEng.filter)
+	f := testutil.TryReceive(ctx, t, fEng.filter)
 	fr := f.CheckTCP(netip.MustParseAddr("33.44.55.66"), netip.MustParseAddr("192.168.0.200"), 5555)
 	require.Equal(t, filter.Accept, fr)
 	fr = f.CheckTCP(netip.MustParseAddr("33.44.55.66"), netip.MustParseAddr("10.20.30.40"), 5555)
 	require.Equal(t, filter.Drop, fr, "first addr config should not include 10.20.30.40")
 
 	// we should get another round of configurations from the second set of addrs
-	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
 	require.Equal(t, addrs2, nm.Addresses)
-	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	r = testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Equal(t, addrs2, r.wg.Addresses)
 	require.Equal(t, addrs2, r.router.LocalAddrs)
-	f = testutil.RequireRecvCtx(ctx, t, fEng.filter)
+	f = testutil.TryReceive(ctx, t, fEng.filter)
 	fr = f.CheckTCP(netip.MustParseAddr("33.44.55.66"), netip.MustParseAddr("192.168.0.200"), 5555)
 	require.Equal(t, filter.Accept, fr)
 	fr = f.CheckTCP(netip.MustParseAddr("33.44.55.66"), netip.MustParseAddr("10.20.30.40"), 5555)
@@ -81,7 +81,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_setAddresses_same(t *testing.T) {
@@ -112,7 +112,7 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_new(t *testing.T) {
@@ -160,8 +160,8 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 	}
 	uut.updatePeers(updates)
 
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 
 	require.Len(t, nm.Peers, 2)
 	n1 := getNodeWithID(t, nm.Peers, 1)
@@ -182,7 +182,7 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.T) {
@@ -226,7 +226,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
@@ -279,8 +279,8 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 
 	// it should now send the peer to the netmap
 
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 
 	require.Len(t, nm.Peers, 1)
 	n1 := getNodeWithID(t, nm.Peers, 1)
@@ -297,7 +297,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
@@ -350,8 +350,8 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 
 	// it should now send the peer to the netmap
 
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 
 	require.Len(t, nm.Peers, 1)
 	n1 := getNodeWithID(t, nm.Peers, 1)
@@ -368,7 +368,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
@@ -408,8 +408,8 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 
 	// it should now send the peer to the netmap
 
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 
 	require.Len(t, nm.Peers, 1)
 	n1 := getNodeWithID(t, nm.Peers, 1)
@@ -426,7 +426,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_same(t *testing.T) {
@@ -485,7 +485,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
@@ -543,8 +543,8 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 	assert.False(t, timer.Stop(), "timer was not stopped")
 
 	// Then, configure engine without the peer.
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 0)
 	require.Len(t, r.wg.Peers, 0)
 
@@ -553,7 +553,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_lost(t *testing.T) {
@@ -585,11 +585,11 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 		},
 	}
 	uut.updatePeers(updates)
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 1)
 	require.Len(t, r.wg.Peers, 1)
-	_ = testutil.RequireRecvCtx(ctx, t, s1)
+	_ = testutil.TryReceive(ctx, t, s1)
 
 	mClock.Advance(5 * time.Second).MustWait(ctx)
 
@@ -598,7 +598,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_LOST
 	updates[0].Node = nil
 	uut.updatePeers(updates)
-	_ = testutil.RequireRecvCtx(ctx, t, s2)
+	_ = testutil.TryReceive(ctx, t, s2)
 
 	// No reprogramming yet, since we keep the peer around.
 	select {
@@ -614,7 +614,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	s3 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, lh)
 	// 5 seconds have already elapsed from above
 	mClock.Advance(lostTimeout - 5*time.Second).MustWait(ctx)
-	_ = testutil.RequireRecvCtx(ctx, t, s3)
+	_ = testutil.TryReceive(ctx, t, s3)
 	select {
 	case <-fEng.setNetworkMap:
 		t.Fatal("should not reprogram")
@@ -627,18 +627,18 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	s4 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, lh)
 	mClock.Advance(time.Minute).MustWait(ctx)
 
-	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r = testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 0)
 	require.Len(t, r.wg.Peers, 0)
-	_ = testutil.RequireRecvCtx(ctx, t, s4)
+	_ = testutil.TryReceive(ctx, t, s4)
 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
@@ -670,11 +670,11 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 		},
 	}
 	uut.updatePeers(updates)
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 1)
 	require.Len(t, r.wg.Peers, 1)
-	_ = testutil.RequireRecvCtx(ctx, t, s1)
+	_ = testutil.TryReceive(ctx, t, s1)
 
 	mClock.Advance(5 * time.Second).MustWait(ctx)
 
@@ -683,7 +683,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_LOST
 	updates[0].Node = nil
 	uut.updatePeers(updates)
-	_ = testutil.RequireRecvCtx(ctx, t, s2)
+	_ = testutil.TryReceive(ctx, t, s2)
 
 	// No reprogramming yet, since we keep the peer around.
 	select {
@@ -699,7 +699,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_NODE
 	updates[0].Node = p1n
 	uut.updatePeers(updates)
-	_ = testutil.RequireRecvCtx(ctx, t, s3)
+	_ = testutil.TryReceive(ctx, t, s3)
 	// This does not trigger reprogramming, because we never removed the node
 	select {
 	case <-fEng.setNetworkMap:
@@ -723,7 +723,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_setAllPeersLost(t *testing.T) {
@@ -764,11 +764,11 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 		},
 	}
 	uut.updatePeers(updates)
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 2)
 	require.Len(t, r.wg.Peers, 2)
-	_ = testutil.RequireRecvCtx(ctx, t, s1)
+	_ = testutil.TryReceive(ctx, t, s1)
 
 	mClock.Advance(5 * time.Second).MustWait(ctx)
 	uut.setAllPeersLost()
@@ -787,20 +787,20 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	d, w := mClock.AdvanceNext()
 	w.MustWait(ctx)
 	require.LessOrEqual(t, d, time.Millisecond)
-	_ = testutil.RequireRecvCtx(ctx, t, s2)
+	_ = testutil.TryReceive(ctx, t, s2)
 
-	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r = testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 1)
 	require.Len(t, r.wg.Peers, 1)
 
 	// Finally, advance the clock until after the timeout
 	s3 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
 	mClock.Advance(lostTimeout - d - 5*time.Second).MustWait(ctx)
-	_ = testutil.RequireRecvCtx(ctx, t, s3)
+	_ = testutil.TryReceive(ctx, t, s3)
 
-	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r = testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 0)
 	require.Len(t, r.wg.Peers, 0)
 
@@ -809,7 +809,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
@@ -842,8 +842,8 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 
 	uut.setBlockEndpoints(true)
 
-	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 1)
 	require.Len(t, nm.Peers[0].Endpoints, 0)
 	require.Len(t, r.wg.Peers, 1)
@@ -853,7 +853,7 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
@@ -896,7 +896,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_setDERPMap_different(t *testing.T) {
@@ -923,7 +923,7 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	}
 	uut.setDERPMap(derpMap)
 
-	dm := testutil.RequireRecvCtx(ctx, t, fEng.setDERPMap)
+	dm := testutil.TryReceive(ctx, t, fEng.setDERPMap)
 	require.Len(t, dm.HomeParams.RegionScore, 1)
 	require.Equal(t, dm.HomeParams.RegionScore[1], 0.025)
 	require.Len(t, dm.Regions, 1)
@@ -937,7 +937,7 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_setDERPMap_same(t *testing.T) {
@@ -1006,7 +1006,7 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
@@ -1066,7 +1066,7 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	// When: call fillPeerDiagnostics
 	d := PeerDiagnostics{DERPRegionNames: make(map[int]string)}
 	uut.fillPeerDiagnostics(&d, p1ID)
-	testutil.RequireRecvCtx(ctx, t, s0)
+	testutil.TryReceive(ctx, t, s0)
 
 	// Then:
 	require.Equal(t, map[int]string{1: "AUH", 1001: "DXB"}, d.DERPRegionNames)
@@ -1078,7 +1078,7 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func expectStatusWithHandshake(
@@ -1152,7 +1152,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 				defer close(done)
 				uut.close()
 			}()
-			_ = testutil.RequireRecvCtx(ctx, t, done)
+			_ = testutil.TryReceive(ctx, t, done)
 		})
 	}
 }
@@ -1187,8 +1187,8 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	})
 
 	// THEN: the engine is reconfigured with those same hosts
-	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	req := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	_ = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	req := testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Equal(t, req.dnsCfg, &dns.Config{
 		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
 			suffix: nil,
@@ -1218,8 +1218,8 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	})
 
 	// THEN: The engine is reconfigured with only the new hosts
-	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	_ = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	req = testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Equal(t, req.dnsCfg, &dns.Config{
 		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
 			suffix: nil,
@@ -1237,8 +1237,8 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 
 	// WHEN: we remove all the hosts
 	uut.setHosts(map[dnsname.FQDN][]netip.Addr{})
-	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	_ = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	req = testutil.TryReceive(ctx, t, fEng.reconfig)
 
 	// THEN: the engine is reconfigured with an empty config
 	require.Equal(t, req.dnsCfg, &dns.Config{})
@@ -1248,7 +1248,7 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func newTestNode(id int) *Node {
@@ -1287,7 +1287,7 @@ func requireNeverConfigures(ctx context.Context, t *testing.T, uut *phased) {
 		}
 		assert.Equal(t, closed, uut.phase)
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, waiting)
+	_ = testutil.TryReceive(ctx, t, waiting)
 }
 
 type reconfigCall struct {

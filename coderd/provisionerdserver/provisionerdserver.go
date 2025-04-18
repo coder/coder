@@ -1431,13 +1431,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
-		err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-			JobID:      jobID,
-			CachedPlan: jobType.TemplateImport.Plan,
-			UpdatedAt:  now,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+		if len(jobType.TemplateImport.Plan) > 0 {
+			err := s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:      jobID,
+				CachedPlan: jobType.TemplateImport.Plan,
+				UpdatedAt:  now,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+			}
 		}
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -1882,26 +1884,23 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
-		// insert preset
-		insertPresetParams := database.InsertPresetParams{
-			TemplateVersionID:   templateVersionID,
-			Name:                protoPreset.Name,
-			CreatedAt:           t,
-			DesiredInstances:    sql.NullInt32{},
-			InvalidateAfterSecs: sql.NullInt32{},
-		}
-		// update preset with prebuid if set
-		if protoPreset.Prebuild != nil {
-			insertPresetParams.DesiredInstances = sql.NullInt32{
-				Valid: true,
+		var desiredInstances sql.NullInt32
+		if protoPreset != nil && protoPreset.Prebuild != nil {
+			desiredInstances = sql.NullInt32{
 				Int32: protoPreset.Prebuild.Instances,
-			}
-			insertPresetParams.InvalidateAfterSecs = sql.NullInt32{
 				Valid: true,
-				Int32: 0,
 			}
 		}
-		dbPreset, err := tx.InsertPreset(ctx, insertPresetParams)
+		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			TemplateVersionID: templateVersionID,
+			Name:              protoPreset.Name,
+			CreatedAt:         t,
+			DesiredInstances:  desiredInstances,
+			InvalidateAfterSecs: sql.NullInt32{
+				Int32: 0,
+				Valid: false,
+			}, // TODO: implement cache invalidation
+		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
 		}

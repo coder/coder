@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -426,47 +427,346 @@ func TestWorkspace(t *testing.T) {
 
 	t.Run("TemplateVersionPreset", func(t *testing.T) {
 		t.Parallel()
-		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		authz := coderdtest.AssertRBAC(t, api, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Presets: []*proto.Preset{{
-							Name: "test",
-						}},
+
+		// Test Utility variables
+		templateVersionParameters := []*proto.RichParameter{
+			{Name: "param1", Type: "string", Required: false},
+			{Name: "param2", Type: "string", Required: false},
+			{Name: "param3", Type: "string", Required: false},
+		}
+		presetParameters := []*proto.PresetParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+			{Name: "param3", Value: "value3"},
+		}
+		emptyPreset := &proto.Preset{
+			Name: "Empty Preset",
+		}
+		presetWithParameters := &proto.Preset{
+			Name:       "Preset With Parameters",
+			Parameters: presetParameters,
+		}
+
+		testCases := []struct {
+			name                      string
+			presets                   []*proto.Preset
+			templateVersionParameters []*proto.RichParameter
+			selectedPresetIndex       *int
+		}{
+			{
+				name:    "No Presets - No Template Parameters",
+				presets: []*proto.Preset{},
+			},
+			{
+				name:                      "No Presets - With Template Parameters",
+				presets:                   []*proto.Preset{},
+				templateVersionParameters: templateVersionParameters,
+			},
+			{
+				name:                      "Single Preset - No Preset Parameters But With Template Parameters",
+				presets:                   []*proto.Preset{emptyPreset},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(0),
+			},
+			{
+				name:                "Single Preset - No Preset Parameters And No Template Parameters",
+				presets:             []*proto.Preset{emptyPreset},
+				selectedPresetIndex: ptr.Ref(0),
+			},
+			{
+				name:                "Single Preset - With Preset Parameters But No Template Parameters",
+				presets:             []*proto.Preset{presetWithParameters},
+				selectedPresetIndex: ptr.Ref(0),
+			},
+			{
+				name:                      "Single Preset - With Matching Parameters",
+				presets:                   []*proto.Preset{presetWithParameters},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(0),
+			},
+			{
+				name: "Single Preset - With Partial Matching Parameters",
+				presets: []*proto.Preset{{
+					Name:       "test",
+					Parameters: presetParameters,
+				}},
+				templateVersionParameters: templateVersionParameters[:2],
+				selectedPresetIndex:       ptr.Ref(0),
+			},
+			{
+				name: "Multiple Presets - No Parameters",
+				presets: []*proto.Preset{
+					{Name: "preset1"},
+					{Name: "preset2"},
+					{Name: "preset3"},
+				},
+				selectedPresetIndex: ptr.Ref(0),
+			},
+			{
+				name: "Multiple Presets - First Has Parameters",
+				presets: []*proto.Preset{
+					{
+						Name:       "preset1",
+						Parameters: presetParameters,
+					},
+					{Name: "preset2"},
+					{Name: "preset3"},
+				},
+				selectedPresetIndex: ptr.Ref(0),
+			},
+			{
+				name: "Multiple Presets - First Has Matching Parameters",
+				presets: []*proto.Preset{
+					presetWithParameters,
+					{Name: "preset2"},
+					{Name: "preset3"},
+				},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(0),
+			},
+			{
+				name: "Multiple Presets - Middle Has Parameters",
+				presets: []*proto.Preset{
+					{Name: "preset1"},
+					presetWithParameters,
+					{Name: "preset3"},
+				},
+				selectedPresetIndex: ptr.Ref(1),
+			},
+			{
+				name: "Multiple Presets - Middle Has Matching Parameters",
+				presets: []*proto.Preset{
+					{Name: "preset1"},
+					presetWithParameters,
+					{Name: "preset3"},
+				},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(1),
+			},
+			{
+				name: "Multiple Presets - Last Has Parameters",
+				presets: []*proto.Preset{
+					{Name: "preset1"},
+					{Name: "preset2"},
+					presetWithParameters,
+				},
+				selectedPresetIndex: ptr.Ref(2),
+			},
+			{
+				name: "Multiple Presets - Last Has Matching Parameters",
+				presets: []*proto.Preset{
+					{Name: "preset1"},
+					{Name: "preset2"},
+					presetWithParameters,
+				},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(2),
+			},
+			{
+				name: "Multiple Presets - All Have Parameters",
+				presets: []*proto.Preset{
+					{
+						Name:       "preset1",
+						Parameters: presetParameters[:1],
+					},
+					{
+						Name:       "preset2",
+						Parameters: presetParameters[1:2],
+					},
+					{
+						Name:       "preset3",
+						Parameters: presetParameters[2:3],
 					},
 				},
-			}},
-			ProvisionApply: echo.ApplyComplete,
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				selectedPresetIndex: ptr.Ref(1),
+			},
+			{
+				name: "Multiple Presets - All Have Partially Matching Parameters",
+				presets: []*proto.Preset{
+					{
+						Name:       "preset1",
+						Parameters: presetParameters[:1],
+					},
+					{
+						Name:       "preset2",
+						Parameters: presetParameters[1:2],
+					},
+					{
+						Name:       "preset3",
+						Parameters: presetParameters[2:3],
+					},
+				},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(1),
+			},
+			{
+				name: "Multiple presets - With Overlapping Matching Parameters",
+				presets: []*proto.Preset{
+					{
+						Name: "preset1",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "expectedValue1"},
+							{Name: "param2", Value: "expectedValue2"},
+						},
+					},
+					{
+						Name: "preset2",
+						Parameters: []*proto.PresetParameter{
+							{Name: "param1", Value: "incorrectValue1"},
+							{Name: "param2", Value: "incorrectValue2"},
+						},
+					},
+				},
+				templateVersionParameters: templateVersionParameters,
+				selectedPresetIndex:       ptr.Ref(0),
+			},
+			{
+				name: "Multiple Presets - With Parameters But Not Used",
+				presets: []*proto.Preset{
+					{
+						Name:       "preset1",
+						Parameters: presetParameters[:1],
+					},
+					{
+						Name:       "preset2",
+						Parameters: presetParameters[1:2],
+					},
+				},
+				templateVersionParameters: templateVersionParameters,
+			},
+			{
+				name: "Multiple Presets - With Matching Parameters But Not Used",
+				presets: []*proto.Preset{
+					{
+						Name:       "preset1",
+						Parameters: presetParameters[:1],
+					},
+					{
+						Name:       "preset2",
+						Parameters: presetParameters[1:2],
+					},
+				},
+				templateVersionParameters: templateVersionParameters[0:2],
+			},
+		}
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		for _, tc := range testCases {
+			tc := tc // Capture range variable
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		presets, err := client.TemplateVersionPresets(ctx, version.ID)
-		require.NoError(t, err)
-		require.Equal(t, 1, len(presets))
-		require.Equal(t, "test", presets[0].Name)
+				client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				user := coderdtest.CreateFirstUser(t, client)
+				authz := coderdtest.AssertRBAC(t, api, client)
 
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
-			request.TemplateVersionPresetID = presets[0].ID
-		})
+				// Create a plan response with the specified presets and parameters
+				planResponse := &proto.Response{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Presets:    tc.presets,
+							Parameters: tc.templateVersionParameters,
+						},
+					},
+				}
 
-		authz.Reset() // Reset all previous checks done in setup.
-		ws, err := client.Workspace(ctx, workspace.ID)
-		authz.AssertChecked(t, policy.ActionRead, ws)
-		require.NoError(t, err)
-		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
-		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
-		require.Equal(t, presets[0].ID, *ws.LatestBuild.TemplateVersionPresetID)
+				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+					Parse:          echo.ParseComplete,
+					ProvisionPlan:  []*proto.Response{planResponse},
+					ProvisionApply: echo.ApplyComplete,
+				})
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		org, err := client.Organization(ctx, ws.OrganizationID)
-		require.NoError(t, err)
-		require.Equal(t, ws.OrganizationName, org.Name)
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// Check createdPresets
+				createdPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+				require.NoError(t, err)
+				require.Equal(t, len(tc.presets), len(createdPresets))
+
+				for _, createdPreset := range createdPresets {
+					presetIndex := slices.IndexFunc(tc.presets, func(expectedPreset *proto.Preset) bool {
+						return expectedPreset.Name == createdPreset.Name
+					})
+					require.NotEqual(t, -1, presetIndex, "Preset %s should be present", createdPreset.Name)
+
+					// Verify that the preset has the expected parameters
+					for _, expectedPresetParam := range tc.presets[presetIndex].Parameters {
+						paramFoundAtIndex := slices.IndexFunc(createdPreset.Parameters, func(createdPresetParam codersdk.PresetParameter) bool {
+							return expectedPresetParam.Name == createdPresetParam.Name && expectedPresetParam.Value == createdPresetParam.Value
+						})
+						require.NotEqual(t, -1, paramFoundAtIndex, "Parameter %s should be present in preset", expectedPresetParam.Name)
+					}
+				}
+
+				// Create workspace with or without preset
+				var workspace codersdk.Workspace
+				if tc.selectedPresetIndex != nil {
+					// Use the selected preset
+					workspace = coderdtest.CreateWorkspace(t, client, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+						request.TemplateVersionPresetID = createdPresets[*tc.selectedPresetIndex].ID
+					})
+				} else {
+					workspace = coderdtest.CreateWorkspace(t, client, template.ID)
+				}
+
+				// Verify workspace details
+				authz.Reset() // Reset all previous checks done in setup.
+				ws, err := client.Workspace(ctx, workspace.ID)
+				authz.AssertChecked(t, policy.ActionRead, ws)
+				require.NoError(t, err)
+				require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
+				require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
+
+				// Check that the preset ID is set if expected
+				require.Equal(t, tc.selectedPresetIndex == nil, ws.LatestBuild.TemplateVersionPresetID == nil)
+
+				if tc.selectedPresetIndex == nil {
+					// No preset selected, so no further checks are needed
+					// Pre-preset tests cover this case sufficiently.
+					return
+				}
+
+				// If we get here, we expect a preset to be selected.
+				// So we need to assert that selecting the preset had all the correct consequences.
+				require.Equal(t, createdPresets[*tc.selectedPresetIndex].ID, *ws.LatestBuild.TemplateVersionPresetID)
+
+				selectedPresetParameters := tc.presets[*tc.selectedPresetIndex].Parameters
+
+				// Get parameters that were applied to the latest workspace build
+				builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
+					WorkspaceID: ws.ID,
+				})
+				require.NoError(t, err)
+				require.Equal(t, 1, len(builds))
+				gotWorkspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, builds[0].ID)
+				require.NoError(t, err)
+
+				// Count how many parameters were set by the preset
+				parametersSetByPreset := slice.CountMatchingPairs(
+					gotWorkspaceBuildParameters,
+					selectedPresetParameters,
+					func(gotParameter codersdk.WorkspaceBuildParameter, presetParameter *proto.PresetParameter) bool {
+						namesMatch := gotParameter.Name == presetParameter.Name
+						valuesMatch := gotParameter.Value == presetParameter.Value
+						return namesMatch && valuesMatch
+					},
+				)
+
+				// Count how many parameters should have been set by the preset
+				expectedParamCount := slice.CountMatchingPairs(
+					selectedPresetParameters,
+					tc.templateVersionParameters,
+					func(presetParam *proto.PresetParameter, templateParam *proto.RichParameter) bool {
+						return presetParam.Name == templateParam.Name
+					},
+				)
+
+				// Verify that only the expected number of parameters were set by the preset
+				require.Equal(t, expectedParamCount, parametersSetByPreset,
+					"Expected %d parameters to be set, but found %d", expectedParamCount, parametersSetByPreset)
+			})
+		}
 	})
 }
 

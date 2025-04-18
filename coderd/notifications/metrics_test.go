@@ -300,9 +300,9 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	mClock.Advance(cfg.StoreSyncInterval.Value() - cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// Wait until we intercept the calls to sync the pending updates to the store.
-	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
+	success := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
 	require.EqualValues(t, 2, success)
-	failure := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateFailure)
+	failure := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, interceptor.updateFailure)
 	require.EqualValues(t, 2, failure)
 
 	// Validate that the store synced the expected number of updates.

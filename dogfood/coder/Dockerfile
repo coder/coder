@@ -9,7 +9,7 @@ RUN cargo install typos-cli watchexec-cli && \
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.1
+ARG GO_VERSION=1.24.2
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -85,7 +85,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/src
 
 # alpine:3.18
-FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto 
+FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
@@ -185,6 +185,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	sudo \
 	tcptraceroute \
 	termshark \
+	tmux \
 	traceroute \
 	unzip \
 	vim \
