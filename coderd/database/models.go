@@ -3167,6 +3167,8 @@ type TemplateVersionParameter struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
+	// Specify what form_type should be used to render the parameter in the UI. This value should correspond to an enum, but this will not be enforced in the sql. Mistakes here should not be fatal for functional usage.
+	FormType string `db:"form_type" json:"form_type"`
 }
 
 type TemplateVersionPreset struct {

@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 // All methods take in a 'seed' object. Any provided fields in the seed will be
@@ -953,6 +954,7 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 		Name:                takeFirst(orig.Name, testutil.GetRandomName(t)),
 		Description:         takeFirst(orig.Description, testutil.GetRandomName(t)),
 		Type:                takeFirst(orig.Type, "string"),
+		FormType:            takeFirst(orig.FormType, string(provider.ParameterFormTypeDefault)),
 		Mutable:             takeFirst(orig.Mutable, false),
 		DefaultValue:        takeFirst(orig.DefaultValue, testutil.GetRandomName(t)),
 		Icon:                takeFirst(orig.Icon, testutil.GetRandomName(t)),
