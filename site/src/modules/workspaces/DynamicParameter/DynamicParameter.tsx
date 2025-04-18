@@ -24,6 +24,7 @@ import {
 } from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Switch } from "components/Switch/Switch";
+import { Textarea } from "components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -175,7 +176,12 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					disabled={disabled}
 				>
 					<SelectTrigger>
-						<SelectValue placeholder="Select option" />
+						<SelectValue
+							placeholder={
+								(parameter.styling as { placeholder?: string })?.placeholder ||
+								"Select option"
+							}
+						/>
 					</SelectTrigger>
 					<SelectContent>
 						{parameter.options.map((option) => (
@@ -218,7 +224,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						onChange(JSON.stringify(values));
 					}}
 					hidePlaceholderWhenSelected
-					placeholder="Select option"
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder ||
+						"Select option"
+					}
 					emptyIndicator={
 						<p className="text-center text-md text-content-primary">
 							No results found
@@ -301,6 +310,18 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				/>
 			);
 
+		case "textarea":
+			return (
+				<Textarea
+					defaultValue={defaultValue}
+					onChange={(e) => onChange(e.target.value)}
+					disabled={disabled}
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder
+					}
+				/>
+			);
+
 		case "input": {
 			const inputType = parameter.type === "number" ? "number" : "text";
 			const inputProps: Record<string, unknown> = {};
@@ -325,7 +346,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					onChange={(e) => onChange(e.target.value)}
 					disabled={disabled}
 					placeholder={
-						(parameter.styling as { placehholder?: string })?.placehholder
+						(parameter.styling as { placeholder?: string })?.placeholder
 					}
 					{...inputProps}
 				/>
