@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
 )
 
 func TestNotifier_FetchHelpers(t *testing.T) {
@@ -21,9 +22,11 @@ func TestNotifier_FetchHelpers(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store:   dbmock,
+			ps:      psmock,
 			helpers: template.FuncMap{},
 		}
 
@@ -48,9 +51,11 @@ func TestNotifier_FetchHelpers(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store:   dbmock,
+			ps:      psmock,
 			helpers: template.FuncMap{},
 		}
 
@@ -67,9 +72,11 @@ func TestNotifier_FetchHelpers(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store:   dbmock,
+			ps:      psmock,
 			helpers: template.FuncMap{},
 		}
 
@@ -90,9 +97,11 @@ func TestNotifier_FetchAppName(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetApplicationName(gomock.Any()).Return("ACME Inc.", nil)
@@ -107,9 +116,11 @@ func TestNotifier_FetchAppName(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetApplicationName(gomock.Any()).Return("", sql.ErrNoRows)
@@ -125,9 +136,11 @@ func TestNotifier_FetchAppName(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetApplicationName(gomock.Any()).Return("", nil)
@@ -143,9 +156,11 @@ func TestNotifier_FetchAppName(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetApplicationName(gomock.Any()).Return("", xerrors.New("internal error"))
@@ -164,9 +179,11 @@ func TestNotifier_FetchLogoURL(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetLogoURL(gomock.Any()).Return("https://example.com/logo.png", nil)
@@ -181,9 +198,11 @@ func TestNotifier_FetchLogoURL(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetLogoURL(gomock.Any()).Return("", sql.ErrNoRows)
@@ -199,9 +218,11 @@ func TestNotifier_FetchLogoURL(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetLogoURL(gomock.Any()).Return("", nil)
@@ -217,9 +238,11 @@ func TestNotifier_FetchLogoURL(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		dbmock := dbmock.NewMockStore(ctrl)
+		psmock := psmock.NewMockPubsub(ctrl)
 
 		n := &notifier{
 			store: dbmock,
+			ps:    psmock,
 		}
 
 		dbmock.EXPECT().GetLogoURL(gomock.Any()).Return("", xerrors.New("internal error"))

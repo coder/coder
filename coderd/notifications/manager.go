@@ -42,6 +42,7 @@ type Manager struct {
 	cfg codersdk.NotificationsConfig
 
 	store Store
+	ps    pubsub.Pubsub
 	log   slog.Logger
 
 	notifier *notifier
@@ -93,6 +94,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub,
 		log:   log,
 		cfg:   cfg,
 		store: store,
+		ps:    ps,
 
 		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
 		//
@@ -175,7 +177,7 @@ func (m *Manager) loop(ctx context.Context) error {
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
+	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.ps, m.handlers, m.helpers, m.metrics, m.clock)
 	eg.Go(func() error {
 		return m.notifier.run(m.success, m.failure)
 	})

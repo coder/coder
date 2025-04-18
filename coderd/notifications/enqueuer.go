@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
@@ -25,6 +26,8 @@ var (
 	ErrCannotEnqueueDisabledNotification = xerrors.New("notification is not enabled")
 	ErrDuplicate                         = xerrors.New("duplicate notification")
 )
+
+const EventNotificationEnqueued = "notification_enqueued"
 
 type InvalidDefaultNotificationMethodError struct {
 	Method string
@@ -36,6 +39,7 @@ func (e InvalidDefaultNotificationMethodError) Error() string {
 
 type StoreEnqueuer struct {
 	store Store
+	ps    pubsub.Pubsub
 	log   slog.Logger
 
 	defaultMethod  database.NotificationMethod
@@ -50,7 +54,7 @@ type StoreEnqueuer struct {
 }
 
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
-func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
+func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
 	// TODO(DanielleMaywood):
 	// Currently we do not want to allow setting `inbox` as the default notification method.
@@ -63,6 +67,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 
 	return &StoreEnqueuer{
 		store:          store,
+		ps:             ps,
 		log:            log,
 		defaultMethod:  method,
 		defaultEnabled: cfg.Enabled(),
@@ -80,6 +85,13 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
 func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
+	defer func() {
+		// Publish an event to notify that a notification has been enqueued.
+		// Failure to publish is acceptable, as the fetcher will still process the
+		// message on its next run.
+		// TODO(Cian): debounce this to maybe once per second or so?
+		_ = s.ps.Publish(EventNotificationEnqueued, nil)
+	}()
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
