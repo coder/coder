@@ -28,7 +28,9 @@ type ServeOptions struct {
 	BinaryPath string
 	// CachePath must not be used by multiple processes at once.
 	CachePath string
-	Tracer    trace.Tracer
+	// CliConfigPath is the path to the Terraform CLI config file.
+	CliConfigPath string
+	Tracer        trace.Tracer
 
 	// ExitTimeout defines how long we will wait for a running Terraform
 	// command to exit (cleanly) if the provision was stopped. This
@@ -132,22 +134,24 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.ExitTimeout = unhanger.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
-		execMut:     &sync.Mutex{},
-		binaryPath:  options.BinaryPath,
-		cachePath:   options.CachePath,
-		logger:      options.Logger,
-		tracer:      options.Tracer,
-		exitTimeout: options.ExitTimeout,
+		execMut:       &sync.Mutex{},
+		binaryPath:    options.BinaryPath,
+		cachePath:     options.CachePath,
+		cliConfigPath: options.CliConfigPath,
+		logger:        options.Logger,
+		tracer:        options.Tracer,
+		exitTimeout:   options.ExitTimeout,
 	}, options.ServeOptions)
 }
 
 type server struct {
-	execMut     *sync.Mutex
-	binaryPath  string
-	cachePath   string
-	logger      slog.Logger
-	tracer      trace.Tracer
-	exitTimeout time.Duration
+	execMut       *sync.Mutex
+	binaryPath    string
+	cachePath     string
+	cliConfigPath string
+	logger        slog.Logger
+	tracer        trace.Tracer
+	exitTimeout   time.Duration
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
@@ -158,12 +162,13 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 
 func (s *server) executor(workdir string, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
-		server:     s,
-		mut:        s.execMut,
-		binaryPath: s.binaryPath,
-		cachePath:  s.cachePath,
-		workdir:    workdir,
-		logger:     s.logger.Named("executor"),
-		timings:    newTimingAggregator(stage),
+		server:        s,
+		mut:           s.execMut,
+		binaryPath:    s.binaryPath,
+		cachePath:     s.cachePath,
+		cliConfigPath: s.cliConfigPath,
+		workdir:       workdir,
+		logger:        s.logger.Named("executor"),
+		timings:       newTimingAggregator(stage),
 	}
 }
