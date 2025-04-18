@@ -70,7 +70,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 					onChange={onChangeTrimmed(form)}
 					aria-disabled={!editable}
 					autoComplete="username"
-					disabled={!editable}
+					disabled
 					fullWidth
 					label={Language.usernameLabel}
 				/>
@@ -83,13 +83,14 @@ export const AccountForm: FC<AccountFormProps> = ({
 					}}
 					label={Language.nameLabel}
 					helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
+					disabled
 				/>
 
-				<div>
+				{/*<div>
 					<LoadingButton loading={isLoading} type="submit" variant="contained">
 						{Language.updateSettings}
 					</LoadingButton>
-				</div>
+				</div>*/}
 			</FormFields>
 		</Form>
 	);

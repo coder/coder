@@ -916,6 +916,7 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 	if oidcClientID != "" {
 		q.Set("client_id", oidcClientID)
 	}
+	// post_logout_redirect_uri?
 	if logoutURI != "" {
 		q.Set("logout_uri", logoutURI)
 	}

@@ -69,7 +69,10 @@ export const LoginPage: FC = () => {
 				/>
 			);
 		}
-	}
+	} 
+	//else {
+	//	window.location.replace(`https://heaan.io`);
+	//}
 
 	if (isConfiguringTheFirstUser) {
 		return <Navigate to="/setup" replace />;

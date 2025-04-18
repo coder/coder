@@ -408,6 +408,7 @@ const WarningDialog: FC<
 
 // You can see the favicon designs here: https://www.figma.com/file/YIGBkXUcnRGz2ZKNmLaJQf/Coder-v2-Design?node-id=560%3A620
 type FaviconType =
+  "heaan"
 	| "favicon"
 	| "favicon-success"
 	| "favicon-error"
@@ -417,26 +418,26 @@ type FaviconType =
 const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
 	switch (build.status) {
 		case undefined:
-			return "favicon";
+			return "heaan";
 		case "running":
-			return "favicon-success";
+			return "heaan";
 		case "starting":
-			return "favicon-running";
+			return "heaan";
 		case "stopping":
-			return "favicon-running";
+			return "heaan";
 		case "stopped":
-			return "favicon";
+			return "heaan";
 		case "deleting":
-			return "favicon";
+			return "heaan";
 		case "deleted":
-			return "favicon";
+			return "heaan";
 		case "canceling":
-			return "favicon-warning";
+			return "heaan";
 		case "canceled":
-			return "favicon";
+			return "heaan";
 		case "failed":
-			return "favicon-error";
+			return "heaan";
 		case "pending":
-			return "favicon";
+			return "heaan";
 	}
 };
