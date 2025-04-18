@@ -1,0 +1,29 @@
+---
+# GitLab style guide substitutions - Warning level
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: warning
+ignorecase: true
+swap:
+  'back-end': 'backend'
+  'front-end': 'frontend'
+  'web site': 'website'
+  'web-site': 'website'
+  'click on': 'click'
+  'server side': 'server-side'
+  'client side': 'client-side'
+  'real-time': 'real time'
+  'repo': 'repository'
+  'utilize': 'use'
+  'execution': 'run'
+  'leverage': 'use'
+  'terminate': 'stop'
+  'abort': 'stop'
+  'kill': 'stop'
+  'implement': 'create'
+  'desire': 'want'
+  'robust': 'reliable'
+  'dropdown': 'drop-down'
+  'popup': 'pop-up'
+  'in order to': 'to'
+  'lets': 'let''s'

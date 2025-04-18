@@ -1,0 +1,22 @@
+# Linkspector configuration file
+ignore:
+  # Ignore patterns for links
+  patterns:
+    - '^\#.*'                      # Anchor links 
+    - '^mailto:.*'                 # Email links
+    - '^https?://localhost.*'      # Local development links
+    - '^https?://127\.0\.0\.1.*'   # Local development links
+    - '^https?://0\.0\.0\.0.*'     # Local development links
+    - '^file:///.*'                # Local file links
+    - '$\{.*\}'                    # Template variables
+  
+  # Ignore domains known to be valid but might fail checks
+  domains:
+    - 'github.com'
+    - 'coder.com'
+    - 'example.com'
+    - 'kubernetes.io'
+    - 'k8s.io'
+    - 'docker.com'
+    - 'terraform.io'
+    - 'hashicorp.com'

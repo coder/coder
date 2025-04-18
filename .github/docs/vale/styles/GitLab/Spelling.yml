@@ -1,0 +1,37 @@
+---
+# GitLab spelling checks aligned with their style guide
+extends: spelling
+message: "Did you mean '%s'?"
+level: error
+ignore: docs/glossary.md
+swap:
+  # Technology terms 
+  "access(?:ing|ed)? through the UI":  to use the user interface
+  "cli ?commands?": command line commands
+  "command ?line": command-line
+  "e[ -]mail": email
+  "file ?name": filename
+  "java[ -]script": JavaScript
+  "node[ .]js": Node.js
+  "on[ -]premise": on-premises
+  "pre[ -]requisite": prerequisite
+  "style[ -]guide": style guide
+  "type[ -]script": TypeScript
+  "user ?name": username
+  
+  # GitLab preferred spellings
+  "admin[ -]level": administrator-level
+  "allowlist": allow list
+  "auto[ -]devops": Auto DevOps
+  "denylist": deny list
+  "dev ?ops": DevOps
+  "down[ -]time": downtime
+  "jira": Jira
+  "k8's": Kubernetes
+  "log[ -]in": login
+  "pgp key": PGP key
+  "run[ -]book": runbook
+  "sign[ -]in": sign in
+  "ssh key": SSH key
+  "two factor": two-factor
+  "web ?hook": webhook
