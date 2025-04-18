@@ -80,11 +80,24 @@ If no tokens are available, it defaults to SSH authentication.
 
 ### OAuth (external auth)
 
-For Git providers configured with [external authentication](#configuration), Coder can use OAuth tokens for Git operations.
+For Git providers configured with [external authentication](#configuration), Coder can use OAuth tokens for Git operations over HTTPS.
+When using SSH URLs (like `git@github.com:organization/repo.git`), Coder uses SSH keys as described in the [SSH Authentication](#ssh-authentication) section instead.
 
-When Git operations require authentication, and no SSH key is configured, Coder will automatically use the appropriate external auth provider based on the repository URL.
+For Git operations over HTTPS, Coder automatically uses the appropriate external auth provider
+token based on the repository URL.
+This works through Git's `GIT_ASKPASS` mechanism, which Coder configures in each workspace.
 
-For example, if you've configured a GitHub external auth provider and attempt to clone a GitHub repository, Coder will use the OAuth token from that provider for authentication.
+To use OAuth tokens for Git authentication over HTTPS:
+
+1. Complete the OAuth authentication flow (**Login with GitHub**, **Login with GitLab**).
+1. Use HTTPS URLs when interacting with repositories (`https://github.com/organization/repo.git`).
+1. Coder automatically handles authentication. You can perform your Git operations as you normally would.
+
+Behind the scenes, Coder:
+
+- Stores your OAuth token securely in its database
+- Sets up `GIT_ASKPASS` at `/tmp/coder.<random-string>/coder` in your workspaces
+- Retrieves and injects the appropriate token when Git operations require authentication
 
 To manually access these tokens within a workspace:
 
