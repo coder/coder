@@ -244,8 +244,13 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deps := toolsdk.Deps{
-		CoderClient: client,
+	deps, err := toolsdk.NewDeps(client)
+	if err != nil {
+		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create tool dependencies",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	for {
@@ -254,10 +259,9 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			Model:    req.Model,
 			Messages: messages,
 			Tools:    tools,
-			SystemPrompt: `You are a chat assistant for Coder. You will attempt to resolve the user's
-request to the maximum utilization of your tools.
+			SystemPrompt: `You are a chat assistant for Coder - an open-source platform for creating and managing cloud development environments on any infrastructure. You are expected to be precise, concise, and helpful.
 
-Try your best to not ask the user for help - solve the task with your tools!`,
+You are running as an agent - please keep going until the user's query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved. Do NOT guess or make up an answer.`,
 		})
 		if err != nil {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{

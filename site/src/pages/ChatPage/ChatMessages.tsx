@@ -6,7 +6,7 @@ import Paper, { PaperProps } from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import { getChatMessages, getChats } from "api/queries/chats";
 import { CreateChatMessageRequest, ChatMessage } from "api/typesGenerated";
-import { FC, memo, useEffect, useRef, KeyboardEvent } from "react";
+import { FC, memo, useEffect, useRef, KeyboardEvent, useCallback } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useLocation, useParams } from "react-router-dom";
 import { ChatLandingLocationState } from "./ChatLanding";
@@ -291,7 +291,7 @@ interface ChatViewProps {
 	messages: Message[];
 	input: string;
 	handleInputChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
-	hhandleSubmit: (e?: React.FormEvent<HTMLFormElement>) => void;
+	handleSubmit: (e?: React.FormEvent<HTMLFormElement>) => void;
 	isLoading: boolean;
 	chatID: string;
 }
@@ -300,7 +300,7 @@ const ChatView: FC<ChatViewProps> = ({
 	messages, 
 	input, 
 	handleInputChange, 
-	hhandleSubmit, 
+	handleSubmit, 
 	isLoading,
 	chatID
 }) => {
@@ -322,7 +322,7 @@ const ChatView: FC<ChatViewProps> = ({
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
-			hhandleSubmit();
+			handleSubmit();
 		}
 	};
 
@@ -355,34 +355,6 @@ const ChatView: FC<ChatViewProps> = ({
 					{messages.map((message, index) => (
 						<MessageBubble key={`message-${index}`} message={message} />
 					))}
-					{isLoading && (
-						<div
-							css={{
-								display: "flex",
-								justifyContent: "flex-start",
-								maxWidth: "80%",
-								animation: `${fadeIn} 0.3s ease-out`,
-							}}
-						>
-							<Paper
-								elevation={1}
-								css={{
-									padding: theme.spacing(1.5, 2),
-									fontSize: "0.95rem",
-									backgroundColor: theme.palette.background.paper,
-									borderRadius: "16px",
-									borderBottomLeftRadius: "4px",
-									width: "auto",
-									display: "flex",
-									alignItems: "center",
-									gap: theme.spacing(1),
-									animation: `${pulseAnimation} 1.5s ease-in-out infinite`,
-								}}
-							>
-								<Loader size={20} /> Thinking...
-							</Paper>
-						</div>
-					)}
 					<div ref={messagesEndRef} />
 				</div>
 			</div>
@@ -400,7 +372,7 @@ const ChatView: FC<ChatViewProps> = ({
 			>
 				<Paper
 					component="form"
-					onSubmit={hhandleSubmit}
+					onSubmit={handleSubmit}
 					elevation={0}
 					variant="outlined"
 					css={{
@@ -481,10 +453,11 @@ export const ChatMessages: FC = () => {
 	const {
 		messages,
 		input,
-		handleInputChange,
+		handleInputChange: originalHandleInputChange,
 		handleSubmit: originalHandleSubmit,
 		isLoading,
-		setInput, 
+		setInput,
+		setMessages,
 	} = useChat({
 		id: chatID,
 		api: `/api/v2/chats/${chatID}/messages`,
@@ -502,22 +475,39 @@ export const ChatMessages: FC = () => {
 		initialInput: transferedState?.message,
 		initialMessages: messagesQuery.data as Message[] | undefined,
 	});
-    useEffect(() => {
-        // console.log(transferedState?.message, input)
-        if (transferedState?.message && input === transferedState?.message) {
-            // handleSubmit();
-        }
-    }, [transferedState?.message])
 
-	const handleSubmit = (e?: React.FormEvent<HTMLFormElement>) => {
-		if (e) e.preventDefault(); 
-		if (!input.trim()) return; 
-		originalHandleSubmit(); 
-		setInput(''); 
-	};
+	// Update messages from query data when it loads
+	useEffect(() => {
+		if (messagesQuery.data && messages.length === 0) {
+			setMessages(messagesQuery.data as Message[]);
+		}
+	}, [messagesQuery.data, messages.length, setMessages]);
+
+	// Wrap handlers in useCallback
+	const handleInputChange = useCallback(originalHandleInputChange, [originalHandleInputChange]);
+
+	const handleSubmitCallback = useCallback((e?: React.FormEvent<HTMLFormElement>) => {
+		if (e) e.preventDefault();
+		if (!input.trim()) return;
+		originalHandleSubmit();
+		setInput(''); // Clear input after submit
+	}, [input, originalHandleSubmit, setInput]);
+
+	// Clear input and potentially submit on initial load with message
+	useEffect(() => {
+		if (transferedState?.message && input === transferedState.message) {
+			// Prevent submitting if messages already exist (e.g., browser back/forward)
+			if (messages.length === (messagesQuery.data?.length ?? 0)) {
+				handleSubmitCallback(); // Use the correct callback name
+			}
+			// Clear the state to prevent re-submission on subsequent renders/navigation
+			window.history.replaceState({}, document.title);
+		}
+	}, [transferedState?.message, input, handleSubmitCallback, messages.length, messagesQuery.data?.length]); // Use the correct callback name
 
 	useEffect(() => {
 		if (transferedState?.message) {
+			// Logic potentially related to transferedState can go here if needed,
 		}
 	}, [transferedState?.message]);
 
@@ -536,7 +526,7 @@ export const ChatMessages: FC = () => {
 			messages={messages}
 			input={input}
 			handleInputChange={handleInputChange}
-			hhandleSubmit={handleSubmit}
+			handleSubmit={handleSubmitCallback}
 			isLoading={isLoading}
 		/>
 	);
