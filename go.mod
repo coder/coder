@@ -91,8 +91,8 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4
-	github.com/charmbracelet/glamour v0.9.1
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/glamour v0.10.0
+	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/chromedp/cdproto v0.0.0-20250319231242-a755498943c8
 	github.com/chromedp/chromedp v0.13.3
 	github.com/cli/safeexec v1.0.1
@@ -481,7 +481,7 @@ require github.com/SherClockHolmes/webpush-go v1.4.0
 
 require (
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
-	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
+	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250223041408-d3c622f1b874 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
@@ -507,6 +507,7 @@ require (
 	github.com/aquasecurity/trivy v0.58.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
