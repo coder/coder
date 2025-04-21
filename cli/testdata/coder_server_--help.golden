@@ -586,6 +586,9 @@ OIDC OPTIONS:
       --oidc-username-field string, $CODER_OIDC_USERNAME_FIELD (default: preferred_username)
           OIDC claim field to use as the username.
 
+      --oidc-logout-redirect-uri string, $CODER_OIDC_LOGOUT_URI
+          OIDC redirect URI after logout.
+
       --oidc-sign-in-text string, $CODER_OIDC_SIGN_IN_TEXT (default: OpenID Connect)
           The text to show on the OpenID Connect sign in button.
 

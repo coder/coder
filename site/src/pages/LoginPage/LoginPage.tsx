@@ -69,6 +69,9 @@ export const LoginPage: FC = () => {
 				/>
 			);
 		}
+	} else {
+		window.location.replace(`https://heaan.io`);
+		return null;
 	}
 
 	if (isConfiguringTheFirstUser) {

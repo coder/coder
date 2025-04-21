@@ -337,6 +337,38 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Returns URL for the OIDC logout
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/oidc-logout \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/oidc-logout`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "oidc_logout_url": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description                                  | Schema                                                               |
+|--------|---------------------------------------------------------|----------------------------------------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns a map containing the OIDC logout URL | [codersdk.OIDCLogoutResponse](schemas.md#codersdkoidclogoutresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+>>>>>>> c0bbf7105 (chore: add auto generated files)
 ## OpenID Connect Callback
 
 ### Code samples

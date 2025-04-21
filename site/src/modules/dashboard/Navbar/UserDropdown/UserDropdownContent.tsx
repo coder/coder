@@ -95,7 +95,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				<span css={styles.menuItemText}>{Language.signOutLabel}</span>
 			</MenuItem>
 
-			{supportLinks && (
+			{/*{supportLinks && (
 				<>
 					<Divider />
 					{supportLinks.map((link) => (
@@ -113,7 +113,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						</a>
 					))}
 				</>
-			)}
+			)}*/}
 
 			<Divider css={{ marginBottom: "0 !important" }} />
 
