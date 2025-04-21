@@ -164,7 +164,8 @@ Use `ping` in a Command Prompt or PowerShell terminal to verify the connection t
 
 ## Sync a local directory with your workspace
 
-If you're working offline or adding screenshots to your documentation, Coder Desktop file sync can make it easier to move files to your workspace.
+Coder Desktop file sync provides bidirectional synchronization between a local directory and your workspace.
+You can work offline, add screenshots to documentation, or use local development tools while keeping your files in sync with your workspace.
 
 1. Create a new local directory.
 
@@ -181,6 +182,11 @@ If you're working offline or adding screenshots to your documentation, Coder Des
 1. File sync clones your workspace directory to your local directory, then watches for changes:
 
    ![Coder Desktop File Sync watching](../../images/user-guides/desktop/coder-desktop-file-sync-watching.png)
+
+File sync excludes version control system directories like `.git/` from synchronization, so keep your Git-cloned repository wherever you run Git commands.
+This means that if you use an IDE with a built-in terminal to edit files on your remote workspace, that should be the Git clone and your local directory should be for file syncs.
+
+If you encounter a synchronization conflict, delete the conflicting file that contains changes you don't want to keep.
 
 ## Accessing web apps in a secure browser context
 
