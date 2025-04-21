@@ -921,8 +921,8 @@ github.com/coder/tailscale v1.1.1-0.20250410041146-e62bfe0e9301 h1:RMo8EZAMYnM9+
 github.com/coder/tailscale v1.1.1-0.20250410041146-e62bfe0e9301/go.mod h1:1ggFFdHTRjPRu9Yc1yA7nVHBYB50w9Ce7VIXNqcW6Ko=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
-github.com/coder/terraform-provider-coder/v2 v2.4.0-pre0 h1:NPt2+FVr+2QJoxrta5ZwyTaxocWMEKdh2WpIumffxfM=
-github.com/coder/terraform-provider-coder/v2 v2.4.0-pre0/go.mod h1:X28s3rz+aEM5PkBKvk3xcUrQFO2eNPjzRChUg9wb70U=
+github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1 h1:jdpJAMk5EtkOmQFs9+hFC8eRxiEdrTrzwAzepiIejto=
+github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1/go.mod h1:qKLEgjP/F5CPNEdvXJI+2ajaKBpK9lb/1HnH21wlCG0=
 github.com/coder/trivy v0.0.0-20250409153844-e6b004bc465a h1:yryP7e+IQUAArlycH4hQrjXQ64eRNbxsV5/wuVXHgME=
 github.com/coder/trivy v0.0.0-20250409153844-e6b004bc465a/go.mod h1:dDvq9axp3kZsT63gY2Znd1iwzfqDq3kXbQnccIrjRYY=
 github.com/coder/websocket v1.8.13 h1:f3QZdXy7uGVz+4uCJy2nTZyM0yTBj8yANEHhqlXZ9FE=
