@@ -634,9 +634,10 @@ func createWorkspace(
 	}
 
 	var (
-		provisionerJob     *database.ProvisionerJob
-		workspaceBuild     *database.WorkspaceBuild
-		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		provisionerJob       *database.ProvisionerJob
+		workspaceBuild       *database.WorkspaceBuild
+		provisionerDaemons   []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		agentTokensByAgentID map[uuid.UUID]string
 	)
 
 	err = api.Database.InTx(func(db database.Store) error {
@@ -683,6 +684,14 @@ func createWorkspace(
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
 			initiatorID = prebuildsClaimer.Initiator()
+			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, claimedWorkspace.ID)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
+					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
+			}
+			for _, agent := range agents {
+				agentTokensByAgentID[agent.ID] = agent.AuthToken.String()
+			}
 		}
 
 		// We have to refetch the workspace for the joined in fields.
@@ -698,7 +707,7 @@ func createWorkspace(
 			Initiator(initiatorID).
 			ActiveVersion().
 			RichParameterValues(req.RichParameterValues).
-			TemplateVersionPresetID(req.TemplateVersionPresetID)
+			RunningAgentAuthTokens(agentTokensByAgentID)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

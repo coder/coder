@@ -470,6 +470,38 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace agent reinitialization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/reinit`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "message": "string",
+  "reason": "prebuild_claimed"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ReinitializationResponse](schemas.md#agentsdkreinitializationresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent by ID
 
 ### Code samples

@@ -261,6 +261,17 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	// TODO: defunct?
+	// var isPrebuild bool
+	// for _, v := range env {
+	// 	if envName(v) == provider.IsPrebuildEnvironmentVariable() && envVar(v) == "true" {
+	// 		isPrebuild = true
+	// 		break
+	// 	}
+	// }
+
+	// _ = isPrebuild
+
 	planfilePath := getPlanFilePath(e.workdir)
 	args := []string{
 		"plan",

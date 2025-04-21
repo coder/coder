@@ -76,9 +76,9 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
-	prebuild          bool
-	prebuildClaimedBy uuid.UUID
-
+	prebuild                     bool
+	prebuildClaimedBy            uuid.UUID
+	runningAgentAuthTokens       map[uuid.UUID]string
 	verifyNoLegacyParametersOnce bool
 }
 
@@ -188,6 +188,12 @@ func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
 
 func (b Builder) UsingDynamicParameters() Builder {
 	b.dynamicParametersEnabled = true
+	return b
+}
+
+func (b Builder) RunningAgentAuthTokens(tokens map[uuid.UUID]string) Builder {
+	// nolint: revive
+	b.runningAgentAuthTokens = tokens
 	return b
 }
 
@@ -322,10 +328,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID:      workspaceBuildID,
-		LogLevel:              b.logLevel,
-		IsPrebuild:            b.prebuild,
-		PrebuildClaimedByUser: b.prebuildClaimedBy,
+		WorkspaceBuildID:       workspaceBuildID,
+		LogLevel:               b.logLevel,
+		IsPrebuild:             b.prebuild,
+		PrebuildClaimedByUser:  b.prebuildClaimedBy,
+		RunningAgentAuthTokens: b.runningAgentAuthTokens,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{

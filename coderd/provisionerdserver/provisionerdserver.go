@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
@@ -617,6 +619,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		runningAgentAuthTokens := []*sdkproto.RunningAgentAuthToken{}
+		for agentID, token := range input.RunningAgentAuthTokens {
+			runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+				AgentId: agentID.String(),
+				Token:   token,
+			})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:      workspaceBuild.ID.String(),
@@ -646,6 +656,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					IsPrebuild:                    input.IsPrebuild,
+					RunningAgentAuthTokens:        runningAgentAuthTokens,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1733,6 +1744,17 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
+
+		if input.PrebuildClaimedByUser != uuid.Nil {
+			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
+			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
+				slog.F("user", input.PrebuildClaimedByUser.String()),
+				slog.F("workspace_id", workspace.ID),
+				slog.F("channel", channel))
+			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimedByUser.String())); err != nil {
+				s.Logger.Error(ctx, "failed to publish message to workspace agent to pull new manifest", slog.Error(err))
+			}
+		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {
 			s.Logger.Info(ctx, "inserting template dry-run job resource",
@@ -2476,6 +2498,13 @@ type WorkspaceProvisionJob struct {
 	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
 	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
 	LogLevel              string    `json:"log_level,omitempty"`
+	// RunningAgentAuthTokens is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
+	// but not generate new agent tokens. The provisionerdserver will retrieve these tokens and push them down to
+	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where they will be
+	// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
+	// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
+	// obviating the whole point of the prebuild.
+	RunningAgentAuthTokens map[uuid.UUID]string `json:"running_agent_auth_tokens"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

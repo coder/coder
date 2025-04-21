@@ -272,8 +272,22 @@ func provisionEnv(
 	)
 	if metadata.GetIsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	} else {
+		// TODO: provide an agentID to these functions so that we provide the right token
+		// for single agent support, we use the zero value "" as the agentID
+		// TODO: looks like we only provide agent tokens for reinit if metadata.GetIsPrebuild() is false
+		// check this for consistency wherever else we use the isPrebuild attribute from the Proto and where we use the env derived from it.
+		const singleAgentID = ""
+		tokens := metadata.GetRunningAgentAuthTokens()
+		var token string
+		for _, t := range tokens {
+			if t.AgentId == singleAgentID {
+				token = t.Token
+				break
+			}
+		}
+		env = append(env, provider.RunningAgentTokenEnvironmentVariable(singleAgentID)+"="+token)
 	}
-
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
