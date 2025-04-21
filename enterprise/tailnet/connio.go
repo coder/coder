@@ -221,7 +221,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 					slog.F("dst", dst.String()),
 				)
 				_ = c.Enqueue(&proto.CoordinateResponse{
-					Error: fmt.Sprintf("you do not share a tunnel with %q", dst.String()),
+					Error: fmt.Sprintf("%s: you do not share a tunnel with %q", agpl.ReadyForHandshakeError, dst.String()),
 				})
 				return nil
 			}

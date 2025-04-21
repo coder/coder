@@ -27,6 +27,7 @@ const (
 	RequestBufferSize        = 32
 	CloseErrOverwritten      = "peer ID overwritten by new connection"
 	CloseErrCoordinatorClose = "coordinator closed"
+	ReadyForHandshakeError   = "ready for handshake error"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
@@ -316,7 +317,7 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 			// don't want to kill its connection.
 			select {
 			case src.resps <- &proto.CoordinateResponse{
-				Error: fmt.Sprintf("you do not share a tunnel with %q", dstID.String()),
+				Error: fmt.Sprintf("%s: you do not share a tunnel with %q", ReadyForHandshakeError, dstID.String()),
 			}:
 			default:
 				return ErrWouldBlock
