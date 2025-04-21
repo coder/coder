@@ -76,12 +76,12 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 			<Divider css={{ marginBottom: 8 }} />
 
-			<Link to="/install" css={styles.link}>
+			{/*<Link to="/install" css={styles.link}>
 				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
 					<InstallDesktopIcon css={styles.menuItemIcon} />
 					<span css={styles.menuItemText}>Install CLI</span>
 				</MenuItem>
-			</Link>
+			</Link>*/}
 
 			<Link to="/settings/account" css={styles.link}>
 				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
@@ -118,7 +118,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Divider css={{ marginBottom: "0 !important" }} />
 
 			<Stack css={styles.info} spacing={0}>
-				<Tooltip title="Browse the source code">
+				{/*<Tooltip title="Browse the source code">
 					<a
 						css={[styles.footerText, styles.buildInfo]}
 						href={buildInfo?.external_url}
@@ -127,7 +127,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					>
 						{buildInfo?.version} <LaunchIcon />
 					</a>
-				</Tooltip>
+				</Tooltip>*/}
 
 				{Boolean(buildInfo?.deployment_id) && (
 					<div
@@ -148,6 +148,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 								{buildInfo?.deployment_id}
 							</div>
 						</Tooltip>
+	
 						<CopyButton
 							text={buildInfo!.deployment_id}
 							buttonStyles={css`
@@ -163,6 +164,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					</div>
 				)}
 
+				<div css={styles.footerText}>{"© 2025 CryptoLab, Inc."}</div>
 				<div css={styles.footerText}>{Language.copyrightText}</div>
 			</Stack>
 		</div>

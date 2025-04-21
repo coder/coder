@@ -125,9 +125,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 						<TabLink to="versions" value="versions">
 							Versions
 						</TabLink>
-						<TabLink to="embed" value="embed">
+						{/*<TabLink to="embed" value="embed">
 							Embed
-						</TabLink>
+						</TabLink>*/}
 						{shouldShowInsights && (
 							<TabLink to="insights" value="insights">
 								Insights
