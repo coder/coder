@@ -690,6 +690,7 @@ export interface DeploymentValues {
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
+	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly workspace_hostname_suffix?: string;
 	readonly config?: string;
 	readonly write_config?: boolean;
@@ -773,6 +774,7 @@ export type Experiment =
 	| "example"
 	| "notifications"
 	| "web-push"
+	| "workspace-prebuilds"
 	| "workspace-usage";
 
 // From codersdk/deployment.go
@@ -887,6 +889,7 @@ export type FeatureName =
 	| "user_limit"
 	| "user_role_management"
 	| "workspace_batch_actions"
+	| "workspace_prebuilds"
 	| "workspace_proxy";
 
 export const FeatureNames: FeatureName[] = [
@@ -907,6 +910,7 @@ export const FeatureNames: FeatureName[] = [
 	"user_limit",
 	"user_role_management",
 	"workspace_batch_actions",
+	"workspace_prebuilds",
 	"workspace_proxy",
 ];
 

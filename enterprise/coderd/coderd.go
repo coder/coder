@@ -12,12 +12,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
@@ -43,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
@@ -628,6 +632,8 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+
+	PrebuildsReconciler agplprebuilds.ReconciliationOrchestrator
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -658,6 +664,13 @@ func (api *API) Close() error {
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
+
+	if api.PrebuildsReconciler != nil {
+		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
+		defer giveUp()
+		api.PrebuildsReconciler.Stop(ctx, xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
+	}
+
 	return api.AGPL.Close()
 }
 
@@ -858,6 +871,20 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				ps = portsharing.NewEnterprisePortSharer()
 			}
 			api.AGPL.PortSharer.Store(&ps)
+		}
+
+		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) || api.PrebuildsReconciler == nil {
+			reconciler, claimer := api.setupPrebuilds(enabled)
+			if api.PrebuildsReconciler != nil {
+				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
+				defer giveUp()
+				api.PrebuildsReconciler.Stop(stopCtx, xerrors.New("entitlements change"))
+			}
+
+			api.PrebuildsReconciler = reconciler
+			go reconciler.RunLoop(context.Background())
+
+			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}
 
 		// External token encryption is soft-enforced
@@ -1127,4 +1154,19 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 
 func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
+}
+
+func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
+	enabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
+	if !enabled || !entitled {
+		api.Logger.Debug(context.Background(), "prebuilds not enabled",
+			slog.F("experiment_enabled", enabled), slog.F("entitled", entitled))
+
+		return agplprebuilds.NewNoopReconciler(), agplprebuilds.DefaultClaimer
+	}
+
+	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+		api.Logger.Named("prebuilds"), quartz.NewReal())
+
+	return reconciler, prebuilds.EnterpriseClaimer{}
 }
