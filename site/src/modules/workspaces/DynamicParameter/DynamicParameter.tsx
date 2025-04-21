@@ -95,7 +95,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 				</span>
 			)}
 
-			<div className="flex flex-col w-full">
+			<div className="flex flex-col w-full gap-1">
 				<Label className="flex gap-2 flex-wrap text-sm font-medium">
 					{displayName}
 
