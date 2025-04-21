@@ -315,11 +315,12 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		case "textarea":
 			return (
 				<Textarea
+					className="max-w-2xl"
 					defaultValue={defaultValue}
 					onChange={(e) => onChange(e.target.value)}
 					onInput={(e) => {
 						const target = e.currentTarget;
-						target.style.height = "auto";
+						target.style.maxHeight = "700px";
 						target.style.height = `${target.scrollHeight}px`;
 					}}
 					disabled={disabled}
