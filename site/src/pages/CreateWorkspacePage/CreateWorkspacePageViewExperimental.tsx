@@ -33,7 +33,7 @@ import {
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import { NewFormContext } from "./CreateWorkspaceExperimentRouter";
+import { ExperimentalFormContext } from "./CreateWorkspaceExperimentRouter";
 import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
@@ -97,7 +97,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const newFormContext = useContext(NewFormContext);
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -278,11 +278,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 
-					{newFormContext && (
+					{experimentalFormContext && (
 						<Button
 							size="sm"
 							variant="subtle"
-							onClick={newFormContext.toggleOptedOut}
+							onClick={experimentalFormContext.toggleOptedOut}
 						>
 							Go back to the classic workspace creation flow
 						</Button>

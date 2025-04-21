@@ -47,7 +47,7 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
-import { NewFormContext } from "./CreateWorkspaceExperimentRouter";
+import { ExperimentalFormContext } from "./CreateWorkspaceExperimentRouter";
 import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
@@ -106,7 +106,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	onSubmit,
 	onCancel,
 }) => {
-	const newFormContext = useContext(NewFormContext);
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -221,11 +221,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{newFormContext && (
+						{experimentalFormContext && (
 							<Button
 								size="sm"
 								variant="outline"
-								onClick={newFormContext.toggleOptedOut}
+								onClick={experimentalFormContext.toggleOptedOut}
 							>
 								Try out the new workspace creation flow ✨
 							</Button>

@@ -54,13 +54,13 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		};
 
 		return (
-			<NewFormContext.Provider value={{ toggleOptedOut }}>
+			<ExperimentalFormContext.Provider value={{ toggleOptedOut }}>
 				{optOutQuery.data.optedOut ? (
 					<CreateWorkspacePage />
 				) : (
 					<CreateWorkspacePageExperimental />
 				)}
-			</NewFormContext.Provider>
+			</ExperimentalFormContext.Provider>
 		);
 	}
 
@@ -71,6 +71,6 @@ export default CreateWorkspaceExperimentRouter;
 
 const optOutKey = (id: string) => `parameters.${id}.optOut`;
 
-export const NewFormContext = createContext<
+export const ExperimentalFormContext = createContext<
 	{ toggleOptedOut: () => void } | undefined
 >(undefined);
