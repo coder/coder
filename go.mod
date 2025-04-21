@@ -490,7 +490,7 @@ require (
 require (
 	github.com/coder/preview v0.0.0-20250417203026-7edcb9e02d99
 	github.com/kylecarbs/aisdk-go v0.0.5
-	github.com/mark3labs/mcp-go v0.20.1
+	github.com/mark3labs/mcp-go v0.22.0
 )
 
 require (
