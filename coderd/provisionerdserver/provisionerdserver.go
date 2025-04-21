@@ -1415,13 +1415,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
-		err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-			JobID:      jobID,
-			CachedPlan: jobType.TemplateImport.Plan,
-			UpdatedAt:  now,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+		if len(jobType.TemplateImport.Plan) > 0 {
+			err := s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:      jobID,
+				CachedPlan: jobType.TemplateImport.Plan,
+				UpdatedAt:  now,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+			}
 		}
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
