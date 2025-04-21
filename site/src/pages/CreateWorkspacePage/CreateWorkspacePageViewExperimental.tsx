@@ -259,7 +259,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-sm mx-auto">
+			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
 				<header className="flex flex-col items-start gap-2 mt-10">
 					<div className="flex items-center gap-2">
 						<Avatar
