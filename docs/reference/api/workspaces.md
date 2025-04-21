@@ -25,6 +25,7 @@ of the template will be used.
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
+  "claim_prebuild_if_available": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -605,6 +606,7 @@ of the template will be used.
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
+  "claim_prebuild_if_available": true,
   "name": "string",
   "rich_parameter_values": [
     {

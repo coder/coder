@@ -77,7 +77,6 @@ type Builder struct {
 
 	prebuild                bool
 	prebuildClaimedBy       uuid.UUID
-	runningWorkspaceAgentID uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -183,13 +182,6 @@ func (b Builder) MarkPrebuild() Builder {
 func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
 	// nolint: revive
 	b.prebuildClaimedBy = userID
-	return b
-}
-
-// RunningWorkspaceAgentID is only used for prebuilds; see the associated field in `provisionerdserver.WorkspaceProvisionJob`.
-func (b Builder) RunningWorkspaceAgentID(id uuid.UUID) Builder {
-	// nolint: revive
-	b.runningWorkspaceAgentID = id
 	return b
 }
 
@@ -328,7 +320,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		LogLevel:                b.logLevel,
 		IsPrebuild:              b.prebuild,
 		PrebuildClaimedByUser:   b.prebuildClaimedBy,
-		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{

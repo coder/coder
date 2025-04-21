@@ -81,7 +81,6 @@ const (
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
-	FeatureWorkspacePrebuilds         FeatureName = "workspace_prebuilds"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -104,7 +103,6 @@ var FeatureNames = []FeatureName{
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
 	FeatureMultipleOrganizations,
-	FeatureWorkspacePrebuilds,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -134,7 +132,6 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
-		FeatureWorkspacePrebuilds:         true,
 	}[n]
 }
 
@@ -396,7 +393,6 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
@@ -1037,11 +1033,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Webhook",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "webhook",
-		}
-		deploymentGroupPrebuilds = serpent.Group{
-			Name:        "Workspace Prebuilds",
-			YAML:        "workspace_prebuilds",
-			Description: "Configure how workspace prebuilds behave.",
 		}
 		deploymentGroupInbox = serpent.Group{
 			Name:   "Inbox",
@@ -3038,41 +3029,6 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
-		{
-			Name:        "Reconciliation Interval",
-			Description: "How often to reconcile workspace prebuilds state.",
-			Flag:        "workspace-prebuilds-reconciliation-interval",
-			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
-			Value:       &c.Prebuilds.ReconciliationInterval,
-			Default:     (time.Second * 15).String(),
-			Group:       &deploymentGroupPrebuilds,
-			YAML:        "reconciliation_interval",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-		},
-		{
-			Name:        "Reconciliation Backoff Interval",
-			Description: "Interval to increase reconciliation backoff by when unrecoverable errors occur.",
-			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
-			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
-			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
-			Default:     (time.Second * 15).String(),
-			Group:       &deploymentGroupPrebuilds,
-			YAML:        "reconciliation_backoff_interval",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-			Hidden:      true,
-		},
-		{
-			Name:        "Reconciliation Backoff Lookback Period",
-			Description: "Interval to look back to determine number of failed builds, which influences backoff.",
-			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
-			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
-			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
-			Default:     (time.Hour).String(), // TODO: use https://pkg.go.dev/github.com/jackc/pgtype@v1.12.0#Interval
-			Group:       &deploymentGroupPrebuilds,
-			YAML:        "reconciliation_backoff_lookback_period",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-			Hidden:      true,
-		},
 		// Push notifications.
 	}
 
@@ -3298,7 +3254,6 @@ const (
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
-	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 )
@@ -3307,9 +3262,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentWorkspacePrebuilds,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

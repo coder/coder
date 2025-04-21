@@ -2473,14 +2473,7 @@ type WorkspaceProvisionJob struct {
 	DryRun                bool      `json:"dry_run"`
 	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
 	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
-	// RunningWorkspaceAgentID is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
-	// but not generate a new agent token. The provisionerdserver will retrieve this token and push it down to
-	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where it will be
-	// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
-	// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
-	// obviating the whole point of the prebuild.
-	RunningWorkspaceAgentID uuid.UUID `json:"running_workspace_agent_id"`
-	LogLevel                string    `json:"log_level,omitempty"`
+	LogLevel              string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

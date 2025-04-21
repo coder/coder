@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"net/http"
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -636,8 +638,6 @@ func createWorkspace(
 		provisionerJob     *database.ProvisionerJob
 		workspaceBuild     *database.WorkspaceBuild
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
-
-		runningWorkspaceAgentID uuid.UUID
 	)
 
 	prebuilds := (*api.PrebuildsClaimer.Load()).(prebuilds.Claimer)
@@ -685,16 +685,6 @@ func createWorkspace(
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
 			initiatorID = prebuilds.Initiator()
-			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, claimedWorkspace.ID)
-			if err != nil {
-				// TODO: comment about best-effort, workspace can be restarted if this fails...
-				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
-					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
-			}
-			if len(agents) >= 1 {
-				// TODO: handle multiple agents
-				runningWorkspaceAgentID = agents[0].ID
-			}
 		}
 
 		// We have to refetch the workspace for the joined in fields.
@@ -710,8 +700,7 @@ func createWorkspace(
 			Initiator(initiatorID).
 			ActiveVersion().
 			RichParameterValues(req.RichParameterValues).
-			TemplateVersionPresetID(req.TemplateVersionPresetID).
-			RunningWorkspaceAgentID(runningWorkspaceAgentID)
+			TemplateVersionPresetID(req.TemplateVersionPresetID)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

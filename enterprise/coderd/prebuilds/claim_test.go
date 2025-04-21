@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -21,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -129,33 +127,34 @@ func TestClaimPrebuild(t *testing.T) {
 			db, pubsub := dbtestutil.NewDB(t)
 			spy := newStoreSpy(db)
 
-			var prebuildsEntitled int64
-			if tc.entitlementEnabled {
-				prebuildsEntitled = 1
-			}
+			//var prebuildsEntitled int64
+			//if tc.entitlementEnabled {
+			//	prebuildsEntitled = 1
+			//}
 
-			client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			logger := testutil.Logger(t)
+			client, _, _, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					Database:                 spy,
 					Pubsub:                   pubsub,
 					DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
-						values.Prebuilds.ReconciliationInterval = serpent.Duration(time.Hour) // We will kick off a reconciliation manually.
-
-						if tc.experimentEnabled {
-							values.Experiments = serpent.StringArray{string(codersdk.ExperimentWorkspacePrebuilds)}
-						}
+						//values.Prebuilds.ReconciliationInterval = serpent.Duration(time.Hour) // We will kick off a reconciliation manually.
+						//
+						//if tc.experimentEnabled {
+						//	values.Experiments = serpent.StringArray{string(codersdk.ExperimentWorkspacePrebuilds)}
+						//}
 					}),
 				},
 
 				EntitlementsUpdateInterval: time.Second,
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{
-						codersdk.FeatureWorkspacePrebuilds: prebuildsEntitled,
-					},
-				},
+				//LicenseOptions: &coderdenttest.LicenseOptions{
+				//	Features: license.Features{
+				//		codersdk.FeatureWorkspacePrebuilds: prebuildsEntitled,
+				//	},
+				//},
 			})
-			reconciler := api.PrebuildsReconciler
+			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
 
 			// The entitlements will need to refresh before the reconciler is set.
 			require.Eventually(t, func() bool {
