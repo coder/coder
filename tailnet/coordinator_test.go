@@ -58,7 +58,8 @@ func TestCoordinator(t *testing.T) {
 			},
 			PreferredDerp: 10,
 		})
-		client.AssertEventuallyResponsesClosed()
+		client.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidAddressBitsError{Bits: 64}}.Error())
 	})
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
@@ -95,13 +96,13 @@ func TestCoordinator(t *testing.T) {
 		}()
 		agent := test.NewAgent(ctx, t, coordinator, "agent")
 		defer agent.Close(ctx)
+		prefix := tailnet.TailscaleServicePrefix.RandomPrefix()
 		agent.UpdateNode(&proto.Node{
-			Addresses: []string{
-				tailnet.TailscaleServicePrefix.RandomPrefix().String(),
-			},
+			Addresses:     []string{prefix.String()},
 			PreferredDerp: 10,
 		})
-		agent.AssertEventuallyResponsesClosed()
+		agent.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
 	})
 
 	t.Run("AgentWithoutClients_InvalidBits", func(t *testing.T) {
@@ -122,7 +123,8 @@ func TestCoordinator(t *testing.T) {
 			},
 			PreferredDerp: 10,
 		})
-		agent.AssertEventuallyResponsesClosed()
+		agent.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidAddressBitsError{Bits: 64}}.Error())
 	})
 
 	t.Run("AgentWithClient", func(t *testing.T) {
@@ -198,7 +200,7 @@ func TestCoordinator(t *testing.T) {
 		agent2.AssertEventuallyHasDERP(client.ID, 2)
 
 		// This original agent channels should've been closed forcefully.
-		agent1.AssertEventuallyResponsesClosed()
+		agent1.AssertEventuallyResponsesClosed(tailnet.CloseErrOverwritten)
 	})
 
 	t.Run("AgentAck", func(t *testing.T) {

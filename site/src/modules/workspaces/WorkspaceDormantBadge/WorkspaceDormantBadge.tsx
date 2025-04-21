@@ -1,8 +1,6 @@
-import AutoDeleteIcon from "@mui/icons-material/AutoDelete";
-import RecyclingIcon from "@mui/icons-material/Recycling";
 import Tooltip from "@mui/material/Tooltip";
 import type { Workspace } from "api/typesGenerated";
-import { Pill } from "components/Pill/Pill";
+import { Badge } from "components/Badge/Badge";
 import { formatDistanceToNow } from "date-fns";
 import type { FC } from "react";
 
@@ -35,9 +33,9 @@ export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
 				</>
 			}
 		>
-			<Pill role="status" icon={<AutoDeleteIcon />} type="error">
+			<Badge role="status" variant="destructive" size="xs">
 				Deletion Pending
-			</Pill>
+			</Badge>
 		</Tooltip>
 	) : (
 		<Tooltip
@@ -50,9 +48,9 @@ export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
 				</>
 			}
 		>
-			<Pill role="status" icon={<RecyclingIcon />} type="warning">
+			<Badge role="status" variant="warning" size="xs">
 				Dormant
-			</Pill>
+			</Badge>
 		</Tooltip>
 	);
 };

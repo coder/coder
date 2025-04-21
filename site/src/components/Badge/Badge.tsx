@@ -17,9 +17,12 @@ export const badgeVariants = cva(
 				default:
 					"border-transparent bg-surface-secondary text-content-secondary shadow",
 				warning:
-					"border-transparent bg-surface-orange text-content-warning shadow",
+					"border border-solid border-border-warning bg-surface-orange text-content-warning shadow",
+				destructive:
+					"border border-solid border-border-destructive bg-surface-red text-content-highlight-red shadow",
 			},
 			size: {
+				xs: "text-2xs font-regular h-5 [&_svg]:hidden rounded px-1.5",
 				sm: "text-2xs font-regular h-5.5 [&_svg]:size-icon-xs",
 				md: "text-xs font-medium [&_svg]:size-icon-sm",
 			},

@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 
 	"github.com/google/uuid"
@@ -11,6 +12,22 @@ import (
 )
 
 var legacyWorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+
+type InvalidAddressBitsError struct {
+	Bits int
+}
+
+func (e InvalidAddressBitsError) Error() string {
+	return fmt.Sprintf("invalid address bits, expected 128, got %d", e.Bits)
+}
+
+type InvalidNodeAddressError struct {
+	Addr string
+}
+
+func (e InvalidNodeAddressError) Error() string {
+	return fmt.Sprintf("invalid node address, got %s", e.Addr)
+}
 
 type CoordinateeAuth interface {
 	Authorize(ctx context.Context, req *proto.CoordinateRequest) error
@@ -61,13 +78,13 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 			}
 
 			if pre.Bits() != 128 {
-				return xerrors.Errorf("invalid address bits, expected 128, got %d", pre.Bits())
+				return InvalidAddressBitsError{pre.Bits()}
 			}
 
 			if TailscaleServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
 				CoderServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
 				legacyWorkspaceAgentIP.Compare(pre.Addr()) != 0 {
-				return xerrors.Errorf("invalid node address, got %s", pre.Addr().String())
+				return InvalidNodeAddressError{pre.Addr().String()}
 			}
 		}
 	}
@@ -104,7 +121,7 @@ func handleClientNodeRequests(req *proto.CoordinateRequest) error {
 			}
 
 			if pre.Bits() != 128 {
-				return xerrors.Errorf("invalid address bits, expected 128, got %d", pre.Bits())
+				return InvalidAddressBitsError{pre.Bits()}
 			}
 		}
 	}

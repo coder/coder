@@ -922,7 +922,7 @@ export const FeatureSets: FeatureSet[] = ["enterprise", "", "premium"];
 // From codersdk/files.go
 export const FormatZip = "zip";
 
-// From codersdk/templateversions.go
+// From codersdk/parameters.go
 export interface FriendlyDiagnostic {
 	readonly severity: PreviewDiagnosticSeverityString;
 	readonly summary: string;
@@ -1406,7 +1406,7 @@ export interface NotificationsWebhookConfig {
 	readonly endpoint: string;
 }
 
-// From codersdk/templateversions.go
+// From codersdk/parameters.go
 export interface NullHCLString {
 	readonly value: string;
 	readonly valid: boolean;

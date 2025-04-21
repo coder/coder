@@ -22,14 +22,7 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useState,
-} from "react";
+import { type FC, useCallback, useEffect, useId, useState } from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
@@ -65,6 +58,8 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>) => void;
 	startPollingExternalAuth: () => void;
+	owner: TypesGen.User;
+	setOwner: (user: TypesGen.User) => void;
 }
 
 export const CreateWorkspacePageViewExperimental: FC<
@@ -91,8 +86,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 	resetMutation,
 	sendMessage,
 	startPollingExternalAuth,
+	owner,
+	setOwner,
 }) => {
-	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -117,8 +113,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 				rich_parameter_values:
 					useValidationSchemaForDynamicParameters(parameters),
 			}),
-			enableReinitialize: true,
-			validateOnChange: false,
+			enableReinitialize: false,
+			validateOnChange: true,
 			validateOnBlur: true,
 			onSubmit: (request) => {
 				if (!hasAllRequiredExternalAuth) {
@@ -138,14 +134,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
 		form,
 		error,
-	);
-
-	const autofillByName = useMemo(
-		() =>
-			Object.fromEntries(
-				autofillParameters.map((param) => [param.name, param]),
-			),
-		[autofillParameters],
 	);
 
 	const [presetOptions, setPresetOptions] = useState([
@@ -252,7 +240,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	return (
 		<>
-			<div className="absolute sticky top-5 ml-10">
+			<div className="sticky top-5 ml-10">
 				<button
 					onClick={onCancel}
 					type="button"

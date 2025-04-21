@@ -28,11 +28,13 @@
 		--surface-grey: 240 5% 96%;
 		--surface-orange: 34 100% 92%;
 		--surface-sky: 201 94% 86%;
+		--surface-red: 0 93% 94%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
-		--border-hover: 240, 5%, 34%;
+		--border-warning: 27 96% 61%;
+		--border-hover: 240 5% 34%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
 		--highlight-purple: 262 83% 58%;
@@ -66,10 +68,12 @@
 		--surface-grey: 240 6% 10%;
 		--surface-orange: 13 81% 15%;
 		--surface-sky: 204 80% 16%;
+		--surface-red: 0 75% 15%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
+		--border-warning: 31 97% 72%;
 		--border-hover: 240, 5%, 34%;
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 252 95% 85%;
