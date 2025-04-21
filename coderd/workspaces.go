@@ -634,17 +634,17 @@ func createWorkspace(
 	}
 
 	var (
-		provisionerJob       *database.ProvisionerJob
-		workspaceBuild       *database.WorkspaceBuild
-		provisionerDaemons   []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
-		agentTokensByAgentID map[uuid.UUID]string
+		provisionerJob     *database.ProvisionerJob
+		workspaceBuild     *database.WorkspaceBuild
+		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
-			workspaceID      uuid.UUID
-			claimedWorkspace *database.Workspace
-			prebuildsClaimer = *api.PrebuildsClaimer.Load()
+			prebuildsClaimer     = *api.PrebuildsClaimer.Load()
+			workspaceID          uuid.UUID
+			claimedWorkspace     *database.Workspace
+			agentTokensByAgentID map[uuid.UUID]string
 		)
 
 		// If a template preset was chosen, try claim a prebuilt workspace.
@@ -689,6 +689,7 @@ func createWorkspace(
 				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
 					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
 			}
+			agentTokensByAgentID = make(map[uuid.UUID]string, len(agents))
 			for _, agent := range agents {
 				agentTokensByAgentID[agent.ID] = agent.AuthToken.String()
 			}
