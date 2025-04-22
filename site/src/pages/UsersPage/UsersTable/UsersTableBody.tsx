@@ -6,8 +6,6 @@ import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -23,6 +21,7 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -88,9 +87,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 				<TableLoaderSkeleton>
 					<TableRowSkeleton>
 						<TableCell>
-							<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-								<AvatarDataSkeleton />
-							</div>
+							<AvatarDataSkeleton />
 						</TableCell>
 
 						<TableCell>

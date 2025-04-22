@@ -38,8 +38,8 @@ beforeEach(() => {
 
 const renderPage = async () => {
 	renderWithOrganizationSettingsLayout(<OrganizationMembersPage />, {
-		route: `/organizations/${MockOrganization.name}/members`,
-		path: "/organizations/:organization/members",
+		route: `/organizations/${MockOrganization.name}/paginated-members`,
+		path: "/organizations/:organization/paginated-members",
 	});
 	await waitForLoaderToBeRemoved();
 };

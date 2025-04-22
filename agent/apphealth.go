@@ -167,8 +167,8 @@ func shouldStartTicker(app codersdk.WorkspaceApp) bool {
 	return app.Healthcheck.URL != "" && app.Healthcheck.Interval > 0 && app.Healthcheck.Threshold > 0
 }
 
-func healthChanged(old map[uuid.UUID]codersdk.WorkspaceAppHealth, new map[uuid.UUID]codersdk.WorkspaceAppHealth) bool {
-	for name, newValue := range new {
+func healthChanged(old map[uuid.UUID]codersdk.WorkspaceAppHealth, updated map[uuid.UUID]codersdk.WorkspaceAppHealth) bool {
+	for name, newValue := range updated {
 		oldValue, found := old[name]
 		if !found {
 			return true

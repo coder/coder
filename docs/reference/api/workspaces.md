@@ -34,6 +34,7 @@ of the template will be used.
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "ttl_ms": 0
 }
 ```
@@ -67,6 +68,18 @@ of the template will be used.
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
+  "latest_app_status": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "needs_user_attention": true,
+    "state": "working",
+    "uri": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
   "latest_build": {
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
@@ -141,6 +154,20 @@ of the template will be used.
                 "open_in": "slim-window",
                 "sharing_level": "owner",
                 "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
                 "subdomain": true,
                 "subdomain_name": "string",
                 "url": "string"
@@ -239,6 +266,7 @@ of the template will be used.
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -317,6 +345,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
+  "latest_app_status": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "needs_user_attention": true,
+    "state": "working",
+    "uri": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
   "latest_build": {
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
@@ -391,6 +431,20 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "open_in": "slim-window",
                 "sharing_level": "owner",
                 "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
                 "subdomain": true,
                 "subdomain_name": "string",
                 "url": "string"
@@ -489,6 +543,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -559,6 +614,7 @@ of the template will be used.
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "ttl_ms": 0
 }
 ```
@@ -591,6 +647,18 @@ of the template will be used.
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
+  "latest_app_status": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "needs_user_attention": true,
+    "state": "working",
+    "uri": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
   "latest_build": {
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
@@ -665,6 +733,20 @@ of the template will be used.
                 "open_in": "slim-window",
                 "sharing_level": "owner",
                 "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
                 "subdomain": true,
                 "subdomain_name": "string",
                 "url": "string"
@@ -763,6 +845,7 @@ of the template will be used.
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -844,6 +927,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_used_at": "2019-08-24T14:15:22Z",
+      "latest_app_status": {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "created_at": "2019-08-24T14:15:22Z",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message": "string",
+        "needs_user_attention": true,
+        "state": "working",
+        "uri": "string",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+      },
       "latest_build": {
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
@@ -914,6 +1009,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "open_in": "slim-window",
                     "sharing_level": "owner",
                     "slug": "string",
+                    "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
                     "url": "string"
@@ -1012,6 +1108,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "status": "pending",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
+        "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
         "transition": "start",
         "updated_at": "2019-08-24T14:15:22Z",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -1091,6 +1188,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
+  "latest_app_status": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "needs_user_attention": true,
+    "state": "working",
+    "uri": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
   "latest_build": {
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
@@ -1165,6 +1274,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "open_in": "slim-window",
                 "sharing_level": "owner",
                 "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
                 "subdomain": true,
                 "subdomain_name": "string",
                 "url": "string"
@@ -1263,6 +1386,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -1457,6 +1581,18 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
+  "latest_app_status": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "needs_user_attention": true,
+    "state": "working",
+    "uri": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
   "latest_build": {
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
@@ -1531,6 +1667,20 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "open_in": "slim-window",
                 "sharing_level": "owner",
                 "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
                 "subdomain": true,
                 "subdomain_name": "string",
                 "url": "string"
@@ -1629,6 +1779,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -1977,5 +2128,43 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 | Status | Meaning                                                 | Description | Schema                                           |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Watch workspace by ID via WebSockets
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/watch-ws`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "data": null,
+  "type": "ping"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

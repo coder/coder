@@ -1,14 +1,14 @@
 {
 	// For info about snippets, visit https://code.visualstudio.com/docs/editor/userdefinedsnippets
+    // https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts
 
-    "admonition": {
-        "prefix": "#callout",
+	"alert": {
+        "prefix": "#alert",
         "body": [
-            "<blockquote class=\"admonition ${1|caution,important,note,tip,warning|}\">\n",
-            "${TM_SELECTED_TEXT:${2:add info here}}\n",
-            "</blockquote>\n"
+            "> [!${1|CAUTION,IMPORTANT,NOTE,TIP,WARNING|}]",
+            "> ${TM_SELECTED_TEXT:${2:add info here}}\n"
         ],
-        "description": "callout admonition caution info note tip warning"
+        "description": "callout admonition caution important note tip warning"
     },
 	"fenced code block": {
 		"prefix": "#codeblock",
@@ -23,9 +23,8 @@
 	"premium-feature": {
 		"prefix": "#premium-feature",
 		"body": [
-			"<blockquote class=\"info\">\n",
-			"${1:feature} ${2|is,are|} an Enterprise and Premium feature. [Learn more](https://coder.com/pricing#compare-plans).\n",
-			"</blockquote>"
+			"> [!NOTE]\n",
+			"> ${1:feature} ${2|is,are|} an Enterprise and Premium feature. [Learn more](https://coder.com/pricing#compare-plans).\n"
 		]
 	},
 	"tabs": {

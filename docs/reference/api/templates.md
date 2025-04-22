@@ -2284,6 +2284,20 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "open_in": "slim-window",
             "sharing_level": "owner",
             "slug": "string",
+            "statuses": [
+              {
+                "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                "created_at": "2019-08-24T14:15:22Z",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "message": "string",
+                "needs_user_attention": true,
+                "state": "working",
+                "uri": "string",
+                "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+              }
+            ],
             "subdomain": true,
             "subdomain_name": "string",
             "url": "string"
@@ -2411,6 +2425,17 @@ Status Code **200**
 | `»»» open_in`                   | [codersdk.WorkspaceAppOpenIn](schemas.md#codersdkworkspaceappopenin)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
+| `»»» statuses`                  | array                                                                                                  | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
+| `»»»» agent_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» app_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» icon`                     | string                                                                                                 | false    |              | Deprecated: This field is unused and will be removed in a future version. Icon is an external URL to an icon that will be rendered in the UI.                                                                                                  |
+| `»»»» id`                       | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» message`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» needs_user_attention`     | boolean                                                                                                | false    |              | Deprecated: This field is unused and will be removed in a future version. NeedsUserAttention specifies whether the status needs user attention.                                                                                                |
+| `»»»» state`                    | [codersdk.WorkspaceAppStatusState](schemas.md#codersdkworkspaceappstatusstate)                         | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» uri`                      | string                                                                                                 | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file                                                                                                                     |
+| `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `»»» subdomain_name`            | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
@@ -2492,6 +2517,9 @@ Status Code **200**
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
 | `sharing_level`           | `public`           |
+| `state`                   | `working`          |
+| `state`                   | `complete`         |
+| `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |
 | `lifecycle_state`         | `starting`         |
 | `lifecycle_state`         | `start_timeout`    |
@@ -2777,6 +2805,20 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "open_in": "slim-window",
             "sharing_level": "owner",
             "slug": "string",
+            "statuses": [
+              {
+                "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                "created_at": "2019-08-24T14:15:22Z",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "message": "string",
+                "needs_user_attention": true,
+                "state": "working",
+                "uri": "string",
+                "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+              }
+            ],
             "subdomain": true,
             "subdomain_name": "string",
             "url": "string"
@@ -2904,6 +2946,17 @@ Status Code **200**
 | `»»» open_in`                   | [codersdk.WorkspaceAppOpenIn](schemas.md#codersdkworkspaceappopenin)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
+| `»»» statuses`                  | array                                                                                                  | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
+| `»»»» agent_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» app_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» icon`                     | string                                                                                                 | false    |              | Deprecated: This field is unused and will be removed in a future version. Icon is an external URL to an icon that will be rendered in the UI.                                                                                                  |
+| `»»»» id`                       | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» message`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» needs_user_attention`     | boolean                                                                                                | false    |              | Deprecated: This field is unused and will be removed in a future version. NeedsUserAttention specifies whether the status needs user attention.                                                                                                |
+| `»»»» state`                    | [codersdk.WorkspaceAppStatusState](schemas.md#codersdkworkspaceappstatusstate)                         | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» uri`                      | string                                                                                                 | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file                                                                                                                     |
+| `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `»»» subdomain_name`            | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
@@ -2985,6 +3038,9 @@ Status Code **200**
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
 | `sharing_level`           | `public`           |
+| `state`                   | `working`          |
+| `state`                   | `complete`         |
+| `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |
 | `lifecycle_state`         | `starting`         |
 | `lifecycle_state`         | `start_timeout`    |
@@ -3241,5 +3297,32 @@ Status Code **200**
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Open dynamic parameters WebSocket by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/templateversions/{templateversion}/parameters \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/templateversions/{templateversion}/parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `user`            | path | string(uuid) | true     | Template version ID |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

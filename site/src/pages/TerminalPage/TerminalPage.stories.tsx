@@ -4,7 +4,7 @@ import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { permissionChecks } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -14,9 +14,11 @@ import {
 	MockAuthMethodsAll,
 	MockBuildInfo,
 	MockDefaultOrganization,
+	MockDeploymentConfig,
 	MockEntitlements,
 	MockExperiments,
 	MockUser,
+	MockUserAppearanceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
@@ -76,13 +78,28 @@ const meta = {
 				key: getAuthorizationKey({ checks: permissionChecks }),
 				data: { editWorkspaceProxies: true },
 			},
+			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
+			{
+				key: ["deployment", "config"],
+				data: {
+					...MockDeploymentConfig,
+					config: {
+						...MockDeploymentConfig.config,
+						web_terminal_renderer: "canvas",
+					},
+				},
+			},
 		],
-		chromatic: { delay: 300 },
+		chromatic: {
+			diffThreshold: 0.5,
+		},
 	},
 	decorators: [
 		(Story) => (
 			<AuthProvider>
-				<Story />
+				<div style={{ width: 1170, height: 880 }}>
+					<Story />
+				</div>
 			</AuthProvider>
 		),
 	],
@@ -103,6 +120,38 @@ export const Starting: Story = {
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("starting")],
+	},
+};
+
+export const FontFiraCode: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				// Copied and pasted this from browser
+				data: "[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗",
+			},
+		],
+		queries: [
+			...meta.parameters.queries.filter(
+				(q) =>
+					!(
+						Array.isArray(q.key) &&
+						q.key[0] === "me" &&
+						q.key[1] === "appearance"
+					),
+			),
+			{
+				key: ["me", "appearance"],
+				data: {
+					...MockUserAppearanceSettings,
+					terminal_font: "fira-code",
+				},
+			},
+			createWorkspaceWithAgent("ready"),
+		],
 	},
 };
 

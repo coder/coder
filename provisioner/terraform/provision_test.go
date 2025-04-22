@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -119,10 +118,6 @@ func sendApply(sess proto.DRPCProvisioner_SessionClient, transition proto.Worksp
 // one process tries to do this simultaneously, it can cause "text file busy"
 // nolint: paralleltest
 func TestProvision_Cancel(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses interrupts and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel.sh")
@@ -215,10 +210,6 @@ func TestProvision_Cancel(t *testing.T) {
 // one process tries to do this, it can cause "text file busy"
 // nolint: paralleltest
 func TestProvision_CancelTimeout(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses interrupts and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel_hang.sh")
@@ -278,10 +269,6 @@ func TestProvision_CancelTimeout(t *testing.T) {
 // terraform-provider-coder
 // nolint: paralleltest
 func TestProvision_TextFileBusy(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses unix sockets and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_text_file_busy.sh")
@@ -807,6 +794,44 @@ func TestProvision(t *testing.T) {
 					}, {
 						Key:   "rbac_roles_org_id",
 						Value: "",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "is-prebuild",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "2.3.0-pre2"
+					  }
+					}
+				}
+				data "coder_workspace" "me" {}
+				resource "null_resource" "example" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "is_prebuild"
+						value = data.coder_workspace.me.is_prebuild
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					IsPrebuild: true,
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "is_prebuild",
+						Value: "true",
 					}},
 				}},
 			},

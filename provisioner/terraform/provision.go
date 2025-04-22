@@ -156,6 +156,7 @@ func (s *server) Plan(
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
+	env = otelEnvInject(ctx, env)
 
 	vars, err := planVars(request)
 	if err != nil {
@@ -208,6 +209,7 @@ func (s *server) Apply(
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
 	}
+	env = otelEnvInject(ctx, env)
 	resp, err := e.apply(
 		ctx, killCtx, env, sess,
 	)
@@ -268,6 +270,10 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
+	if metadata.GetIsPrebuild() {
+		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	}
+
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}

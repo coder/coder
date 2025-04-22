@@ -32,7 +32,8 @@ site/e2e/.auth.json
 site/playwright-report/*
 site/.swc
 
-# Make target for updating golden files (any dir).
+# Make target for updating generated/golden files (any dir).
+.gen
 .gen-golden
 
 # Build
@@ -78,3 +79,6 @@ result
 
 # Zed
 .zed_server
+
+# dlv debug binaries for go tests
+__debug_bin*

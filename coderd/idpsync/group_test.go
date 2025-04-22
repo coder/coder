@@ -872,7 +872,7 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 	}
 }
 
-func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
+func (o *orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
 	t.Helper()
 
 	ctx := context.Background()

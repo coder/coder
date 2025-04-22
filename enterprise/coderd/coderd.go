@@ -71,6 +71,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 	if options.ReplicaErrorGracePeriod == 0 {
 		// This will prevent the error from being shown for a minute
@@ -467,16 +470,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
-		r.Route("/integrations", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				api.jfrogEnabledMW,
-			)
-
-			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
-			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
-		})
-
 		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
 		// Additionally, because we have a static route for /notifications/templates/system which conflicts
 		// with the below route, we need to register this route without any mounts or groups to make both work.
@@ -529,8 +522,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
-		ID:             api.AGPL.ID,
-		RelayAddress:   options.DERPServerRelayAddress,
+		ID:           api.AGPL.ID,
+		RelayAddress: options.DERPServerRelayAddress,
+		// #nosec G115 - DERP region IDs are small and fit in int32
 		RegionID:       int32(options.DERPServerRegionID),
 		TLSConfig:      meshTLSConfig,
 		UpdateInterval: options.ReplicaSyncUpdateInterval,

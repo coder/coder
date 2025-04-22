@@ -121,6 +121,7 @@ type Manifest struct {
 	DisableDirectConnections bool                                         `json:"disable_direct_connections"`
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
+	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
 }
 
 type LogSource struct {
@@ -570,6 +571,30 @@ type PatchLogs struct {
 // Deprecated: use the DRPCAgentClient.BatchCreateLogs instead
 func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/logs", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// PatchAppStatus updates the status of a workspace app.
+type PatchAppStatus struct {
+	AppSlug string                           `json:"app_slug"`
+	State   codersdk.WorkspaceAppStatusState `json:"state"`
+	Message string                           `json:"message"`
+	URI     string                           `json:"uri"`
+	// Deprecated: this field is unused and will be removed in a future version.
+	Icon string `json:"icon"`
+	// Deprecated: this field is unused and will be removed in a future version.
+	NeedsUserAttention bool `json:"needs_user_attention"`
+}
+
+func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
+	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/app-status", req)
 	if err != nil {
 		return err
 	}

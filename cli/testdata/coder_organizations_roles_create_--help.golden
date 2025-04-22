@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations roles create [flags] <role_name>
+
+  Create a new organization custom role
+
+    - Run with an input.json file:
+  
+       $ coder organization -O <organization_name> roles create --stidin <
+  role.json
+
+OPTIONS:
+      --dry-run bool
+          Does all the work, but does not submit the final updated role.
+
+      --stdin bool
+          Reads stdin for the json role definition to upload.
+
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

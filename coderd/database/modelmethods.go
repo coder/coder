@@ -160,6 +160,7 @@ func (t Template) DeepCopy() Template {
 func (t Template) AutostartAllowedDays() uint8 {
 	// Just flip the binary 0s to 1s and vice versa.
 	// There is an extra day with the 8th bit that needs to be zeroed.
+	// #nosec G115 - Safe conversion for AutostartBlockDaysOfWeek which is 7 bits
 	return ^uint8(t.AutostartBlockDaysOfWeek) & 0b01111111
 }
 
@@ -253,6 +254,10 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 }
 
 func (m OrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
+}
+
+func (m PaginatedOrganizationMembersRow) RBACObject() rbac.Object {
 	return m.OrganizationMember.RBACObject()
 }
 
@@ -419,6 +424,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 			AvatarURL:      r.AvatarURL,
 			Deleted:        r.Deleted,
 			LastSeenAt:     r.LastSeenAt,
+			IsSystem:       r.IsSystem,
 		}
 	}
 

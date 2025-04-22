@@ -4,12 +4,6 @@ import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
 import {
 	addMember,
@@ -38,8 +32,20 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	PaginationStatus,
 	TableToolbar,
@@ -104,14 +110,18 @@ export const GroupPage: FC = () => {
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title={groupData?.display_name || groupData?.name}
-					description="Manage members for this group."
-				/>
+				<SettingsHeader>
+					<SettingsHeaderTitle>
+						{groupData?.display_name || groupData?.name || "Unknown Group"}
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Manage members for this group.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
 						<Button
-							role="button"
 							component={RouterLink}
 							startIcon={<SettingsOutlined />}
 							to="settings"
@@ -160,53 +170,51 @@ export const GroupPage: FC = () => {
 					/>
 				</TableToolbar>
 
-				<TableContainer>
-					<Table>
-						<TableHead>
-							<TableRow>
-								<TableCell width="59%">User</TableCell>
-								<TableCell width="40">Status</TableCell>
-								<TableCell width="1%" />
-							</TableRow>
-						</TableHead>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-2/5">User</TableHead>
+							<TableHead className="w-3/5">Status</TableHead>
+							<TableHead className="w-auto" />
+						</TableRow>
+					</TableHeader>
 
-						<TableBody>
-							{groupData?.members.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState
-											message="No members yet"
-											description="Add a member using the controls above"
-										/>
-									</TableCell>
-								</TableRow>
-							) : (
-								groupData?.members.map((member) => (
-									<GroupMemberRow
-										member={member}
-										group={groupData}
-										key={member.id}
-										canUpdate={canUpdateGroup}
-										onRemove={async () => {
-											try {
-												await removeMemberMutation.mutateAsync({
-													groupId: groupData.id,
-													userId: member.id,
-												});
-												await groupQuery.refetch();
-												displaySuccess("Member removed successfully.");
-											} catch (error) {
-												displayError(
-													getErrorMessage(error, "Failed to remove member."),
-												);
-											}
-										}}
+					<TableBody>
+						{groupData?.members.length === 0 ? (
+							<TableRow>
+								<TableCell colSpan={999}>
+									<EmptyState
+										message="No members yet"
+										description="Add a member using the controls above"
 									/>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</TableContainer>
+								</TableCell>
+							</TableRow>
+						) : (
+							groupData?.members.map((member) => (
+								<GroupMemberRow
+									member={member}
+									group={groupData}
+									key={member.id}
+									canUpdate={canUpdateGroup}
+									onRemove={async () => {
+										try {
+											await removeMemberMutation.mutateAsync({
+												groupId: groupData.id,
+												userId: member.id,
+											});
+											await groupQuery.refetch();
+											displaySuccess("Member removed successfully.");
+										} catch (error) {
+											displayError(
+												getErrorMessage(error, "Failed to remove member."),
+											);
+										}
+									}}
+								/>
+							))
+						)}
+					</TableBody>
+				</Table>
 			</Stack>
 
 			{groupQuery.data && (
@@ -302,7 +310,13 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 		<TableRow key={member.id}>
 			<TableCell width="59%">
 				<AvatarData
-					avatar={<Avatar fallback={member.username} src={member.avatar_url} />}
+					avatar={
+						<Avatar
+							size="lg"
+							fallback={member.username}
+							src={member.avatar_url}
+						/>
+					}
 					title={member.username}
 					subtitle={member.email}
 				/>

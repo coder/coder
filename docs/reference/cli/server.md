@@ -992,6 +992,17 @@ Type of auth to use when connecting to postgres. For AWS RDS, using IAM authenti
 
 Controls if the 'Secure' property is set on browser session cookies.
 
+### --samesite-auth-cookie
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>lax\|none</code>                     |
+| Environment | <code>$CODER_SAMESITE_AUTH_COOKIE</code>   |
+| YAML        | <code>networking.sameSiteAuthCookie</code> |
+| Default     | <code>lax</code>                           |
+
+Controls the 'SameSite' property is set on browser session cookies.
+
 ### --terms-of-service-url
 
 |             |                                          |
@@ -1132,6 +1143,17 @@ Specify a YAML file to load configuration from.
 | Default     | <code>coder.</code>                     |
 
 The SSH deployment prefix is used in the Host of the ssh config.
+
+### --workspace-hostname-suffix
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_WORKSPACE_HOSTNAME_SUFFIX</code> |
+| YAML        | <code>client.workspaceHostnameSuffix</code>   |
+| Default     | <code>coder</code>                            |
+
+Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.
 
 ### --ssh-config-options
 
@@ -1559,6 +1581,17 @@ Certificate key file to use.
 | YAML        | <code>notifications.webhook.endpoint</code>        |
 
 The endpoint to which to send webhooks.
+
+### --notifications-inbox-enabled
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_NOTIFICATIONS_INBOX_ENABLED</code> |
+| YAML        | <code>notifications.inbox.enabled</code>        |
+| Default     | <code>true</code>                               |
+
+Enable Coder Inbox.
 
 ### --notifications-max-send-attempts
 

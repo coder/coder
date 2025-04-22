@@ -5,10 +5,10 @@ import {
 } from "api/api";
 import type { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
-import type { Permissions } from "contexts/auth/permissions";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
-import type { OrganizationPermissions } from "modules/management/organizationPermissions";
+import type { Permissions } from "modules/permissions";
+import type { OrganizationPermissions } from "modules/permissions/organizations";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
@@ -227,6 +227,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	workspace_proxy: false,
 	upgrade_message: "My custom upgrade message",
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
+	webpush_public_key: "fake-public-key",
 	telemetry: true,
 };
 
@@ -535,6 +536,7 @@ export const SuspendedMockUser: TypesGen.User = {
 
 export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_preference: "dark",
+	terminal_font: "",
 };
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -912,6 +914,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	},
 	hidden: false,
 	open_in: "slim-window",
+	statuses: [],
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -973,6 +976,20 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
+	id: "test-app-status",
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	agent_id: "test-workspace-agent",
+	workspace_id: "test-workspace",
+	app_id: MockWorkspaceApp.id,
+	uri: "https://github.com/coder/coder/pull/1234",
+	message: "Your competitors page is completed!",
+	state: "complete",
+	// Deprecated fields
+	needs_user_attention: false,
+	icon: "",
 };
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -1250,6 +1267,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 		count: 1,
 		available: 1,
 	},
+	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
@@ -1273,6 +1291,7 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
@@ -1296,6 +1315,7 @@ export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	template_version_preset_id: null,
 };
 
 export const MockFailedWorkspaceBuild = (
@@ -1321,6 +1341,7 @@ export const MockFailedWorkspaceBuild = (
 	resources: [],
 	status: "failed",
 	daily_cost: 20,
+	template_version_preset_id: null,
 });
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -1370,6 +1391,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		healthy: true,
 		failing_agents: [],
 	},
+	latest_app_status: null,
 	automatic_updates: "never",
 	allow_renames: true,
 	favorite: false,
@@ -2844,11 +2866,9 @@ export const MockPermissions: Permissions = {
 	viewAllUsers: true,
 	updateUsers: true,
 	viewAnyAuditLog: true,
-	viewDeploymentValues: true,
-	editDeploymentValues: true,
-	viewUpdateCheck: true,
+	viewDeploymentConfig: true,
+	editDeploymentConfig: true,
 	viewDeploymentStats: true,
-	viewExternalAuthConfig: true,
 	readWorkspaceProxies: true,
 	editWorkspaceProxies: true,
 	createOrganization: true,
@@ -2873,11 +2893,9 @@ export const MockNoPermissions: Permissions = {
 	viewAllUsers: false,
 	updateUsers: false,
 	viewAnyAuditLog: false,
-	viewDeploymentValues: false,
-	editDeploymentValues: false,
-	viewUpdateCheck: false,
+	viewDeploymentConfig: false,
+	editDeploymentConfig: false,
 	viewDeploymentStats: false,
-	viewExternalAuthConfig: false,
 	readWorkspaceProxies: false,
 	editWorkspaceProxies: false,
 	createOrganization: false,
@@ -2904,6 +2922,8 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewOrgRoles: true,
 	createOrgRoles: true,
 	assignOrgRoles: true,
+	updateOrgRoles: true,
+	deleteOrgRoles: true,
 	viewProvisioners: true,
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
@@ -2920,6 +2940,8 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewOrgRoles: false,
 	createOrgRoles: false,
 	assignOrgRoles: false,
+	updateOrgRoles: false,
+	deleteOrgRoles: false,
 	viewProvisioners: false,
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
@@ -3016,6 +3038,7 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
 	hostname_prefix: " coder.",
 	ssh_config_options: {},
+	hostname_suffix: "coder",
 };
 
 export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
@@ -4243,3 +4266,78 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
 	{ available: ["smtp", "webhook"], default: "smtp" };
+
+export const MockNotification: TypesGen.InboxNotification = {
+	id: "1",
+	read_at: null,
+	content:
+		"New user account testuser has been created. This new user account was created for Test User by Kira Pilot.",
+	created_at: mockTwoDaysAgo(),
+	actions: [
+		{
+			label: "View template",
+			url: "https://dev.coder.com/templates/coder/coder",
+		},
+	],
+	user_id: MockUser.id,
+	template_id: MockTemplate.id,
+	targets: [],
+	title: "User account created",
+	icon: "DEFAULT_ICON_ACCOUNT",
+};
+
+export const MockNotifications: TypesGen.InboxNotification[] = [
+	MockNotification,
+	{ ...MockNotification, id: "2", read_at: null },
+	{ ...MockNotification, id: "3", read_at: mockTwoDaysAgo() },
+	{ ...MockNotification, id: "4", read_at: mockTwoDaysAgo() },
+	{ ...MockNotification, id: "5", read_at: mockTwoDaysAgo() },
+];
+
+function mockTwoDaysAgo() {
+	const date = new Date();
+	date.setDate(date.getDate() - 2);
+	return date.toISOString();
+}
+
+export const MockWorkspaceAgentContainerPorts: TypesGen.WorkspaceAgentContainerPort[] =
+	[
+		{
+			port: 1000,
+			network: "tcp",
+			host_port: 1000,
+			host_ip: "0.0.0.0",
+		},
+		{
+			port: 2001,
+			network: "tcp",
+			host_port: 2000,
+			host_ip: "::1",
+		},
+		{
+			port: 8888,
+			network: "tcp",
+		},
+	];
+
+export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
+	created_at: "2024-01-04T15:53:03.21563Z",
+	id: "abcd1234",
+	name: "container-1",
+	image: "ubuntu:latest",
+	labels: {
+		foo: "bar",
+	},
+	ports: [],
+	running: true,
+	status: "running",
+	volumes: {
+		"/mnt/volume1": "/volume1",
+	},
+};
+
+export const MockWorkspaceAgentListContainersResponse: TypesGen.WorkspaceAgentListContainersResponse =
+	{
+		containers: [MockWorkspaceAgentContainer],
+		warnings: ["This is a warning"],
+	};

@@ -39,9 +39,9 @@ module "git-clone" {
 }
 ```
 
-> You can edit the template using an IDE or terminal of your preference, or by
-> going into the
-> [template editor UI](../admin/templates/creating-templates.md#web-ui).
+You can edit the template using an IDE or terminal of your preference, or by
+going into the
+[template editor UI](../admin/templates/creating-templates.md#web-ui).
 
 You can also use
 [template parameters](../admin/templates/extending-templates/parameters.md) to
@@ -63,9 +63,9 @@ module "git-clone" {
 }
 ```
 
-> If you need more customization, you can read the
-> [Git Clone module](https://registry.coder.com/modules/git-clone) documentation
-> to learn more about the module.
+If you need more customization, you can read the
+[Git Clone module](https://registry.coder.com/modules/git-clone) documentation
+to learn more about the module.
 
 Don't forget to build and publish the template changes before creating a new
 workspace. You can check if the repository is cloned by accessing the workspace

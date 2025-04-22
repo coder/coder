@@ -36,9 +36,8 @@ cloud/on-premise computing, containerization, and the Coder platform.
 | Reference architectures for up to 3,000 users  | An approval of your architecture; the CVA solely provides recommendations and guidelines |
 | Best practices for building a Coder deployment | Recommendations for every possible deployment scenario                                   |
 
-> For higher level design principles and architectural best practices, see
-> Coder's
-> [Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
+For higher level design principles and architectural best practices, see Coder's
+[Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
 
 ## General concepts
 
@@ -220,6 +219,20 @@ For sizing recommendations, see the below reference architectures:
 - [Up to 2,000 users](2k-users.md)
 
 - [Up to 3,000 users](3k-users.md)
+
+### AWS Instance Types
+
+For production AWS deployments, we recommend using non-burstable instance types,
+such as `m5` or `c5`, instead of burstable instances, such as `t3`.
+Burstable instances can experience significant performance degradation once
+CPU credits are exhausted, leading to poor user experience under sustained load.
+
+| Component         | Recommended Instance Type | Reason                                                   |
+|-------------------|---------------------------|----------------------------------------------------------|
+| coderd nodes      | `m5`                      | Balanced compute and memory for API and UI serving.      |
+| Provisioner nodes | `c5`                      | Compute-optimized performance for faster builds.         |
+| Workspace nodes   | `m5`                      | Balanced performance for general development workloads.  |
+| Database nodes    | `db.m5`                   | Consistent database performance for reliable operations. |
 
 ### Networking
 

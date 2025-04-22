@@ -168,7 +168,7 @@ func TestRenderChart(t *testing.T) {
 					require.NoError(t, err, "failed to read golden file %q", goldenFilePath)
 
 					// Remove carriage returns to make tests pass on Windows.
-					goldenBytes = bytes.Replace(goldenBytes, []byte("\r"), []byte(""), -1)
+					goldenBytes = bytes.ReplaceAll(goldenBytes, []byte("\r"), []byte(""))
 					expected := string(goldenBytes)
 
 					require.NoError(t, err, "failed to load golden file %q")

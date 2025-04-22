@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/disk"
@@ -76,6 +77,7 @@ func listFiles(query LSRequest) (LSResponse, error) {
 		return LSResponse{}, xerrors.Errorf("failed to get absolute path of %q: %w", fullPathRelative, err)
 	}
 
+	// codeql[go/path-injection] - The intent is to allow the user to navigate to any directory in their workspace.
 	f, err := os.Open(absolutePathString)
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("failed to open directory %q: %w", absolutePathString, err)
@@ -101,6 +103,17 @@ func listFiles(query LSRequest) (LSResponse, error) {
 			IsDir:              file.IsDir(),
 		})
 	}
+
+	// Sort alphabetically: directories then files
+	slices.SortFunc(respContents, func(a, b LSFile) int {
+		if a.IsDir && !b.IsDir {
+			return -1
+		}
+		if !a.IsDir && b.IsDir {
+			return 1
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	absolutePath := pathToArray(absolutePathString)
 

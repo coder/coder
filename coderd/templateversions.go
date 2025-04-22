@@ -287,8 +287,8 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Job hasn't completed!",
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
+			Message: "Template version job has not finished",
 		})
 		return
 	}
@@ -428,7 +428,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 	}
 	if !job.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Job hasn't completed!",
+			Message: "Template version job has not finished",
 		})
 		return
 	}
@@ -483,7 +483,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 			Message: "Template version import job hasn't completed!",
 		})
 		return
@@ -843,9 +843,11 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		versions, err := store.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
 			TemplateID: template.ID,
 			AfterID:    paginationParams.AfterID,
-			LimitOpt:   int32(paginationParams.Limit),
-			OffsetOpt:  int32(paginationParams.Offset),
-			Archived:   archiveFilter,
+			// #nosec G115 - Pagination limits are small and fit in int32
+			LimitOpt: int32(paginationParams.Limit),
+			// #nosec G115 - Pagination offsets are small and fit in int32
+			OffsetOpt: int32(paginationParams.Offset),
+			Archived:  archiveFilter,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusOK, apiVersions)
@@ -1280,10 +1282,8 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 
 			if archiveError != nil {
 				err = archiveError
-			} else {
-				if len(archived) == 0 {
-					err = xerrors.New("Unable to archive specified version, the version is likely in use by a workspace or currently set to the active version")
-				}
+			} else if len(archived) == 0 {
+				err = xerrors.New("Unable to archive specified version, the version is likely in use by a workspace or currently set to the active version")
 			}
 		} else {
 			err = api.Database.UnarchiveTemplateVersion(ctx, database.UnarchiveTemplateVersionParams{

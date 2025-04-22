@@ -3,10 +3,13 @@ package vpn_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"tailscale.com/util/dnsname"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,136 +32,180 @@ import (
 func TestClient_WorkspaceUpdates(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := testutil.Logger(t)
-
 	userID := uuid.UUID{1}
 	wsID := uuid.UUID{2}
 	peerID := uuid.UUID{3}
+	agentID := uuid.UUID{4}
 
-	fCoord := tailnettest.NewFakeCoordinator()
-	var coord tailnet.Coordinator = fCoord
-	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
-	coordPtr.Store(&coord)
-	ctrl := gomock.NewController(t)
-	mProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
-
-	mSub := tailnettest.NewMockSubscription(ctrl)
-	outUpdateCh := make(chan *proto.WorkspaceUpdate, 1)
-	inUpdateCh := make(chan tailnet.WorkspaceUpdate, 1)
-	mProvider.EXPECT().Subscribe(gomock.Any(), userID).Times(1).Return(mSub, nil)
-	mSub.EXPECT().Updates().MinTimes(1).Return(outUpdateCh)
-	mSub.EXPECT().Close().Times(1).Return(nil)
-
-	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                   logger,
-		CoordPtr:                 &coordPtr,
-		DERPMapUpdateFrequency:   time.Hour,
-		DERPMapFn:                func() *tailcfg.DERPMap { return &tailcfg.DERPMap{} },
-		WorkspaceUpdatesProvider: mProvider,
-		ResumeTokenProvider:      tailnet.NewInsecureTestResumeTokenProvider(),
-	})
-	require.NoError(t, err)
-
-	user := make(chan struct{})
-	connInfo := make(chan struct{})
-	serveErrCh := make(chan error)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/v2/users/me":
-			httpapi.Write(ctx, w, http.StatusOK, codersdk.User{
-				ReducedUser: codersdk.ReducedUser{
-					MinimalUser: codersdk.MinimalUser{
-						ID: userID,
-					},
-				},
-			})
-			user <- struct{}{}
-
-		case "/api/v2/workspaceagents/connection":
-			httpapi.Write(ctx, w, http.StatusOK, workspacesdk.AgentConnectionInfo{
-				DisableDirectConnections: false,
-			})
-			connInfo <- struct{}{}
-
-		case "/api/v2/tailnet":
-			// need 2.3 for WorkspaceUpdates RPC
-			cVer := r.URL.Query().Get("version")
-			assert.Equal(t, "2.3", cVer)
-
-			sws, err := websocket.Accept(w, r, nil)
-			if !assert.NoError(t, err) {
-				return
-			}
-			wsCtx, nc := codersdk.WebsocketNetConn(ctx, sws, websocket.MessageBinary)
-			serveErrCh <- svc.ServeConnV2(wsCtx, nc, tailnet.StreamID{
-				Name: "client",
-				ID:   peerID,
-				// Auth can be nil as we use a mock update provider
-				Auth: tailnet.ClientUserCoordinateeAuth{
-					Auth: nil,
-				},
-			})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	svrURL, err := url.Parse(server.URL)
-	require.NoError(t, err)
-	connErrCh := make(chan error)
-	connCh := make(chan vpn.Conn)
-	go func() {
-		conn, err := vpn.NewClient().NewConn(ctx, svrURL, "fakeToken", &vpn.Options{
-			UpdateHandler: updateHandler(func(wu tailnet.WorkspaceUpdate) error {
-				inUpdateCh <- wu
-				return nil
-			}),
-			DNSConfigurator: &noopConfigurator{},
-		})
-		connErrCh <- err
-		connCh <- conn
-	}()
-	testutil.RequireRecvCtx(ctx, t, user)
-	testutil.RequireRecvCtx(ctx, t, connInfo)
-	err = testutil.RequireRecvCtx(ctx, t, connErrCh)
-	require.NoError(t, err)
-	conn := testutil.RequireRecvCtx(ctx, t, connCh)
-
-	// Send a workspace update
-	update := &proto.WorkspaceUpdate{
-		UpsertedWorkspaces: []*proto.Workspace{
-			{
-				Id: wsID[:],
-			},
+	testCases := []struct {
+		name                string
+		agentConnectionInfo workspacesdk.AgentConnectionInfo
+		hostnames           []string
+	}{
+		{
+			name:                "empty",
+			agentConnectionInfo: workspacesdk.AgentConnectionInfo{},
+			hostnames:           []string{"wrk.coder.", "agnt.wrk.me.coder.", "agnt.wrk.rootbeer.coder."},
+		},
+		{
+			name:                "suffix",
+			agentConnectionInfo: workspacesdk.AgentConnectionInfo{HostnameSuffix: "float"},
+			hostnames:           []string{"wrk.float.", "agnt.wrk.me.float.", "agnt.wrk.rootbeer.float."},
 		},
 	}
-	testutil.RequireSendCtx(ctx, t, outUpdateCh, update)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// It'll be received by the update handler
-	recvUpdate := testutil.RequireRecvCtx(ctx, t, inUpdateCh)
-	require.Len(t, recvUpdate.UpsertedWorkspaces, 1)
-	require.Equal(t, wsID, recvUpdate.UpsertedWorkspaces[0].ID)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := testutil.Logger(t)
 
-	// And be reflected on the Conn's state
-	state, err := conn.CurrentWorkspaceState()
-	require.NoError(t, err)
-	require.Equal(t, tailnet.WorkspaceUpdate{
-		UpsertedWorkspaces: []*tailnet.Workspace{
-			{
-				ID: wsID,
-			},
-		},
-		UpsertedAgents:    []*tailnet.Agent{},
-		DeletedWorkspaces: []*tailnet.Workspace{},
-		DeletedAgents:     []*tailnet.Agent{},
-	}, state)
+			fCoord := tailnettest.NewFakeCoordinator()
+			var coord tailnet.Coordinator = fCoord
+			coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+			coordPtr.Store(&coord)
+			ctrl := gomock.NewController(t)
+			mProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
 
-	// Close the conn
-	conn.Close()
-	err = testutil.RequireRecvCtx(ctx, t, serveErrCh)
-	require.NoError(t, err)
+			mSub := tailnettest.NewMockSubscription(ctrl)
+			outUpdateCh := make(chan *proto.WorkspaceUpdate, 1)
+			inUpdateCh := make(chan tailnet.WorkspaceUpdate, 1)
+			mProvider.EXPECT().Subscribe(gomock.Any(), userID).Times(1).Return(mSub, nil)
+			mSub.EXPECT().Updates().MinTimes(1).Return(outUpdateCh)
+			mSub.EXPECT().Close().Times(1).Return(nil)
+
+			svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+				Logger:                   logger,
+				CoordPtr:                 &coordPtr,
+				DERPMapUpdateFrequency:   time.Hour,
+				DERPMapFn:                func() *tailcfg.DERPMap { return &tailcfg.DERPMap{} },
+				WorkspaceUpdatesProvider: mProvider,
+				ResumeTokenProvider:      tailnet.NewInsecureTestResumeTokenProvider(),
+			})
+			require.NoError(t, err)
+
+			user := make(chan struct{})
+			connInfo := make(chan struct{})
+			serveErrCh := make(chan error)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v2/users/me":
+					httpapi.Write(ctx, w, http.StatusOK, codersdk.User{
+						ReducedUser: codersdk.ReducedUser{
+							MinimalUser: codersdk.MinimalUser{
+								ID:       userID,
+								Username: "rootbeer",
+							},
+						},
+					})
+					user <- struct{}{}
+
+				case "/api/v2/workspaceagents/connection":
+					httpapi.Write(ctx, w, http.StatusOK, tc.agentConnectionInfo)
+					connInfo <- struct{}{}
+
+				case "/api/v2/tailnet":
+					// need 2.3 for WorkspaceUpdates RPC
+					cVer := r.URL.Query().Get("version")
+					assert.Equal(t, "2.3", cVer)
+
+					sws, err := websocket.Accept(w, r, nil)
+					if !assert.NoError(t, err) {
+						return
+					}
+					wsCtx, nc := codersdk.WebsocketNetConn(ctx, sws, websocket.MessageBinary)
+					serveErrCh <- svc.ServeConnV2(wsCtx, nc, tailnet.StreamID{
+						Name: "client",
+						ID:   peerID,
+						// Auth can be nil as we use a mock update provider
+						Auth: tailnet.ClientUserCoordinateeAuth{
+							Auth: nil,
+						},
+					})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			svrURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+			connErrCh := make(chan error)
+			connCh := make(chan vpn.Conn)
+			go func() {
+				conn, err := vpn.NewClient().NewConn(ctx, svrURL, "fakeToken", &vpn.Options{
+					UpdateHandler: updateHandler(func(wu tailnet.WorkspaceUpdate) error {
+						inUpdateCh <- wu
+						return nil
+					}),
+					DNSConfigurator: &noopConfigurator{},
+				})
+				connErrCh <- err
+				connCh <- conn
+			}()
+			testutil.TryReceive(ctx, t, user)
+			testutil.TryReceive(ctx, t, connInfo)
+			err = testutil.TryReceive(ctx, t, connErrCh)
+			require.NoError(t, err)
+			conn := testutil.TryReceive(ctx, t, connCh)
+
+			// Send a workspace update
+			update := &proto.WorkspaceUpdate{
+				UpsertedWorkspaces: []*proto.Workspace{
+					{
+						Id:   wsID[:],
+						Name: "wrk",
+					},
+				},
+				UpsertedAgents: []*proto.Agent{
+					{
+						Id:          agentID[:],
+						Name:        "agnt",
+						WorkspaceId: wsID[:],
+					},
+				},
+			}
+			testutil.RequireSend(ctx, t, outUpdateCh, update)
+
+			// It'll be received by the update handler
+			recvUpdate := testutil.TryReceive(ctx, t, inUpdateCh)
+			require.Len(t, recvUpdate.UpsertedWorkspaces, 1)
+			require.Equal(t, wsID, recvUpdate.UpsertedWorkspaces[0].ID)
+			require.Len(t, recvUpdate.UpsertedAgents, 1)
+
+			expectedHosts := map[dnsname.FQDN][]netip.Addr{}
+			for _, name := range tc.hostnames {
+				expectedHosts[dnsname.FQDN(name)] = []netip.Addr{tailnet.CoderServicePrefix.AddrFromUUID(agentID)}
+			}
+
+			// And be reflected on the Conn's state
+			state, err := conn.CurrentWorkspaceState()
+			require.NoError(t, err)
+			require.Equal(t, tailnet.WorkspaceUpdate{
+				UpsertedWorkspaces: []*tailnet.Workspace{
+					{
+						ID:   wsID,
+						Name: "wrk",
+					},
+				},
+				UpsertedAgents: []*tailnet.Agent{
+					{
+						ID:          agentID,
+						Name:        "agnt",
+						WorkspaceID: wsID,
+						Hosts:       expectedHosts,
+					},
+				},
+				DeletedWorkspaces: []*tailnet.Workspace{},
+				DeletedAgents:     []*tailnet.Agent{},
+			}, state)
+
+			// Close the conn
+			conn.Close()
+			err = testutil.TryReceive(ctx, t, serveErrCh)
+			require.NoError(t, err)
+		})
+	}
 }
 
 type updateHandler func(tailnet.WorkspaceUpdate) error

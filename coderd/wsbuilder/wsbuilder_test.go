@@ -41,6 +41,7 @@ var (
 	lastBuildID       = uuid.MustParse("12341234-0000-0000-000b-000000000000")
 	lastBuildJobID    = uuid.MustParse("12341234-0000-0000-000c-000000000000")
 	otherUserID       = uuid.MustParse("12341234-0000-0000-000d-000000000000")
+	presetID          = uuid.MustParse("12341234-0000-0000-000e-000000000000")
 )
 
 func TestBuilder_NoOptions(t *testing.T) {
@@ -773,6 +774,71 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 	})
 }
 
+func TestWorkspaceBuildWithPreset(t *testing.T) {
+	t.Parallel()
+
+	req := require.New(t)
+	asrt := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var buildID uuid.UUID
+
+	mDB := expectDB(t,
+		// Inputs
+		withTemplate,
+		withActiveVersion(nil),
+		// building workspaces using presets with different combinations of parameters
+		// is tested at the API layer, in TestWorkspace. Here, it is sufficient to
+		// test that the preset is used when provided.
+		withTemplateVersionPresetParameters(presetID, nil),
+		withLastBuildNotFound,
+		withTemplateVersionVariables(activeVersionID, nil),
+		withParameterSchemas(activeJobID, nil),
+		withWorkspaceTags(activeVersionID, nil),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
+
+		// Outputs
+		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+			asrt.Equal(userID, job.InitiatorID)
+			asrt.Equal(activeFileID, job.FileID)
+			input := provisionerdserver.WorkspaceProvisionJob{}
+			err := json.Unmarshal(job.Input, &input)
+			req.NoError(err)
+			// store build ID for later
+			buildID = input.WorkspaceBuildID
+		}),
+
+		withInTx,
+		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+			asrt.Equal(activeVersionID, bld.TemplateVersionID)
+			asrt.Equal(workspaceID, bld.WorkspaceID)
+			asrt.Equal(int32(1), bld.BuildNumber)
+			asrt.Equal(userID, bld.InitiatorID)
+			asrt.Equal(database.WorkspaceTransitionStart, bld.Transition)
+			asrt.Equal(database.BuildReasonInitiator, bld.Reason)
+			asrt.Equal(buildID, bld.ID)
+			asrt.True(bld.TemplateVersionPresetID.Valid)
+			asrt.Equal(presetID, bld.TemplateVersionPresetID.UUID)
+		}),
+		withBuild,
+		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+			asrt.Equal(buildID, params.WorkspaceBuildID)
+			asrt.Empty(params.Name)
+			asrt.Empty(params.Value)
+		}),
+	)
+
+	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+		ActiveVersion().
+		TemplateVersionPresetID(presetID)
+	// nolint: dogsled
+	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	req.NoError(err)
+}
+
 type txExpect func(mTx *dbmock.MockStore)
 
 func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
@@ -895,6 +961,12 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 		} else {
 			paramsCall.Return(nil, sql.ErrNoRows)
 		}
+	}
+}
+
+func withTemplateVersionPresetParameters(presetID uuid.UUID, params []database.TemplateVersionPresetParameter) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().GetPresetParametersByPresetID(gomock.Any(), presetID).Return(params, nil)
 	}
 }
 

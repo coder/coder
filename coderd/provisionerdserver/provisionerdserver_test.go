@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -118,7 +120,7 @@ func TestHeartbeat(t *testing.T) {
 	})
 
 	for i := 0; i < numBeats; i++ {
-		testutil.RequireRecvCtx(ctx, t, heartbeatChan)
+		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
 }
@@ -164,279 +166,304 @@ func TestAcquireJob(t *testing.T) {
 			_, err = tc.acquire(ctx, srv)
 			require.ErrorContains(t, err, "sql: no rows in result set")
 		})
-		t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
-			t.Parallel()
-			// Set the max session token lifetime so we can assert we
-			// create an API key with an expiration within the bounds of the
-			// deployment config.
-			dv := &codersdk.DeploymentValues{
-				Sessions: codersdk.SessionLifetime{
-					MaximumTokenDuration: serpent.Duration(time.Hour),
-				},
-			}
-			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
-				Id: "github",
-			}
-
-			srv, db, ps, pd := setup(t, false, &overrides{
-				deploymentValues: dv,
-				externalAuthConfigs: []*externalauth.Config{{
-					ID:                       gitAuthProvider.Id,
-					InstrumentedOAuth2Config: &testutil.OAuth2Config{},
-				}},
-			})
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			user := dbgen.User(t, db, database.User{})
-			group1 := dbgen.Group(t, db, database.Group{
-				Name:           "group1",
-				OrganizationID: pd.OrganizationID,
-			})
-			sshKey := dbgen.GitSSHKey(t, db, database.GitSSHKey{
-				UserID: user.ID,
-			})
-			err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
-				UserID:  user.ID,
-				GroupID: group1.ID,
-			})
-			require.NoError(t, err)
-			link := dbgen.UserLink(t, db, database.UserLink{
-				LoginType:        database.LoginTypeOIDC,
-				UserID:           user.ID,
-				OAuthExpiry:      dbtime.Now().Add(time.Hour),
-				OAuthAccessToken: "access-token",
-			})
-			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
-				ProviderID: gitAuthProvider.Id,
-				UserID:     user.ID,
-			})
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: pd.OrganizationID,
-				TemplateID: uuid.NullUUID{
-					UUID:  template.ID,
-					Valid: true,
-				},
-				JobID: uuid.New(),
-			})
-			externalAuthProviders, err := json.Marshal([]database.ExternalAuthProvider{{
-				ID:       gitAuthProvider.Id,
-				Optional: gitAuthProvider.Optional,
-			}})
-			require.NoError(t, err)
-			err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
-				JobID:                 version.JobID,
-				ExternalAuthProviders: json.RawMessage(externalAuthProviders),
-				UpdatedAt:             dbtime.Now(),
-			})
-			require.NoError(t, err)
-			// Import version job
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				ID:             version.JobID,
-				InitiatorID:    user.ID,
-				FileID:         versionFile.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-					TemplateVersionID: version.ID,
-					UserVariableValues: []codersdk.VariableValue{
-						{Name: "second", Value: "bah"},
+		for _, prebuiltWorkspace := range []bool{false, true} {
+			prebuiltWorkspace := prebuiltWorkspace
+			t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
+				t.Parallel()
+				// Set the max session token lifetime so we can assert we
+				// create an API key with an expiration within the bounds of the
+				// deployment config.
+				dv := &codersdk.DeploymentValues{
+					Sessions: codersdk.SessionLifetime{
+						MaximumTokenDuration: serpent.Duration(time.Hour),
 					},
-				})),
-			})
-			_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
-				TemplateVersionID: version.ID,
-				Name:              "first",
-				Value:             "first_value",
-				DefaultValue:      "default_value",
-				Sensitive:         true,
-			})
-			_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
-				TemplateVersionID: version.ID,
-				Name:              "second",
-				Value:             "second_value",
-				DefaultValue:      "default_value",
-				Required:          true,
-				Sensitive:         false,
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       1,
-				JobID:             uuid.New(),
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStart,
-				Reason:            database.BuildReasonInitiator,
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				ID:             build.ID,
-				OrganizationID: pd.OrganizationID,
-				InitiatorID:    user.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				FileID:         file.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: build.ID,
-				})),
-			})
+				}
+				gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
+					Id: "github",
+				}
 
-			startPublished := make(chan struct{})
-			var closed bool
-			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-				wspubsub.HandleWorkspaceEvent(
-					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
-						if err != nil {
-							return
-						}
-						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
-							if !closed {
-								close(startPublished)
-								closed = true
+				srv, db, ps, pd := setup(t, false, &overrides{
+					deploymentValues: dv,
+					externalAuthConfigs: []*externalauth.Config{{
+						ID:                       gitAuthProvider.Id,
+						InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+					}},
+				})
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				user := dbgen.User(t, db, database.User{})
+				group1 := dbgen.Group(t, db, database.Group{
+					Name:           "group1",
+					OrganizationID: pd.OrganizationID,
+				})
+				sshKey := dbgen.GitSSHKey(t, db, database.GitSSHKey{
+					UserID: user.ID,
+				})
+				err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+					UserID:  user.ID,
+					GroupID: group1.ID,
+				})
+				require.NoError(t, err)
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: pd.OrganizationID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
+				// Add extra erronous roles
+				secondOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: secondOrg.ID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
+				link := dbgen.UserLink(t, db, database.UserLink{
+					LoginType:        database.LoginTypeOIDC,
+					UserID:           user.ID,
+					OAuthExpiry:      dbtime.Now().Add(time.Hour),
+					OAuthAccessToken: "access-token",
+				})
+				dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+					ProviderID: gitAuthProvider.Id,
+					UserID:     user.ID,
+				})
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+				})
+				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: pd.OrganizationID,
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+				externalAuthProviders, err := json.Marshal([]database.ExternalAuthProvider{{
+					ID:       gitAuthProvider.Id,
+					Optional: gitAuthProvider.Optional,
+				}})
+				require.NoError(t, err)
+				err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+					JobID:                 version.JobID,
+					ExternalAuthProviders: json.RawMessage(externalAuthProviders),
+					UpdatedAt:             dbtime.Now(),
+				})
+				require.NoError(t, err)
+				// Import version job
+				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					OrganizationID: pd.OrganizationID,
+					ID:             version.JobID,
+					InitiatorID:    user.ID,
+					FileID:         versionFile.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeTemplateVersionImport,
+					Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+						TemplateVersionID: version.ID,
+						UserVariableValues: []codersdk.VariableValue{
+							{Name: "second", Value: "bah"},
+						},
+					})),
+				})
+				_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
+					TemplateVersionID: version.ID,
+					Name:              "first",
+					Value:             "first_value",
+					DefaultValue:      "default_value",
+					Sensitive:         true,
+				})
+				_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
+					TemplateVersionID: version.ID,
+					Name:              "second",
+					Value:             "second_value",
+					DefaultValue:      "default_value",
+					Required:          true,
+					Sensitive:         false,
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID:     template.ID,
+					OwnerID:        user.ID,
+					OrganizationID: pd.OrganizationID,
+				})
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					BuildNumber:       1,
+					JobID:             uuid.New(),
+					TemplateVersionID: version.ID,
+					Transition:        database.WorkspaceTransitionStart,
+					Reason:            database.BuildReasonInitiator,
+				})
+				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					ID:             build.ID,
+					OrganizationID: pd.OrganizationID,
+					InitiatorID:    user.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					FileID:         file.ID,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: build.ID,
+						IsPrebuild:       prebuiltWorkspace,
+					})),
+				})
+
+				startPublished := make(chan struct{})
+				var closed bool
+				closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+					wspubsub.HandleWorkspaceEvent(
+						func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+							if err != nil {
+								return
 							}
-						}
-					}))
-			require.NoError(t, err)
-			defer closeStartSubscribe()
+							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+								if !closed {
+									close(startPublished)
+									closed = true
+								}
+							}
+						}))
+				require.NoError(t, err)
+				defer closeStartSubscribe()
 
-			var job *proto.AcquiredJob
+				var job *proto.AcquiredJob
 
-			for {
+				for {
+					// Grab jobs until we find the workspace build job. There is also
+					// an import version job that we need to ignore.
+					job, err = tc.acquire(ctx, srv)
+					require.NoError(t, err)
+					if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+						break
+					}
+				}
+
+				<-startPublished
+
+				got, err := json.Marshal(job.Type)
+				require.NoError(t, err)
+
+				// Validate that a session token is generated during the job.
+				sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
+				require.NotEmpty(t, sessionToken)
+				toks := strings.Split(sessionToken, "-")
+				require.Len(t, toks, 2, "invalid api key")
+				key, err := db.GetAPIKeyByID(ctx, toks[0])
+				require.NoError(t, err)
+				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
+				require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
+
+				wantedMetadata := &sdkproto.Metadata{
+					CoderUrl:                      (&url.URL{}).String(),
+					WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
+					WorkspaceName:                 workspace.Name,
+					WorkspaceOwner:                user.Username,
+					WorkspaceOwnerEmail:           user.Email,
+					WorkspaceOwnerName:            user.Name,
+					WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
+					WorkspaceOwnerGroups:          []string{"Everyone", group1.Name},
+					WorkspaceId:                   workspace.ID.String(),
+					WorkspaceOwnerId:              user.ID.String(),
+					TemplateId:                    template.ID.String(),
+					TemplateName:                  template.Name,
+					TemplateVersion:               version.Name,
+					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
+					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
+					WorkspaceBuildId:              build.ID.String(),
+					WorkspaceOwnerLoginType:       string(user.LoginType),
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
+				}
+				if prebuiltWorkspace {
+					wantedMetadata.IsPrebuild = true
+				}
+
+				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
+				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+						WorkspaceBuildId: build.ID.String(),
+						WorkspaceName:    workspace.Name,
+						VariableValues: []*sdkproto.VariableValue{
+							{
+								Name:      "first",
+								Value:     "first_value",
+								Sensitive: true,
+							},
+							{
+								Name:  "second",
+								Value: "second_value",
+							},
+						},
+						ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
+							Id:          gitAuthProvider.Id,
+							AccessToken: "access_token",
+						}},
+						Metadata: wantedMetadata,
+					},
+				})
+				require.NoError(t, err)
+
+				require.JSONEq(t, string(want), string(got))
+
+				// Assert that we delete the session token whenever
+				// a stop is issued.
+				stopbuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					BuildNumber:       2,
+					JobID:             uuid.New(),
+					TemplateVersionID: version.ID,
+					Transition:        database.WorkspaceTransitionStop,
+					Reason:            database.BuildReasonInitiator,
+				})
+				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					ID:            stopbuild.ID,
+					InitiatorID:   user.ID,
+					Provisioner:   database.ProvisionerTypeEcho,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					FileID:        file.ID,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: stopbuild.ID,
+					})),
+				})
+
+				stopPublished := make(chan struct{})
+				closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+					wspubsub.HandleWorkspaceEvent(
+						func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+							if err != nil {
+								return
+							}
+							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+								close(stopPublished)
+							}
+						}))
+				require.NoError(t, err)
+				defer closeStopSubscribe()
+
 				// Grab jobs until we find the workspace build job. There is also
 				// an import version job that we need to ignore.
 				job, err = tc.acquire(ctx, srv)
 				require.NoError(t, err)
-				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
-					break
-				}
-			}
+				_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+				require.True(t, ok, "acquired job not a workspace build?")
 
-			<-startPublished
+				<-stopPublished
 
-			got, err := json.Marshal(job.Type)
-			require.NoError(t, err)
-
-			// Validate that a session token is generated during the job.
-			sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
-			require.NotEmpty(t, sessionToken)
-			toks := strings.Split(sessionToken, "-")
-			require.Len(t, toks, 2, "invalid api key")
-			key, err := db.GetAPIKeyByID(ctx, toks[0])
-			require.NoError(t, err)
-			require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
-			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
-
-			want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
-				WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-					WorkspaceBuildId: build.ID.String(),
-					WorkspaceName:    workspace.Name,
-					VariableValues: []*sdkproto.VariableValue{
-						{
-							Name:      "first",
-							Value:     "first_value",
-							Sensitive: true,
-						},
-						{
-							Name:  "second",
-							Value: "second_value",
-						},
-					},
-					ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
-						Id:          gitAuthProvider.Id,
-						AccessToken: "access_token",
-					}},
-					Metadata: &sdkproto.Metadata{
-						CoderUrl:                      (&url.URL{}).String(),
-						WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
-						WorkspaceName:                 workspace.Name,
-						WorkspaceOwner:                user.Username,
-						WorkspaceOwnerEmail:           user.Email,
-						WorkspaceOwnerName:            user.Name,
-						WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
-						WorkspaceOwnerGroups:          []string{group1.Name},
-						WorkspaceId:                   workspace.ID.String(),
-						WorkspaceOwnerId:              user.ID.String(),
-						TemplateId:                    template.ID.String(),
-						TemplateName:                  template.Name,
-						TemplateVersion:               version.Name,
-						WorkspaceOwnerSessionToken:    sessionToken,
-						WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
-						WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
-						WorkspaceBuildId:              build.ID.String(),
-						WorkspaceOwnerLoginType:       string(user.LoginType),
-						WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: "member", OrgId: pd.OrganizationID.String()}},
-					},
-				},
+				// Validate that a session token is deleted during a stop job.
+				sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
+				require.Empty(t, sessionToken)
+				_, err = db.GetAPIKeyByID(ctx, key.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows)
 			})
-			require.NoError(t, err)
-
-			require.JSONEq(t, string(want), string(got))
-
-			// Assert that we delete the session token whenever
-			// a stop is issued.
-			stopbuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       2,
-				JobID:             uuid.New(),
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStop,
-				Reason:            database.BuildReasonInitiator,
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				ID:            stopbuild.ID,
-				InitiatorID:   user.ID,
-				Provisioner:   database.ProvisionerTypeEcho,
-				StorageMethod: database.ProvisionerStorageMethodFile,
-				FileID:        file.ID,
-				Type:          database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: stopbuild.ID,
-				})),
-			})
-
-			stopPublished := make(chan struct{})
-			closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-				wspubsub.HandleWorkspaceEvent(
-					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
-						if err != nil {
-							return
-						}
-						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
-							close(stopPublished)
-						}
-					}))
-			require.NoError(t, err)
-			defer closeStopSubscribe()
-
-			// Grab jobs until we find the workspace build job. There is also
-			// an import version job that we need to ignore.
-			job, err = tc.acquire(ctx, srv)
-			require.NoError(t, err)
-			_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
-			require.True(t, ok, "acquired job not a workspace build?")
-
-			<-stopPublished
-
-			// Validate that a session token is deleted during a stop job.
-			sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
-			require.Empty(t, sessionToken)
-			_, err = db.GetAPIKeyByID(ctx, key.ID)
-			require.ErrorIs(t, err, sql.ErrNoRows)
-		})
-
+		}
 		t.Run(tc.name+"_TemplateVersionDryRun", func(t *testing.T) {
 			t.Parallel()
 			srv, db, ps, _ := setup(t, false, nil)
@@ -459,6 +486,13 @@ func TestAcquireJob(t *testing.T) {
 
 			job, err := tc.acquire(ctx, srv)
 			require.NoError(t, err)
+
+			// sort
+			if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+				slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
+			}
 
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
@@ -1060,6 +1094,7 @@ func TestCompleteJob(t *testing.T) {
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{
 							Id: "github",
 						}},
+						Plan: []byte("{}"),
 					},
 				},
 			})
@@ -1115,6 +1150,7 @@ func TestCompleteJob(t *testing.T) {
 						}},
 						StopResources:         []*sdkproto.Resource{},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{Id: "github"}},
+						Plan:                  []byte("{}"),
 					},
 				},
 			})
@@ -1523,6 +1559,7 @@ func TestCompleteJob(t *testing.T) {
 									Source:  "github.com/example2/example",
 								},
 							},
+							Plan: []byte("{}"),
 						},
 					},
 				},
@@ -1731,6 +1768,34 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 		{
+			name: "one preset, no parameters, requesting prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "one preset with multiple parameters, requesting 0 prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 0,
+					},
+				},
+			},
+		},
+		{
 			name: "one preset with multiple parameters",
 			givenPresets: []*sdkproto.Preset{
 				{
@@ -1749,6 +1814,27 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 		{
+			name: "one preset, multiple parameters, requesting prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
+					},
+				},
+			},
+		},
+		{
 			name: "multiple presets with parameters",
 			givenPresets: []*sdkproto.Preset{
 				{
@@ -1762,6 +1848,9 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 							Name:  "param2",
 							Value: "value2",
 						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
 					},
 				},
 				{
@@ -1791,6 +1880,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			db, ps := dbtestutil.NewDB(t)
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
+
 			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				Type:           database.ProvisionerJobTypeWorkspaceBuild,
 				OrganizationID: org.ID,
@@ -1817,42 +1907,37 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			require.Len(t, gotPresets, len(c.givenPresets))
 
 			for _, givenPreset := range c.givenPresets {
-				foundMatch := false
+				var foundPreset *database.TemplateVersionPreset
 				for _, gotPreset := range gotPresets {
 					if givenPreset.Name == gotPreset.Name {
-						foundMatch = true
+						foundPreset = &gotPreset
 						break
 					}
 				}
-				require.True(t, foundMatch, "preset %s not found in parameters", givenPreset.Name)
-			}
+				require.NotNil(t, foundPreset, "preset %s not found in parameters", givenPreset.Name)
 
-			gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
-			require.NoError(t, err)
+				gotPresetParameters, err := db.GetPresetParametersByPresetID(ctx, foundPreset.ID)
+				require.NoError(t, err)
+				require.Len(t, gotPresetParameters, len(givenPreset.Parameters))
 
-			for _, givenPreset := range c.givenPresets {
 				for _, givenParameter := range givenPreset.Parameters {
 					foundMatch := false
 					for _, gotParameter := range gotPresetParameters {
 						nameMatches := givenParameter.Name == gotParameter.Name
 						valueMatches := givenParameter.Value == gotParameter.Value
-
-						// ensure that preset parameters are matched to the correct preset:
-						var gotPreset database.TemplateVersionPreset
-						for _, preset := range gotPresets {
-							if preset.ID == gotParameter.TemplateVersionPresetID {
-								gotPreset = preset
-								break
-							}
-						}
-						presetMatches := gotPreset.Name == givenPreset.Name
-
-						if nameMatches && valueMatches && presetMatches {
+						if nameMatches && valueMatches {
 							foundMatch = true
 							break
 						}
 					}
-					require.True(t, foundMatch, "preset parameter %s not found in presets", givenParameter.Name)
+					require.True(t, foundMatch, "preset parameter %s not found in parameters", givenParameter.Name)
+				}
+				if givenPreset.Prebuild == nil {
+					require.False(t, foundPreset.DesiredInstances.Valid)
+				}
+				if givenPreset.Prebuild != nil {
+					require.True(t, foundPreset.DesiredInstances.Valid)
+					require.Equal(t, givenPreset.Prebuild.Instances, foundPreset.DesiredInstances.Int32)
 				}
 			}
 		})
@@ -2189,6 +2274,40 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "/volume1", volMonitors[0].Path)
 		require.Equal(t, int32(50), volMonitors[1].Threshold)
 		require.Equal(t, "/volume2", volMonitors[1].Path)
+	})
+
+	t.Run("Devcontainers", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Devcontainers: []*sdkproto.Devcontainer{
+					{Name: "foo", WorkspaceFolder: "/workspace1"},
+					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		agent := agents[0]
+		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		require.Len(t, devcontainers, 2)
+		require.Equal(t, "foo", devcontainers[0].Name)
+		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+		require.Equal(t, "", devcontainers[0].ConfigPath)
+		require.Equal(t, "bar", devcontainers[1].Name)
+		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
+		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
 	})
 }
 

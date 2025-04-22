@@ -432,9 +432,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 						"# Last config-ssh options:",
 						"# :wait=yes",
 						"# :ssh-host-prefix=coder-test.",
+						"# :hostname-suffix=coder-suffix",
 						"# :header=X-Test-Header=foo",
 						"# :header=X-Test-Header2=bar",
-						"# :header-command=printf h1=v1 h2=\"v2\" h3='v3'",
+						"# :header-command=echo h1=v1 h2=\"v2\" h3='v3'",
 						"#",
 					}, "\n"),
 					strings.Join([]string{
@@ -447,9 +448,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 				"--wait=yes",
 				"--ssh-host-prefix", "coder-test.",
+				"--hostname-suffix", "coder-suffix",
 				"--header", "X-Test-Header=foo",
 				"--header", "X-Test-Header2=bar",
-				"--header-command", "printf h1=v1 h2=\"v2\" h3='v3'",
+				"--header-command", "echo h1=v1 h2=\"v2\" h3='v3'",
 			},
 		},
 		{
@@ -564,36 +566,36 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			name: "Header command",
 			args: []string{
 				"--yes",
-				"--header-command", "printf h1=v1",
+				"--header-command", "echo h1=v1",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1" ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{
 			name: "Header command with double quotes",
 			args: []string{
 				"--yes",
-				"--header-command", "printf h1=v1 h2=\"v2\"",
+				"--header-command", "echo h1=v1 h2=\"v2\"",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2=\\\"v2\\\"" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1 h2=\\\"v2\\\"" ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{
 			name: "Header command with single quotes",
 			args: []string{
 				"--yes",
-				"--header-command", "printf h1=v1 h2='v2'",
+				"--header-command", "echo h1=v1 h2='v2'",
 			},
 			wantErr:  false,
 			hasAgent: true,
 			wantConfig: wantConfig{
-				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2='v2'" ssh .* --ssh-host-prefix coder. %h`,
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1 h2='v2'" ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{
@@ -607,6 +609,40 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			hasAgent: true,
 			wantConfig: wantConfig{
 				regexMatch: "RemoteForward 2222 192.168.11.1:2222.*\n.*RemoteForward 2223 192.168.11.1:2223",
+			},
+		},
+		{
+			name: "Hostname Suffix",
+			args: []string{
+				"--yes",
+				"--ssh-option", "Foo=bar",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{
+					"Host *.testy",
+					"Foo=bar",
+					"ConnectTimeout=0",
+					"StrictHostKeyChecking=no",
+					"UserKnownHostsFile=/dev/null",
+					"LogLevel ERROR",
+				},
+				regexMatch: `Match host \*\.testy !exec ".* connect exists %h"\n\tProxyCommand .* ssh .* --hostname-suffix testy %h`,
+			},
+		},
+		{
+			name: "Hostname Prefix and Suffix",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "presto.",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{"Host presto.*", "Match host *.testy !exec"},
 			},
 		},
 	}

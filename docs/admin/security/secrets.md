@@ -7,7 +7,7 @@ guide to
 
 This article explains how to use secrets in a workspace. To authenticate the
 workspace provisioner, see the
-<a href="../provisioners.md#authentication">provisioners documentation</a>.
+<a href="../provisioners/index.md#authentication">provisioners documentation</a>.
 
 ## Before you begin
 
@@ -38,7 +38,8 @@ Users can view their public key in their account settings:
 
 ![SSH keys in account settings](../../images/ssh-keys.png)
 
-> Note: SSH keys are never stored in Coder workspaces, and are fetched only when
+> [!NOTE]
+> SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
 
 ## Dynamic Secrets

@@ -6,10 +6,15 @@ import {
 } from "api/queries/notifications";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -22,7 +27,7 @@ import { NotificationEvents } from "./NotificationEvents";
 import { Troubleshooting } from "./Troubleshooting";
 
 export const NotificationsPage: FC = () => {
-	const { deploymentConfig } = useDeploymentSettings();
+	const { deploymentConfig } = useDeploymentConfig();
 	const [templatesByGroup, dispatchMethods] = useQueries({
 		queries: [
 			{
@@ -43,22 +48,20 @@ export const NotificationsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("Notifications Settings")}</title>
 			</Helmet>
+
 			<SettingsHeader
-				title={
-					<>
-						Notifications
-						<span css={{ position: "relative", top: "-6px" }}>
-							<FeatureStageBadge
-								contentType={"beta"}
-								size="lg"
-								css={{ marginBottom: "5px", fontSize: "0.75rem" }}
-							/>
-						</span>
-					</>
+				actions={
+					<SettingsHeaderDocsLink
+						href={docs("/admin/monitoring/notifications")}
+					/>
 				}
-				description="Control delivery methods for notifications on this deployment."
-				docsHref={docs("/admin/monitoring/notifications")}
-			/>
+			>
+				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Control delivery methods for notifications on this deployment.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
 			<Tabs active={tabState.value}>
 				<TabsList>
 					<TabLink to="?tab=events" value="events">

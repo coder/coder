@@ -249,7 +249,7 @@ func TestCache_BuildTime(t *testing.T) {
 				})
 
 				dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					BuildNumber:       int32(1 + buildNumber),
+					BuildNumber:       int32(1 + buildNumber), // nolint:gosec
 					WorkspaceID:       workspace.ID,
 					InitiatorID:       user.ID,
 					TemplateVersionID: templateVersion.ID,

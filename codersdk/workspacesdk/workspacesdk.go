@@ -20,11 +20,12 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/quartz"
-	"github.com/coder/websocket"
 )
 
 var ErrSkipClose = xerrors.New("skip tailnet close")
@@ -123,8 +124,13 @@ func init() {
 	// Add a thousand more ports to the ignore list during tests so it's easier
 	// to find an available port.
 	for i := 63000; i < 64000; i++ {
+		// #nosec G115 - Safe conversion as port numbers are within uint16 range (0-65535)
 		AgentIgnoredListeningPorts[uint16(i)] = struct{}{}
 	}
+}
+
+type Resolver interface {
+	LookupIP(ctx context.Context, network, host string) ([]net.IP, error)
 }
 
 type Client struct {
@@ -142,6 +148,7 @@ type AgentConnectionInfo struct {
 	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
 	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
+	HostnameSuffix           string           `json:"hostname_suffix,omitempty"`
 }
 
 func (c *Client) AgentConnectionInfoGeneric(ctx context.Context) (AgentConnectionInfo, error) {
@@ -318,6 +325,11 @@ type WorkspaceAgentReconnectingPTYOpts struct {
 	// CODER_AGENT_DEVCONTAINERS_ENABLE set to "true".
 	Container     string
 	ContainerUser string
+
+	// BackendType is the type of backend to use for the PTY. If not set, the
+	// workspace agent will attempt to determine the preferred backend type.
+	// Supported values are "screen" and "buffered".
+	BackendType string
 }
 
 // AgentReconnectingPTY spawns a PTY that reconnects using the token provided.
@@ -338,6 +350,9 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	}
 	if opts.ContainerUser != "" {
 		q.Set("container_user", opts.ContainerUser)
+	}
+	if opts.BackendType != "" {
+		q.Set("backend_type", opts.BackendType)
 	}
 	// If we're using a signed token, set the query parameter.
 	if opts.SignedToken != "" {
@@ -373,4 +388,70 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
+}
+
+func WithTestOnlyCoderContextResolver(ctx context.Context, r Resolver) context.Context {
+	return context.WithValue(ctx, dnsResolverContextKey{}, r)
+}
+
+type dnsResolverContextKey struct{}
+
+type CoderConnectQueryOptions struct {
+	HostnameSuffix string
+}
+
+// IsCoderConnectRunning checks if Coder Connect (OS level tunnel to workspaces) is running on the system. If you
+// already know the hostname suffix your deployment uses, you can pass it in the CoderConnectQueryOptions to avoid an
+// API call to AgentConnectionInfoGeneric.
+func (c *Client) IsCoderConnectRunning(ctx context.Context, o CoderConnectQueryOptions) (bool, error) {
+	suffix := o.HostnameSuffix
+	if suffix == "" {
+		info, err := c.AgentConnectionInfoGeneric(ctx)
+		if err != nil {
+			return false, xerrors.Errorf("get agent connection info: %w", err)
+		}
+		suffix = info.HostnameSuffix
+	}
+	domainName := fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, suffix)
+	return ExistsViaCoderConnect(ctx, domainName)
+}
+
+func testOrDefaultResolver(ctx context.Context) Resolver {
+	// check the context for a non-default resolver. This is only used in testing.
+	resolver, ok := ctx.Value(dnsResolverContextKey{}).(Resolver)
+	if !ok || resolver == nil {
+		resolver = net.DefaultResolver
+	}
+	return resolver
+}
+
+// ExistsViaCoderConnect checks if the given hostname exists via Coder Connect. This doesn't guarantee the
+// workspace is actually reachable, if, for example, its agent is unhealthy, but rather that Coder Connect knows about
+// the workspace and advertises the hostname via DNS.
+func ExistsViaCoderConnect(ctx context.Context, hostname string) (bool, error) {
+	resolver := testOrDefaultResolver(ctx)
+	var dnsError *net.DNSError
+	ips, err := resolver.LookupIP(ctx, "ip6", hostname)
+	if xerrors.As(err, &dnsError) {
+		if dnsError.IsNotFound {
+			return false, nil
+		}
+	}
+	if err != nil {
+		return false, xerrors.Errorf("lookup DNS %s: %w", hostname, err)
+	}
+
+	// The returned IP addresses are probably from the Coder Connect DNS server, but there are sometimes weird captive
+	// internet setups where the DNS server is configured to return an address for any IP query. So, to avoid false
+	// positives, check if we can find an address from our service prefix.
+	for _, ip := range ips {
+		addr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			continue
+		}
+		if tailnet.CoderServicePrefix.AsNetip().Contains(addr) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

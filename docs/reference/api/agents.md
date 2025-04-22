@@ -180,6 +180,64 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Patch workspace agent app status
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspaceagents/me/app-status`
+
+> Body parameter
+
+```json
+{
+  "app_slug": "string",
+  "icon": "string",
+  "message": "string",
+  "needs_user_attention": true,
+  "state": "working",
+  "uri": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                         | Required | Description |
+|--------|------|--------------------------------------------------------------|----------|-------------|
+| `body` | body | [agentsdk.PatchAppStatus](schemas.md#agentsdkpatchappstatus) | true     | app status  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent external auth
 
 ### Code samples
@@ -455,6 +513,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "open_in": "slim-window",
       "sharing_level": "owner",
       "slug": "string",
+      "statuses": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "created_at": "2019-08-24T14:15:22Z",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "message": "string",
+          "needs_user_attention": true,
+          "state": "working",
+          "uri": "string",
+          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+        }
+      ],
       "subdomain": true,
       "subdomain_name": "string",
       "url": "string"
@@ -626,7 +698,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       }
     }
   },
-  "disable_direct_connections": true
+  "disable_direct_connections": true,
+  "hostname_suffix": "string"
 }
 ```
 
@@ -676,9 +749,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       "name": "string",
       "ports": [
         {
+          "host_ip": "string",
+          "host_port": 0,
           "network": "string",
-          "port": 0,
-          "process_name": "string"
+          "port": 0
         }
       ],
       "running": true,

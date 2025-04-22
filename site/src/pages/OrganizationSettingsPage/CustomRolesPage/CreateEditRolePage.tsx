@@ -8,8 +8,8 @@ import type { CustomRoleRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -48,8 +48,9 @@ export const CreateEditRolePage: FC = () => {
 	return (
 		<RequirePermission
 			isFeatureVisible={
-				organizationPermissions.assignOrgRoles ||
-				organizationPermissions.createOrgRoles
+				role
+					? organizationPermissions.updateOrgRoles
+					: organizationPermissions.createOrgRoles
 			}
 		>
 			<Helmet>
@@ -87,7 +88,6 @@ export const CreateEditRolePage: FC = () => {
 						: createOrganizationRoleMutation.isLoading
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={organizationPermissions.assignOrgRoles}
 			/>
 		</RequirePermission>
 	);

@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/webpush"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -94,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -618,6 +620,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
 			}
 
+			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
+			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
+			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
+			// 'en.coder' but not 'encoder'.
+			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
+				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
+					vals.WorkspaceHostnameSuffix.String())
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -630,7 +641,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
-				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
@@ -651,6 +661,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
+					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				Entitlements:          entitlements.New(),
@@ -773,6 +784,29 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}, nil)
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
+			}
+
+			// Manage push notifications.
+			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
+			if experiments.Enabled(codersdk.ExperimentWebPush) {
+				if !strings.HasPrefix(options.AccessURL.String(), "https://") {
+					options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
+				}
+				webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
+				if err != nil {
+					options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
+					options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
+					webpusher = &webpush.NoopWebpusher{
+						Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
+					}
+				}
+				options.WebPushDispatcher = webpusher
+			} else {
+				options.WebPushDispatcher = &webpush.NoopWebpusher{
+					// Users will likely not see this message as the endpoints return 404
+					// if not enabled. Just in case...
+					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",
+				}
 			}
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
@@ -920,34 +954,30 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				notificationsManager *notifications.Manager
 			)
 
-			if notificationsCfg.Enabled() {
-				metrics := notifications.NewMetrics(options.PrometheusRegistry)
-				helpers := templateHelpers(options)
+			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			helpers := templateHelpers(options)
 
-				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
-				}
-				options.NotificationsEnqueuer = enqueuer
-
-				// The notification manager is responsible for:
-				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-				}
-
-				// nolint:gocritic // We need to run the manager in a notifier context.
-				notificationsManager.Run(dbauthz.AsNotifier(ctx))
-
-				// Run report generator to distribute periodic reports.
-				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-				defer notificationReportGenerator.Close()
-			} else {
-				logger.Debug(ctx, "notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details")
+			// The enqueuer is responsible for enqueueing notifications to the given store.
+			enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 			}
+			options.NotificationsEnqueuer = enqueuer
+
+			// The notification manager is responsible for:
+			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+			//   - keeping the store updated with status updates
+			notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, options.Pubsub, helpers, metrics, logger.Named("notifications.manager"))
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+			}
+
+			// nolint:gocritic // We need to run the manager in a notifier context.
+			notificationsManager.Run(dbauthz.AsNotifier(ctx))
+
+			// Run report generator to distribute periodic reports.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
 
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
@@ -1259,6 +1289,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
+	regenerateVapidKeypairCmd := r.newRegenerateVapidKeypairCommand()
 
 	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
@@ -1272,7 +1303,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	serverCmd.Children = append(
 		serverCmd.Children,
-		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd,
 	)
 
 	return serverCmd
@@ -1768,9 +1799,9 @@ func parseTLSCipherSuites(ciphers []string) ([]tls.CipherSuite, error) {
 // hasSupportedVersion is a helper function that returns true if the list
 // of supported versions contains a version between min and max.
 // If the versions list is outside the min/max, then it returns false.
-func hasSupportedVersion(min, max uint16, versions []uint16) bool {
+func hasSupportedVersion(minVal, maxVal uint16, versions []uint16) bool {
 	for _, v := range versions {
-		if v >= min && v <= max {
+		if v >= minVal && v <= maxVal {
 			// If one version is in between min/max, return true.
 			return true
 		}
@@ -1894,7 +1925,7 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 
 	if defaultEligibleNotSet {
 		// nolint:gocritic // User count requires system privileges
-		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return nil, xerrors.Errorf("get user count: %w", err)
 		}
@@ -2129,6 +2160,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V13).
 			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
+			// Default BinaryRepositoryURL repo1.maven.org is flaky.
+			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
 			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
 			CachePath(cachePath).

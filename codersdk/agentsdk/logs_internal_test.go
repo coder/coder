@@ -63,10 +63,10 @@ func TestLogSender_Mainline(t *testing.T) {
 	// since neither source has even been flushed, it should immediately Flush
 	// both, although the order is not controlled
 	var logReqs []*proto.BatchCreateLogsRequest
-	logReqs = append(logReqs, testutil.RequireRecvCtx(ctx, t, fDest.reqs))
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
-	logReqs = append(logReqs, testutil.RequireRecvCtx(ctx, t, fDest.reqs))
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	logReqs = append(logReqs, testutil.TryReceive(ctx, t, fDest.reqs))
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	logReqs = append(logReqs, testutil.TryReceive(ctx, t, fDest.reqs))
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	for _, req := range logReqs {
 		require.NotNil(t, req)
 		srcID, err := uuid.FromBytes(req.LogSourceId)
@@ -98,8 +98,8 @@ func TestLogSender_Mainline(t *testing.T) {
 	})
 	uut.Flush(ls1)
 
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	// give ourselves a 25% buffer if we're right on the cusp of a tick
 	require.LessOrEqual(t, time.Since(t1), flushInterval*5/4)
 	require.NotNil(t, req)
@@ -108,11 +108,11 @@ func TestLogSender_Mainline(t *testing.T) {
 	require.Equal(t, proto.Log_DEBUG, req.Logs[0].GetLevel())
 	require.Equal(t, t1, req.Logs[0].GetCreatedAt().AsTime())
 
-	err := testutil.RequireRecvCtx(ctx, t, empty)
+	err := testutil.TryReceive(ctx, t, empty)
 	require.NoError(t, err)
 
 	cancel()
-	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err = testutil.TryReceive(testCtx, t, loopErr)
 	require.ErrorIs(t, err, context.Canceled)
 
 	// we can still enqueue more logs after SendLoop returns
@@ -151,16 +151,16 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 		loopErr <- err
 	}()
 
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
-	testutil.RequireSendCtx(ctx, t, fDest.resps,
+	testutil.RequireSend(ctx, t, fDest.resps,
 		&proto.BatchCreateLogsResponse{LogLimitExceeded: true})
 
-	err := testutil.RequireRecvCtx(ctx, t, loopErr)
-	require.ErrorIs(t, err, LogLimitExceededError)
+	err := testutil.TryReceive(ctx, t, loopErr)
+	require.ErrorIs(t, err, ErrLogLimitExceeded)
 
 	// Should also unblock WaitUntilEmpty
-	err = testutil.RequireRecvCtx(ctx, t, empty)
+	err = testutil.TryReceive(ctx, t, empty)
 	require.NoError(t, err)
 
 	// we can still enqueue more logs after SendLoop returns, but they don't
@@ -179,8 +179,8 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 		err := uut.SendLoop(ctx, fDest)
 		loopErr <- err
 	}()
-	err = testutil.RequireRecvCtx(ctx, t, loopErr)
-	require.ErrorIs(t, err, LogLimitExceededError)
+	err = testutil.TryReceive(ctx, t, loopErr)
+	require.ErrorIs(t, err, ErrLogLimitExceeded)
 }
 
 func TestLogSender_SkipHugeLog(t *testing.T) {
@@ -217,15 +217,15 @@ func TestLogSender_SkipHugeLog(t *testing.T) {
 		loopErr <- err
 	}()
 
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	require.Len(t, req.Logs, 1, "it should skip the huge log")
 	require.Equal(t, "test log 1, src 1", req.Logs[0].GetOutput())
 	require.Equal(t, proto.Log_INFO, req.Logs[0].GetLevel())
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err := testutil.TryReceive(testCtx, t, loopErr)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -258,7 +258,7 @@ func TestLogSender_InvalidUTF8(t *testing.T) {
 		loopErr <- err
 	}()
 
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	require.Len(t, req.Logs, 2, "it should sanitize invalid UTF-8, but still send")
 	// the 0xc3, 0x28 is an invalid 2-byte sequence in UTF-8.  The sanitizer replaces 0xc3 with ❌, and then
@@ -267,10 +267,10 @@ func TestLogSender_InvalidUTF8(t *testing.T) {
 	require.Equal(t, proto.Log_INFO, req.Logs[0].GetLevel())
 	require.Equal(t, "test log 1, src 1", req.Logs[1].GetOutput())
 	require.Equal(t, proto.Log_INFO, req.Logs[1].GetLevel())
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err := testutil.TryReceive(testCtx, t, loopErr)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -303,24 +303,24 @@ func TestLogSender_Batch(t *testing.T) {
 	// with 60k logs, we should split into two updates to avoid going over 1MiB, since each log
 	// is about 21 bytes.
 	gotLogs := 0
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	gotLogs += len(req.Logs)
 	wire, err := protobuf.Marshal(req)
 	require.NoError(t, err)
 	require.Less(t, len(wire), maxBytesPerBatch, "wire should not exceed 1MiB")
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
-	req = testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	req = testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	gotLogs += len(req.Logs)
 	wire, err = protobuf.Marshal(req)
 	require.NoError(t, err)
 	require.Less(t, len(wire), maxBytesPerBatch, "wire should not exceed 1MiB")
 	require.Equal(t, 60000, gotLogs)
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 
 	cancel()
-	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err = testutil.TryReceive(testCtx, t, loopErr)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -367,12 +367,12 @@ func TestLogSender_MaxQueuedLogs(t *testing.T) {
 	// #1 come in 2 updates, plus 1 update for source #2.
 	logsBySource := make(map[uuid.UUID]int)
 	for i := 0; i < 3; i++ {
-		req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+		req := testutil.TryReceive(ctx, t, fDest.reqs)
 		require.NotNil(t, req)
 		srcID, err := uuid.FromBytes(req.LogSourceId)
 		require.NoError(t, err)
 		logsBySource[srcID] += len(req.Logs)
-		testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+		testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	}
 	require.Equal(t, map[uuid.UUID]int{
 		ls1: n,
@@ -380,7 +380,7 @@ func TestLogSender_MaxQueuedLogs(t *testing.T) {
 	}, logsBySource)
 
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err := testutil.TryReceive(testCtx, t, loopErr)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -408,10 +408,10 @@ func TestLogSender_SendError(t *testing.T) {
 		loopErr <- err
 	}()
 
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 
-	err := testutil.RequireRecvCtx(ctx, t, loopErr)
+	err := testutil.TryReceive(ctx, t, loopErr)
 	require.ErrorIs(t, err, expectedErr)
 
 	// we can still enqueue more logs after SendLoop returns
@@ -448,7 +448,7 @@ func TestLogSender_WaitUntilEmpty_ContextExpired(t *testing.T) {
 	}()
 
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, empty)
+	err := testutil.TryReceive(testCtx, t, empty)
 	require.ErrorIs(t, err, context.Canceled)
 }
 

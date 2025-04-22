@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
         with:
           egress-policy: audit
 
@@ -35,11 +35,30 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Nix
-        uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
+        uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
+
+      - uses: nix-community/cache-nix-action@c448f065ba14308da81de769632ca67a3ce67cf5 # v6.1.2
+        with:
+          # restore and save a cache using this key
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          # if there's no cache hit, restore a cache by this prefix
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # collect garbage until Nix store size (in bytes) is at most this number
+          # before trying to save a new cache
+          # 1G = 1073741824
+          gc-max-store-size-linux: 5G
+          # do purge caches
+          purge: true
+          # purge all versions of the cache
+          purge-prefixes: nix-${{ runner.os }}-
+          # created more than this number of seconds ago relative to the start of the `Post Restore` phase
+          purge-created: 0
+          # except the version with the `primary-key`, if it exists
+          purge-primary-key: never
 
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-names@6871f53176ad61624f978536bbf089c574dc19a2 # v8.0.1
+        uses: tj-actions/branch-names@dde14ac574a8b9b1cedc59a1cf312788af43d8d8 # v8.2.1
 
       - name: "Branch name to Docker tag name"
         id: docker-tag-name
@@ -57,7 +76,7 @@ jobs:
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
@@ -68,7 +87,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/contents"
+          context: "{{defaultContext}}:dogfood/coder"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -95,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
         with:
           egress-policy: audit
 
@@ -113,12 +132,18 @@ jobs:
 
       - name: Terraform init and validate
         run: |
-          cd dogfood
-          terraform init -upgrade
+          pushd dogfood/
+          terraform init
           terraform validate
-          cd contents
-          terraform init -upgrade
+          popd
+          pushd dogfood/coder
+          terraform init
           terraform validate
+          popd
+          pushd dogfood/coder-envbuilder
+          terraform init
+          terraform validate
+          popd
 
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
@@ -142,6 +167,6 @@ jobs:
           # Template source & details
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
-          TF_VAR_CODER_TEMPLATE_DIR: ./contents
+          TF_VAR_CODER_TEMPLATE_DIR: ./coder
           TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
           TF_LOG: info

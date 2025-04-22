@@ -31,8 +31,8 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
-const DeploymentSettingsProvider = lazy(
-	() => import("./modules/management/DeploymentSettingsProvider"),
+const DeploymentConfigProvider = lazy(
+	() => import("./modules/management/DeploymentConfigProvider"),
 );
 const OrganizationSidebarLayout = lazy(
 	() => import("./modules/management/OrganizationSidebarLayout"),
@@ -95,14 +95,11 @@ const TemplatePermissionsPage = lazy(
 const TemplateSummaryPage = lazy(
 	() => import("./pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"),
 );
-const CreateWorkspacePage = lazy(
-	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
+const CreateWorkspaceExperimentRouter = lazy(
+	() => import("./pages/CreateWorkspacePage/CreateWorkspaceExperimentRouter"),
 );
-const GeneralSettingsPage = lazy(
-	() =>
-		import(
-			"./pages/DeploymentSettingsPage/GeneralSettingsPage/GeneralSettingsPage"
-		),
+const OverviewPage = lazy(
+	() => import("./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"),
 );
 const SecuritySettingsPage = lazy(
 	() =>
@@ -267,7 +264,10 @@ const CreateEditRolePage = lazy(
 		),
 );
 const ProvisionersPage = lazy(
-	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"
+		),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -309,6 +309,12 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
+const ProvisionerJobsPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
+		),
+);
 
 const RoutesWithSuspense = () => {
 	return (
@@ -331,7 +337,7 @@ const templateRouter = () => {
 					<Route path="insights" element={<TemplateInsightsPage />} />
 				</Route>
 
-				<Route path="workspace" element={<CreateWorkspacePage />} />
+				<Route path="workspace" element={<CreateWorkspaceExperimentRouter />} />
 
 				<Route path="settings" element={<TemplateSettingsLayout />}>
 					<Route index element={<TemplateSettingsPage />} />
@@ -429,14 +435,18 @@ export const router = createBrowserRouter(
 								<Route path=":roleName" element={<CreateEditRolePage />} />
 							</Route>
 							<Route path="provisioners" element={<ProvisionersPage />} />
+							<Route
+								path="provisioner-jobs"
+								element={<ProvisionerJobsPage />}
+							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>
 					</Route>
 
 					<Route path="/deployment" element={<DeploymentSettingsLayout />}>
-						<Route element={<DeploymentSettingsProvider />}>
-							<Route path="general" element={<GeneralSettingsPage />} />
+						<Route element={<DeploymentConfigProvider />}>
+							<Route path="overview" element={<OverviewPage />} />
 							<Route path="security" element={<SecuritySettingsPage />} />
 							<Route
 								path="observability"

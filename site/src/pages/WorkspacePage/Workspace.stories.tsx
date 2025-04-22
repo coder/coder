@@ -7,11 +7,22 @@ import { withDashboardProvider } from "testHelpers/storybook";
 import { Workspace } from "./Workspace";
 import type { WorkspacePermissions } from "./permissions";
 
+// Helper function to create timestamps easily - Copied from AppStatuses.stories.tsx
+const createTimestamp = (
+	minuteOffset: number,
+	secondOffset: number,
+): string => {
+	const baseDate = new Date("2024-03-26T15:00:00Z");
+	baseDate.setMinutes(baseDate.getMinutes() + minuteOffset);
+	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
+	return baseDate.toISOString();
+};
+
 const permissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspace: true,
 	updateTemplate: true,
-	viewDeploymentValues: true,
+	viewDeploymentConfig: true,
 };
 
 const meta: Meta<typeof Workspace> = {
@@ -66,9 +77,131 @@ export const Running: Story = {
 			...Mocks.MockWorkspace,
 			latest_build: {
 				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								lifecycle_state: "ready",
+							},
+						],
+					},
+				],
 				matched_provisioners: {
 					count: 0,
 					available: 0,
+				},
+			},
+		},
+		handleStart: action("start"),
+		handleStop: action("stop"),
+		buildInfo: Mocks.MockBuildInfo,
+		template: Mocks.MockTemplate,
+	},
+};
+
+export const RunningWithAppStatuses: Story = {
+	args: {
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								lifecycle_state: "ready",
+								apps: [
+									{
+										...Mocks.MockWorkspaceApp,
+										statuses: [
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-7",
+												icon: "/emojis/1f4dd.png", // 📝
+												message: "Creating PR with gh CLI",
+												created_at: createTimestamp(4, 38), // 15:04:38
+												uri: "https://github.com/coder/coder/pull/5678",
+												state: "working" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-6",
+												icon: "/emojis/1f680.png", // 🚀
+												message: "Pushing branch to remote",
+												created_at: createTimestamp(3, 56), // 15:03:56
+												uri: "",
+												state: "complete" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-5",
+												icon: "/emojis/1f527.png", // 🔧
+												message: "Configuring git identity",
+												created_at: createTimestamp(2, 29), // 15:02:29
+												uri: "",
+												state: "complete" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-4",
+												icon: "/emojis/1f4be.png", // 💾
+												message: "Committing changes",
+												created_at: createTimestamp(2, 4), // 15:02:04
+												uri: "",
+												state: "complete" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-3",
+												icon: "/emojis/2795.png", // +
+												message: "Adding files to staging",
+												created_at: createTimestamp(1, 44), // 15:01:44
+												uri: "",
+												state: "complete" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-2",
+												icon: "/emojis/1f33f.png", // 🌿
+												message: "Creating a new branch for PR",
+												created_at: createTimestamp(1, 32), // 15:01:32
+												uri: "",
+												state: "complete" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+											{
+												...Mocks.MockWorkspaceAppStatus,
+												id: "status-1",
+												icon: "/emojis/1f680.png", // 🚀
+												message: "Starting to create a PR",
+												created_at: createTimestamp(1, 0), // 15:01:00
+												uri: "",
+												state: "complete" as const,
+												agent_id: Mocks.MockWorkspaceAgent.id,
+											},
+										].sort(
+											(a, b) =>
+												new Date(b.created_at).getTime() -
+												new Date(a.created_at).getTime(),
+										), // Ensure sorted correctly if component relies on input order
+									},
+								],
+							},
+						],
+					},
+				],
+				matched_provisioners: {
+					count: 1,
+					available: 1,
 				},
 			},
 		},

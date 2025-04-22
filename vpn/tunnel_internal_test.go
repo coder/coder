@@ -16,10 +16,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/util/dnsname"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 func newFakeClient(ctx context.Context, t *testing.T) *fakeClient {
@@ -103,6 +104,9 @@ func TestTunnel_StartStop(t *testing.T) {
 					Headers: []*StartRequest_Header{
 						{Name: "X-Test-Header", Value: "test"},
 					},
+					DeviceOs:            "macOS",
+					DeviceId:            "device001",
+					CoderDesktopVersion: "0.24.8",
 				},
 			},
 		})
@@ -110,9 +114,9 @@ func TestTunnel_StartStop(t *testing.T) {
 		errCh <- err
 	}()
 	// Then: `NewConn` is called,
-	testutil.RequireSendCtx(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.ch, conn)
 	// And: a response is received
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -126,9 +130,9 @@ func TestTunnel_StartStop(t *testing.T) {
 		errCh <- err
 	}()
 	// Then: `Close` is called on the connection
-	testutil.RequireRecvCtx(ctx, t, conn.closed)
+	testutil.TryReceive(ctx, t, conn.closed)
 	// And: a Stop response is received
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok = resp.Msg.(*TunnelMessage_Stop)
 	require.True(t, ok)
@@ -174,8 +178,8 @@ func TestTunnel_PeerUpdate(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSendCtx(ctx, t, client.ch, conn)
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -190,7 +194,7 @@ func TestTunnel_PeerUpdate(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// Then: the tunnel sends a PeerUpdate message
-	req := testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
 	require.Nil(t, req.msg.Rpc)
 	require.NotNil(t, req.msg.GetPeerUpdate())
 	require.Len(t, req.msg.GetPeerUpdate().UpsertedWorkspaces, 1)
@@ -205,7 +209,7 @@ func TestTunnel_PeerUpdate(t *testing.T) {
 		errCh <- err
 	}()
 	// Then: a PeerUpdate message is sent using the Conn's state
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok = resp.Msg.(*TunnelMessage_PeerUpdate)
 	require.True(t, ok)
@@ -239,8 +243,8 @@ func TestTunnel_NetworkSettings(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSendCtx(ctx, t, client.ch, conn)
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -253,11 +257,11 @@ func TestTunnel_NetworkSettings(t *testing.T) {
 		errCh <- err
 	}()
 	// Then: the tunnel sends a NetworkSettings message
-	req := testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
 	require.NotNil(t, req.msg.Rpc)
 	require.Equal(t, uint32(1200), req.msg.GetNetworkSettings().Mtu)
 	go func() {
-		testutil.RequireSendCtx(ctx, t, mgr.sendCh, &ManagerMessage{
+		testutil.RequireSend(ctx, t, mgr.sendCh, &ManagerMessage{
 			Rpc: &RPC{ResponseTo: req.msg.Rpc.MsgId},
 			Msg: &ManagerMessage_NetworkSettings{
 				NetworkSettings: &NetworkSettingsResponse{
@@ -267,7 +271,7 @@ func TestTunnel_NetworkSettings(t *testing.T) {
 		})
 	}()
 	// And: `ApplyNetworkSettings` returns without error once the manager responds
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 }
 
@@ -379,8 +383,8 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSendCtx(ctx, t, client.ch, conn)
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -404,7 +408,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	req := testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
 	require.Nil(t, req.msg.Rpc)
 	require.NotNil(t, req.msg.GetPeerUpdate())
 	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
@@ -416,7 +420,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		mClock.AdvanceNext()
 		// Then: the tunnel sends a PeerUpdate message of agent upserts,
 		// with the last handshake and latency set
-		req = testutil.RequireRecvCtx(ctx, t, mgr.requests)
+		req = testutil.TryReceive(ctx, t, mgr.requests)
 		require.Nil(t, req.msg.Rpc)
 		require.NotNil(t, req.msg.GetPeerUpdate())
 		require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
@@ -439,11 +443,11 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	testutil.TryReceive(ctx, t, mgr.requests)
 
 	// The new update includes the new agent
 	mClock.AdvanceNext()
-	req = testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	req = testutil.TryReceive(ctx, t, mgr.requests)
 	require.Nil(t, req.msg.Rpc)
 	require.NotNil(t, req.msg.GetPeerUpdate())
 	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 2)
@@ -470,11 +474,11 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	testutil.TryReceive(ctx, t, mgr.requests)
 
 	// The new update doesn't include the deleted agent
 	mClock.AdvanceNext()
-	req = testutil.RequireRecvCtx(ctx, t, mgr.requests)
+	req = testutil.TryReceive(ctx, t, mgr.requests)
 	require.Nil(t, req.msg.Rpc)
 	require.NotNil(t, req.msg.GetPeerUpdate())
 	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
@@ -502,9 +506,9 @@ func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock q
 		mgr = manager
 		errCh <- err
 	}()
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	mgr.start()
 	return tun, mgr

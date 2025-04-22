@@ -23,6 +23,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -54,46 +55,48 @@ func New() database.Store {
 	q := &FakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
-			apiKeys:                   make([]database.APIKey, 0),
-			auditLogs:                 make([]database.AuditLog, 0),
-			customRoles:               make([]database.CustomRole, 0),
-			dbcryptKeys:               make([]database.DBCryptKey, 0),
-			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
-			files:                     make([]database.File, 0),
-			gitSSHKey:                 make([]database.GitSSHKey, 0),
-			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMemberTable, 0),
-			licenses:                  make([]database.License, 0),
-			locks:                     map[int64]struct{}{},
-			notificationMessages:      make([]database.NotificationMessage, 0),
-			notificationPreferences:   make([]database.NotificationPreference, 0),
-			organizationMembers:       make([]database.OrganizationMember, 0),
-			organizations:             make([]database.Organization, 0),
-			inboxNotifications:        make([]database.InboxNotification, 0),
-			parameterSchemas:          make([]database.ParameterSchema, 0),
-			presets:                   make([]database.TemplateVersionPreset, 0),
-			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
-			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
-			provisionerJobs:           make([]database.ProvisionerJob, 0),
-			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
-			provisionerKeys:           make([]database.ProvisionerKey, 0),
-			runtimeConfig:             map[string]string{},
-			telemetryItems:            make([]database.TelemetryItem, 0),
-			templateVersions:          make([]database.TemplateVersionTable, 0),
-			templates:                 make([]database.TemplateTable, 0),
-			users:                     make([]database.User, 0),
-			userConfigs:               make([]database.UserConfig, 0),
-			userStatusChanges:         make([]database.UserStatusChange, 0),
-			workspaceAgents:           make([]database.WorkspaceAgent, 0),
-			workspaceResources:        make([]database.WorkspaceResource, 0),
-			workspaceModules:          make([]database.WorkspaceModule, 0),
-			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
-			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
-			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
-			workspaceApps:             make([]database.WorkspaceApp, 0),
-			workspaces:                make([]database.WorkspaceTable, 0),
-			workspaceProxies:          make([]database.WorkspaceProxy, 0),
+			apiKeys:                        make([]database.APIKey, 0),
+			auditLogs:                      make([]database.AuditLog, 0),
+			customRoles:                    make([]database.CustomRole, 0),
+			dbcryptKeys:                    make([]database.DBCryptKey, 0),
+			externalAuthLinks:              make([]database.ExternalAuthLink, 0),
+			files:                          make([]database.File, 0),
+			gitSSHKey:                      make([]database.GitSSHKey, 0),
+			groups:                         make([]database.Group, 0),
+			groupMembers:                   make([]database.GroupMemberTable, 0),
+			licenses:                       make([]database.License, 0),
+			locks:                          map[int64]struct{}{},
+			notificationMessages:           make([]database.NotificationMessage, 0),
+			notificationPreferences:        make([]database.NotificationPreference, 0),
+			organizationMembers:            make([]database.OrganizationMember, 0),
+			organizations:                  make([]database.Organization, 0),
+			inboxNotifications:             make([]database.InboxNotification, 0),
+			parameterSchemas:               make([]database.ParameterSchema, 0),
+			presets:                        make([]database.TemplateVersionPreset, 0),
+			presetParameters:               make([]database.TemplateVersionPresetParameter, 0),
+			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
+			provisionerJobs:                make([]database.ProvisionerJob, 0),
+			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
+			provisionerKeys:                make([]database.ProvisionerKey, 0),
+			runtimeConfig:                  map[string]string{},
+			telemetryItems:                 make([]database.TelemetryItem, 0),
+			templateVersions:               make([]database.TemplateVersionTable, 0),
+			templateVersionTerraformValues: make([]database.TemplateVersionTerraformValue, 0),
+			templates:                      make([]database.TemplateTable, 0),
+			users:                          make([]database.User, 0),
+			userConfigs:                    make([]database.UserConfig, 0),
+			userStatusChanges:              make([]database.UserStatusChange, 0),
+			workspaceAgents:                make([]database.WorkspaceAgent, 0),
+			workspaceResources:             make([]database.WorkspaceResource, 0),
+			workspaceModules:               make([]database.WorkspaceModule, 0),
+			workspaceResourceMetadata:      make([]database.WorkspaceResourceMetadatum, 0),
+			workspaceAgentStats:            make([]database.WorkspaceAgentStat, 0),
+			workspaceAgentLogs:             make([]database.WorkspaceAgentLog, 0),
+			workspaceBuilds:                make([]database.WorkspaceBuild, 0),
+			workspaceApps:                  make([]database.WorkspaceApp, 0),
+			workspaceAppAuditSessions:      make([]database.WorkspaceAppAuditSession, 0),
+			workspaces:                     make([]database.WorkspaceTable, 0),
+			workspaceProxies:               make([]database.WorkspaceProxy, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -152,6 +155,22 @@ func New() database.Store {
 		panic(xerrors.Errorf("failed to create psk provisioner key: %w", err))
 	}
 
+	q.mutex.Lock()
+	// We can't insert this user using the interface, because it's a system user.
+	q.data.users = append(q.data.users, database.User{
+		ID:             prebuilds.SystemUserID,
+		Email:          "prebuilds@coder.com",
+		Username:       "prebuilds",
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		Status:         "active",
+		LoginType:      "none",
+		HashedPassword: []byte{},
+		IsSystem:       true,
+		Deleted:        false,
+	})
+	q.mutex.Unlock()
+
 	return q
 }
 
@@ -203,7 +222,6 @@ type data struct {
 	gitSSHKey                            []database.GitSSHKey
 	groupMembers                         []database.GroupMemberTable
 	groups                               []database.Group
-	jfrogXRayScans                       []database.JfrogXrayScan
 	licenses                             []database.License
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
@@ -221,11 +239,13 @@ type data struct {
 	replicas                             []database.Replica
 	templateVersions                     []database.TemplateVersionTable
 	templateVersionParameters            []database.TemplateVersionParameter
+	templateVersionTerraformValues       []database.TemplateVersionTerraformValue
 	templateVersionVariables             []database.TemplateVersionVariable
 	templateVersionWorkspaceTags         []database.TemplateVersionWorkspaceTag
 	templates                            []database.TemplateTable
 	templateUsageStats                   []database.TemplateUsageStat
 	userConfigs                          []database.UserConfig
+	webpushSubscriptions                 []database.WebpushSubscription
 	workspaceAgents                      []database.WorkspaceAgent
 	workspaceAgentMetadata               []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs                   []database.WorkspaceAgentLog
@@ -236,7 +256,10 @@ type data struct {
 	workspaceAgentStats                  []database.WorkspaceAgentStat
 	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
+	workspaceAgentDevcontainers          []database.WorkspaceAgentDevcontainer
 	workspaceApps                        []database.WorkspaceApp
+	workspaceAppStatuses                 []database.WorkspaceAppStatus
+	workspaceAppAuditSessions            []database.WorkspaceAppAuditSession
 	workspaceAppStatsLastInsertID        int64
 	workspaceAppStats                    []database.WorkspaceAppStat
 	workspaceBuilds                      []database.WorkspaceBuild
@@ -267,6 +290,8 @@ type data struct {
 	lastLicenseID                    int32
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
+	webpushVAPIDPublicKey            string
+	webpushVAPIDPrivateKey           string
 	userStatusChanges                []database.UserStatusChange
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
@@ -437,6 +462,7 @@ func convertUsers(users []database.User, count int64) []database.GetUsersRow {
 			Deleted:        u.Deleted,
 			LastSeenAt:     u.LastSeenAt,
 			Count:          count,
+			IsSystem:       u.IsSystem,
 		}
 	}
 
@@ -1549,11 +1575,16 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
+// nolint:revive // It's not a control flag, it's a filter.
+func (q *FakeQuerier) AllUserIDs(_ context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
+		if !includeSystem && q.users[idx].IsSystem {
+			continue
+		}
+
 		userIDs = append(userIDs, q.users[idx].ID)
 	}
 	return userIDs, nil
@@ -1709,6 +1740,10 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
+func (q *FakeQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	return database.ClaimPrebuiltWorkspaceRow{}, ErrUnimplemented
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
@@ -1719,6 +1754,10 @@ func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
 
 func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
@@ -1823,6 +1862,14 @@ func (*FakeQuerier) DeleteAllTailnetTunnels(_ context.Context, arg database.Dele
 	}
 
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteAllWebpushSubscriptions(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.webpushSubscriptions = make([]database.WebpushSubscription, 0)
+	return nil
 }
 
 func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
@@ -2310,10 +2357,13 @@ func (q *FakeQuerier) DeleteOrganizationMember(ctx context.Context, arg database
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	deleted := slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
-		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	deleted := false
+	q.data.organizationMembers = slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		match := member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+		deleted = deleted || match
+		return match
 	})
-	if len(deleted) == 0 {
+	if !deleted {
 		return sql.ErrNoRows
 	}
 
@@ -2392,6 +2442,38 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	}
 
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(_ context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, subscription := range q.webpushSubscriptions {
+		if subscription.UserID == arg.UserID && subscription.Endpoint == arg.Endpoint {
+			q.webpushSubscriptions[i] = q.webpushSubscriptions[len(q.webpushSubscriptions)-1]
+			q.webpushSubscriptions = q.webpushSubscriptions[:len(q.webpushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteWebpushSubscriptions(_ context.Context, ids []uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for i, subscription := range q.webpushSubscriptions {
+		if slices.Contains(ids, subscription.ID) {
+			q.webpushSubscriptions[i] = q.webpushSubscriptions[len(q.webpushSubscriptions)-1]
+			q.webpushSubscriptions = q.webpushSubscriptions[:len(q.webpushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -2644,12 +2726,17 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
-func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+// nolint:revive // It's not a control flag, it's a filter.
+func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	active := int64(0)
 	for _, u := range q.users {
+		if !includeSystem && u.IsSystem {
+			continue
+		}
+
 		if u.Status == database.UserStatusActive && !u.Deleted {
 			active++
 		}
@@ -3206,6 +3293,7 @@ func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, 
 		}
 
 		workspaceBuildStats = append(workspaceBuildStats, database.GetFailedWorkspaceBuildsByTemplateIDRow{
+			WorkspaceID:            w.ID,
 			WorkspaceName:          w.Name,
 			WorkspaceOwnerUsername: workspaceOwner.Username,
 			TemplateVersionName:    templateVersion.Name,
@@ -3248,6 +3336,30 @@ func (q *FakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 		}
 	}
 	return database.File{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, v := range q.templateVersions {
+		if v.ID == templateVersionID {
+			jobID := v.JobID
+			for _, j := range q.provisionerJobs {
+				if j.ID == jobID {
+					if j.StorageMethod == database.ProvisionerStorageMethodFile {
+						return j.FileID, nil
+					}
+					// We found the right job id but it wasn't a proper match.
+					break
+				}
+			}
+			// We found the right template version but it wasn't a proper match.
+			break
+		}
+	}
+
+	return uuid.Nil, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
@@ -3296,34 +3408,52 @@ func (q *FakeQuerier) GetFilteredInboxNotificationsByUserID(_ context.Context, a
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.inboxNotifications {
+	// TODO : after using go version >= 1.23 , we can change this one to https://pkg.go.dev/slices#Backward
+	for idx := len(q.inboxNotifications) - 1; idx >= 0; idx-- {
+		notification := q.inboxNotifications[idx]
+
 		if notification.UserID == arg.UserID {
+			if !arg.CreatedAtOpt.IsZero() && !notification.CreatedAt.Before(arg.CreatedAtOpt) {
+				continue
+			}
+
+			templateFound := false
 			for _, template := range arg.Templates {
-				templateFound := false
 				if notification.TemplateID == template {
 					templateFound = true
 				}
-
-				if !templateFound {
-					continue
-				}
 			}
 
+			if len(arg.Templates) > 0 && !templateFound {
+				continue
+			}
+
+			targetsFound := true
 			for _, target := range arg.Targets {
-				isFound := false
+				targetFound := false
 				for _, insertedTarget := range notification.Targets {
 					if insertedTarget == target {
-						isFound = true
+						targetFound = true
 						break
 					}
 				}
 
-				if !isFound {
-					continue
+				if !targetFound {
+					targetsFound = false
+					break
 				}
-
-				notifications = append(notifications, notification)
 			}
+
+			if !targetsFound {
+				continue
+			}
+
+			if (arg.LimitOpt == 0 && len(notifications) == 25) ||
+				(arg.LimitOpt != 0 && len(notifications) == int(arg.LimitOpt)) {
+				break
+			}
+
+			notifications = append(notifications, notification)
 		}
 	}
 
@@ -3367,7 +3497,8 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+//nolint:revive // It's not a control flag, its a filter
+func (q *FakeQuerier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3375,6 +3506,9 @@ func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMemb
 	members = append(members, q.groupMembers...)
 	for _, org := range q.organizations {
 		for _, user := range q.users {
+			if !includeSystem && user.IsSystem {
+				continue
+			}
 			members = append(members, database.GroupMemberTable{
 				UserID:  user.ID,
 				GroupID: org.ID,
@@ -3397,17 +3531,17 @@ func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMemb
 	return groupMembers, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
+func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, arg database.GetGroupMembersByGroupIDParams) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if q.isEveryoneGroup(id) {
-		return q.getEveryoneGroupMembersNoLock(ctx, id), nil
+	if q.isEveryoneGroup(arg.GroupID) {
+		return q.getEveryoneGroupMembersNoLock(ctx, arg.GroupID), nil
 	}
 
 	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
-		if member.GroupID == id {
+		if member.GroupID == arg.GroupID {
 			groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
 			if errors.Is(err, errUserDeleted) {
 				continue
@@ -3422,8 +3556,8 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID
 	return groupMembers, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	users, err := q.GetGroupMembersByGroupID(ctx, groupID)
+func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, arg database.GetGroupMembersCountByGroupIDParams) (int64, error) {
+	users, err := q.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams(arg))
 	if err != nil {
 		return 0, err
 	}
@@ -3555,24 +3689,6 @@ func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, params da
 	return notifications, nil
 }
 
-func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.JfrogXrayScan{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, scan := range q.jfrogXRayScans {
-		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
-			return scan, nil
-		}
-	}
-
-	return database.JfrogXrayScan{}, sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3597,6 +3713,34 @@ func (q *FakeQuerier) GetLatestCryptoKeyByFeature(_ context.Context, feature dat
 		return database.CryptoKey{}, sql.ErrNoRows
 	}
 	return latestKey, nil
+}
+
+func (q *FakeQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Map to track latest status per workspace ID
+	latestByWorkspace := make(map[uuid.UUID]database.WorkspaceAppStatus)
+
+	// Find latest status for each workspace ID
+	for _, appStatus := range q.workspaceAppStatuses {
+		if !slices.Contains(ids, appStatus.WorkspaceID) {
+			continue
+		}
+
+		current, exists := latestByWorkspace[appStatus.WorkspaceID]
+		if !exists || appStatus.CreatedAt.After(current.CreatedAt) {
+			latestByWorkspace[appStatus.WorkspaceID] = appStatus
+		}
+	}
+
+	// Convert map to slice
+	appStatuses := make([]database.WorkspaceAppStatus, 0, len(latestByWorkspace))
+	for _, status := range latestByWorkspace {
+		appStatuses = append(appStatuses, status)
+	}
+
+	return appStatuses, nil
 }
 
 func (q *FakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -3953,6 +4097,54 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
+func (q *FakeQuerier) GetOrganizationResourceCountByID(_ context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspacesCount := 0
+	for _, workspace := range q.workspaces {
+		if workspace.OrganizationID == organizationID {
+			workspacesCount++
+		}
+	}
+
+	groupsCount := 0
+	for _, group := range q.groups {
+		if group.OrganizationID == organizationID {
+			groupsCount++
+		}
+	}
+
+	templatesCount := 0
+	for _, template := range q.templates {
+		if template.OrganizationID == organizationID {
+			templatesCount++
+		}
+	}
+
+	organizationMembersCount := 0
+	for _, organizationMember := range q.organizationMembers {
+		if organizationMember.OrganizationID == organizationID {
+			organizationMembersCount++
+		}
+	}
+
+	provKeyCount := 0
+	for _, provKey := range q.provisionerKeys {
+		if provKey.OrganizationID == organizationID {
+			provKeyCount++
+		}
+	}
+
+	return database.GetOrganizationResourceCountByIDRow{
+		WorkspaceCount:      int64(workspacesCount),
+		GroupCount:          int64(groupsCount),
+		TemplateCount:       int64(templatesCount),
+		MemberCount:         int64(organizationMembersCount),
+		ProvisionerKeyCount: int64(provKeyCount),
+	}, nil
+}
+
 func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3965,6 +4157,9 @@ func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrgan
 			}
 		}
 		if args.Name != "" && !strings.EqualFold(org.Name, args.Name) {
+			continue
+		}
+		if args.Deleted != org.Deleted {
 			continue
 		}
 		tmp = append(tmp, org)
@@ -3983,7 +4178,11 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, arg database.G
 			continue
 		}
 		for _, organization := range q.organizations {
-			if organization.ID != organizationMember.OrganizationID || organization.Deleted != arg.Deleted {
+			if organization.ID != organizationMember.OrganizationID {
+				continue
+			}
+
+			if arg.Deleted.Valid && organization.Deleted != arg.Deleted.Bool {
 				continue
 			}
 			organizations = append(organizations, organization)
@@ -4013,6 +4212,44 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	empty := database.GetPresetByIDRow{}
+
+	// Create an index for faster lookup
+	versionMap := make(map[uuid.UUID]database.TemplateVersionTable)
+	for _, tv := range q.templateVersions {
+		versionMap[tv.ID] = tv
+	}
+
+	for _, preset := range q.presets {
+		if preset.ID == presetID {
+			tv, ok := versionMap[preset.TemplateVersionID]
+			if !ok {
+				return empty, xerrors.Errorf("template version %v does not exist", preset.TemplateVersionID)
+			}
+			return database.GetPresetByIDRow{
+				ID:                  preset.ID,
+				TemplateVersionID:   preset.TemplateVersionID,
+				Name:                preset.Name,
+				CreatedAt:           preset.CreatedAt,
+				DesiredInstances:    preset.DesiredInstances,
+				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				TemplateID:          tv.TemplateID,
+				OrganizationID:      tv.OrganizationID,
+			}, nil
+		}
+	}
+
+	return empty, xerrors.Errorf("preset %v does not exist", presetID)
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4028,6 +4265,21 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 		}
 	}
 	return database.TemplateVersionPreset{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, presetID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	parameters := make([]database.TemplateVersionPresetParameter, 0)
+	for _, parameter := range q.presetParameters {
+		if parameter.TemplateVersionPresetID != presetID {
+			continue
+		}
+		parameters = append(parameters, parameter)
+	}
+
+	return parameters, nil
 }
 
 func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
@@ -4048,11 +4300,14 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 				continue
 			}
 			parameters = append(parameters, parameter)
-			break
 		}
 	}
 
 	return parameters, nil
+}
+
+func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -4716,6 +4971,10 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5757,6 +6016,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -5843,6 +6106,19 @@ func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		return strings.ToLower(parameters[i].Name) < strings.ToLower(parameters[j].Name)
 	})
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, tvtv := range q.templateVersionTerraformValues {
+		if tvtv.TemplateVersionID == templateVersionID {
+			return tvtv, nil
+		}
+	}
+
+	return database.TemplateVersionTerraformValue{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
@@ -5954,6 +6230,7 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 
 	if arg.LimitOpt > 0 {
 		if int(arg.LimitOpt) > len(version) {
+			// #nosec G115 - Safe conversion as version slice length is expected to be within int32 range
 			arg.LimitOpt = int32(len(version))
 		}
 		version = version[:arg.LimitOpt]
@@ -6163,20 +6440,6 @@ func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.Ge
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetUserAppearanceSettings(_ context.Context, userID uuid.UUID) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, uc := range q.userConfigs {
-		if uc.UserID != userID || uc.Key != "theme_preference" {
-			continue
-		}
-		return uc.Value, nil
-	}
-
-	return "", sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -6200,14 +6463,22 @@ func (q *FakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 	return q.getUserByIDNoLock(id)
 }
 
-func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
+// nolint:revive // It's not a control flag, it's a filter.
+func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	existing := int64(0)
 	for _, u := range q.users {
+		if !includeSystem && u.IsSystem {
+			continue
+		}
 		if !u.Deleted {
 			existing++
+		}
+
+		if !includeSystem && u.IsSystem {
+			continue
 		}
 	}
 	return existing, nil
@@ -6381,6 +6652,34 @@ func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUse
 	return result, nil
 }
 
+func (q *FakeQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "terminal_font" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetUserThemePreference(_ context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "theme_preference" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6517,6 +6816,18 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByRole
 	}
 
+	if len(params.LoginType) > 0 {
+		usersFilteredByLoginType := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.ContainsCompare(params.LoginType, user.LoginType, func(a, b database.LoginType) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
+				usersFilteredByLoginType = append(usersFilteredByLoginType, users[i])
+			}
+		}
+		users = usersFilteredByLoginType
+	}
+
 	if !params.CreatedBefore.IsZero() {
 		usersFilteredByCreatedAt := make([]database.User, 0, len(users))
 		for i, user := range users {
@@ -6557,6 +6868,22 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByLastSeen
 	}
 
+	if !params.IncludeSystem {
+		users = slices.DeleteFunc(users, func(u database.User) bool {
+			return u.IsSystem
+		})
+	}
+
+	if params.GithubComUserID != 0 {
+		usersFilteredByGithubComUserID := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.GithubComUserID.Int64 == params.GithubComUserID {
+				usersFilteredByGithubComUserID = append(usersFilteredByGithubComUserID, users[i])
+			}
+		}
+		users = usersFilteredByGithubComUserID
+	}
+
 	beforePageCount := len(users)
 
 	if params.OffsetOpt > 0 {
@@ -6568,6 +6895,7 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	if params.LimitOpt > 0 {
 		if int(params.LimitOpt) > len(users) {
+			// #nosec G115 - Safe conversion as users slice length is expected to be within int32 range
 			params.LimitOpt = int32(len(users))
 		}
 		users = users[:params.LimitOpt]
@@ -6590,6 +6918,34 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 		}
 	}
 	return users, nil
+}
+
+func (q *FakeQuerier) GetWebpushSubscriptionsByUserID(_ context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.WebpushSubscription, 0)
+	for _, subscription := range q.webpushSubscriptions {
+		if subscription.UserID == userID {
+			out = append(out, subscription)
+		}
+	}
+
+	return out, nil
+}
+
+func (q *FakeQuerier) GetWebpushVAPIDKeys(_ context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.webpushVAPIDPublicKey == "" && q.webpushVAPIDPrivateKey == "" {
+		return database.GetWebpushVAPIDKeysRow{}, sql.ErrNoRows
+	}
+
+	return database.GetWebpushVAPIDKeysRow{
+		VapidPublicKey:  q.webpushVAPIDPublicKey,
+		VapidPrivateKey: q.webpushVAPIDPrivateKey,
+	}, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
@@ -6674,6 +7030,22 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 		}
 	}
 	return database.WorkspaceAgent{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentDevcontainersByAgentID(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	devcontainers := make([]database.WorkspaceAgentDevcontainer, 0)
+	for _, dc := range q.workspaceAgentDevcontainers {
+		if dc.WorkspaceAgentID == workspaceAgentID {
+			devcontainers = append(devcontainers, dc)
+		}
+	}
+	if len(devcontainers) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return devcontainers, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
@@ -7276,6 +7648,21 @@ func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg d
 	return q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, arg)
 }
 
+func (q *FakeQuerier) GetWorkspaceAppStatusesByAppIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	statuses := make([]database.WorkspaceAppStatus, 0)
+	for _, status := range q.workspaceAppStatuses {
+		for _, id := range ids {
+			if status.AppID == id {
+				statuses = append(statuses, status)
+			}
+		}
+	}
+	return statuses, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7479,6 +7866,7 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 
 	if params.LimitOpt > 0 {
 		if int(params.LimitOpt) > len(history) {
+			// #nosec G115 - Safe conversion as history slice length is expected to be within int32 range
 			params.LimitOpt = int32(len(history))
 		}
 		history = history[:params.LimitOpt]
@@ -8223,7 +8611,7 @@ func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.In
 		Content:    arg.Content,
 		Icon:       arg.Icon,
 		Actions:    arg.Actions,
-		CreatedAt:  time.Now(),
+		CreatedAt:  arg.CreatedAt,
 	}
 
 	q.inboxNotifications = append(q.inboxNotifications, notification)
@@ -8498,6 +8886,11 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
+		DesiredInstances:  arg.DesiredInstances,
+		InvalidateAfterSecs: sql.NullInt32{
+			Int32: 0,
+			Valid: true,
+		},
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -8781,6 +9174,37 @@ func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	return param, nil
 }
 
+func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Context, arg database.InsertTemplateVersionTerraformValuesByJobIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// Find the template version by the job_id
+	templateVersion, ok := slice.Find(q.templateVersions, func(v database.TemplateVersionTable) bool {
+		return v.JobID == arg.JobID
+	})
+	if !ok {
+		return sql.ErrNoRows
+	}
+
+	if !json.Valid(arg.CachedPlan) {
+		return xerrors.Errorf("cached plan must be valid json, received %q", string(arg.CachedPlan))
+	}
+
+	// Insert the new row
+	row := database.TemplateVersionTerraformValue{
+		TemplateVersionID: templateVersion.ID,
+		CachedPlan:        arg.CachedPlan,
+		UpdatedAt:         arg.UpdatedAt,
+	}
+	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
+	return nil
+}
+
 func (q *FakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersionVariable{}, err
@@ -8853,6 +9277,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		Status:         status,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
+		IsSystem:       false,
 	}
 	q.users = append(q.users, user)
 	sort.Slice(q.users, func(i, j int) bool {
@@ -8970,6 +9395,27 @@ func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg databas
 	return monitor, nil
 }
 
+func (q *FakeQuerier) InsertWebpushSubscription(_ context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WebpushSubscription{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	newSub := database.WebpushSubscription{
+		ID:                uuid.New(),
+		UserID:            arg.UserID,
+		CreatedAt:         arg.CreatedAt,
+		Endpoint:          arg.Endpoint,
+		EndpointP256dhKey: arg.EndpointP256dhKey,
+		EndpointAuthKey:   arg.EndpointAuthKey,
+	}
+	q.webpushSubscriptions = append(q.webpushSubscriptions, newSub)
+	return newSub, nil
+}
+
 func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceTable{}, err
@@ -9031,6 +9477,36 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	return agent, nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentDevcontainers(_ context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, agent := range q.workspaceAgents {
+		if agent.ID == arg.WorkspaceAgentID {
+			var devcontainers []database.WorkspaceAgentDevcontainer
+			for i, id := range arg.ID {
+				devcontainers = append(devcontainers, database.WorkspaceAgentDevcontainer{
+					WorkspaceAgentID: arg.WorkspaceAgentID,
+					CreatedAt:        arg.CreatedAt,
+					ID:               id,
+					Name:             arg.Name[i],
+					WorkspaceFolder:  arg.WorkspaceFolder[i],
+					ConfigPath:       arg.ConfigPath[i],
+				})
+			}
+			q.workspaceAgentDevcontainers = append(q.workspaceAgentDevcontainers, devcontainers...)
+			return devcontainers, nil
+		}
+	}
+
+	return nil, errForeignKeyConstraint
+}
+
 func (q *FakeQuerier) InsertWorkspaceAgentLogSources(_ context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -9079,6 +9555,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 			LogSourceID: arg.LogSourceID,
 			Output:      output,
 		})
+		// #nosec G115 - Safe conversion as log output length is expected to be within int32 range
 		outputLength += int32(len(output))
 	}
 	for index, agent := range q.workspaceAgents {
@@ -9287,6 +9764,29 @@ InsertWorkspaceAppStatsLoop:
 	return nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAppStatus(_ context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	status := database.WorkspaceAppStatus{
+		ID:          arg.ID,
+		CreatedAt:   arg.CreatedAt,
+		WorkspaceID: arg.WorkspaceID,
+		AgentID:     arg.AgentID,
+		AppID:       arg.AppID,
+		State:       arg.State,
+		Message:     arg.Message,
+		Uri:         arg.Uri,
+	}
+	q.workspaceAppStatuses = append(q.workspaceAppStatuses, status)
+	return status, nil
+}
+
 func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -9296,19 +9796,20 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	workspaceBuild := database.WorkspaceBuild{
-		ID:                arg.ID,
-		CreatedAt:         arg.CreatedAt,
-		UpdatedAt:         arg.UpdatedAt,
-		WorkspaceID:       arg.WorkspaceID,
-		TemplateVersionID: arg.TemplateVersionID,
-		BuildNumber:       arg.BuildNumber,
-		Transition:        arg.Transition,
-		InitiatorID:       arg.InitiatorID,
-		JobID:             arg.JobID,
-		ProvisionerState:  arg.ProvisionerState,
-		Deadline:          arg.Deadline,
-		MaxDeadline:       arg.MaxDeadline,
-		Reason:            arg.Reason,
+		ID:                      arg.ID,
+		CreatedAt:               arg.CreatedAt,
+		UpdatedAt:               arg.UpdatedAt,
+		WorkspaceID:             arg.WorkspaceID,
+		TemplateVersionID:       arg.TemplateVersionID,
+		BuildNumber:             arg.BuildNumber,
+		Transition:              arg.Transition,
+		InitiatorID:             arg.InitiatorID,
+		JobID:                   arg.JobID,
+		ProvisionerState:        arg.ProvisionerState,
+		Deadline:                arg.Deadline,
+		MaxDeadline:             arg.MaxDeadline,
+		Reason:                  arg.Reason,
+		TemplateVersionPresetID: arg.TemplateVersionPresetID,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return nil
@@ -9480,6 +9981,21 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (q *FakeQuerier) MarkAllInboxNotificationsAsRead(_ context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for idx, notif := range q.inboxNotifications {
+		if notif.UserID == arg.UserID && !notif.ReadAt.Valid {
+			q.inboxNotifications[idx].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
+}
+
 // nolint:forcetypeassert
 func (q *FakeQuerier) OIDCClaimFieldValues(_ context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
 	orgMembers := q.getOrganizationMemberNoLock(args.OrganizationID)
@@ -9582,6 +10098,53 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 		})
 	}
 	return tmp, nil
+}
+
+func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// All of the members in the organization
+	orgMembers := make([]database.OrganizationMember, 0)
+	for _, mem := range q.organizationMembers {
+		if mem.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		orgMembers = append(orgMembers, mem)
+	}
+
+	selectedMembers := make([]database.PaginatedOrganizationMembersRow, 0)
+
+	skippedMembers := 0
+	for _, organizationMember := range orgMembers {
+		if skippedMembers < int(arg.OffsetOpt) {
+			skippedMembers++
+			continue
+		}
+
+		// if the limit is set to 0 we treat that as returning all of the org members
+		if int(arg.LimitOpt) != 0 && len(selectedMembers) >= int(arg.LimitOpt) {
+			break
+		}
+
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		selectedMembers = append(selectedMembers, database.PaginatedOrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+			AvatarURL:          user.AvatarURL,
+			Name:               user.Name,
+			Email:              user.Email,
+			GlobalRoles:        user.RBACRoles,
+			Count:              int64(len(orgMembers)),
+		})
+	}
+	return selectedMembers, nil
 }
 
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
@@ -9920,7 +10483,7 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 
 	var updated []database.UpdateInactiveUsersToDormantRow
 	for index, user := range q.users {
-		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(params.LastSeenAfter) {
+		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(params.LastSeenAfter) && !user.IsSystem {
 			q.users[index].Status = database.UserStatusDormant
 			q.users[index].UpdatedAt = params.UpdatedAt
 			updated = append(updated, database.UpdateInactiveUsersToDormantRow{
@@ -10469,33 +11032,6 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	return nil
 }
 
-func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.UserConfig{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, uc := range q.userConfigs {
-		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
-			continue
-		}
-		uc.Value = arg.ThemePreference
-		q.userConfigs[i] = uc
-		return uc, nil
-	}
-
-	uc := database.UserConfig{
-		UserID: arg.UserID,
-		Key:    "theme_preference",
-		Value:  arg.ThemePreference,
-	}
-	q.userConfigs = append(q.userConfigs, uc)
-	return uc, nil
-}
-
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -10819,6 +11355,60 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserTerminalFont(ctx context.Context, arg database.UpdateUserTerminalFontParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "terminal_font" {
+			continue
+		}
+		uc.Value = arg.TerminalFont
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "terminal_font",
+		Value:  arg.TerminalFont,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
+}
+
+func (q *FakeQuerier) UpdateUserThemePreference(_ context.Context, arg database.UpdateUserThemePreferenceParams) (database.UserConfig, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
+			continue
+		}
+		uc.Value = arg.ThemePreference
+		q.userConfigs[i] = uc
+		return uc, nil
+	}
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "theme_preference",
+		Value:  arg.ThemePreference,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
 }
 
 func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
@@ -11383,39 +11973,6 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 	defer q.mutex.Unlock()
 
 	q.healthSettings = []byte(data)
-	return nil
-}
-
-func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, scan := range q.jfrogXRayScans {
-		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
-			scan.Critical = arg.Critical
-			scan.High = arg.High
-			scan.Medium = arg.Medium
-			scan.ResultsUrl = arg.ResultsUrl
-			q.jfrogXRayScans[i] = scan
-			return nil
-		}
-	}
-
-	//nolint:gosimple
-	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
-		WorkspaceID: arg.WorkspaceID,
-		AgentID:     arg.AgentID,
-		Critical:    arg.Critical,
-		High:        arg.High,
-		Medium:      arg.Medium,
-		ResultsUrl:  arg.ResultsUrl,
-	})
-
 	return nil
 }
 
@@ -12152,17 +12709,23 @@ TemplateUsageStatsInsertLoop:
 
 		// SELECT
 		tus := database.TemplateUsageStat{
-			StartTime:           stat.TimeBucket,
-			EndTime:             stat.TimeBucket.Add(30 * time.Minute),
-			TemplateID:          stat.TemplateID,
-			UserID:              stat.UserID,
-			UsageMins:           int16(stat.UsageMins),
-			MedianLatencyMs:     sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
-			SshMins:             int16(stat.SSHMins),
-			SftpMins:            int16(stat.SFTPMins),
+			StartTime:  stat.TimeBucket,
+			EndTime:    stat.TimeBucket.Add(30 * time.Minute),
+			TemplateID: stat.TemplateID,
+			UserID:     stat.UserID,
+			// #nosec G115 - Safe conversion for usage minutes which are expected to be within int16 range
+			UsageMins:       int16(stat.UsageMins),
+			MedianLatencyMs: sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
+			// #nosec G115 - Safe conversion for SSH minutes which are expected to be within int16 range
+			SshMins: int16(stat.SSHMins),
+			// #nosec G115 - Safe conversion for SFTP minutes which are expected to be within int16 range
+			SftpMins: int16(stat.SFTPMins),
+			// #nosec G115 - Safe conversion for ReconnectingPTY minutes which are expected to be within int16 range
 			ReconnectingPtyMins: int16(stat.ReconnectingPTYMins),
-			VscodeMins:          int16(stat.VSCodeMins),
-			JetbrainsMins:       int16(stat.JetBrainsMins),
+			// #nosec G115 - Safe conversion for VSCode minutes which are expected to be within int16 range
+			VscodeMins: int16(stat.VSCodeMins),
+			// #nosec G115 - Safe conversion for JetBrains minutes which are expected to be within int16 range
+			JetbrainsMins: int16(stat.JetBrainsMins),
 		}
 		if len(stat.AppUsageMinutes) > 0 {
 			tus.AppUsageMins = make(map[string]int64, len(stat.AppUsageMinutes))
@@ -12182,6 +12745,20 @@ TemplateUsageStatsInsertLoop:
 		q.templateUsageStats = append(q.templateUsageStats, tus)
 	}
 
+	return nil
+}
+
+func (q *FakeQuerier) UpsertWebpushVAPIDKeys(_ context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.webpushVAPIDPublicKey = arg.VapidPublicKey
+	q.webpushVAPIDPrivateKey = arg.VapidPrivateKey
 	return nil
 }
 
@@ -12214,6 +12791,64 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 
 	return psl, nil
+}
+
+func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return false, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, s := range q.workspaceAppAuditSessions {
+		if s.AgentID != arg.AgentID {
+			continue
+		}
+		if s.AppID != arg.AppID {
+			continue
+		}
+		if s.UserID != arg.UserID {
+			continue
+		}
+		if s.Ip != arg.Ip {
+			continue
+		}
+		if s.UserAgent != arg.UserAgent {
+			continue
+		}
+		if s.SlugOrPort != arg.SlugOrPort {
+			continue
+		}
+		if s.StatusCode != arg.StatusCode {
+			continue
+		}
+
+		staleTime := dbtime.Now().Add(-(time.Duration(arg.StaleIntervalMS) * time.Millisecond))
+		fresh := s.UpdatedAt.After(staleTime)
+
+		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
+		if !fresh {
+			q.workspaceAppAuditSessions[i].ID = arg.ID
+			q.workspaceAppAuditSessions[i].StartedAt = arg.StartedAt
+			return true, nil
+		}
+		return false, nil
+	}
+
+	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
+		AgentID:    arg.AgentID,
+		AppID:      arg.AppID,
+		UserID:     arg.UserID,
+		Ip:         arg.Ip,
+		UserAgent:  arg.UserAgent,
+		SlugOrPort: arg.SlugOrPort,
+		StatusCode: arg.StatusCode,
+		StartedAt:  arg.StartedAt,
+		UpdatedAt:  arg.UpdatedAt,
+	})
+	return true, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

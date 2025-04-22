@@ -3,12 +3,6 @@ import AddIcon from "@mui/icons-material/AddOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { AssignableRoles, Role } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -22,6 +16,14 @@ import {
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
 import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
+import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
@@ -34,8 +36,9 @@ interface CustomRolesPageViewProps {
 	builtInRoles: AssignableRoles[] | undefined;
 	customRoles: AssignableRoles[] | undefined;
 	onDeleteRole: (role: Role) => void;
-	canAssignOrgRole: boolean;
 	canCreateOrgRole: boolean;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
 	isCustomRolesEnabled: boolean;
 }
 
@@ -43,8 +46,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	builtInRoles,
 	customRoles,
 	onDeleteRole,
-	canAssignOrgRole,
 	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
 	isCustomRolesEnabled,
 }) => {
 	return (
@@ -77,7 +81,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			<RoleTable
 				roles={customRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
-				canAssignOrgRole={canAssignOrgRole}
+				canCreateOrgRole={canCreateOrgRole}
+				canUpdateOrgRole={canUpdateOrgRole}
+				canDeleteOrgRole={canDeleteOrgRole}
 				onDeleteRole={onDeleteRole}
 			/>
 			<span>
@@ -90,7 +96,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			<RoleTable
 				roles={builtInRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
-				canAssignOrgRole={canAssignOrgRole}
+				canCreateOrgRole={canCreateOrgRole}
+				canUpdateOrgRole={canUpdateOrgRole}
+				canDeleteOrgRole={canDeleteOrgRole}
 				onDeleteRole={onDeleteRole}
 			/>
 		</Stack>
@@ -100,94 +108,103 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 interface RoleTableProps {
 	roles: AssignableRoles[] | undefined;
 	isCustomRolesEnabled: boolean;
-	canAssignOrgRole: boolean;
+	canCreateOrgRole: boolean;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
 	onDeleteRole: (role: Role) => void;
 }
 
 const RoleTable: FC<RoleTableProps> = ({
 	roles,
 	isCustomRolesEnabled,
+	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
 	onDeleteRole,
-	canAssignOrgRole,
 }) => {
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
 	return (
-		<TableContainer>
-			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell width="40%">Name</TableCell>
-						<TableCell width="59%">Permissions</TableCell>
-						<TableCell width="1%" />
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-2/5">Name</TableHead>
+					<TableHead className="w-3/5">Permissions</TableHead>
+					<TableHead className="w-auto" />
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				<ChooseOne>
+					<Cond condition={isLoading}>
+						<TableLoader />
+					</Cond>
 
-						<Cond condition={isEmpty}>
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="No custom roles yet"
-										description={
-											canAssignOrgRole && isCustomRolesEnabled
-												? "Create your first custom role"
-												: !isCustomRolesEnabled
-													? "Upgrade to a premium license to create a custom role"
-													: "You don't have permission to create a custom role"
-										}
-										cta={
-											canAssignOrgRole &&
-											isCustomRolesEnabled && (
-												<Button
-													component={RouterLink}
-													to="create"
-													startIcon={<AddOutlined />}
-													variant="contained"
-												>
-													Create custom role
-												</Button>
-											)
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						</Cond>
+					<Cond condition={isEmpty}>
+						<TableRow className="h-14">
+							<TableCell colSpan={999}>
+								<EmptyState
+									message="No custom roles yet"
+									description={
+										canCreateOrgRole && isCustomRolesEnabled
+											? "Create your first custom role"
+											: !isCustomRolesEnabled
+												? "Upgrade to a premium license to create a custom role"
+												: "You don't have permission to create a custom role"
+									}
+									cta={
+										canCreateOrgRole &&
+										isCustomRolesEnabled && (
+											<Button
+												component={RouterLink}
+												to="create"
+												startIcon={<AddOutlined />}
+												variant="contained"
+											>
+												Create custom role
+											</Button>
+										)
+									}
+								/>
+							</TableCell>
+						</TableRow>
+					</Cond>
 
-						<Cond>
-							{roles
-								?.sort((a, b) => a.name.localeCompare(b.name))
-								.map((role) => (
-									<RoleRow
-										key={role.name}
-										role={role}
-										canAssignOrgRole={canAssignOrgRole}
-										onDelete={() => onDeleteRole(role)}
-									/>
-								))}
-						</Cond>
-					</ChooseOne>
-				</TableBody>
-			</Table>
-		</TableContainer>
+					<Cond>
+						{[...(roles ?? [])]
+							.sort((a, b) => a.name.localeCompare(b.name))
+							.map((role) => (
+								<RoleRow
+									key={role.name}
+									role={role}
+									canUpdateOrgRole={canUpdateOrgRole}
+									canDeleteOrgRole={canDeleteOrgRole}
+									onDelete={() => onDeleteRole(role)}
+								/>
+							))}
+					</Cond>
+				</ChooseOne>
+			</TableBody>
+		</Table>
 	);
 };
 
 interface RoleRowProps {
 	role: AssignableRoles;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
 	onDelete: () => void;
-	canAssignOrgRole: boolean;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
+const RoleRow: FC<RoleRowProps> = ({
+	role,
+	onDelete,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+}) => {
 	const navigate = useNavigate();
 
 	return (
-		<TableRow data-testid={`role-${role.name}`}>
+		<TableRow data-testid={`role-${role.name}`} className="h-14">
 			<TableCell>{role.display_name || role.name}</TableCell>
 
 			<TableCell>
@@ -195,20 +212,22 @@ const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
 			</TableCell>
 
 			<TableCell>
-				{!role.built_in && (
+				{!role.built_in && (canUpdateOrgRole || canDeleteOrgRole) && (
 					<MoreMenu>
 						<MoreMenuTrigger>
 							<ThreeDotsButton />
 						</MoreMenuTrigger>
 						<MoreMenuContent>
-							<MoreMenuItem
-								onClick={() => {
-									navigate(role.name);
-								}}
-							>
-								Edit
-							</MoreMenuItem>
-							{canAssignOrgRole && (
+							{canUpdateOrgRole && (
+								<MoreMenuItem
+									onClick={() => {
+										navigate(role.name);
+									}}
+								>
+									Edit
+								</MoreMenuItem>
+							)}
+							{canDeleteOrgRole && (
 								<MoreMenuItem danger onClick={onDelete}>
 									Delete&hellip;
 								</MoreMenuItem>

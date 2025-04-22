@@ -94,10 +94,15 @@ export interface RichParameterValue {
   value: string;
 }
 
+export interface Prebuild {
+  instances: number;
+}
+
 /** Preset represents a set of preset parameters for a template version. */
 export interface Preset {
   name: string;
   parameters: PresetParameter[];
+  prebuild: Prebuild | undefined;
 }
 
 export interface PresetParameter {
@@ -158,6 +163,7 @@ export interface Agent {
   extraEnvs: Env[];
   order: number;
   resourcesMonitoring: ResourcesMonitoring | undefined;
+  devcontainers: Devcontainer[];
 }
 
 export interface Agent_Metadata {
@@ -214,6 +220,12 @@ export interface Script {
   runOnStop: boolean;
   timeoutSeconds: number;
   logPath: string;
+}
+
+export interface Devcontainer {
+  workspaceFolder: string;
+  configPath: string;
+  name: string;
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -295,6 +307,8 @@ export interface Metadata {
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
   workspaceOwnerRbacRoles: Role[];
+  isPrebuild: boolean;
+  runningWorkspaceAgentToken: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -340,6 +354,7 @@ export interface PlanComplete {
   timings: Timing[];
   modules: Module[];
   presets: Preset[];
+  plan: Uint8Array;
 }
 
 /**
@@ -503,6 +518,15 @@ export const RichParameterValue = {
   },
 };
 
+export const Prebuild = {
+  encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.instances !== 0) {
+      writer.uint32(8).int32(message.instances);
+    }
+    return writer;
+  },
+};
+
 export const Preset = {
   encode(message: Preset, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.name !== "") {
@@ -510,6 +534,9 @@ export const Preset = {
     }
     for (const v of message.parameters) {
       PresetParameter.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.prebuild !== undefined) {
+      Prebuild.encode(message.prebuild, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -642,6 +669,9 @@ export const Agent = {
     }
     if (message.resourcesMonitoring !== undefined) {
       ResourcesMonitoring.encode(message.resourcesMonitoring, writer.uint32(194).fork()).ldelim();
+    }
+    for (const v of message.devcontainers) {
+      Devcontainer.encode(v!, writer.uint32(202).fork()).ldelim();
     }
     return writer;
   },
@@ -783,6 +813,21 @@ export const Script = {
     }
     if (message.logPath !== "") {
       writer.uint32(74).string(message.logPath);
+    }
+    return writer;
+  },
+};
+
+export const Devcontainer = {
+  encode(message: Devcontainer, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workspaceFolder !== "") {
+      writer.uint32(10).string(message.workspaceFolder);
+    }
+    if (message.configPath !== "") {
+      writer.uint32(18).string(message.configPath);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
     }
     return writer;
   },
@@ -982,6 +1027,12 @@ export const Metadata = {
     for (const v of message.workspaceOwnerRbacRoles) {
       Role.encode(v!, writer.uint32(154).fork()).ldelim();
     }
+    if (message.isPrebuild === true) {
+      writer.uint32(160).bool(message.isPrebuild);
+    }
+    if (message.runningWorkspaceAgentToken !== "") {
+      writer.uint32(170).string(message.runningWorkspaceAgentToken);
+    }
     return writer;
   },
 };
@@ -1077,6 +1128,9 @@ export const PlanComplete = {
     }
     for (const v of message.presets) {
       Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.plan.length !== 0) {
+      writer.uint32(74).bytes(message.plan);
     }
     return writer;
   },

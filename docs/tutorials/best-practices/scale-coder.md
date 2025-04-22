@@ -126,10 +126,10 @@ Although Coder Server persists no internal state, it operates as a proxy for end
 users to their workspaces in two capacities:
 
 1. As an HTTP proxy when they access workspace applications in their browser via
-the Coder Dashboard.
+   the Coder Dashboard.
 
 1. As a DERP proxy when establishing tunneled connections with CLI tools like
-`coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
+   `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
 
 Stopping a Coder Server instance will (momentarily) disconnect any users
 currently connecting through that instance. Adding a new instance is not
@@ -141,7 +141,7 @@ maintenance window to minimize disruption.
 ### Locality
 
 We recommend that you run one or more
-[provisioner daemon deployments external to Coder Server](../../admin/provisioners.md)
+[provisioner daemon deployments external to Coder Server](../../admin/provisioners/index.md)
 and disable provisioner daemons within your Coder Server.
 This allows you to scale them independently of the Coder Server:
 

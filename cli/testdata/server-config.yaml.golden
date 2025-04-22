@@ -174,6 +174,9 @@ networking:
   # Controls if the 'Secure' property is set on browser session cookies.
   # (default: <unset>, type: bool)
   secureAuthCookie: false
+  # Controls the 'SameSite' property is set on browser session cookies.
+  # (default: lax, type: enum[lax\|none])
+  sameSiteAuthCookie: lax
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
@@ -490,11 +493,15 @@ disablePathApps: false
 # (default: <unset>, type: bool)
 disableOwnerWorkspaceAccess: false
 # These options change the behavior of how clients interact with the Coder.
-# Clients include the coder cli, vs code extension, and the web UI.
+# Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
   # The SSH deployment prefix is used in the Host of the ssh config.
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
+  # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
+  # Desktop. By default it is coder, resulting in names like myworkspace.coder.
+  # (default: coder, type: string)
+  workspaceHostnameSuffix: coder
   # These SSH config options will override the default SSH config options. Provide
   # options in "key=value" or "key value" format separated by commas.Using this
   # incorrectly can break SSH to your deployment, use cautiously.
@@ -643,6 +650,10 @@ notifications:
     # The endpoint to which to send webhooks.
     # (default: <unset>, type: url)
     endpoint:
+  inbox:
+    # Enable Coder Inbox.
+    # (default: true, type: bool)
+    enabled: true
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
   maxSendAttempts: 5

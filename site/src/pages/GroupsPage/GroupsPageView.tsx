@@ -1,22 +1,24 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import AvatarGroup from "@mui/material/AvatarGroup";
 import Skeleton from "@mui/material/Skeleton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -51,55 +53,53 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 					/>
 				</Cond>
 				<Cond>
-					<TableContainer>
-						<Table>
-							<TableHead>
-								<TableRow>
-									<TableCell width="50%">Name</TableCell>
-									<TableCell width="49%">Users</TableCell>
-									<TableCell width="1%" />
-								</TableRow>
-							</TableHead>
-							<TableBody>
-								<ChooseOne>
-									<Cond condition={isLoading}>
-										<TableLoader />
-									</Cond>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-2/5">Name</TableHead>
+								<TableHead className="w-3/5">Users</TableHead>
+								<TableHead className="w-auto" />
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							<ChooseOne>
+								<Cond condition={isLoading}>
+									<TableLoader />
+								</Cond>
 
-									<Cond condition={isEmpty}>
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState
-													message="No groups yet"
-													description={
-														canCreateGroup
-															? "Create your first group"
-															: "You don't have permission to create a group"
-													}
-													cta={
-														canCreateGroup && (
-															<Button asChild>
-																<RouterLink to="create">
-																	<AddOutlined />
-																	Create group
-																</RouterLink>
-															</Button>
-														)
-													}
-												/>
-											</TableCell>
-										</TableRow>
-									</Cond>
+								<Cond condition={isEmpty}>
+									<TableRow>
+										<TableCell colSpan={999}>
+											<EmptyState
+												message="No groups yet"
+												description={
+													canCreateGroup
+														? "Create your first group"
+														: "You don't have permission to create a group"
+												}
+												cta={
+													canCreateGroup && (
+														<Button asChild>
+															<RouterLink to="create">
+																<AddOutlined />
+																Create group
+															</RouterLink>
+														</Button>
+													)
+												}
+											/>
+										</TableCell>
+									</TableRow>
+								</Cond>
 
-									<Cond>
-										{groups?.map((group) => (
-											<GroupRow key={group.id} group={group} />
-										))}
-									</Cond>
-								</ChooseOne>
-							</TableBody>
-						</Table>
-					</TableContainer>
+								<Cond>
+									{groups?.map((group) => (
+										<GroupRow key={group.id} group={group} />
+									))}
+								</Cond>
+							</ChooseOne>
+						</TableBody>
+					</Table>
 				</Cond>
 			</ChooseOne>
 		</>
@@ -115,6 +115,8 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
 	});
+	const memberAvatars = group.members.slice(0, 5);
+	const remainingAvatars = group.members.length - memberAvatars.length;
 
 	return (
 		<TableRow data-testid={`group-${group.id}`} {...rowProps}>
@@ -122,6 +124,8 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 				<AvatarData
 					avatar={
 						<Avatar
+							size="lg"
+							variant="icon"
 							fallback={group.display_name || group.name}
 							src={group.avatar_url}
 						/>
@@ -132,20 +136,24 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 			</TableCell>
 
 			<TableCell>
-				{group.members.length === 0 && "-"}
-				<AvatarGroup
-					max={10}
-					total={group.members.length}
-					css={{ justifyContent: "flex-end", gap: 8 }}
-				>
-					{group.members.map((member) => (
-						<Avatar
-							key={member.username}
-							fallback={member.username}
-							src={member.avatar_url}
-						/>
-					))}
-				</AvatarGroup>
+				{group.members.length > 0 ? (
+					<div className="flex items-center gap-2">
+						{memberAvatars.map((member) => (
+							<Avatar
+								key={member.username}
+								fallback={member.username}
+								src={member.avatar_url}
+							/>
+						))}
+						{remainingAvatars > 0 && (
+							<Badge className="h-[--avatar-default]">
+								+{remainingAvatars}
+							</Badge>
+						)}
+					</div>
+				) : (
+					"-"
+				)}
 			</TableCell>
 
 			<TableCell>

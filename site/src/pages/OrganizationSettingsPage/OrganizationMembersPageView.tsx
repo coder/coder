@@ -11,6 +11,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -18,16 +19,23 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
 	TableCell,
+	TableHead,
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
@@ -43,6 +51,9 @@ interface OrganizationMembersPageViewProps {
 	isUpdatingMemberRoles: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
+	membersQuery: PaginationResultInfo & {
+		isPreviousData: boolean;
+	};
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
@@ -65,6 +76,7 @@ export const OrganizationMembersPageView: FC<
 	isAddingMember,
 	isUpdatingMemberRoles,
 	me,
+	membersQuery,
 	members,
 	addMember,
 	removeMember,
@@ -72,7 +84,10 @@ export const OrganizationMembersPageView: FC<
 }) => {
 	return (
 		<div>
-			<SettingsHeader title="Members" />
+			<SettingsHeader>
+				<SettingsHeaderTitle>Members</SettingsHeaderTitle>
+			</SettingsHeader>
+
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
@@ -91,81 +106,91 @@ export const OrganizationMembersPageView: FC<
 						</p>
 					</div>
 				)}
-
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableCell width="33%">User</TableCell>
-							<TableCell width="33%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Roles</span>
-									<TableColumnHelpTooltip variant="roles" />
-								</Stack>
-							</TableCell>
-							<TableCell width="33%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Groups</span>
-									<TableColumnHelpTooltip variant="groups" />
-								</Stack>
-							</TableCell>
-							<TableCell width="1%" />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{members?.map((member) => (
-							<TableRow key={member.user_id} className="align-baseline">
-								<TableCell>
-									<AvatarData
-										avatar={
-											<Avatar
-												fallback={member.username}
-												src={member.avatar_url}
-											/>
-										}
-										title={member.name || member.username}
-										subtitle={member.email}
-									/>
-								</TableCell>
-								<UserRoleCell
-									inheritedRoles={member.global_roles}
-									roles={member.roles}
-									allAvailableRoles={allAvailableRoles}
-									oidcRoleSyncEnabled={false}
-									isLoading={isUpdatingMemberRoles}
-									canEditUsers={canEditMembers}
-									onEditRoles={async (roles) => {
-										try {
-											await updateMemberRoles(member, roles);
-											displaySuccess("Roles updated successfully.");
-										} catch (error) {
-											displayError(
-												getErrorMessage(error, "Failed to update roles."),
-											);
-										}
-									}}
-								/>
-								<UserGroupsCell userGroups={member.groups} />
-								<TableCell>
-									{member.user_id !== me.id && canEditMembers && (
-										<MoreMenu>
-											<MoreMenuTrigger>
-												<ThreeDotsButton />
-											</MoreMenuTrigger>
-											<MoreMenuContent>
-												<MoreMenuItem
-													danger
-													onClick={() => removeMember(member)}
-												>
-													Remove
-												</MoreMenuItem>
-											</MoreMenuContent>
-										</MoreMenu>
-									)}
-								</TableCell>
+				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-2/6">User</TableHead>
+								<TableHead className="w-2/6">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Roles</span>
+										<TableColumnHelpTooltip variant="roles" />
+									</Stack>
+								</TableHead>
+								<TableHead className="w-2/6">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Groups</span>
+										<TableColumnHelpTooltip variant="groups" />
+									</Stack>
+								</TableHead>
+								<TableHead className="w-auto" />
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+						</TableHeader>
+						<TableBody>
+							{members ? (
+								members.map((member) => (
+									<TableRow key={member.user_id} className="align-baseline">
+										<TableCell>
+											<AvatarData
+												avatar={
+													<Avatar
+														fallback={member.username}
+														src={member.avatar_url}
+														size="lg"
+													/>
+												}
+												title={member.name || member.username}
+												subtitle={member.email}
+											/>
+										</TableCell>
+										<UserRoleCell
+											inheritedRoles={member.global_roles}
+											roles={member.roles}
+											allAvailableRoles={allAvailableRoles}
+											oidcRoleSyncEnabled={false}
+											isLoading={isUpdatingMemberRoles}
+											canEditUsers={canEditMembers}
+											onEditRoles={async (roles) => {
+												try {
+													await updateMemberRoles(member, roles);
+													displaySuccess("Roles updated successfully.");
+												} catch (error) {
+													displayError(
+														getErrorMessage(error, "Failed to update roles."),
+													);
+												}
+											}}
+										/>
+										<UserGroupsCell userGroups={member.groups} />
+										<TableCell>
+											{member.user_id !== me.id && canEditMembers && (
+												<MoreMenu>
+													<MoreMenuTrigger>
+														<ThreeDotsButton />
+													</MoreMenuTrigger>
+													<MoreMenuContent>
+														<MoreMenuItem
+															danger
+															onClick={() => removeMember(member)}
+														>
+															Remove
+														</MoreMenuItem>
+													</MoreMenuContent>
+												</MoreMenu>
+											)}
+										</TableCell>
+									</TableRow>
+								))
+							) : (
+								<TableRow>
+									<TableCell colSpan={999}>
+										<Loader />
+									</TableCell>
+								</TableRow>
+							)}
+						</TableBody>
+					</Table>
+				</PaginationContainer>
 			</div>
 		</div>
 	);

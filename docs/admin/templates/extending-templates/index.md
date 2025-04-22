@@ -49,8 +49,7 @@ Persistent resources stay provisioned when workspaces are stopped, where as
 ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
-> You can read more about how resource behavior and workspace state in the
-> [workspace lifecycle documentation](../../../user-guides/workspace-lifecycle.md).
+You can read more about how resource behavior and workspace state in the [workspace lifecycle documentation](../../../user-guides/workspace-lifecycle.md).
 
 Template resources follow the
 [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration)
@@ -65,6 +64,7 @@ When a workspace is deleted, the Coder server essentially runs a
 [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
 resources associated with the workspace.
 
+> [!TIP]
 > Terraform's
 > [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
 > and
@@ -86,6 +86,55 @@ and can be hidden directly in the
 [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
 resource. You can arrange the display orientation of Coder apps in your template
 using [resource ordering](./resource-ordering.md).
+
+### Coder app examples
+
+<div class="tabs">
+
+You can use these examples to add new Coder apps:
+
+## code-server
+
+```hcl
+resource "coder_app" "code-server" {
+  agent_id     = coder_agent.main.id
+  slug         = "code-server"
+  display_name = "code-server"
+  url          = "http://localhost:13337/?folder=/home/${local.username}"
+  icon         = "/icon/code.svg"
+  subdomain    = false
+  share        = "owner"
+}
+```
+
+## Filebrowser
+
+```hcl
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.main.id
+  display_name = "file browser"
+  slug         = "filebrowser"
+  url          = "http://localhost:13339"
+  icon         = "/icon/database.svg"
+  subdomain    = true
+  share        = "owner"
+}
+```
+
+## Zed
+
+```hcl
+resource "coder_app" "zed" {
+    agent_id = coder_agent.main.id
+    slug          = "slug"
+    display_name  = "Zed"
+    external = true
+    url      = "zed://ssh/coder.${data.coder_workspace.me.name}"
+    icon     = "/icon/zed.svg"
+}
+```
+
+</div>
 
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.

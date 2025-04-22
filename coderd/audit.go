@@ -54,7 +54,9 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// #nosec G115 - Safe conversion as pagination offset is expected to be within int32 range
 	filter.OffsetOpt = int32(page.Offset)
+	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
 	if filter.Username == "me" {
@@ -282,10 +284,14 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		_, _ = b.WriteString("{user} ")
 	}
 
-	if alog.AuditLog.StatusCode >= 400 {
+	switch {
+	case alog.AuditLog.StatusCode == int32(http.StatusSeeOther):
+		_, _ = b.WriteString("was redirected attempting to ")
+		_, _ = b.WriteString(string(alog.AuditLog.Action))
+	case alog.AuditLog.StatusCode >= 400:
 		_, _ = b.WriteString("unsuccessfully attempted to ")
 		_, _ = b.WriteString(string(alog.AuditLog.Action))
-	} else {
+	default:
 		_, _ = b.WriteString(codersdk.AuditAction(alog.AuditLog.Action).Friendly())
 	}
 

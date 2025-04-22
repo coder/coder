@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	previewtypes "github.com/coder/preview/types"
 )
 
 type TemplateVersionWarning string
@@ -121,6 +123,20 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type DynamicParametersRequest struct {
+	// ID identifies the request. The response contains the same
+	// ID so that the client can match it to the request.
+	ID     int               `json:"id"`
+	Inputs map[string]string `json:"inputs"`
+}
+
+type DynamicParametersResponse struct {
+	ID          int                      `json:"id"`
+	Diagnostics previewtypes.Diagnostics `json:"diagnostics"`
+	Parameters  []previewtypes.Parameter `json:"parameters"`
+	// TODO: Workspace tags
 }
 
 // TemplateVersionParameters returns parameters a template version exposes.

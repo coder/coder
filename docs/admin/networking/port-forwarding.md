@@ -48,17 +48,17 @@ For more examples, see `coder port-forward --help`.
 
 ## Dashboard
 
-> To enable port forwarding via the dashboard, Coder must be configured with a
-> [wildcard access URL](../../admin/setup/index.md#wildcard-access-url). If an
-> access URL is not specified, Coder will create
-> [a publicly accessible URL](../../admin/setup/index.md#tunnel) to reverse
-> proxy the deployment, and port forwarding will work.
->
-> There is a
-> [DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1)
-> where each segment of hostnames must not exceed 63 characters. If your app
-> name, agent name, workspace name and username exceed 63 characters in the
-> hostname, port forwarding via the dashboard will not work.
+To enable port forwarding via the dashboard, Coder must be configured with a
+[wildcard access URL](../../admin/setup/index.md#wildcard-access-url). If an
+access URL is not specified, Coder will create
+[a publicly accessible URL](../../admin/setup/index.md#tunnel) to reverse
+proxy the deployment, and port forwarding will work.
+
+There is a
+[DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1)
+where each segment of hostnames must not exceed 63 characters. If your app
+name, agent name, workspace name and username exceed 63 characters in the
+hostname, port forwarding via the dashboard will not work.
 
 ### From an coder_app resource
 
@@ -131,12 +131,9 @@ to the app.
 
 ### Configure maximum port sharing level
 
-<blockquote class="info">
-
-Configuring port sharing level is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Configuring port sharing level is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Premium-licensed template admins can control the maximum port sharing level for
 workspaces under a given template in the template settings. By default, the
@@ -179,12 +176,14 @@ must include credentials (set `credentials: "include"` if using `fetch`) or the
 requests cannot be authenticated and you will see an error resembling the
 following:
 
-> Access to fetch at
-> '<https://coder.example.com/api/v2/applications/auth-redirect>' from origin
-> '<https://8000--dev--user--apps.coder.example.com>' has been blocked by CORS
-> policy: No 'Access-Control-Allow-Origin' header is present on the requested
-> resource. If an opaque response serves your needs, set the request's mode to
-> 'no-cors' to fetch the resource with CORS disabled.
+```text
+Access to fetch at
+'<https://coder.example.com/api/v2/applications/auth-redirect>' from origin
+'<https://8000--dev--user--apps.coder.example.com>' has been blocked by CORS
+policy: No 'Access-Control-Allow-Origin' header is present on the requested
+resource. If an opaque response serves your needs, set the request's mode to
+'no-cors' to fetch the resource with CORS disabled.
+```
 
 #### Headers
 

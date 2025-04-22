@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,10 +29,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/coderdtest/testjar"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -65,8 +68,16 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 	})
 
+	certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		OIDCConfig: cfg,
+		OIDCConfig:      cfg,
+		TLSCertificates: certificates,
+		DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+			values.HTTPCookies = codersdk.HTTPCookieConfig{
+				Secure:   true,
+				SameSite: "none",
+			}
+		}),
 	})
 
 	const username = "alice"
@@ -77,15 +88,36 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		"sub":                uuid.NewString(),
 	}
 
-	helper := oidctest.NewLoginHelper(client, fake)
 	// Signup alice
-	userClient, _ := helper.Login(t, claims)
+	freshClient := func() *codersdk.Client {
+		cli := codersdk.New(client.URL)
+		cli.HTTPClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		}
+		cli.HTTPClient.Jar = testjar.New()
+		return cli
+	}
+
+	unauthenticated := freshClient()
+	userClient, _ := fake.Login(t, unauthenticated, claims)
+
+	cookies := unauthenticated.HTTPClient.Jar.Cookies(client.URL)
+	require.True(t, len(cookies) > 0)
+	for _, c := range cookies {
+		require.Truef(t, c.Secure, "cookie %q", c.Name)
+		require.Equalf(t, http.SameSiteNoneMode, c.SameSite, "cookie %q", c.Name)
+	}
 
 	// Expire the link. This will force the client to refresh the token.
+	helper := oidctest.NewLoginHelper(userClient, fake)
 	helper.ExpireOauthToken(t, api.Database, userClient)
 
 	// Instead of refreshing, just log in again.
-	helper.Login(t, claims)
+	unauthenticated = freshClient()
+	fake.Login(t, unauthenticated, claims)
 }
 
 func TestUserLogin(t *testing.T) {
@@ -304,7 +336,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// nolint:gocritic // Unit test
-		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
 
@@ -1452,7 +1484,7 @@ func TestUserOIDC(t *testing.T) {
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
 			}
 
-			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
+			if len(tc.AccessTokenClaims) > 0 {
 				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
 					return tc.AccessTokenClaims
 				}))
@@ -1981,6 +2013,87 @@ func TestUserLogout(t *testing.T) {
 // - JWT with issuer https://secondary.com
 //
 // Without this security check disabled, all three above would have to match.
+
+// TestOIDCDomainErrorMessage ensures that when a user with an unauthorized domain
+// attempts to login, the error message doesn't expose the list of authorized domains.
+func TestOIDCDomainErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	allowedDomains := []string{"allowed1.com", "allowed2.org", "company.internal"}
+
+	setup := func() (*oidctest.FakeIDP, *codersdk.Client) {
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.EmailDomain = allowedDomains
+			cfg.AllowSignups = true
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		return fake, client
+	}
+
+	// Test case 1: Email domain not in allowed list
+	t.Run("ErrorMessageOmitsDomains", func(t *testing.T) {
+		t.Parallel()
+
+		fake, client := setup()
+
+		// Prepare claims with email from unauthorized domain
+		claims := jwt.MapClaims{
+			"email":          "user@unauthorized.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		require.Contains(t, string(data), "is not from an authorized domain")
+		require.Contains(t, string(data), "Please contact your administrator")
+
+		for _, domain := range allowedDomains {
+			require.NotContains(t, string(data), domain)
+		}
+	})
+
+	// Test case 2: Malformed email without @ symbol
+	t.Run("MalformedEmailErrorOmitsDomains", func(t *testing.T) {
+		t.Parallel()
+
+		fake, client := setup()
+
+		// Prepare claims with an invalid email format (no @ symbol)
+		claims := jwt.MapClaims{
+			"email":          "invalid-email-without-domain",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		require.Contains(t, string(data), "is not from an authorized domain")
+		require.Contains(t, string(data), "Please contact your administrator")
+
+		for _, domain := range allowedDomains {
+			require.NotContains(t, string(data), domain)
+		}
+	})
+}
+
 func TestOIDCSkipIssuer(t *testing.T) {
 	t.Parallel()
 	const primaryURLString = "https://primary.com"

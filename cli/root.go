@@ -31,6 +31,8 @@ import (
 
 	"github.com/coder/pretty"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
@@ -38,7 +40,6 @@ import (
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/serpent"
 )
 
 var (
@@ -49,6 +50,10 @@ var (
 	workspaceCommand = map[string]string{
 		"workspaces": "",
 	}
+
+	// ErrSilent is a sentinel error that tells the command handler to just exit with a non-zero error, but not print
+	// anything.
+	ErrSilent = xerrors.New("silent error")
 )
 
 const (
@@ -122,6 +127,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.whoami(),
 
 		// Hidden
+		r.connectCmd(),
 		r.expCmd(),
 		r.gitssh(),
 		r.support(),
@@ -171,15 +177,19 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			code = exitErr.code
 			err = exitErr.err
 		}
-		if errors.Is(err, cliui.Canceled) {
-			//nolint:revive
+		if errors.Is(err, cliui.ErrCanceled) {
+			//nolint:revive,gocritic
+			os.Exit(code)
+		}
+		if errors.Is(err, ErrSilent) {
+			//nolint:revive,gocritic
 			os.Exit(code)
 		}
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
 		}
-		//nolint:revive
+		//nolint:revive,gocritic
 		os.Exit(code)
 	}
 }
@@ -433,7 +443,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
-			Hidden:      true,
+			Hidden:      false,
 			Description: "Force the use of a TTY.",
 			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
@@ -891,7 +901,7 @@ func DumpHandler(ctx context.Context, name string) {
 
 	done:
 		if sigStr == "SIGQUIT" {
-			//nolint:revive
+			//nolint:revive,gocritic
 			os.Exit(1)
 		}
 	}
@@ -1045,7 +1055,7 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
-			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+			prefix += strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
 		// Now looks like

@@ -3,8 +3,12 @@
 The workspace process logging feature allows you to log all system-level
 processes executing in the workspace.
 
-> **Note:** This feature is only available on Linux in Kubernetes. There are
-> additional requirements outlined further in this document.
+This feature is only available on Linux in Kubernetes. There are
+additional requirements outlined further in this document.
+
+> [!NOTE]
+> Workspace process logging is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Workspace process logging adds a sidecar container to workspace pods that will
 log all processes started in the workspace container (e.g., commands executed in
@@ -15,10 +19,6 @@ monitoring stack, such as CloudWatch, for further analysis or long-term storage.
 
 Please note that these logs are not recorded or captured by the Coder
 organization in any way, shape, or form.
-
-> This is an [Premium or Enterprise](https://coder.com/pricing) feature. To
-> learn more about Coder licensing, please
-> [contact sales](https://coder.com/contact).
 
 ## How this works
 
@@ -164,7 +164,8 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-   > **Note:** If you are using the `envbox` template, you will need to update
+   > [!NOTE]
+   > If you are using the `envbox` template, you will need to update
    > the third argument to be
    > `"${local.exectrace_init_script}\n\nexec /envbox docker"` instead.
 
@@ -212,7 +213,8 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-   > **Note:** `exectrace` requires root privileges and a privileged container
+   > [!NOTE]
+   > `exectrace` requires root privileges and a privileged container
    > to attach probes to the kernel. This is a requirement of eBPF.
 
 1. Add the following environment variable to your workspace pod:

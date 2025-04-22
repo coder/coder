@@ -71,7 +71,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 	method := database.NotificationMethodSmtp
 
@@ -80,7 +80,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	interceptor := &syncInterceptor{Store: store}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -138,7 +138,7 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// start mock SMTP server
@@ -161,7 +161,7 @@ func TestSMTPDispatch(t *testing.T) {
 		Hello:     "localhost",
 	}
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -204,7 +204,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	sent := make(chan dispatch.WebhookPayload, 1)
@@ -230,7 +230,7 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -260,7 +260,7 @@ func TestWebhookDispatch(t *testing.T) {
 	mgr.Run(ctx)
 
 	// THEN: the webhook is received by the mock server and has the expected contents
-	payload := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, sent)
+	payload := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, sent)
 	require.EqualValues(t, "1.1", payload.Version)
 	require.Equal(t, msgID[0], payload.MsgID)
 	require.Equal(t, payload.Payload.Labels, input)
@@ -284,7 +284,7 @@ func TestBackpressure(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
@@ -319,7 +319,7 @@ func TestBackpressure(t *testing.T) {
 	defer fetchTrap.Close()
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(),
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, pubsub, defaultHelpers(), createMetrics(),
 		logger.Named("manager"), notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
@@ -350,8 +350,8 @@ func TestBackpressure(t *testing.T) {
 
 	// one batch of dispatches is sent
 	for range batchSize {
-		call := testutil.RequireRecvCtx(ctx, t, handler.calls)
-		testutil.RequireSendCtx(ctx, t, call.result, dispatchResult{
+		call := testutil.TryReceive(ctx, t, handler.calls)
+		testutil.RequireSend(ctx, t, call.result, dispatchResult{
 			retryable: false,
 			err:       nil,
 		})
@@ -402,7 +402,7 @@ func TestBackpressure(t *testing.T) {
 	// The batch completes
 	w.MustWait(ctx)
 
-	require.NoError(t, testutil.RequireRecvCtx(ctx, t, stopErr))
+	require.NoError(t, testutil.TryReceive(ctx, t, stopErr))
 	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 }
 
@@ -417,7 +417,7 @@ func TestRetries(t *testing.T) {
 	const maxAttempts = 3
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a mock HTTP server which will receive webhooksand a map to track the dispatch attempts
@@ -468,7 +468,7 @@ func TestRetries(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: store}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -517,7 +517,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a manager which has its updates intercepted and paused until measurements can be taken
@@ -539,7 +539,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsNotifier(context.Background()))
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
@@ -588,7 +588,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: store}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -620,7 +620,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 func TestInvalidConfig(t *testing.T) {
 	t.Parallel()
 
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: invalid config with dispatch period <= lease period
@@ -633,7 +633,7 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	_, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -646,7 +646,7 @@ func TestNotifierPaused(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// Prepare the test.
@@ -657,7 +657,7 @@ func TestNotifierPaused(t *testing.T) {
 	const fetchInterval = time.Millisecond * 100
 	cfg := defaultNotificationsConfig(method)
 	cfg.FetchInterval = serpent.Duration(fetchInterval)
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -768,7 +768,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		hello = "localhost"
 
 		from = "system@coder.com"
-		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+		hint = "run \"DB=ci make gen/golden-files\" and commit the changes"
 	)
 
 	tests := []struct {
@@ -978,45 +978,102 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
-				Labels: map[string]string{
-					"template_name":         "bobby-first-template",
-					"template_display_name": "Bobby First Template",
-				},
+				Labels:       map[string]string{},
 				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
 				Data: map[string]any{
-					"failed_builds":    4.0,
-					"total_builds":     55.0,
 					"report_frequency": "week",
-					"template_versions": []map[string]any{
+					"templates": []map[string]any{
 						{
-							"template_version_name": "bobby-template-version-1",
-							"failed_count":          3.0,
-							"failed_builds": []map[string]any{
+							"name":          "bobby-first-template",
+							"display_name":  "Bobby First Template",
+							"failed_builds": 4.0,
+							"total_builds":  55.0,
+							"versions": []map[string]any{
 								{
-									"workspace_owner_username": "mtojek",
-									"workspace_name":           "workspace-1",
-									"build_number":             1234.0,
+									"template_version_name": "bobby-template-version-1",
+									"failed_count":          3.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "mtojek",
+											"workspace_name":           "workspace-1",
+											"workspace_id":             "24f5bd8f-1566-4374-9734-c3efa0454dc7",
+											"build_number":             1234.0,
+										},
+										{
+											"workspace_owner_username": "johndoe",
+											"workspace_name":           "my-workspace-3",
+											"workspace_id":             "372a194b-dcde-43f1-b7cf-8a2f3d3114a0",
+											"build_number":             5678.0,
+										},
+										{
+											"workspace_owner_username": "jack",
+											"workspace_name":           "workwork",
+											"workspace_id":             "1386d294-19c1-4351-89e2-6cae1afb9bfe",
+											"build_number":             774.0,
+										},
+									},
 								},
 								{
-									"workspace_owner_username": "johndoe",
-									"workspace_name":           "my-workspace-3",
-									"build_number":             5678.0,
-								},
-								{
-									"workspace_owner_username": "jack",
-									"workspace_name":           "workwork",
-									"build_number":             774.0,
+									"template_version_name": "bobby-template-version-2",
+									"failed_count":          1.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "ben",
+											"workspace_name":           "cool-workspace",
+											"workspace_id":             "86fd99b1-1b6e-4b7e-b58e-0aee6e35c159",
+											"build_number":             8888.0,
+										},
+									},
 								},
 							},
 						},
 						{
-							"template_version_name": "bobby-template-version-2",
-							"failed_count":          1.0,
-							"failed_builds": []map[string]any{
+							"name":          "bobby-second-template",
+							"display_name":  "Bobby Second Template",
+							"failed_builds": 5.0,
+							"total_builds":  50.0,
+							"versions": []map[string]any{
 								{
-									"workspace_owner_username": "ben",
-									"workspace_name":           "cool-workspace",
-									"build_number":             8888.0,
+									"template_version_name": "bobby-template-version-1",
+									"failed_count":          3.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "daniellemaywood",
+											"workspace_name":           "workspace-9",
+											"workspace_id":             "cd469690-b6eb-4123-b759-980be7a7b278",
+											"build_number":             9234.0,
+										},
+										{
+											"workspace_owner_username": "johndoe",
+											"workspace_name":           "my-workspace-7",
+											"workspace_id":             "c447d472-0800-4529-a836-788754d5e27d",
+											"build_number":             8678.0,
+										},
+										{
+											"workspace_owner_username": "jack",
+											"workspace_name":           "workworkwork",
+											"workspace_id":             "919db6df-48f0-4dc1-b357-9036a2c40f86",
+											"build_number":             374.0,
+										},
+									},
+								},
+								{
+									"template_version_name": "bobby-template-version-2",
+									"failed_count":          2.0,
+									"failed_builds": []map[string]any{
+										{
+											"workspace_owner_username": "ben",
+											"workspace_name":           "more-cool-workspace",
+											"workspace_id":             "c8fb0652-9290-4bf2-a711-71b910243ac2",
+											"build_number":             8878.0,
+										},
+										{
+											"workspace_owner_username": "ben",
+											"workspace_name":           "less-cool-workspace",
+											"workspace_id":             "703d718d-2234-4990-9a02-5b1df6cf462a",
+											"build_number":             8848.0,
+										},
+									},
 								},
 							},
 						},
@@ -1074,9 +1131,10 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"workspace": "bobby-workspace",
-					"template":  "bobby-template",
-					"version":   "alpha",
+					"workspace":                "bobby-workspace",
+					"template":                 "bobby-template",
+					"version":                  "alpha",
+					"workspace_owner_username": "mrbobby",
 				},
 			},
 		},
@@ -1088,11 +1146,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"organization": "bobby-organization",
-					"initiator":    "bobby",
-					"workspace":    "bobby-workspace",
-					"template":     "bobby-template",
-					"version":      "alpha",
+					"organization":             "bobby-organization",
+					"initiator":                "bobby",
+					"workspace":                "bobby-workspace",
+					"template":                 "bobby-template",
+					"version":                  "alpha",
+					"workspace_owner_username": "mrbobby",
 				},
 			},
 		},
@@ -1229,6 +1288,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
+				_, pubsub := dbtestutil.NewDB(t)
+
 				// smtp config shared between client and server
 				smtpConfig := codersdk.NotificationsEmailConfig{
 					Hello: hello,
@@ -1296,6 +1357,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				smtpManager, err := notifications.NewManager(
 					smtpCfg,
 					*db,
+					pubsub,
 					defaultHelpers(),
 					createMetrics(),
 					logger.Named("manager"),
@@ -1330,7 +1392,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
-				tc.payload.Targets = append(tc.payload.Targets, user.ID)
 				_, err = smtpEnqueuer.EnqueueWithData(
 					ctx,
 					user.ID,
@@ -1410,6 +1471,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					return &db, &api.Logger, &user
 				}()
 
+				_, pubsub := dbtestutil.NewDB(t)
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
@@ -1437,6 +1499,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				webhookManager, err := notifications.NewManager(
 					webhookCfg,
 					*db,
+					pubsub,
 					defaultHelpers(),
 					createMetrics(),
 					logger.Named("manager"),
@@ -1461,7 +1524,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					tc.payload.Labels,
 					tc.payload.Data,
 					user.Username,
-					user.ID,
+					tc.payload.Targets...,
 				)
 				require.NoError(t, err)
 
@@ -1613,13 +1676,13 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -1670,7 +1733,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	received := make(chan uuid.UUID, 1)
@@ -1728,7 +1791,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 		Endpoint: *serpent.URLOf(endpoint),
 	}
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = mgr.Stop(ctx)
@@ -1745,7 +1808,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	// THEN: the notification should be received by the custom dispatch method
 	mgr.Run(ctx)
 
-	receivedMsgID := testutil.RequireRecvCtx(ctx, t, received)
+	receivedMsgID := testutil.TryReceive(ctx, t, received)
 	require.Equal(t, msgID[0].String(), receivedMsgID.String())
 
 	// Ensure no messages received by default method (SMTP):
@@ -1811,13 +1874,13 @@ func TestNotificationDuplicates(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -1848,6 +1911,179 @@ func TestNotificationDuplicates(t *testing.T) {
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{"initiator": "danny"}, "test", user.ID)
 	require.NoError(t, err)
+}
+
+func TestNotificationMethodCannotDefaultToInbox(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	cfg := defaultNotificationsConfig(database.NotificationMethodInbox)
+
+	_, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+	require.ErrorIs(t, err, notifications.InvalidDefaultNotificationMethodError{Method: string(database.NotificationMethodInbox)})
+}
+
+func TestNotificationTargetMatrix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		defaultMethod    database.NotificationMethod
+		defaultEnabled   bool
+		inboxEnabled     bool
+		expectedEnqueued int
+	}{
+		{
+			name:             "NoDefaultAndNoInbox",
+			defaultMethod:    database.NotificationMethodSmtp,
+			defaultEnabled:   false,
+			inboxEnabled:     false,
+			expectedEnqueued: 0,
+		},
+		{
+			name:             "DefaultAndNoInbox",
+			defaultMethod:    database.NotificationMethodSmtp,
+			defaultEnabled:   true,
+			inboxEnabled:     false,
+			expectedEnqueued: 1,
+		},
+		{
+			name:             "NoDefaultAndInbox",
+			defaultMethod:    database.NotificationMethodSmtp,
+			defaultEnabled:   false,
+			inboxEnabled:     true,
+			expectedEnqueued: 1,
+		},
+		{
+			name:             "DefaultAndInbox",
+			defaultMethod:    database.NotificationMethodSmtp,
+			defaultEnabled:   true,
+			inboxEnabled:     true,
+			expectedEnqueued: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// nolint:gocritic // Unit test.
+			ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+			store, pubsub := dbtestutil.NewDB(t)
+			logger := testutil.Logger(t)
+
+			cfg := defaultNotificationsConfig(tt.defaultMethod)
+			cfg.Inbox.Enabled = serpent.Bool(tt.inboxEnabled)
+
+			// If the default method is not enabled, we want to ensure the config
+			// is wiped out.
+			if !tt.defaultEnabled {
+				cfg.SMTP = codersdk.NotificationsEmailConfig{}
+				cfg.Webhook = codersdk.NotificationsWebhookConfig{}
+			}
+
+			mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				assert.NoError(t, mgr.Stop(ctx))
+			})
+
+			// Set the time to a known value.
+			mClock := quartz.NewMock(t)
+			mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
+
+			enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
+			require.NoError(t, err)
+			user := createSampleUser(t, store)
+
+			// When: A notification is enqueued, it enqueues the correct amount of notifications.
+			enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+				map[string]string{"initiator": "danny"}, "test", user.ID)
+			require.NoError(t, err)
+			require.Len(t, enqueued, tt.expectedEnqueued)
+		})
+	}
+}
+
+func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Inbox", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // Unit test.
+		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+		store, _ := dbtestutil.NewDB(t)
+		logger := testutil.Logger(t)
+
+		// Given: Coder Inbox is enabled and SMTP/Webhook are disabled.
+		cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+		cfg.Inbox.Enabled = true
+		cfg.SMTP = codersdk.NotificationsEmailConfig{}
+		cfg.Webhook = codersdk.NotificationsWebhookConfig{}
+
+		enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+		require.NoError(t, err)
+		user := createSampleUser(t, store)
+
+		// When: A one-time-passcode notification is sent, it does not enqueue a notification.
+		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateUserRequestedOneTimePasscode,
+			map[string]string{"one_time_passcode": "1234"}, "test", user.ID)
+		require.NoError(t, err)
+		require.Len(t, enqueued, 0)
+	})
+
+	t.Run("SMTP", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // Unit test.
+		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+		store, _ := dbtestutil.NewDB(t)
+		logger := testutil.Logger(t)
+
+		// Given: Coder Inbox/Webhook are disabled and SMTP is enabled.
+		cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+		cfg.Inbox.Enabled = false
+		cfg.Webhook = codersdk.NotificationsWebhookConfig{}
+
+		enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+		require.NoError(t, err)
+		user := createSampleUser(t, store)
+
+		// When: A one-time-passcode notification is sent, it does enqueue a notification.
+		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateUserRequestedOneTimePasscode,
+			map[string]string{"one_time_passcode": "1234"}, "test", user.ID)
+		require.NoError(t, err)
+		require.Len(t, enqueued, 1)
+	})
+
+	t.Run("Webhook", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // Unit test.
+		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+		store, _ := dbtestutil.NewDB(t)
+		logger := testutil.Logger(t)
+
+		// Given: Coder Inbox/SMTP are disabled and Webhook is enabled.
+		cfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
+		cfg.Inbox.Enabled = false
+		cfg.SMTP = codersdk.NotificationsEmailConfig{}
+
+		enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+		require.NoError(t, err)
+		user := createSampleUser(t, store)
+
+		// When: A one-time-passcode notification is sent, it does enqueue a notification.
+		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateUserRequestedOneTimePasscode,
+			map[string]string{"one_time_passcode": "1234"}, "test", user.ID)
+		require.NoError(t, err)
+		require.Len(t, enqueued, 1)
+	})
 }
 
 type fakeHandler struct {

@@ -1,6 +1,6 @@
 // Those mocks are fetched from the Coder API in dev.coder.com
 
-import type { LineWithID } from "./AgentLogLine";
+import type { Line } from "components/Logs/LogLine";
 
 export const MockSources = [
 	{
@@ -612,7 +612,7 @@ export const MockLogs = [
 		id: 3295813,
 		level: "info",
 		output:
-			"Hit:16 https://ppa.launchpadcontent.net/fish-shell/release-3/ubuntu jammy InRelease",
+			"Hit:16 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu jammy InRelease",
 		time: "2024-03-14T11:31:07.827832Z",
 		sourceId: "d9475581-8a42-4bce-b4d0-e4d2791d5c98",
 	},
@@ -1128,4 +1128,4 @@ export const MockLogs = [
 		time: "2024-03-14T11:31:10.859531Z",
 		sourceId: "d9475581-8a42-4bce-b4d0-e4d2791d5c98",
 	},
-] satisfies LineWithID[];
+] satisfies Line[];
