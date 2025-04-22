@@ -190,6 +190,26 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 	return resolvedValue.Value, nil
 }
 
+// Resolve returns the value of the parameter. It does not do any validation,
+// and is meant for use with the new dynamic parameters code path.
+func (r *ParameterResolver) Resolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) string {
+	prevV := r.findLastValue(p)
+	// First, the provided value
+	resolvedValue := v
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
+		resolvedValue = prevV
+	}
+	// Last, default value
+	if resolvedValue == nil {
+		resolvedValue = &WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.DefaultValue,
+		}
+	}
+	return resolvedValue.Value
+}
+
 // findLastValue finds the value from the previous build and returns it, or nil if the parameter had no value in the
 // last build.
 func (r *ParameterResolver) findLastValue(p TemplateVersionParameter) *WorkspaceBuildParameter {
