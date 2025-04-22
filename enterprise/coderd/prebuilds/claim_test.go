@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -190,9 +191,9 @@ func TestClaimPrebuild(t *testing.T) {
 				PresetID:  presets[0].ID,
 			}
 			userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
-				TemplateVersionID:        version.ID,
-				Name:                     workspaceName,
-				TemplateVersionPresetID:  presets[0].ID,
+				TemplateVersionID:       version.ID,
+				Name:                    workspaceName,
+				TemplateVersionPresetID: presets[0].ID,
 			})
 
 			require.NoError(t, err)

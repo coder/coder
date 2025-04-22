@@ -75,8 +75,8 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
-	prebuild                bool
-	prebuildClaimedBy       uuid.UUID
+	prebuild          bool
+	prebuildClaimedBy uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -316,10 +316,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID:        workspaceBuildID,
-		LogLevel:                b.logLevel,
-		IsPrebuild:              b.prebuild,
-		PrebuildClaimedByUser:   b.prebuildClaimedBy,
+		WorkspaceBuildID:      workspaceBuildID,
+		LogLevel:              b.logLevel,
+		IsPrebuild:            b.prebuild,
+		PrebuildClaimedByUser: b.prebuildClaimedBy,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{

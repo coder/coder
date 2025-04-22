@@ -9,7 +9,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"io"
 	"net/http"
 	"net/url"
@@ -19,6 +18,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
