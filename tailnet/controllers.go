@@ -284,6 +284,17 @@ func (c *BasicCoordination) respLoop() {
 			return
 		}
 
+		if resp.Error != "" {
+			// ReadyForHandshake error can occur during race conditions, where we send a ReadyForHandshake message,
+			// but the source has already disconnected from the tunnel by the time we do. So, just log at warning.
+			if strings.HasPrefix(resp.Error, ReadyForHandshakeError) {
+				c.logger.Warn(context.Background(), "coordination warning", slog.F("msg", resp.Error))
+			} else {
+				c.logger.Error(context.Background(),
+					"coordination protocol error", slog.F("error", resp.Error))
+			}
+		}
+
 		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			c.logger.Debug(context.Background(), "failed to update peers", slog.Error(err))
