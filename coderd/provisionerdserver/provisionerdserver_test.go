@@ -23,6 +23,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -123,6 +124,19 @@ func TestHeartbeat(t *testing.T) {
 		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
+}
+
+func TestOptionsOIDCConfig(t *testing.T) {
+	t.Parallel()
+
+	var cfg *coderd.OIDCConfig
+	opts := provisionerdserver.Options{
+		// We pass in the oidc config like so, causing the interface
+		// to be not nil.
+		OIDCConfig: cfg,
+	}
+
+	require.True(t, opts.OIDCConfig == nil)
 }
 
 func TestAcquireJob(t *testing.T) {
