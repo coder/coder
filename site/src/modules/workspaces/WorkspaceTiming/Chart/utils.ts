@@ -61,30 +61,29 @@ export const makeTicks = (time: number) => {
 };
 
 export const formatTime = (time: number): string => {
-	const seconds = Math.floor((time / 1000) % 60);
-	const minutes = Math.floor((time / (1000 * 60)) % 60);
-	const hours = Math.floor((time / (1000 * 60 * 60)) % 24);
-	const days = Math.floor(time / (1000 * 60 * 60 * 24));
+	const seconds = Math.floor(time / 1000);
+	const minutes = Math.floor(seconds / 60);
+	const hours = Math.floor(minutes / 60);
+	const days = Math.floor(hours / 24);
 
-	const timeParts = [];
-
+	const parts: string[] = [];
 	if (days > 0) {
-		timeParts.push(`${days} day${days > 1 ? "s" : ""}`);
+		parts.push(`${days}d`);
 	}
 	if (hours > 0) {
-		timeParts.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+		parts.push(`${hours % 24}h`);
 	}
 	if (minutes > 0) {
-		timeParts.push(`${minutes} minute${minutes > 1 ? "s" : ""}`);
+		parts.push(`${minutes % 60}m`);
 	}
 	if (seconds > 0) {
-		timeParts.push(`${seconds}s`);
+		parts.push(`${seconds % 60}s`);
 	}
-	if (time > 0 && time < 1000) {
-		timeParts.push(`${time}ms`);
+	if (time % 1000 > 0) {
+		parts.push(`${time % 1000}ms`);
 	}
 
-	return timeParts.join(", ");
+	return parts.join(" ");
 };
 
 export const calcOffset = (range: TimeRange, baseRange: TimeRange): number => {
