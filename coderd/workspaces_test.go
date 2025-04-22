@@ -4349,3 +4349,51 @@ func TestWorkspaceTimings(t *testing.T) {
 		require.Contains(t, err.Error(), "not found")
 	})
 }
+
+// TestOIDCRemoved emulates a user logging in with OIDC, then that OIDC
+// auth method being removed.
+func TestOIDCRemoved(t *testing.T) {
+	t.Parallel()
+
+	owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	first := coderdtest.CreateFirstUser(t, owner)
+
+	user, userData := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	//nolint:gocritic // unit test
+	_, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+		NewLoginType: database.LoginTypeOIDC,
+		UserID:       userData.ID,
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // unit test
+	_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
+		UserID:                 userData.ID,
+		LoginType:              database.LoginTypeOIDC,
+		LinkedID:               "random",
+		OAuthAccessToken:       "foobar",
+		OAuthAccessTokenKeyID:  sql.NullString{},
+		OAuthRefreshToken:      "refresh",
+		OAuthRefreshTokenKeyID: sql.NullString{},
+		OAuthExpiry:            time.Now().Add(time.Hour * -1),
+		Claims:                 database.UserLinkClaims{},
+	})
+	require.NoError(t, err)
+
+	version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+	template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+	wrk := coderdtest.CreateWorkspace(t, user, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, wrk.LatestBuild.ID)
+
+	deleteBuild, err := owner.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	require.NoError(t, err, "delete the workspace")
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, deleteBuild.ID)
+}
