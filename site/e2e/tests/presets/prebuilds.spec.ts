@@ -1,5 +1,5 @@
 import path from "node:path";
-import { type Locator, expect, test } from "@playwright/test";
+import {type Locator, expect, test, Page} from "@playwright/test";
 import { users } from "../../constants";
 import {
 	currentUser,
@@ -54,9 +54,7 @@ test("create template with desired prebuilds", async ({ page, baseURL }) => {
 	await waitForExpectedCount(prebuilds, expectedPrebuilds);
 
 	// Wait for prebuilds to start.
-	const runningPrebuilds = page
-		.getByTestId("build-status")
-		.getByText("Running");
+	const runningPrebuilds = runningPrebuildsLocator(page);
 	await waitForExpectedCount(runningPrebuilds, expectedPrebuilds);
 });
 
@@ -86,7 +84,7 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	);
 
 	// Wait for prebuilds to start.
-	let runningPrebuilds = page.getByTestId("build-status").getByText("Running");
+	let runningPrebuilds = runningPrebuildsLocator(page);
 	await waitForExpectedCount(runningPrebuilds, expectedPrebuilds);
 
 	// Open the first prebuild.
@@ -94,7 +92,7 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	await page.waitForURL(/\/@prebuilds\/prebuild-.+/);
 
 	// Wait for the prebuild to become ready so it's eligible to be claimed.
-	await page.getByTestId("agent-status-ready").waitFor({ timeout: 60_000 });
+	await page.getByTestId("agent-status-ready").waitFor({ timeout: 120_000 });
 
 	// Logout as admin, and login as an unprivileged user.
 	await login(page, users.member);
@@ -127,11 +125,18 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 		timeout: waitForBuildTimeout, // Account for workspace build time.
 	});
 
-	// Validate the workspace metadata that it was indeed a claimed prebuild.
+	// Validate via the workspace metadata that it was indeed a claimed prebuild.
 	const indicator = page.getByText("Was Prebuild");
 	await indicator.waitFor({ timeout: 60_000 });
 	const text = indicator.locator("xpath=..").getByText("Yes");
 	await text.waitFor({ timeout: 30_000 });
+
+	// Validate via the workspace metadata that terraform was run again, injecting the new owner via agent environment,
+	// and the agent picked this up and reinitialized with a new environment.
+	const owner = page.getByText("Owner");
+	await owner.waitFor({ timeout: 60_000 });
+	const ownerTxt = owner.locator("xpath=..").getByText(users.member.email);
+	await ownerTxt.waitFor({ timeout: 30_000 });
 
 	// Logout as unprivileged user, and login as admin.
 	await login(page, users.admin);
@@ -156,9 +161,13 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	expect(currentWorkspaceNames).not.toEqual(previousWorkspaceNames);
 
 	// Wait for prebuilds to start.
-	runningPrebuilds = page.getByTestId("build-status").getByText("Running");
+	runningPrebuilds = runningPrebuildsLocator(page);
 	await waitForExpectedCount(runningPrebuilds, expectedPrebuilds);
 });
+
+function runningPrebuildsLocator(page: Page): Locator {
+	return page.locator(".build-status").getByText("Running");
+}
 
 function waitForExpectedCount(prebuilds: Locator, expectedCount: number) {
 	return expect

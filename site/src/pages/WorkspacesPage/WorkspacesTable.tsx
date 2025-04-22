@@ -376,7 +376,7 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 
 	return (
 		<TableCell>
-			<div className="flex flex-col">
+			<div className="flex flex-col build-status">
 				<StatusIndicator variant={variantByStatusType[type]}>
 					<StatusIndicatorDot />
 					{text}
