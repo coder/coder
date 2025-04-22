@@ -9,20 +9,21 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/mattn/go-isatty"
-	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
+	"github.com/mattn/go-isatty"
+
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
 // PromptOptions supply a set of options to the prompt.
 type PromptOptions struct {
-	Text      string
-	Default   string
+	Text    string
+	Default string
+	// When true, the input will be masked with asterisks.
 	Secret    bool
-	Mask      rune
 	IsConfirm bool
 	Validate  func(string) error
 }
@@ -91,53 +92,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
-			// Set terminal to raw mode
-			oldState, err := term.MakeRaw(int(inFile.Fd()))
-			if err != nil {
-				errCh <- err
-				return
-			}
-			defer func() {
-				_ = term.Restore(int(inFile.Fd()), oldState)
-			}()
-
-			// Read input character by character
-			buf := make([]byte, 1)
-			for {
-				n, err := inv.Stdin.Read(buf)
-				if err != nil || n == 0 {
-					break
-				}
-
-				// Handle special characters
-				switch buf[0] {
-				case '\r', '\n': // Enter
-					_, _ = fmt.Fprint(inv.Stdout, "\n")
-					lineCh <- line
-					return
-				case 3: // Ctrl+C
-					_, _ = fmt.Fprint(inv.Stdout, "\n")
-					errCh <- ErrCanceled
-					return
-				case 8, 127: // Backspace/Delete
-					if len(line) > 0 {
-						line = line[:len(line)-1]
-						// Move cursor back, print space, move cursor back again
-						_, _ = fmt.Fprint(inv.Stdout, "\b \b")
-					}
-				default:
-					// Only append printable characters
-					if buf[0] >= 32 && buf[0] <= 126 {
-						line += string(buf[0])
-						// Print the mask character
-						if opts.Mask == 0 {
-							_, _ = fmt.Fprint(inv.Stdout, "")
-						} else {
-							_, _ = fmt.Fprint(inv.Stdout, string(opts.Mask))
-						}
-					}
-				}
-			}
+			line, err = readSecretInput(inFile)
 		} else {
 			signal.Notify(interrupt, os.Interrupt)
 			defer signal.Stop(interrupt)
@@ -247,6 +202,53 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 		}
 		if err != nil {
 			return string(have), err
+		}
+	}
+}
+
+// readSecretInput reads secret input from the terminal character by character,
+// masking the input with asterisks. It handles special characters like backspace
+// and enter appropriately.
+func readSecretInput(f *os.File) (string, error) {
+	// Set terminal to raw mode
+	oldState, err := pty.MakeInputRaw(f.Fd())
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = pty.RestoreTerminal(f.Fd(), oldState)
+	}()
+
+	// Read input character by character
+	buf := make([]byte, 1)
+	var line string
+	for {
+		n, err := f.Read(buf)
+		if err != nil || n == 0 {
+			return "", ErrCanceled
+		}
+
+		// Handle special characters
+		switch buf[0] {
+		case '\r', '\n': // Enter
+			_, _ = f.WriteString("\n")
+			return line, nil
+		case 3: // Ctrl+C
+			_, _ = f.WriteString("\n")
+			return "", ErrCanceled
+		case 8, 127: // Backspace/Delete
+			if len(line) > 0 {
+				line = line[:len(line)-1]
+				// Move cursor back, print space, move cursor back again
+				_, _ = f.WriteString("\b \b")
+			}
+		default:
+			// Only append printable characters
+			if buf[0] >= 32 && buf[0] <= 126 {
+				line += string(buf[0])
+				// Print the mask character
+				_, _ = f.WriteString("*")
+			}
 		}
 	}
 }

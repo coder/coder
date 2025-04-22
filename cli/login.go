@@ -356,7 +356,6 @@ func (r *RootCmd) login() *serpent.Command {
 				sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Paste your token here:",
 					Secret: true,
-					Mask:   '*',
 					Validate: func(token string) error {
 						client.SetSessionToken(token)
 						_, err := client.User(ctx, codersdk.Me)

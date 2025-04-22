@@ -191,7 +191,6 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,
-				Mask:   '*',
 			}, nil)
 			assert.NoError(t, err)
 			doneChan <- resp
@@ -270,7 +269,6 @@ func passwordHelper() {
 			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,
-				Mask:   '*',
 			})
 			return nil
 		},
