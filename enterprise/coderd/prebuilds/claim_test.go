@@ -197,7 +197,6 @@ func TestClaimPrebuild(t *testing.T) {
 
 			// Then: a prebuild should have been claimed.
 			require.EqualValues(t, spy.claims.Load(), 1)
-			require.NotNil(t, spy.claims.Load())
 			require.EqualValues(t, *spy.claimParams.Load(), params)
 
 			if !tc.expectPrebuildClaimed {
@@ -207,7 +206,7 @@ func TestClaimPrebuild(t *testing.T) {
 
 			require.NotNil(t, spy.claimedWorkspace.Load())
 			claimed := *spy.claimedWorkspace.Load()
-			require.NotEqual(t, claimed, uuid.Nil)
+			require.NotEqual(t, claimed.ID, uuid.Nil)
 
 			// Then: the claimed prebuild must now be owned by the requester.
 			workspace, err := spy.GetWorkspaceByID(ctx, claimed.ID)
