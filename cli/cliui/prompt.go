@@ -210,7 +210,7 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 // masking the input with asterisks. It handles special characters like backspace
 // and enter appropriately.
 func readSecretInput(f *os.File, w io.Writer) (string, error) {
-	// Set terminal to raw mode
+	// Set terminal to raw mode to capture input character by character
 	oldState, err := pty.MakeInputRaw(f.Fd())
 	if err != nil {
 		return "", err
@@ -231,10 +231,10 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 		// Handle special characters
 		switch buf[0] {
 		case '\r', '\n': // Enter
-			_, _ = w.Write([]byte("\n"))
+			_, _ = w.Write([]byte("\r\n"))
 			return line, nil
 		case 3: // Ctrl+C
-			_, _ = w.Write([]byte("\n"))
+			_, _ = w.Write([]byte("\r\n"))
 			return "", ErrCanceled
 		case 8, 127: // Backspace/Delete
 			if len(line) > 0 {
