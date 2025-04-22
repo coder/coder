@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -553,6 +554,9 @@ func (f *logFollower) follow() {
 		}
 		return
 	}
+
+	// Log the request immediately instead of after it completes.
+	loggermw.RequestLoggerFromContext(f.ctx).WriteLog(f.ctx, http.StatusAccepted)
 
 	// no need to wait if the job is done
 	if f.complete {

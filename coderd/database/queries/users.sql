@@ -244,10 +244,10 @@ WHERE
 -- This function returns roles for authorization purposes. Implied member roles
 -- are included.
 SELECT
-	-- username is returned just to help for logging purposes
+	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status,
+	id, username, status, email,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
