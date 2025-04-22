@@ -15,10 +15,10 @@ import {
 	ProvisionerTruncateTags,
 } from "modules/provisioners/ProvisionerTags";
 import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
-import { Link as RouterLink } from "react-router-dom";
 
 type JobRowProps = {
 	job: ProvisionerJob;

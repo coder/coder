@@ -3,6 +3,7 @@ import type {
 	ProvisionerJob,
 	ProvisionerJobStatus,
 } from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
@@ -33,19 +34,18 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { XIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
-import { Badge } from "components/Badge/Badge";
-import { XIcon } from "lucide-react";
-import {
-	Tooltip,
-	TooltipProvider,
-	TooltipTrigger,
-	TooltipContent,
-} from "components/Tooltip/Tooltip";
 
 const variantByStatus: Record<
 	ProvisionerJobStatus,

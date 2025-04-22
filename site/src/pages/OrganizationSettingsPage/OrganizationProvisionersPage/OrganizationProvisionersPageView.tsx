@@ -1,4 +1,5 @@
 import type { ProvisionerDaemon } from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
@@ -17,18 +18,17 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import { SquareArrowOutUpRightIcon, XIcon } from "lucide-react";
-import type { FC } from "react";
-import { docs } from "utils/docs";
-import { LastConnectionHead } from "./LastConnectionHead";
-import { ProvisionerRow } from "./ProvisionerRow";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Badge } from "components/Badge/Badge";
+import { SquareArrowOutUpRightIcon, XIcon } from "lucide-react";
+import type { FC } from "react";
+import { docs } from "utils/docs";
+import { LastConnectionHead } from "./LastConnectionHead";
+import { ProvisionerRow } from "./ProvisionerRow";
 
 type ProvisionersFilter = {
 	ids: string;
