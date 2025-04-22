@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"text/template"
 
 	"github.com/google/uuid"
@@ -134,8 +135,13 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		}
 	}()
 
+	// Keep track of how many notification_enqueued events seen this loop to avoid
+	// unnecessary database load.
+	var enqueueEventsThisLoop atomic.Int64
+
 	// Periodically trigger the processing loop.
 	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
+		defer enqueueEventsThisLoop.Store(0)
 		c := make(chan struct{})
 		loopTick <- c
 		// Wait for the processing to finish before continuing. The ticker will
@@ -146,7 +152,12 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 
 	// Also signal the processing loop when a notification is enqueued.
 	if stopListen, err := n.ps.Subscribe(EventNotificationEnqueued, func(ctx context.Context, _ []byte) {
-		n.log.Debug(n.outerCtx, "got pubsub event", slog.F("event", EventNotificationEnqueued))
+		enqueued := enqueueEventsThisLoop.Add(1)
+		skipEarlyDispatch := enqueued > 1
+		n.log.Debug(n.outerCtx, "got pubsub event", slog.F("count", enqueued), slog.F("skip_early_dispatch", skipEarlyDispatch), slog.F("event", EventNotificationEnqueued))
+		if enqueued > 1 {
+			return
+		}
 		c := make(chan struct{})
 		select {
 		case <-n.gracefulCtx.Done():

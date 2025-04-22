@@ -2173,6 +2173,8 @@ func TestNotificationEnqueuePubsubNotify(t *testing.T) {
 		}
 	}()
 	_ = testutil.TryReceive(ctx, t, recvDone)
+	// TODO: this sometimes fails with
+	//     t.go:106: 2025-04-22 16:55:04.153 [warn]  manager: content canceled with pending updates in buffer, these messages will be sent again after lease expires  success_count=6  failure_count=0
 }
 
 type fakeHandler struct {
