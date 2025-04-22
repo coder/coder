@@ -640,7 +640,7 @@ func createWorkspace(
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
-	prebuilds := (*api.PrebuildsClaimer.Load()).(prebuilds.Claimer)
+	prebuilds := *api.PrebuildsClaimer.Load()
 
 	err = api.Database.InTx(func(db database.Store) error {
 		var (

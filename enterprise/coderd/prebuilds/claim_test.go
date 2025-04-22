@@ -10,13 +10,13 @@ import (
 
 	"github.com/coder/quartz"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -78,40 +78,20 @@ func TestClaimPrebuild(t *testing.T) {
 	)
 
 	cases := map[string]struct {
-		entitlementEnabled     bool
-		experimentEnabled      bool
-		attemptPrebuildClaim   bool
 		expectPrebuildClaimed  bool
 		markPrebuildsClaimable bool
-		expectedPrebuildsCount int
 	}{
-		"without the experiment enabled, prebuilds will not provisioned": {
-			experimentEnabled:      false,
-			entitlementEnabled:     true,
-			attemptPrebuildClaim:   false,
-			expectedPrebuildsCount: 0,
-		},
-		"without the entitlement, prebuilds will not provisioned": {
-			experimentEnabled:      true,
-			entitlementEnabled:     false,
-			attemptPrebuildClaim:   false,
-			expectedPrebuildsCount: 0,
-		},
-		"with everything enabled, but no eligible prebuilds to claim": {
-			entitlementEnabled:     true,
-			experimentEnabled:      true,
-			attemptPrebuildClaim:   true,
+		"no eligible prebuilds to claim": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: false,
-			expectedPrebuildsCount: desiredInstances * presetCount,
 		},
-		"with everything enabled, claiming an eligible prebuild should succeed": {
-			entitlementEnabled:     true,
-			experimentEnabled:      true,
-			attemptPrebuildClaim:   true,
+		"claiming an eligible prebuild should succeed": {
 			expectPrebuildClaimed:  true,
 			markPrebuildsClaimable: true,
-			expectedPrebuildsCount: desiredInstances * presetCount,
+		},
+		"claiming an eligible prebuild results in error": {
+			expectPrebuildClaimed:  true,
+			markPrebuildsClaimable: true,
 		},
 	}
 
@@ -121,49 +101,26 @@ func TestClaimPrebuild(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup. // TODO: abstract?
-
+			// Setup.
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			db, pubsub := dbtestutil.NewDB(t)
 			spy := newStoreSpy(db)
-
-			//var prebuildsEntitled int64
-			//if tc.entitlementEnabled {
-			//	prebuildsEntitled = 1
-			//}
+			expectedPrebuildsCount := desiredInstances * presetCount
 
 			logger := testutil.Logger(t)
-			client, _, _, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					Database:                 spy,
 					Pubsub:                   pubsub,
-					DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
-						//values.Prebuilds.ReconciliationInterval = serpent.Duration(time.Hour) // We will kick off a reconciliation manually.
-						//
-						//if tc.experimentEnabled {
-						//	values.Experiments = serpent.StringArray{string(codersdk.ExperimentWorkspacePrebuilds)}
-						//}
-					}),
 				},
 
 				EntitlementsUpdateInterval: time.Second,
-				//LicenseOptions: &coderdenttest.LicenseOptions{
-				//	Features: license.Features{
-				//		codersdk.FeatureWorkspacePrebuilds: prebuildsEntitled,
-				//	},
-				//},
 			})
+
 			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
-
-			// The entitlements will need to refresh before the reconciler is set.
-			require.Eventually(t, func() bool {
-				if tc.entitlementEnabled && tc.experimentEnabled {
-					assert.IsType(t, &prebuilds.StoreReconciler{}, reconciler)
-				}
-
-				return reconciler != nil
-			}, testutil.WaitSuperLong, testutil.IntervalFast)
+			var claimer agplprebuilds.Claimer = &prebuilds.EnterpriseClaimer{}
+			api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -179,14 +136,8 @@ func TestClaimPrebuild(t *testing.T) {
 			// Given: the reconciliation state is snapshot.
 			state, err := reconciler.SnapshotState(ctx, spy)
 			require.NoError(t, err)
-
-			// When: the experiment or entitlement is not preset, there should be nothing to reconcile.
-			if !tc.entitlementEnabled || !tc.experimentEnabled {
-				require.Len(t, state.Presets, 0)
-				return
-			}
-
 			require.Len(t, state.Presets, presetCount)
+
 			// When: a reconciliation is setup for each preset.
 			for _, preset := range presets {
 				ps, err := state.FilterByPreset(preset.ID)
@@ -215,6 +166,7 @@ func TestClaimPrebuild(t *testing.T) {
 					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
 					require.NoError(t, err)
 
+					// Workspaces are eligible once its agent is marked "ready".
 					for _, agent := range agents {
 						require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 							ID:             agent.ID,
@@ -225,9 +177,9 @@ func TestClaimPrebuild(t *testing.T) {
 					}
 				}
 
-				t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), tc.expectedPrebuildsCount)
+				t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), expectedPrebuildsCount)
 
-				return len(runningPrebuilds) == tc.expectedPrebuildsCount
+				return len(runningPrebuilds) == expectedPrebuildsCount
 			}, testutil.WaitSuperLong, testutil.IntervalSlow)
 
 			// When: a user creates a new workspace with a preset for which prebuilds are configured.
@@ -243,20 +195,9 @@ func TestClaimPrebuild(t *testing.T) {
 				TemplateVersionPresetID:  presets[0].ID,
 				ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
 			})
+
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
-
-			// Then: if we're not expecting any prebuild claims to succeed, handle this specifically.
-			if !tc.attemptPrebuildClaim {
-				require.EqualValues(t, spy.claims.Load(), 0)
-				require.Nil(t, spy.claimedWorkspace.Load())
-
-				currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
-				require.NoError(t, err)
-				// The number of prebuilds should NOT change.
-				require.Equal(t, len(currentPrebuilds), len(runningPrebuilds))
-				return
-			}
 
 			// Then: a prebuild should have been claimed.
 			require.EqualValues(t, spy.claims.Load(), 1)
@@ -315,9 +256,9 @@ func TestClaimPrebuild(t *testing.T) {
 				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				require.NoError(t, err)
 
-				t.Logf("found %d running prebuilds so far, want %d", len(rows), tc.expectedPrebuildsCount)
+				t.Logf("found %d running prebuilds so far, want %d", len(rows), expectedPrebuildsCount)
 
-				return len(runningPrebuilds) == tc.expectedPrebuildsCount
+				return len(runningPrebuilds) == expectedPrebuildsCount
 			}, testutil.WaitSuperLong, testutil.IntervalSlow)
 
 			// Then: when restarting the created workspace (which claimed a prebuild), it should not try and claim a new prebuild.
