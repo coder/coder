@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
@@ -29,7 +28,14 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -41,12 +47,14 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
+import { ExperimentalFormContext } from "./CreateWorkspaceExperimentRouter";
 import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
+
 export const Language = {
 	duplicationWarning:
 		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
@@ -98,6 +106,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	onSubmit,
 	onCancel,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -211,9 +220,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader
 				actions={
-					<Button size="sm" variant="outline" onClick={onCancel}>
-						Cancel
-					</Button>
+					<>
+						{experimentalFormContext && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={experimentalFormContext.toggleOptedOut}
+							>
+								Try out the new workspace creation flow ✨
+							</Button>
+						)}
+						<Button size="sm" variant="outline" onClick={onCancel}>
+							Cancel
+						</Button>
+					</>
 				}
 			>
 				<Stack direction="row">

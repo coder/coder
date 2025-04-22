@@ -22,10 +22,18 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, useCallback, useEffect, useId, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useContext,
+	useEffect,
+	useId,
+	useState,
+} from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import { ExperimentalFormContext } from "./CreateWorkspaceExperimentRouter";
 import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
@@ -89,6 +97,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -250,8 +259,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-sm mx-auto">
-				<header className="flex flex-col gap-2 mt-10">
+			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
+				<header className="flex flex-col items-start gap-2 mt-10">
 					<div className="flex items-center gap-2">
 						<Avatar
 							variant="icon"
@@ -268,6 +277,16 @@ export const CreateWorkspacePageViewExperimental: FC<
 					<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
+
+					{experimentalFormContext && (
+						<Button
+							size="sm"
+							variant="subtle"
+							onClick={experimentalFormContext.toggleOptedOut}
+						>
+							Go back to the classic workspace creation flow
+						</Button>
+					)}
 				</header>
 
 				<form

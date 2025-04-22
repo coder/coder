@@ -3308,6 +3308,7 @@ const (
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
+	ExperimentDynamicParameters,
 	ExperimentWorkspacePrebuilds,
 }
 
