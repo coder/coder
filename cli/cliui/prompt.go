@@ -231,23 +231,23 @@ func readSecretInput(f *os.File) (string, error) {
 		// Handle special characters
 		switch buf[0] {
 		case '\r', '\n': // Enter
-			_, _ = f.WriteString("\n")
+			_, _ = f.Write([]byte("\n"))
 			return line, nil
 		case 3: // Ctrl+C
-			_, _ = f.WriteString("\n")
+			_, _ = f.Write([]byte("\n"))
 			return "", ErrCanceled
 		case 8, 127: // Backspace/Delete
 			if len(line) > 0 {
 				line = line[:len(line)-1]
 				// Move cursor back, print space, move cursor back again
-				_, _ = f.WriteString("\b \b")
+				_, _ = f.Write([]byte("\b \b"))
 			}
 		default:
 			// Only append printable characters
 			if buf[0] >= 32 && buf[0] <= 126 {
 				line += string(buf[0])
 				// Print the mask character
-				_, _ = f.WriteString("*")
+				_, _ = f.Write([]byte("*"))
 			}
 		}
 	}
