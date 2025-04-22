@@ -188,6 +188,14 @@ You can work offline, add screenshots to documentation, or use local development
 File sync excludes version control system directories like `.git/` from synchronization, so keep your Git-cloned repository wherever you run Git commands.
 This means that if you use an IDE with a built-in terminal to edit files on your remote workspace, that should be the Git clone and your local directory should be for file syncs.
 
+### File sync conflicts
+
+File sync shows a `Conflicts` status when it detects conflicting files.
+
+You can hover your mouse over the status for the list of conflicts:
+
+![Desktop file sync conflicts mouseover](../../images/user-guides/desktop/coder-desktop-file-sync-conflicts-mouseover.png)
+
 If you encounter a synchronization conflict, delete the conflicting file that contains changes you don't want to keep.
 
 ## Accessing web apps in a secure browser context
