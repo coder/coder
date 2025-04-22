@@ -183,6 +183,8 @@ You can work offline, add screenshots to documentation, or use local development
 
    ![Coder Desktop File Sync watching](../../images/user-guides/desktop/coder-desktop-file-sync-watching.png)
 
+    For more information about the current status, hover your mouse over the status.
+
 File sync excludes version control system directories like `.git/` from synchronization, so keep your Git-cloned repository wherever you run Git commands.
 This means that if you use an IDE with a built-in terminal to edit files on your remote workspace, that should be the Git clone and your local directory should be for file syncs.
 
