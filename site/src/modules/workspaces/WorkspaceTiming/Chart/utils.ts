@@ -29,7 +29,20 @@ export const calcDuration = (range: TimeRange): number => {
 // data in 200ms intervals. However, if the total time is 1 minute, we should
 // display the data in 5 seconds intervals. To achieve this, we define the
 // dimensions object that contains the time intervals for the chart.
-const scales = [5_000, 500, 100];
+const second = 1_000;
+const minute = 60 * second;
+const hour = 60 * minute;
+const day = 24 * hour;
+const scales = [
+	day,
+	hour,
+	5 * minute,
+	minute,
+	10 * second,
+	5 * second,
+	500,
+	100,
+];
 
 const pickScale = (totalTime: number): number => {
 	for (const s of scales) {
@@ -48,7 +61,30 @@ export const makeTicks = (time: number) => {
 };
 
 export const formatTime = (time: number): string => {
-	return `${time.toLocaleString()}ms`;
+	const seconds = Math.floor((time / 1000) % 60);
+	const minutes = Math.floor((time / (1000 * 60)) % 60);
+	const hours = Math.floor((time / (1000 * 60 * 60)) % 24);
+	const days = Math.floor(time / (1000 * 60 * 60 * 24));
+
+	const timeParts = [];
+
+	if (days > 0) {
+		timeParts.push(`${days} day${days > 1 ? "s" : ""}`);
+	}
+	if (hours > 0) {
+		timeParts.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+	}
+	if (minutes > 0) {
+		timeParts.push(`${minutes} minute${minutes > 1 ? "s" : ""}`);
+	}
+	if (seconds > 0) {
+		timeParts.push(`${seconds}s`);
+	}
+	if (time > 0 && time < 1000) {
+		timeParts.push(`${time}ms`);
+	}
+
+	return timeParts.join(", ");
 };
 
 export const calcOffset = (range: TimeRange, baseRange: TimeRange): number => {

@@ -126,3 +126,29 @@ export const LoadingWhenAgentScriptTimingsAreEmpty: Story = {
 		agentScriptTimings: undefined,
 	},
 };
+
+export const LongTimeRange = {
+	args: {
+		provisionerTimings: [
+			{
+				...WorkspaceTimingsResponse.provisioner_timings[0],
+				started_at: "2021-09-01T00:00:00Z",
+				ended_at: "2021-09-01T00:10:00Z",
+			},
+		],
+		agentConnectionTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_connection_timings[0],
+				started_at: "2021-09-01T00:10:00Z",
+				ended_at: "2021-09-01T00:35:00Z",
+			},
+		],
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				started_at: "2021-09-01T00:35:00Z",
+				ended_at: "2021-09-01T01:00:00Z",
+			},
+		],
+	},
+};
