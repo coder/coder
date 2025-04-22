@@ -243,12 +243,9 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 				_, _ = w.Write([]byte("\b \b"))
 			}
 		default:
-			// Only append printable characters
-			if buf[0] >= 32 && buf[0] <= 126 {
-				line += string(buf[0])
-				// Print the mask character
-				_, _ = w.Write([]byte("*"))
-			}
+			line += string(buf[0])
+			// Print the mask character
+			_, _ = w.Write([]byte("*"))
 		}
 	}
 }
