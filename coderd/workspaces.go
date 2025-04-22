@@ -647,7 +647,7 @@ func createWorkspace(
 			claimedWorkspace *database.Workspace
 		)
 
-		// If a template preset was chosen, try claim a prebuild.
+		// If a template preset was chosen, try claim a prebuilt workspace.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
 			claimedWorkspace, err = claimPrebuild(ctx, prebuilds, db, api.Logger, req, owner)
