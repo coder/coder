@@ -11453,9 +11453,6 @@ const docTemplate = `{
                 "autostart_schedule": {
                     "type": "string"
                 },
-                "claim_prebuild_if_available": {
-                    "type": "boolean"
-                },
                 "name": {
                     "type": "string"
                 },

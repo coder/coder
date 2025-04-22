@@ -193,7 +193,6 @@ func TestClaimPrebuild(t *testing.T) {
 				TemplateVersionID:        version.ID,
 				Name:                     workspaceName,
 				TemplateVersionPresetID:  presets[0].ID,
-				ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
 			})
 
 			require.NoError(t, err)
