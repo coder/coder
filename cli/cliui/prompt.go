@@ -9,9 +9,8 @@ import (
 	"os/signal"
 	"strings"
 
-	"golang.org/x/xerrors"
-
 	"github.com/mattn/go-isatty"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/pretty"
