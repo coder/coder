@@ -1816,10 +1816,10 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	for _, v := range raw {
 		switch v {
 		case "*":
-			exps = append(exps, codersdk.ExperimentsAll...)
+			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

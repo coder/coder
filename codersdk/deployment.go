@@ -3258,13 +3258,11 @@ const (
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 )
 
-// ExperimentsAll should include all experiments that are safe for
+// ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentDynamicParameters,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
