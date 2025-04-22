@@ -1,4 +1,8 @@
-import { API, type GetProvisionerJobsParams } from "api/api";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
@@ -164,16 +168,17 @@ export const organizations = () => {
 
 export const getProvisionerDaemonsKey = (
 	organization: string,
-	tags?: Record<string, string>,
-) => ["organization", organization, tags, "provisionerDaemons"];
+	params?: GetProvisionerDaemonsParams,
+) => ["organization", organization, "provisionerDaemons", params];
 
 export const provisionerDaemons = (
 	organization: string,
-	tags?: Record<string, string>,
+	params?: GetProvisionerDaemonsParams,
 ) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization, tags),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
+		queryKey: getProvisionerDaemonsKey(organization, params),
+		queryFn: () =>
+			API.getProvisionerDaemonsByOrganization(organization, params),
 	};
 };
 

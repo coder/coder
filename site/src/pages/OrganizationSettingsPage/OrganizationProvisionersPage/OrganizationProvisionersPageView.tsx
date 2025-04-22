@@ -17,23 +17,44 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import { SquareArrowOutUpRightIcon } from "lucide-react";
+import { SquareArrowOutUpRightIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { Badge } from "components/Badge/Badge";
+
+type ProvisionersFilter = {
+	ids: string;
+};
 
 interface OrganizationProvisionersPageViewProps {
 	showPaywall: boolean | undefined;
 	provisioners: readonly ProvisionerDaemon[] | undefined;
 	buildVersion: string | undefined;
 	error: unknown;
+	filter: ProvisionersFilter;
 	onRetry: () => void;
+	onFilterChange: (filter: ProvisionersFilter) => void;
 }
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
-> = ({ showPaywall, error, provisioners, buildVersion, onRetry }) => {
+> = ({
+	showPaywall,
+	error,
+	provisioners,
+	buildVersion,
+	filter,
+	onFilterChange,
+	onRetry,
+}) => {
 	return (
 		<section>
 			<SettingsHeader>
@@ -44,6 +65,35 @@ export const OrganizationProvisionersPageView: FC<
 					<Link href={docs("/admin/provisioners")}>View docs</Link>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+
+			{filter.ids && (
+				<div className="flex items-center gap-2 mb-6">
+					<div className="relative">
+						<Badge className="h-10 text-sm pl-3 pr-10 font-mono">
+							{filter.ids}
+						</Badge>
+						<div className="size-10 flex items-center justify-center absolute top-0 right-0">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											onClick={() => {
+												onFilterChange({ ...filter, ids: "" });
+											}}
+										>
+											<span className="sr-only">Clear ID</span>
+											<XIcon />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Clear ID</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{showPaywall ? (
 				<Paywall
@@ -73,6 +123,7 @@ export const OrganizationProvisionersPageView: FC<
 										provisioner={provisioner}
 										key={provisioner.id}
 										buildVersion={buildVersion}
+										defaultIsOpen={filter.ids.includes(provisioner.id)}
 									/>
 								))
 							) : (

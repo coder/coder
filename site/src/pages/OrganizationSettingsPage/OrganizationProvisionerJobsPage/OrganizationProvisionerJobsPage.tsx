@@ -12,17 +12,17 @@ const OrganizationProvisionerJobsPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = {
 		status: searchParams.get("status") || "",
+		ids: searchParams.get("ids") || "",
 	};
-	const queryParams = {
-		...filter,
-		limit: 100,
-	} as GetProvisionerJobsParams;
 	const {
 		data: jobs,
 		isLoadingError,
 		refetch,
 	} = useQuery({
-		...provisionerJobs(organization?.id || "", queryParams),
+		...provisionerJobs(organization?.id || "", {
+			...filter,
+			limit: 100,
+		} as GetProvisionerJobsParams),
 		enabled: organization !== undefined,
 	});
 

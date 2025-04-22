@@ -18,14 +18,16 @@ import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
+import { Link as RouterLink } from "react-router-dom";
 
 type JobRowProps = {
 	job: ProvisionerJob;
+	defaultIsOpen: boolean;
 };
 
-export const JobRow: FC<JobRowProps> = ({ job }) => {
+export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 	const metadata = job.metadata;
-	const [isOpen, setIsOpen] = useState(false);
+	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const queue = {
 		size: job.queue_size,
 		position: job.queue_position,
@@ -114,8 +116,21 @@ export const JobRow: FC<JobRowProps> = ({ job }) => {
 									: "[]"}
 							</dd>
 
-							<dt>Completed by provisioner:</dt>
-							<dd>{job.worker_id}</dd>
+							{job.worker_id && (
+								<>
+									<dt>Completed by provisioner:</dt>
+									<dd className="flex items-center gap-2">
+										<span>{job.worker_id}</span>
+										<Button size="xs" variant="outline" asChild>
+											<RouterLink
+												to={`../provisioners?${new URLSearchParams({ ids: job.worker_id })}`}
+											>
+												View provisioner
+											</RouterLink>
+										</Button>
+									</dd>
+								</>
+							)}
 
 							<dt>Associated workspace:</dt>
 							<dd>{job.metadata.workspace_name ?? "null"}</dd>
@@ -123,10 +138,14 @@ export const JobRow: FC<JobRowProps> = ({ job }) => {
 							<dt>Creation time:</dt>
 							<dd data-chromatic="ignore">{job.created_at}</dd>
 
-							<dt>Queue:</dt>
-							<dd>
-								{job.queue_position}/{job.queue_size}
-							</dd>
+							{job.queue_position > 0 && (
+								<>
+									<dt>Queue:</dt>
+									<dd>
+										{job.queue_position}/{job.queue_size}
+									</dd>
+								</>
+							)}
 
 							<dt>Tags:</dt>
 							<dd>

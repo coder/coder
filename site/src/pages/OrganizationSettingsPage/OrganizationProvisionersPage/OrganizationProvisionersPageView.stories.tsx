@@ -60,3 +60,12 @@ export const Paywall: Story = {
 		showPaywall: true,
 	},
 };
+
+export const FilterByID: Story = {
+	args: {
+		provisioners: [MockProvisioner],
+		filter: {
+			ids: MockProvisioner.id,
+		},
+	},
+};

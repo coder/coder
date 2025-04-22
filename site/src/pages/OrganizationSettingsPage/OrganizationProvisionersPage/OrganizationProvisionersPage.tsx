@@ -8,7 +8,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
@@ -16,14 +16,20 @@ const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
+	const [searchParams, setSearchParams] = useSearchParams();
+	const queryParams = {
+		ids: searchParams.get("ids") || "",
+		tags: searchParams.get("tags") || "",
+	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const { entitlements } = useDashboard();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const provisionersQuery = useQuery({
-		...provisionerDaemons(organizationName),
-		select: (provisioners) =>
-			provisioners.filter((p) => p.status !== "offline"),
+		...provisionerDaemons(organizationName, {
+			...queryParams,
+			limit: 100,
+		}),
 	});
 
 	if (!organization) {
@@ -59,6 +65,8 @@ const OrganizationProvisionersPage: FC = () => {
 				provisioners={provisionersQuery.data}
 				buildVersion={buildInfoQuery.data?.version}
 				onRetry={provisionersQuery.refetch}
+				filter={queryParams}
+				onFilterChange={setSearchParams}
 			/>
 		</>
 	);
