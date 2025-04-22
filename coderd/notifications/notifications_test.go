@@ -2152,16 +2152,27 @@ func TestNotificationEnqueuePubsubNotify(t *testing.T) {
 	mgr.Run(ctx)
 	fetchTrap.MustWait(ctx).Release()
 
-	// When: a notification is enqueued
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
-	require.NoError(t, err)
+	// When: a number of notifications are enqueued
+	const numEnqueued = 10
+	for i := range numEnqueued {
+		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, fmt.Sprintf("test %d", i))
+		require.NoError(t, err)
+	}
 
 	// Then: we attempt to dispatch the notification immediately.
-	call := testutil.TryReceive(ctx, t, handler.calls)
-	testutil.RequireSend(ctx, t, call.result, dispatchResult{
-		retryable: false,
-		err:       nil,
-	})
+	recvDone := make(chan struct{})
+	go func() {
+		defer close(recvDone)
+		for range numEnqueued {
+			call := testutil.TryReceive(ctx, t, handler.calls)
+			<-time.After(testutil.IntervalFast) // Simulate some processing time.
+			testutil.RequireSend(ctx, t, call.result, dispatchResult{
+				retryable: false,
+				err:       nil,
+			})
+		}
+	}()
+	_ = testutil.TryReceive(ctx, t, recvDone)
 }
 
 type fakeHandler struct {

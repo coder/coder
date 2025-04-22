@@ -153,7 +153,7 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 			return
 		// This is a no-op if the notifier is paused.
 		case loopTick <- c:
-			<-c // Wait for the processing loop to finish.
+			// We do not wait for the processing loop to finish here.
 		default:
 			// If the loop is busy, don't send a notification.
 			n.log.Debug(ctx, "notifier busy, skipping notification")
