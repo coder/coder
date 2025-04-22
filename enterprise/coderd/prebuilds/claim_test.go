@@ -90,10 +90,6 @@ func TestClaimPrebuild(t *testing.T) {
 			expectPrebuildClaimed:  true,
 			markPrebuildsClaimable: true,
 		},
-		"claiming an eligible prebuild results in error": {
-			expectPrebuildClaimed:  true,
-			markPrebuildsClaimable: true,
-		},
 	}
 
 	for name, tc := range cases {
