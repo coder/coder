@@ -85,9 +85,14 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 		queryFn: () => fetchTemplate(organizationName, templateName),
 	});
 	const workspacePermissionsQuery = useQuery(
-		checkAuthorization({
-			checks: workspacePermissionChecks(organizationName, me.id),
-		}),
+		data
+			? checkAuthorization({
+					checks: workspacePermissionChecks(
+						data.template.organization_id,
+						me.id,
+					),
+				})
+			: { enabled: false },
 	);
 
 	const location = useLocation();
