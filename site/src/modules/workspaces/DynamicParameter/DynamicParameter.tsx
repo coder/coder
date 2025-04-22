@@ -24,6 +24,7 @@ import {
 } from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Switch } from "components/Switch/Switch";
+import { Textarea } from "components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -56,12 +57,14 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel parameter={parameter} isPreset={isPreset} />
-			<ParameterField
-				parameter={parameter}
-				onChange={onChange}
-				disabled={disabled}
-				id={id}
-			/>
+			<div className="max-w-lg">
+				<ParameterField
+					parameter={parameter}
+					onChange={onChange}
+					disabled={disabled}
+					id={id}
+				/>
+			</div>
 			{parameter.diagnostics.length > 0 && (
 				<ParameterDiagnostics diagnostics={parameter.diagnostics} />
 			)}
@@ -92,7 +95,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 				</span>
 			)}
 
-			<div className="flex flex-col w-full">
+			<div className="flex flex-col w-full gap-1">
 				<Label className="flex gap-2 flex-wrap text-sm font-medium">
 					{displayName}
 
@@ -130,11 +133,6 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-					)}
-					{parameter.form_type === "slider" && (
-						<output className="ml-auto font-semibold">
-							{parameter.value.value}
-						</output>
 					)}
 				</Label>
 
@@ -175,7 +173,12 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					disabled={disabled}
 				>
 					<SelectTrigger>
-						<SelectValue placeholder="Select option" />
+						<SelectValue
+							placeholder={
+								(parameter.styling as { placeholder?: string })?.placeholder ||
+								"Select option"
+							}
+						/>
 					</SelectTrigger>
 					<SelectContent>
 						{parameter.options.map((option) => (
@@ -218,7 +221,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						onChange(JSON.stringify(values));
 					}}
 					hidePlaceholderWhenSelected
-					placeholder="Select option"
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder ||
+						"Select option"
+					}
 					emptyIndicator={
 						<p className="text-center text-md text-content-primary">
 							No results found
@@ -287,17 +293,40 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 		case "slider":
 			return (
-				<Slider
-					className="mt-2"
-					defaultValue={[
-						Number(
-							parameter.default_value.valid ? parameter.default_value.value : 0,
-						),
-					]}
-					onValueChange={([value]) => onChange(value.toString())}
-					min={parameter.validations[0]?.validation_min ?? 0}
-					max={parameter.validations[0]?.validation_max ?? 100}
+				<div className="flex flex-row items-baseline gap-3">
+					<Slider
+						className="mt-2"
+						defaultValue={[
+							Number(
+								parameter.default_value.valid
+									? parameter.default_value.value
+									: 0,
+							),
+						]}
+						onValueChange={([value]) => onChange(value.toString())}
+						min={parameter.validations[0]?.validation_min ?? 0}
+						max={parameter.validations[0]?.validation_max ?? 100}
+						disabled={disabled}
+					/>
+					<span className="w-4 font-medium">{parameter.value.value}</span>
+				</div>
+			);
+
+		case "textarea":
+			return (
+				<Textarea
+					className="max-w-2xl"
+					defaultValue={defaultValue}
+					onChange={(e) => onChange(e.target.value)}
+					onInput={(e) => {
+						const target = e.currentTarget;
+						target.style.maxHeight = "700px";
+						target.style.height = `${target.scrollHeight}px`;
+					}}
 					disabled={disabled}
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder
+					}
 				/>
 			);
 
@@ -325,7 +354,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					onChange={(e) => onChange(e.target.value)}
 					disabled={disabled}
 					placeholder={
-						(parameter.styling as { placehholder?: string })?.placehholder
+						(parameter.styling as { placeholder?: string })?.placeholder
 					}
 					{...inputProps}
 				/>

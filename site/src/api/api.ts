@@ -1010,6 +1010,7 @@ class ApiMethods {
 	};
 
 	templateVersionDynamicParameters = (
+		userId: string,
 		versionId: string,
 		{
 			onMessage,
@@ -1020,7 +1021,7 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+			`/api/v2/users/${userId}/templateversions/${versionId}/parameters`,
 		);
 
 		socket.addEventListener("message", (event) =>

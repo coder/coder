@@ -91,8 +91,8 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4
-	github.com/charmbracelet/glamour v0.9.1
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/glamour v0.10.0
+	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/chromedp/cdproto v0.0.0-20250319231242-a755498943c8
 	github.com/chromedp/chromedp v0.13.3
 	github.com/cli/safeexec v1.0.1
@@ -102,7 +102,7 @@ require (
 	github.com/coder/quartz v0.1.2
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.4.0-pre0
+	github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -139,7 +139,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.7.0
-	github.com/hashicorp/hc-install v0.9.1
+	github.com/hashicorp/hc-install v0.9.2
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.24.0
 	github.com/hashicorp/yamux v0.1.2
@@ -155,7 +155,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/moby/moby v28.0.0+incompatible
+	github.com/moby/moby v28.1.1+incompatible
 	github.com/mocktools/go-smtp-mock/v2 v2.4.0
 	github.com/muesli/termenv v0.16.0
 	github.com/natefinch/atomic v1.0.1
@@ -207,8 +207,8 @@ require (
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/tools v0.32.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.228.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/api v0.229.0
+	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/DataDog/dd-trace-go.v1 v1.72.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -220,7 +220,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.15.0 // indirect
+	cloud.google.com/go/auth v0.16.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/logging v1.13.0 // indirect
 	cloud.google.com/go/longrunning v0.6.4 // indirect
@@ -245,7 +245,7 @@ require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/ProtonMail/go-crypto v1.1.5 // indirect
+	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -446,7 +446,7 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.16.2
-	github.com/zeebo/errs v1.3.0 // indirect
+	github.com/zeebo/errs v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/component v0.104.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.104.0 // indirect
@@ -467,7 +467,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250414145226-207652e42e2e // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
@@ -481,25 +481,25 @@ require github.com/SherClockHolmes/webpush-go v1.4.0
 
 require (
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
-	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
+	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250223041408-d3c622f1b874 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 )
 
 require (
-	github.com/coder/preview v0.0.0-20250409162646-62939c63c71a
+	github.com/coder/preview v0.0.0-20250417203026-7edcb9e02d99
 	github.com/kylecarbs/aisdk-go v0.0.5
-	github.com/mark3labs/mcp-go v0.20.1
+	github.com/mark3labs/mcp-go v0.22.0
 )
 
 require (
-	cel.dev/expr v0.19.2 // indirect
+	cel.dev/expr v0.20.0 // indirect
 	cloud.google.com/go v0.120.0 // indirect
 	cloud.google.com/go/iam v1.4.0 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
 	cloud.google.com/go/storage v1.50.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.26.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.50.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.50.0 // indirect
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3 // indirect
@@ -507,6 +507,7 @@ require (
 	github.com/aquasecurity/trivy v0.58.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
@@ -514,17 +515,17 @@ require (
 	github.com/hashicorp/go-getter v1.7.8 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/liamg/memoryfs v1.6.0 // indirect
 	github.com/moby/sys/user v0.3.0 // indirect
 	github.com/openai/openai-go v0.1.0-beta.6 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/samber/lo v1.49.1 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.34.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	google.golang.org/genai v0.7.0 // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
