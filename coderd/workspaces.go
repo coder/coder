@@ -639,7 +639,7 @@ func createWorkspace(
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
-	prebuilds := *api.PrebuildsClaimer.Load()
+	prebuildsClaimer := *api.PrebuildsClaimer.Load()
 
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
@@ -650,8 +650,8 @@ func createWorkspace(
 		// If a template preset was chosen, try claim a prebuilt workspace.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, prebuilds, db, api.Logger, req, owner)
-			if err != nil {
+			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			if err != nil && !errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) {
 				return xerrors.Errorf("claim prebuild: %w", err)
 			}
 		}
@@ -683,7 +683,7 @@ func createWorkspace(
 		} else {
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
-			initiatorID = prebuilds.Initiator()
+			initiatorID = prebuildsClaimer.Initiator()
 		}
 
 		// We have to refetch the workspace for the joined in fields.
@@ -884,11 +884,6 @@ func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.S
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
-	}
-
-	// No prebuild available.
-	if claimedID == nil {
-		return nil, nil
 	}
 
 	lookup, err := db.GetWorkspaceByID(prebuildsCtx, *claimedID)

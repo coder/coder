@@ -2,11 +2,14 @@ package prebuilds
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
+
+var ErrNoClaimablePrebuiltWorkspaces = errors.New("no claimable prebuilt workspaces found")
 
 // ReconciliationOrchestrator manages the lifecycle of prebuild reconciliation.
 // It runs a continuous loop to check and reconcile prebuild states, and can be stopped gracefully.

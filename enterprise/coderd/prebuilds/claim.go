@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -30,8 +29,7 @@ func (_ EnterpriseClaimer) Claim(
 		switch {
 		// No eligible prebuilds found
 		case errors.Is(err, sql.ErrNoRows):
-			// Exit, this will result in a nil prebuildID being returned, which is fine
-			return nil, nil
+			return nil, prebuilds.ErrNoClaimablePrebuiltWorkspaces
 		default:
 			return nil, xerrors.Errorf("claim prebuild for user %q: %w", userID.String(), err)
 		}
