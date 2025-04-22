@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -31,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -897,7 +896,7 @@ func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.S
 		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", (*claimedID).String()))
 		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", (*claimedID).String(), err)
 	}
-	return &lookup, err
+	return &lookup, nil
 }
 
 func (api *API) notifyWorkspaceCreated(
