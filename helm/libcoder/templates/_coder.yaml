@@ -66,7 +66,16 @@ imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
 command:
   {{- toYaml .Values.coder.command | nindent 2 }}
 resources:
-  {{- toYaml .Values.coder.resources | nindent 2 }}
+  {{- if and (hasKey .Values.coder "resources") (not (empty .Values.coder.resources)) }}
+    {{- toYaml .Values.coder.resources | nindent 2 }}
+  {{- else }}
+    limits:
+      cpu: 2000m
+      memory: 4096Mi
+    requests:
+      cpu: 2000m
+      memory: 4096Mi
+  {{- end }}
 lifecycle:
   {{- toYaml .Values.coder.lifecycle | nindent 2 }}
 securityContext: {{ toYaml .Values.coder.securityContext | nindent 2 }}
