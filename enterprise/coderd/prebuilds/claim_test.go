@@ -216,14 +216,11 @@ func TestClaimPrebuild(t *testing.T) {
 			// Then: the number of running prebuilds has changed since one was claimed.
 			currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 			require.NoError(t, err)
-			require.NotEqual(t, len(currentPrebuilds), len(runningPrebuilds))
+			require.Equal(t, expectedPrebuildsCount-1, len(currentPrebuilds))
 
 			// Then: the claimed prebuild is now missing from the running prebuilds set.
-			current, err := spy.GetRunningPrebuiltWorkspaces(ctx)
-			require.NoError(t, err)
-
 			var found bool
-			for _, prebuild := range current {
+			for _, prebuild := range currentPrebuilds {
 				if prebuild.ID == claimed.ID {
 					found = true
 					break
