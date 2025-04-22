@@ -40,7 +40,7 @@ type AGPLPrebuildClaimer struct{}
 
 func (c AGPLPrebuildClaimer) Claim(context.Context, database.Store, uuid.UUID, string, uuid.UUID) (*uuid.UUID, error) {
 	// Not entitled to claim prebuilds in AGPL version.
-	return nil, nil
+	return nil, ErrNoClaimablePrebuiltWorkspaces
 }
 
 func (c AGPLPrebuildClaimer) Initiator() uuid.UUID {
