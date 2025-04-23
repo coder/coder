@@ -91,6 +91,8 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
+			signal.Notify(interrupt, os.Interrupt)
+			defer signal.Stop(interrupt)
 			line, err = readSecretInput(inFile, inv.Stdout)
 		} else {
 			signal.Notify(interrupt, os.Interrupt)
@@ -206,8 +208,7 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 }
 
 // readSecretInput reads secret input from the terminal character by character,
-// masking the input with asterisks. It handles special characters like backspace
-// and enter appropriately.
+// masking the input with asterisks.
 func readSecretInput(f *os.File, w io.Writer) (string, error) {
 	// Set terminal to raw mode to capture input character by character
 	oldState, err := pty.MakeInputRaw(f.Fd())
@@ -217,34 +218,25 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 	defer func() {
 		_ = pty.RestoreTerminal(f.Fd(), oldState)
 	}()
+	var valb []byte
 
 	// Read input character by character
 	buf := make([]byte, 1)
-	var line string
 	for {
 		n, err := f.Read(buf)
-		if err != nil || n == 0 {
-			return "", ErrCanceled
-		}
 
-		// Handle special characters
-		switch buf[0] {
-		case '\r', '\n': // Enter
-			_, _ = w.Write([]byte("\r\n"))
-			return line, nil
-		case 3: // Ctrl+C
-			_, _ = w.Write([]byte("\r\n"))
-			return "", ErrCanceled
-		case 8, 127: // Backspace/Delete
-			if len(line) > 0 {
-				line = line[:len(line)-1]
-				// Move cursor back, print space, move cursor back again
-				_, _ = w.Write([]byte("\b \b"))
-			}
-		default:
-			line += string(buf[0])
-			// Print the mask character
-			_, _ = w.Write([]byte("*"))
+		if err != nil && err != io.EOF {
+			return "", err
 		}
+		if n == 0 || buf[0] == '\n' || buf[0] == '\r' {
+			break
+		}
+		if buf[0] == 3 {
+			return "", ErrCanceled
+		}
+		valb = append(valb, buf[0])
+		_, _ = w.Write([]byte("*"))
 	}
+	_, _ = w.Write([]byte("\r\n"))
+	return strings.TrimSuffix(string(valb), "\r"), nil
 }
