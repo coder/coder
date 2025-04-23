@@ -396,7 +396,7 @@ export class MissingBuildParameters extends Error {
 }
 
 export type GetProvisionerJobsParams = {
-	status?: TypesGen.ProvisionerJobStatus;
+	status?: string;
 	limit?: number;
 	// IDs separated by comma
 	ids?: string;
@@ -405,7 +405,7 @@ export type GetProvisionerJobsParams = {
 export type GetProvisionerDaemonsParams = {
 	// IDs separated by comma
 	ids?: string;
-	// JSON Object
+	// Stringified JSON Object
 	tags?: string;
 	limit?: number;
 };

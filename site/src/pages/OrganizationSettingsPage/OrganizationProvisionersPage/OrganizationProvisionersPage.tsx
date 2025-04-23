@@ -18,8 +18,8 @@ const OrganizationProvisionersPage: FC = () => {
 	};
 	const [searchParams, setSearchParams] = useSearchParams();
 	const queryParams = {
-		ids: searchParams.get("ids") || "",
-		tags: searchParams.get("tags") || "",
+		ids: searchParams.get("ids") ?? "",
+		tags: searchParams.get("tags") ?? "",
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const { entitlements } = useDashboard();

@@ -152,7 +152,7 @@ const OrganizationProvisionerJobsPageView: FC<
 						onValueChange={(status) => {
 							onFilterChange({
 								...filter,
-								status: status as ProvisionerJobStatus,
+								status,
 							});
 						}}
 					>
