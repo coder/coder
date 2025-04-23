@@ -1,0 +1,110 @@
+name: Documentation Link Checker
+on:
+  # Run after merges to main
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '.github/docs/**'
+      - '.github/workflows/docs-link-check.yaml'
+  # Weekly run on Monday at 9 AM
+  schedule:
+    - cron: "0 9 * * 1"
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write # needed to create GitHub issues
+
+jobs:
+  check-links:
+    name: Check Documentation Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Markdown links
+        uses: umbrelladocs/action-linkspector@v1
+        id: link-check
+        with:
+          reporter: github-check
+          config_file: ".github/docs/.linkspector.yml"
+          fail_on_error: "false" # Don't fail the workflow so we can create an issue
+          filter_mode: "nofilter"
+          format: "json" # Output in JSON format to parse results
+
+      - name: Process link check results
+        id: process-results
+        if: always() # Run even if the previous step fails
+        run: |
+          # Check if the link-check output contains results
+          if [ -f "${{ steps.link-check.outputs.output_file }}" ]; then
+            echo "Reading link check results from ${{ steps.link-check.outputs.output_file }}"
+            
+            # Count broken links
+            BROKEN_LINKS=$(jq -r '.[] | select(.status != "alive") | .link' "${{ steps.link-check.outputs.output_file }}" | wc -l)
+            echo "broken_links=$BROKEN_LINKS" >> $GITHUB_OUTPUT
+            
+            if [ "$BROKEN_LINKS" -gt 0 ]; then
+              # Format results for issue description
+              echo "results<<EOF" >> $GITHUB_OUTPUT
+              echo "# Broken Links in Documentation" >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "## Summary" >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "Found $BROKEN_LINKS broken links in the documentation." >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "## Details" >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "| File | Link | Status |" >> $GITHUB_ENV
+              echo "|------|------|--------|" >> $GITHUB_ENV
+              
+              jq -r '.[] | select(.status != "alive") | "| \(.file) | \(.link) | \(.status) |"' "${{ steps.link-check.outputs.output_file }}" >> $GITHUB_ENV
+              
+              echo "" >> $GITHUB_ENV
+              echo "## How to Fix" >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "1. Check if the link is correct" >> $GITHUB_ENV
+              echo "2. Update the link if needed or remove it" >> $GITHUB_ENV
+              echo "3. If the link is valid but fails the check, consider adding it to the ignore list in `.github/docs/.linkspector.yml`" >> $GITHUB_ENV
+              
+              cat $GITHUB_ENV >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+              
+              echo "has_broken_links=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_broken_links=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No link check results found"
+            echo "has_broken_links=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub issue for broken links
+        if: steps.process-results.outputs.has_broken_links == 'true'
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          title: "📚 Broken Links in Documentation"
+          content: ${{ steps.process-results.outputs.results }}
+          labels: |
+            documentation
+            bug
+            needs-triage
+          assignees: EdwardAngert # Assign to docs team lead
+
+      - name: Send Slack notification
+        if: steps.process-results.outputs.has_broken_links == 'true' && (github.event_name == 'schedule' || github.event_name == 'push')
+        run: |
+          curl -X POST -H 'Content-type: application/json' -d '{
+            "msg":"Found ${{ steps.process-results.outputs.broken_links }} broken links in the documentation. A GitHub issue has been created. Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }' ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+          echo "Sent Slack notification"

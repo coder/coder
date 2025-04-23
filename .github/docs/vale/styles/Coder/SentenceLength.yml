@@ -1,0 +1,18 @@
+---
+# Checks for sentences that are too long but allows a more conversational style
+extends: metric
+message: "Consider splitting this sentence or simplifying it - it's %s characters long"
+link: https://developers.google.com/style/sentence-structure
+level: suggestion
+scope: sentence
+metrics:
+  - type: character
+    min: 10
+    max: 200  # More generous limit than standard guides
+
+# Exemptions for specific types of content that may have longer sentences
+exceptions:
+  - code blocks
+  - command explanations
+  - configuration examples
+  - URLs

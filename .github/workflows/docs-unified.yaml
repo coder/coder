@@ -1,0 +1,118 @@
+name: Docs Unified Checks
+on:
+  workflow_call:
+    inputs:
+      lint-markdown:
+        description: 'Whether to lint markdown files with markdownlint-cli2'
+        required: false
+        type: boolean
+        default: true
+      check-format:
+        description: 'Whether to check (but not format) markdown table formatting'
+        required: false
+        type: boolean
+        default: true
+      check-links:
+        description: 'Whether to check links in markdown files'
+        required: false 
+        type: boolean
+        default: true
+      lint-vale:
+        description: 'Whether to run Vale style checks on documentation'
+        required: false
+        type: boolean
+        default: true
+      generate-preview:
+        description: 'Whether to generate preview links'
+        required: false
+        type: boolean
+        default: true
+      post-comment:
+        description: 'Whether to post a PR comment with results'
+        required: false
+        type: boolean
+        default: true
+      fail-on-error:
+        description: 'Whether to fail the workflow on errors'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  docs-check:
+    name: Documentation Validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # needed for commenting on PRs
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: ./scripts/pnpm_install.sh
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          set -euo pipefail
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Process Documentation
+        id: docs-shared
+        uses: ./.github/docs/actions/docs-shared
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          docs-dir: docs
+          include-md-files: "true"
+          check-links: ${{ inputs.check-links }}
+          lint-markdown: ${{ inputs.lint-markdown }}
+          check-format: ${{ inputs.check-format }}
+          lint-vale: ${{ inputs.lint-vale }}
+          generate-preview: ${{ inputs.generate-preview }}
+          post-comment: ${{ inputs.post-comment }}
+          pr-number: "${{ env.PR_NUMBER }}"
+          fail-on-error: ${{ inputs.fail-on-error }}
+
+      - name: Debug Outputs
+        run: |
+          echo "Has changes: ${{ steps.docs-shared.outputs.has_changes }}"
+          echo "Preview URL: ${{ steps.docs-shared.outputs.preview_url }}"
+          echo "Manifest changed: ${{ steps.docs-shared.outputs.manifest_changed }}"
+          echo "New docs found: ${{ steps.docs-shared.outputs.has_new_docs }}"
+          
+          # Only display errors if there are any
+          if [ "${{ steps.docs-shared.outputs.lint_results }}" != "" ]; then
+            echo "Linting issues found"
+          fi
+          
+          if [ "${{ steps.docs-shared.outputs.format_results }}" != "" ]; then
+            echo "Formatting issues found" 
+            echo "Run 'make fmt/markdown' locally to fix formatting issues"
+          fi
+          
+          if [ "${{ steps.docs-shared.outputs.vale_results }}" != "" ]; then
+            echo "Vale style issues found"
+          fi

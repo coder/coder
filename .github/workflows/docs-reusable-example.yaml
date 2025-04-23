@@ -1,0 +1,95 @@
+name: Documentation Reusable Workflow Example
+on:
+  # This is an example workflow - it's only triggered manually via workflow_dispatch
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # This job shows how to use the unified docs validation workflow
+  docs-validation:
+    name: Validate Documentation Using Reusable Workflow
+    uses: ./.github/workflows/docs-unified.yaml
+    permissions:
+      contents: read
+      pull-requests: write
+    # Define which checks to run
+    with:
+      lint-markdown: true
+      check-format: true
+      check-links: true
+      lint-vale: true
+      generate-preview: true
+      post-comment: true
+      fail-on-error: false # Set to false to show all issues in one run
+
+  # This job shows how to call the docs-shared composite action directly
+  # This is an alternative to using the reusable workflow
+  manual-docs-check:
+    name: Manual Documentation Validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: ./scripts/pnpm_install.sh
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          set -euo pipefail
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Process Documentation Manually
+        id: docs-shared
+        uses: ./.github/docs/actions/docs-shared
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          docs-dir: docs
+          include-md-files: "true"
+          check-links: "true"
+          lint-markdown: "true"
+          check-format: "true"
+          lint-vale: "true"
+          generate-preview: "true"
+          post-comment: "true"
+          pr-number: "${{ env.PR_NUMBER }}"
+          fail-on-error: "false"
+
+      - name: Debug Outputs
+        run: |
+          echo "Has changes: ${{ steps.docs-shared.outputs.has_changes }}"
+          echo "Preview URL: ${{ steps.docs-shared.outputs.preview_url }}"
+          echo "Manifest changed: ${{ steps.docs-shared.outputs.manifest_changed }}"
+          echo "New docs found: ${{ steps.docs-shared.outputs.has_new_docs }}"
+          
+          if [ "${{ steps.docs-shared.outputs.format_results }}" != "" ]; then
+            echo "Formatting issues found, please run 'make fmt/markdown' locally"
+          fi

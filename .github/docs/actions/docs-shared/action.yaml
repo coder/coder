@@ -1,0 +1,375 @@
+name: 'Docs Shared Action'
+description: 'A composite action providing shared functionality for docs-related workflows'
+author: 'Coder'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API operations'
+    required: true
+  docs-dir:
+    description: 'Path to the docs directory'
+    required: false
+    default: 'docs'
+  include-md-files:
+    description: 'Whether to include all markdown files (not just in docs dir)'
+    required: false
+    default: 'false'
+  check-links:
+    description: 'Whether to check links in markdown files'
+    required: false
+    default: 'false'
+  lint-markdown:
+    description: 'Whether to lint markdown files'
+    required: false
+    default: 'false'
+  check-format:
+    description: 'Whether to check (but not format) markdown table formatting'
+    required: false
+    default: 'false'
+  lint-vale:
+    description: 'Whether to run Vale style checks on documentation'
+    required: false
+    default: 'true'
+  generate-preview:
+    description: 'Whether to generate preview links'
+    required: false
+    default: 'false'
+  post-comment:
+    description: 'Whether to post a PR comment with results'
+    required: false
+    default: 'false'
+  pr-number:
+    description: 'PR number for commenting (required if post-comment is true)'
+    required: false
+    default: ''
+  fail-on-error:
+    description: 'Whether to fail the workflow on errors'
+    required: false
+    default: 'true'
+
+outputs:
+  has_changes:
+    description: 'Boolean indicating if documentation files have changed'
+    value: ${{ steps.docs-analysis.outputs.has_changes }}
+  changed_files:
+    description: 'JSON array of changed documentation files'
+    value: ${{ steps.changed-files.outputs.all_changed_files_json }}
+  formatted_changed_files:
+    description: 'Markdown-formatted list of changed files with links'
+    value: ${{ steps.docs-analysis.outputs.formatted_files || '' }}
+  preview_url:
+    description: 'Documentation preview URL'
+    value: ${{ steps.generate-preview.outputs.url || '' }}
+  manifest_changed:
+    description: 'Boolean indicating if manifest.json changed'
+    value: ${{ steps.manifest-check.outputs.changed || 'false' }}
+  has_new_docs:
+    description: 'Boolean indicating if new docs were added in manifest.json'
+    value: ${{ steps.docs-analysis.outputs.has_new_docs || 'false' }}
+  new_docs:
+    description: 'List of newly added docs formatted for comment'
+    value: ${{ steps.docs-analysis.outputs.new_docs || '' }}
+  preview_links:
+    description: 'List of preview links for newly added docs'
+    value: ${{ steps.docs-analysis.outputs.preview_links || '' }}
+  lint_results:
+    description: 'Results from linting'
+    value: ${{ steps.lint-docs.outputs.result || '' }}
+  format_results:
+    description: 'Results from format checking'
+    value: ${{ steps.format-docs.outputs.result || '' }}
+  link_check_results:
+    description: 'Results from link checking'
+    value: ${{ steps.check-links.outputs.result || '' }}
+  vale_results:
+    description: 'Results from Vale style checks'
+    value: ${{ steps.lint-vale.outputs.result || '' }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set security environment
+      shell: bash
+      run: |
+        # Secure the environment by clearing potentially harmful variables
+        unset HISTFILE
+        umask 077
+        
+        # Validate that docs directory exists
+        if [ ! -d "${{ inputs.docs-dir }}" ]; then
+          echo "::error::Docs directory '${{ inputs.docs-dir }}' does not exist"
+          exit 1
+        fi
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@27ae6b33eaed7bf87272fdeb9f1c54f9facc9d99 # v45.0.7
+      with:
+        files: |
+          ${{ inputs.docs-dir }}/**
+          ${{ inputs.include-md-files == 'true' && '**.md' || '' }}
+        separator: ','
+        json: true
+
+    - name: Check if manifest changed
+      id: manifest-check
+      shell: bash
+      run: |
+        if [[ "${{ steps.changed-files.outputs.all_changed_files }}" == *"${{ inputs.docs-dir }}/manifest.json"* ]]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Analyze docs changes
+      id: docs-analysis
+      shell: bash
+      run: |
+        # Set up environment
+        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json }}'
+        
+        # Make sure we have valid JSON
+        if [ -z "$CHANGED_FILES" ] || [ "$CHANGED_FILES" == "[]" ]; then
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          echo "formatted_files=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Count total changed doc files
+        DOC_FILES_COUNT=$(echo $CHANGED_FILES | jq -r 'length')
+        echo "doc_files_count=$DOC_FILES_COUNT" >> $GITHUB_OUTPUT
+        
+        # Determine if docs have changed
+        if [ "$DOC_FILES_COUNT" -gt 0 ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          echo "formatted_files=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Only continue formatting if we need to generate previews or post comments
+        if [ "${{ inputs.generate-preview }}" != "true" ] && [ "${{ inputs.post-comment }}" != "true" ]; then
+          exit 0
+        fi
+        
+        # Get branch name for URLs
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH" || echo "main")
+        
+        # Format changed files for comment with clickable links
+        FORMATTED_FILES=""
+        echo $CHANGED_FILES | jq -c '.[]' | while read -r file_path; do
+          # Remove quotes
+          file_path=$(echo $file_path | tr -d '"')
+          [ -z "$file_path" ] && continue
+          
+          # Only process docs files
+          if [[ $file_path == ${{ inputs.docs-dir }}/* ]]; then
+            # Create direct link to file
+            # Remove .md extension and docs/ prefix for the URL path
+            url_path=$(echo "$file_path" | sed 's/^${{ inputs.docs-dir }}\///' | sed 's/\.md$//')
+            file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+            
+            # Add the formatted line with link
+            FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
+          fi
+        done
+        
+        echo "formatted_files<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Analyze manifest changes if needed
+        if [ "${{ steps.manifest-check.outputs.changed }}" == "true" ]; then
+          # Get the base SHA for diff
+          BASE_SHA=$(git merge-base HEAD origin/main)
+          
+          # Extract new docs from manifest.json diff with safe patterns
+          NEW_DOCS=$(git diff "$BASE_SHA"..HEAD -- "${{ inputs.docs-dir }}/manifest.json" | grep -E '^\+.*"path":' | sed -E 's/.*"path": *"(.*)".*/\1/g')
+          
+          if [ -n "$NEW_DOCS" ]; then
+            echo "has_new_docs=true" >> $GITHUB_OUTPUT
+            
+            # Format new docs for comment
+            FORMATTED_NEW_DOCS=$(echo "$NEW_DOCS" | sort | uniq | grep -v "^$" | sed 's/^/- `/g' | sed 's/$/`/g')
+            echo "new_docs<<EOF" >> $GITHUB_OUTPUT
+            echo "$FORMATTED_NEW_DOCS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            # Generate preview links for new docs
+            PREVIEW_LINKS=""
+            while IFS= read -r doc_path; do
+              # Skip empty lines
+              [ -z "$doc_path" ] && continue
+              
+              # Clean the path and sanitize
+              clean_path=${doc_path#./}
+              clean_path=$(echo "$clean_path" | tr -cd 'a-zA-Z0-9_./-')
+              
+              # Generate preview URL with correct format
+              url_path=$(echo "$clean_path" | sed 's/\.md$//')
+              preview_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+              
+              # Extract doc title or use filename safely
+              if [ -f "$doc_path" ]; then
+                title=$(grep -m 1 "^# " "$doc_path" | sed 's/^# //')
+                title=$(echo "$title" | tr -cd 'a-zA-Z0-9 _.,-')
+                [ -z "$title" ] && title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
+              else
+                title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
+              fi
+              
+              PREVIEW_LINKS="${PREVIEW_LINKS}- [$title]($preview_url)\n"
+            done <<< "$NEW_DOCS"
+            
+            echo "preview_links<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$PREVIEW_LINKS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_new_docs=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+    - name: Setup Node
+      if: inputs.lint-markdown == 'true' || inputs.format-markdown == 'true'
+      uses: ./.github/actions/setup-node
+
+    - name: Lint Markdown
+      if: inputs.lint-markdown == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: lint-docs
+      shell: bash
+      run: |
+        lint_output=$(pnpm exec markdownlint-cli2 ${{ steps.changed-files.outputs.all_changed_files }} 2>&1) || true
+        echo "result<<EOF" >> $GITHUB_OUTPUT
+        echo "$lint_output" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        if [ -n "$lint_output" ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          echo "::error::Markdown linting found issues:"
+          echo "$lint_output"
+          exit 1
+        fi
+
+    - name: Check Markdown Table Formatting
+      if: inputs.check-format == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: format-docs
+      shell: bash
+      run: |
+        # markdown-table-formatter requires a space separated list of files
+        format_output=$(echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | pnpm exec markdown-table-formatter --check 2>&1) || true
+        echo "result<<EOF" >> $GITHUB_OUTPUT
+        echo "$format_output" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        if [ -n "$format_output" ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          echo "::error::Markdown table formatting issues found. Run 'make fmt/markdown' locally to fix them."
+          echo "$format_output"
+          exit 1
+        fi
+
+    - name: Check Markdown links
+      if: inputs.check-links == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: check-links
+      uses: umbrelladocs/action-linkspector@49cf4f8da82db70e691bb8284053add5028fa244 # v1.3.2
+      with:
+        reporter: github-pr-review
+        config_file: ".github/docs/.linkspector.yml"
+        fail_on_error: ${{ inputs.fail-on-error }}
+        filter_mode: "nofilter"
+        
+    - name: Install Vale
+      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      uses: errata-ai/vale-action@v2
+      with:
+        config: .github/docs/vale/.vale.ini
+      
+    - name: Run Vale style checks
+      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: lint-vale
+      shell: bash
+      run: |
+        # Run Vale on changed files and capture output
+        vale_output=$(echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | grep '\.md$' | xargs -r vale --config=.github/docs/vale/.vale.ini --output=line 2>&1) || true
+        
+        echo "result<<EOF" >> $GITHUB_OUTPUT
+        echo "$vale_output" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        if [ -n "$vale_output" ] && [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          echo "::error::Vale style check found issues:"
+          echo "$vale_output"
+          exit 1
+        fi
+
+    - name: Generate Preview URL
+      if: inputs.generate-preview == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: generate-preview
+      shell: bash
+      run: |
+        # Get PR branch name for URL
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+        
+        # Input validation - ensure branch name is valid
+        if [ -z "$BRANCH_NAME" ]; then
+          echo "::warning::Could not determine branch name, using 'main'"
+          BRANCH_NAME="main"
+        fi
+        
+        # Create the correct preview URL
+        PREVIEW_URL="https://coder.com/docs/@$BRANCH_NAME"
+        echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+
+    - name: Find existing comment
+      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && inputs.pr-number != ''
+      id: find-comment
+      uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+      with:
+        issue-number: ${{ inputs.pr-number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: '## 📚 Docs Preview'
+        direction: last
+
+    - name: Create or update preview comment
+      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && inputs.pr-number != ''
+      uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      with:
+        comment-id: ${{ steps.find-comment.outputs.comment-id }}
+        issue-number: ${{ inputs.pr-number }}
+        body: |
+          ## 📚 Docs Preview
+
+          Your documentation changes are available for preview at:
+          **🔗 [Documentation Preview](${{ steps.generate-preview.outputs.url }})**
+
+          ### Changed Documentation Files
+          ${{ steps.docs-analysis.outputs.formatted_files }}
+
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Newly Added Documentation' || '' }}
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && steps.docs-analysis.outputs.new_docs || '' }}
+
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Preview Links for New Docs' || '' }}
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && steps.docs-analysis.outputs.preview_links || '' }}
+
+          ${{ steps.lint-docs.outputs.result != '' && '### Linting Issues' || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && steps.lint-docs.outputs.result || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && '```' || '' }}
+
+          ${{ steps.format-docs.outputs.result != '' && '### Markdown Table Formatting Issues' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && 'Run `make fmt/markdown` locally to fix these issues:' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && steps.format-docs.outputs.result || '' }}
+          ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
+
+          ${{ steps.lint-vale.outputs.result != '' && '### Vale Style Issues' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && steps.lint-vale.outputs.result || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
+
+          ---
+          <sub>🤖 This comment is automatically generated and updated when documentation changes.</sub>
+        edit-mode: replace
+        reactions: eyes
+        reactions-edit-mode: replace

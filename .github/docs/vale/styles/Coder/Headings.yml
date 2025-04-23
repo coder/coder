@@ -1,0 +1,36 @@
+---
+# Heading style checker with exemptions for technical terms
+extends: capitalization
+message: "'%s' should use title case"
+level: warning
+scope: heading
+match: $title
+style: AP # Associated Press style
+exceptions:
+  - Coder
+  - Kubernetes
+  - K8s
+  - AWS
+  - EC2
+  - VM
+  - CLI
+  - API
+  - IDE
+  - UI
+  - VS Code
+  - JetBrains
+  - Docker
+  - Terraform
+  - kubectl
+  - Helm
+  - GitHub
+  - GitLab
+  - OAuth
+  - OIDC
+  - SSH
+  - Git
+  - npm
+  - Node.js
+  - dev container
+  - dev containers
+  - dev environment
