@@ -1,6 +1,7 @@
 /* eslint-disable */
 import * as _m0 from "protobufjs/minimal";
 
+/** @lintignore */
 export const protobufPackage = "google.protobuf";
 
 /**

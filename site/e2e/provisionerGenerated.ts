@@ -3,6 +3,7 @@ import * as _m0 from "protobufjs/minimal";
 import { Observable } from "rxjs";
 import { Timestamp } from "./google/protobuf/timestampGenerated";
 
+/** @lintignore */
 export const protobufPackage = "provisioner";
 
 /** LogLevel represents severity of the log. */

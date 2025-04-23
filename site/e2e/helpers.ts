@@ -81,18 +81,6 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
 
-export function currentUser(page: Page): LoginOptions {
-	const ctx = page.context();
-	// biome-ignore lint/suspicious/noExplicitAny: get the current user
-	const user = (ctx as any)[Symbol.for("currentUser")];
-
-	if (!user) {
-		throw new Error("page context does not have a user. did you call `login`?");
-	}
-
-	return user;
-}
-
 type CreateWorkspaceOptions = {
 	richParameters?: RichParameter[];
 	buildParameters?: WorkspaceBuildParameter[];
@@ -873,48 +861,6 @@ export const echoResponsesWithExternalAuth = (
 			},
 		],
 	};
-};
-
-export const fillParameters = async (
-	page: Page,
-	richParameters: RichParameter[] = [],
-	buildParameters: WorkspaceBuildParameter[] = [],
-) => {
-	for (const buildParameter of buildParameters) {
-		const richParameter = richParameters.find(
-			(richParam) => richParam.name === buildParameter.name,
-		);
-		if (!richParameter) {
-			throw new Error(
-				"build parameter is expected to be present in rich parameter schema",
-			);
-		}
-
-		const parameterLabel = await page.waitForSelector(
-			`[data-testid='parameter-field-${richParameter.name}']`,
-			{ state: "visible" },
-		);
-
-		if (richParameter.type === "bool") {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-bool'] .MuiRadio-root input[value='${buildParameter.value}']`,
-			);
-			await parameterField.click();
-		} else if (richParameter.options.length > 0) {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-options'] .MuiRadio-root input[value='${buildParameter.value}']`,
-			);
-			await parameterField.click();
-		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
-		} else {
-			// text or number
-			const parameterField = await parameterLabel.waitForSelector(
-				"[data-testid='parameter-field-text'] input",
-			);
-			await parameterField.fill(buildParameter.value);
-		}
-	}
 };
 
 export const updateTemplate = async (

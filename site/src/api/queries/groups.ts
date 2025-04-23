@@ -10,7 +10,7 @@ type GroupSortOrder = "asc" | "desc";
 
 export const groupsQueryKey = ["groups"];
 
-export const groups = () => {
+const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
