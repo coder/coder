@@ -24,6 +24,9 @@ const meta: Meta<typeof OrganizationProvisionersPageView> = {
 				version: "0.0.0",
 			},
 		],
+		filter: {
+			ids: "",
+		},
 	},
 };
 
