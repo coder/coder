@@ -85,13 +85,6 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
 func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
-	defer func() {
-		// Publish an event to notify that a notification has been enqueued.
-		// Failure to publish is acceptable, as the fetcher will still process the
-		// message on its next run.
-		// TODO(Cian): debounce this to maybe once per second or so?
-		_ = s.ps.Publish(EventNotificationEnqueued, nil)
-	}()
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -171,6 +164,11 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 	}
 
 	s.log.Debug(ctx, "enqueued notification", slog.F("msg_ids", uuids))
+	// Publish an event to notify that a notification has been enqueued.
+	// Failure to publish is acceptable, as the fetcher will still process the
+	// message on its next run.
+	// TODO(Cian): debounce this to maybe once per second or so?
+	_ = s.ps.Publish(EventNotificationEnqueued, nil)
 	return uuids, nil
 }
 

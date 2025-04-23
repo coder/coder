@@ -123,12 +123,14 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 			if err != nil {
 				n.log.Warn(n.outerCtx, "failed to check notifier state", slog.Error(err))
 			}
+			if !ok { // Notifier is paused, skip processing.
+				close(c)
+				continue
+			}
 
-			if ok {
-				err = n.process(n.outerCtx, success, failure)
-				if err != nil {
-					n.log.Error(n.outerCtx, "failed to process messages", slog.Error(err))
-				}
+			err = n.process(n.outerCtx, success, failure)
+			if err != nil {
+				n.log.Error(n.outerCtx, "failed to process messages", slog.Error(err))
 			}
 			// Signal that we've finished processing one iteration.
 			close(c)
@@ -141,6 +143,7 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 
 	// Periodically trigger the processing loop.
 	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
+		// Reset the enqueue counter after each tick.
 		defer enqueueEventsThisLoop.Store(0)
 		c := make(chan struct{})
 		loopTick <- c
@@ -154,8 +157,9 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 	if stopListen, err := n.ps.Subscribe(EventNotificationEnqueued, func(ctx context.Context, _ []byte) {
 		enqueued := enqueueEventsThisLoop.Add(1)
 		skipEarlyDispatch := enqueued > 1
-		n.log.Debug(n.outerCtx, "got pubsub event", slog.F("count", enqueued), slog.F("skip_early_dispatch", skipEarlyDispatch), slog.F("event", EventNotificationEnqueued))
-		if enqueued > 1 {
+		n.log.Debug(n.outerCtx, "TODO REMOVE THIS got pubsub event", slog.F("count", enqueued), slog.F("skip_early_dispatch", skipEarlyDispatch), slog.F("event", EventNotificationEnqueued))
+		if skipEarlyDispatch {
+			// Avoid overloading the database. We will get to these in the next tick.
 			return
 		}
 		c := make(chan struct{})
