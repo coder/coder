@@ -31,7 +31,8 @@
 		"test:storybook": "test-storybook",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
 		"deadcode": "ts-prune | grep -v \".stories\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\"",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
+		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis",
+		"knip": "knip"
 	},
 	"dependencies": {
 		"@emoji-mart/data": "1.2.1",
@@ -179,6 +180,7 @@
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
+		"knip": "5.50.5",
 		"msw": "2.4.8",
 		"postcss": "8.5.1",
 		"protobufjs": "7.4.0",
@@ -196,7 +198,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
