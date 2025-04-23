@@ -813,8 +813,8 @@ coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
 	touch "$@"
 
 update-golden-files:
-	echo 'WARNING: This target is deprecated. Use "make gen/golden-files" instead.' 2>&1
-	echo 'Running "make gen/golden-files"' 2>&1
+	echo 'WARNING: This target is deprecated. Use "make gen/golden-files" instead.' >&2
+	echo 'Running "make gen/golden-files"' >&2
 	make gen/golden-files
 .PHONY: update-golden-files
 
