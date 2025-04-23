@@ -396,8 +396,8 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3038,6 +3038,9 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		// Push notifications.
+
+		// Workspace Prebuilds Options
 		{
 			Name:        "Reconciliation Interval",
 			Description: "How often to reconcile workspace prebuilds state.",
@@ -3051,7 +3054,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
-			Description: "Interval to increase reconciliation backoff by when unrecoverable errors occur.",
+			Description: "Interval to increase reconciliation backoff by when prebuilds fail, after which a retry attempt is made.",
 			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
@@ -3063,7 +3066,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Reconciliation Backoff Lookback Period",
-			Description: "Interval to look back to determine number of failed builds, which influences backoff.",
+			Description: "Interval to look back to determine number of failed prebuilds, which influences backoff.",
 			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
 			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
@@ -3073,7 +3076,6 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true,
 		},
-		// Push notifications.
 	}
 
 	return opts
@@ -3298,9 +3300,9 @@ const (
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
-	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
+	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 )
 
 // ExperimentsSafe should include all experiments that are safe for

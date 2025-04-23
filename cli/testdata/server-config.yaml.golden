@@ -693,10 +693,11 @@ workspace_prebuilds:
   # How often to reconcile workspace prebuilds state.
   # (default: 15s, type: duration)
   reconciliation_interval: 15s
-  # Interval to increase reconciliation backoff by when unrecoverable errors occur.
+  # Interval to increase reconciliation backoff by when prebuilds fail, after which
+  # a retry attempt is made.
   # (default: 15s, type: duration)
   reconciliation_backoff_interval: 15s
-  # Interval to look back to determine number of failed builds, which influences
+  # Interval to look back to determine number of failed prebuilds, which influences
   # backoff.
   # (default: 1h0m0s, type: duration)
   reconciliation_backoff_lookback_period: 1h0m0s

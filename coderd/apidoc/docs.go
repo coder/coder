@@ -12007,9 +12007,9 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "workspace-prebuilds",
                 "web-push",
-                "dynamic-parameters"
+                "dynamic-parameters",
+                "workspace-prebuilds"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -12025,9 +12025,9 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWorkspacePrebuilds",
                 "ExperimentWebPush",
-                "ExperimentDynamicParameters"
+                "ExperimentDynamicParameters",
+                "ExperimentWorkspacePrebuilds"
             ]
         },
         "codersdk.ExternalAuth": {

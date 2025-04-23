@@ -632,8 +632,6 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
-
-	PrebuildsReconciler agplprebuilds.ReconciliationOrchestrator
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -663,12 +661,6 @@ func (api *API) Close() error {
 
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
-	}
-
-	if api.PrebuildsReconciler != nil {
-		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
-		defer giveUp()
-		api.PrebuildsReconciler.Stop(ctx, xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
 	}
 
 	return api.AGPL.Close()
@@ -873,15 +865,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.PortSharer.Store(&ps)
 		}
 
-		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) || api.PrebuildsReconciler == nil {
+		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
 			reconciler, claimer := api.setupPrebuilds(enabled)
-			if api.PrebuildsReconciler != nil {
+			if current := api.AGPL.PrebuildsReconciler.Load(); current != nil {
 				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
 				defer giveUp()
-				api.PrebuildsReconciler.Stop(stopCtx, xerrors.New("entitlements change"))
+				(*current).Stop(stopCtx, xerrors.New("entitlements change"))
 			}
 
-			api.PrebuildsReconciler = reconciler
+			api.AGPL.PrebuildsReconciler.Store(&reconciler)
 			go reconciler.RunLoop(context.Background())
 
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -1156,17 +1148,17 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }
 
-func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
-	enabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
-	if !enabled || !entitled {
+// nolint:revive // featureEnabled is a legit control flag.
+func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
+	experimentEnabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
+	if !experimentEnabled || !featureEnabled {
 		api.Logger.Debug(context.Background(), "prebuilds not enabled",
-			slog.F("experiment_enabled", enabled), slog.F("entitled", entitled))
+			slog.F("experiment_enabled", experimentEnabled), slog.F("feature_enabled", featureEnabled))
 
-		return agplprebuilds.NewNoopReconciler(), agplprebuilds.DefaultClaimer
+		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
 	}
 
 	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
 		api.Logger.Named("prebuilds"), quartz.NewReal())
-
 	return reconciler, prebuilds.EnterpriseClaimer{}
 }
