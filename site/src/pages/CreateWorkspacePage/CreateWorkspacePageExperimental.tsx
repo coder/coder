@@ -1,4 +1,4 @@
-import type { ApiErrorResponse, DetailedError } from "api/errors";
+import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
