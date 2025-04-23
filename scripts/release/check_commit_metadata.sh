@@ -122,14 +122,14 @@ main() {
 			# "chore: foo bar (cherry-pick #42) (#43)".
 			if [[ ${title1} == *"(cherry-pick #"* ]]; then
 				title1=${title1%" ("*}
-				pr=${title1#*#}
+				pr=${title1##*#}
 				pr=${pr%)}
 				title1=${title1%" ("*}
 				title1="${title1} (#${pr})"$'\n'
 			fi
 			if [[ ${title2} == *"(cherry-pick #"* ]]; then
 				title2=${title2%" ("*}
-				pr=${title2#*#}
+				pr=${title2##*#}
 				pr=${pr%)}
 				title2=${title2%" ("*}
 				title2="${title2} (#${pr})"$'\n'
