@@ -106,6 +106,7 @@ func TestSSH(t *testing.T) {
 
 		cases := []string{
 			"myworkspace",
+			"myworkspace.dev",
 			"myuser/myworkspace",
 			"myuser--myworkspace",
 			"myuser/myworkspace--dev",

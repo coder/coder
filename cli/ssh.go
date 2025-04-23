@@ -1453,6 +1453,7 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 // Converts workspace name input to owner/workspace.agent format
 // Possible valid input formats:
 // workspace
+// workspace.agent
 // owner/workspace
 // owner--workspace
 // owner/workspace--agent
@@ -1467,7 +1468,11 @@ func normalizeWorkspaceInput(input string) string {
 	case 1:
 		return input // "workspace"
 	case 2:
-		return fmt.Sprintf("%s/%s", parts[0], parts[1]) // "owner/workspace"
+		// Either "owner/workspace" or "workspace.agent"
+		if strings.Contains(input, "/") || strings.Contains(input, "--") {
+			return fmt.Sprintf("%s/%s", parts[0], parts[1]) // owner/workspace
+		}
+		return fmt.Sprintf("%s.%s", parts[0], parts[1]) // workspace.agent
 	case 3:
 		return fmt.Sprintf("%s/%s.%s", parts[0], parts[1], parts[2]) // "owner/workspace.agent"
 	default:
