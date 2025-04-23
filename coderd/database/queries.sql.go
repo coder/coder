@@ -15779,7 +15779,6 @@ SELECT
 	tv.name AS template_version_name,
 	u.username AS workspace_owner_username,
 	w.name AS workspace_name,
-	w.id AS workspace_id,
 	wb.build_number AS workspace_build_number
 FROM
 	workspace_build_with_user AS wb
@@ -15818,11 +15817,10 @@ type GetFailedWorkspaceBuildsByTemplateIDParams struct {
 }
 
 type GetFailedWorkspaceBuildsByTemplateIDRow struct {
-	TemplateVersionName    string    `db:"template_version_name" json:"template_version_name"`
-	WorkspaceOwnerUsername string    `db:"workspace_owner_username" json:"workspace_owner_username"`
-	WorkspaceName          string    `db:"workspace_name" json:"workspace_name"`
-	WorkspaceID            uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	WorkspaceBuildNumber   int32     `db:"workspace_build_number" json:"workspace_build_number"`
+	TemplateVersionName    string `db:"template_version_name" json:"template_version_name"`
+	WorkspaceOwnerUsername string `db:"workspace_owner_username" json:"workspace_owner_username"`
+	WorkspaceName          string `db:"workspace_name" json:"workspace_name"`
+	WorkspaceBuildNumber   int32  `db:"workspace_build_number" json:"workspace_build_number"`
 }
 
 func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error) {
@@ -15838,7 +15836,6 @@ func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, a
 			&i.TemplateVersionName,
 			&i.WorkspaceOwnerUsername,
 			&i.WorkspaceName,
-			&i.WorkspaceID,
 			&i.WorkspaceBuildNumber,
 		); err != nil {
 			return nil, err
