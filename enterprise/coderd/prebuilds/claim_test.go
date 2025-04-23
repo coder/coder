@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -142,7 +143,7 @@ func TestClaimPrebuild(t *testing.T) {
 				EntitlementsUpdateInterval: time.Second,
 			})
 
-			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
+			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry())
 			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 

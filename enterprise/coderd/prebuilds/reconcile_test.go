@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/google/uuid"
@@ -45,7 +47,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t))
+	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -90,7 +92,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t))
+	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -317,7 +319,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								t, &slogtest.Options{IgnoreErrors: true},
 							).Leveled(slog.LevelDebug)
 							db, pubSub := dbtestutil.NewDB(t)
-							controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
+							controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 							ownerID := uuid.New()
 							dbgen.User(t, db, database.User{
@@ -419,7 +421,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -503,7 +505,7 @@ func TestInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t))
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -575,7 +577,7 @@ func TestRunLoop(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock)
+	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -705,7 +707,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock)
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock, prometheus.NewRegistry())
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -820,7 +822,7 @@ func TestReconciliationLock(t *testing.T) {
 				codersdk.PrebuildsConfig{},
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 				quartz.NewMock(t),
-			)
+				prometheus.NewRegistry())
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
