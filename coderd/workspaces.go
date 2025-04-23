@@ -639,12 +639,11 @@ func createWorkspace(
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
-	prebuildsClaimer := *api.PrebuildsClaimer.Load()
-
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
 			workspaceID      uuid.UUID
 			claimedWorkspace *database.Workspace
+			prebuildsClaimer = *api.PrebuildsClaimer.Load()
 		)
 
 		// If a template preset was chosen, try claim a prebuilt workspace.
