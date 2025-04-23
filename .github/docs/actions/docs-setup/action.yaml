@@ -11,6 +11,10 @@ inputs:
     description: 'Git fetch depth'
     required: false
     default: '0'
+  setup-vale:
+    description: 'Whether to setup Vale for style checking'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
@@ -34,3 +38,10 @@ runs:
     - name: Install dependencies
       shell: bash
       run: ./scripts/pnpm_install.sh
+      
+    - name: Install Vale
+      if: inputs.setup-vale == 'true'
+      uses: errata-ai/vale-action@v2
+      with:
+        config: .github/docs/vale/.vale.ini
+        files: ""  # Don't run Vale yet, just install it

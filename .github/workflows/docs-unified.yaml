@@ -58,6 +58,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/docs/actions/docs-setup
+        with:
+          setup-vale: ${{ inputs.lint-vale }}
 
       - name: Get PR info
         id: pr_info

@@ -309,18 +309,20 @@ runs:
         fail_on_error: ${{ inputs.fail-on-error }}
         filter_mode: "nofilter"
         
-    - name: Install Vale
-      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
-      uses: errata-ai/vale-action@v2
-      with:
-        config: .github/docs/vale/.vale.ini
-      
     - name: Run Vale style checks
       if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
       id: lint-vale
       shell: bash
       run: |
+        # Run Vale on changed markdown files using our pre-processed list
+        # First check if we have any markdown files to process
+        if [ -z "${{ steps.process-files.outputs.md_files_line }}" ]; then
+          echo "No markdown files to check"
+          exit 0
+        fi
+        
         # Run Vale on changed files and capture output
+        # Use xargs with -r to skip execution if no files are provided
         vale_output=$(echo "${{ steps.process-files.outputs.md_files_line }}" | xargs -r vale --config=.github/docs/vale/.vale.ini --output=line 2>&1) || true
         
         echo "result<<EOF" >> $GITHUB_OUTPUT
