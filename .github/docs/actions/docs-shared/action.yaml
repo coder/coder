@@ -501,42 +501,109 @@ runs:
         comment-id: ${{ steps.find-comment.outputs.comment-id }}
         issue-number: ${{ inputs.pr-number }}
         body: |
-          ## 📚 Docs Preview
+          # 📚 Documentation Check Results
 
-          Your documentation changes are available for preview at:
-          **🔗 [Documentation Preview](${{ steps.generate-preview.outputs.url }})**
+          ## 🔎 Status Overview
 
-          ### Changed Documentation Files
-          ${{ steps.docs-analysis.outputs.formatted_files }}
+          ${{ steps.lint-docs.outputs.result == '' && '✅ **Markdown Linting**: No issues found' || '❌ **Markdown Linting**: Issues found' }}
+          ${{ steps.format-docs.outputs.result == '' && '✅ **Table Formatting**: No issues found' || '❌ **Table Formatting**: Issues found' }}
+          ${{ steps.lint-vale.outputs.result == '' && '✅ **Vale Style**: No issues found' || '❌ **Vale Style**: Issues found' }}
+          ${{ steps.cross-references.outputs.cross_ref_results == '' && '✅ **Cross-References**: No broken references' || '❌ **Cross-References**: Broken references found' }}
+          ${{ steps.check-links.outputs.result == '' && '✅ **Links**: All links are valid' || '⚠️ **Links**: Issues found' }}
 
-          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Newly Added Documentation' || '' }}
+          ## 🖥️ Preview Your Changes
+
+          ${{ steps.generate-preview.outputs.url != '' && '**🔗 [View Documentation Preview](' || '' }}${{ steps.generate-preview.outputs.url }}${{ steps.generate-preview.outputs.url != '' && ')**' || 'No preview available' }}
+
+          <details>
+          <summary><strong>📄 Changed Documentation Files</strong></summary>
+
+          ${{ steps.docs-analysis.outputs.formatted_files || 'No documentation files changed' }}
+          </details>
+
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '<details>' || '' }}
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '<summary><strong>🆕 Newly Added Documentation</strong></summary>' || '' }}
           ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && steps.docs-analysis.outputs.new_docs || '' }}
 
-          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Preview Links for New Docs' || '' }}
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Preview Links' || '' }}
           ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && steps.docs-analysis.outputs.preview_links || '' }}
+          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '</details>' || '' }}
 
-          ${{ steps.lint-docs.outputs.result != '' && '### Linting Issues' || '' }}
-          ${{ steps.lint-docs.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && '<details>' || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && '<summary><strong>⚠️ Markdown Linting Issues</strong></summary>' || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && '
+          ### How to Fix
+          
+          Run these commands locally to fix or see detailed issues:
+          ```bash
+          # To view issues
+          npm run lint-docs
+          
+          # Many issues can be fixed automatically with
+          npm run lint-docs -- --fix
+          ```
+          
+          ### Issue Details
+          ```
+          ' || '' }}
           ${{ steps.lint-docs.outputs.result != '' && steps.lint-docs.outputs.result || '' }}
-          ${{ steps.lint-docs.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-docs.outputs.result != '' && '```
+          </details>' || '' }}
 
-          ${{ steps.format-docs.outputs.result != '' && '### Markdown Table Formatting Issues' || '' }}
-          ${{ steps.format-docs.outputs.result != '' && 'Run `make fmt/markdown` locally to fix these issues:' || '' }}
-          ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && '<details>' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && '<summary><strong>📏 Markdown Table Formatting Issues</strong></summary>' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && '
+          ### How to Fix
+          
+          Run this command locally to automatically fix all table formatting issues:
+          ```bash
+          make fmt/markdown
+          ```
+          
+          ### Issue Details
+          ```
+          ' || '' }}
           ${{ steps.format-docs.outputs.result != '' && steps.format-docs.outputs.result || '' }}
-          ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
+          ${{ steps.format-docs.outputs.result != '' && '```
+          </details>' || '' }}
 
-          ${{ steps.lint-vale.outputs.result != '' && '### Vale Style Issues' || '' }}
-          ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '<details>' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '<summary><strong>📝 Vale Style Issues</strong></summary>' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '
+          ### How to Fix
+          
+          These style issues help maintain consistent documentation quality. Most Vale suggestions improve:
+          
+          - Readability (sentence length, passive voice)
+          - Consistency (terminology, capitalization)
+          - Clarity (avoiding jargon, ambiguous wording)
+          - Inclusivity (avoiding gendered or ableist language)
+          
+          ### Issue Details
+          ```
+          ' || '' }}
           ${{ steps.lint-vale.outputs.result != '' && steps.lint-vale.outputs.result || '' }}
-          ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
+          ${{ steps.lint-vale.outputs.result != '' && '```
+          </details>' || '' }}
 
-          ${{ steps.cross-references.outputs.cross_ref_results != '' && '### Broken Cross-References' || '' }}
-          ${{ steps.cross-references.outputs.cross_ref_results != '' && 'The following cross-references may be broken due to file or heading changes:' || '' }}
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && '<details>' || '' }}
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && '<summary><strong>🔗 Broken Cross-References</strong></summary>' || '' }}
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && '
+          ### How to Fix
+          
+          The following changes in your PR may have broken existing references:
+          
+          - For **deleted files**: Update or remove references to these files
+          - For **renamed files**: Update links to use the new file path
+          - For **removed headings**: Update or remove references to these headings
+          
+          ### Detected Issues
+          ' || '' }}
           ${{ steps.cross-references.outputs.cross_ref_results != '' && steps.cross-references.outputs.cross_ref_results || '' }}
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && '</details>' || '' }}
 
           ---
-          <sub>🤖 This comment is automatically generated and updated when documentation changes.</sub>
+          <sub>🤖 This comment is automatically generated and updated when documentation changes. [View Workflow](https://github.com/coder/coder/blob/main/.github/docs/README.md)</sub>
         edit-mode: replace
         reactions: eyes
         reactions-edit-mode: replace
