@@ -515,7 +515,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		var workspaceOwnerOIDCAccessToken string
-		if s.OIDCConfig != nil {
+		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
+		// pointing to a typed nil.
+		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
 			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
