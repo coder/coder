@@ -121,15 +121,15 @@ jobs:
           RESULTS='${{ steps.docs-shared.outputs.validation_results }}'
           
           if [ "$RESULTS" != "[]" ]; then
-            echo "$RESULTS" | jq -r '.[] | "  " + (if .status == "success" then "✅" else "❌" end) + " " + .name + ": " + (if .status == "success" then "Passed" else "Failed" end)'
+            echo "$RESULTS" | jq -r '.[] | "  " + (if .status == "success" then "✅" elif .status == "warning" then "⚠️" else "❌" end) + " " + .name + ": " + (if .status == "success" then "Passed" elif .status == "warning" then "Warning" else "Failed" end)'
           
             # Show failing check details
             echo ""
             echo "🔧 How to fix issues:"
-            FAILURES=$(echo "$RESULTS" | jq -r '.[] | select(.status == "failure")')
+            FAILURES=$(echo "$RESULTS" | jq -r '.[] | select(.status != "success")')
             
             if [ -n "$FAILURES" ]; then
-              echo "$FAILURES" | jq -r 'if .fix_command != "" then "  - " + .name + ": Run `" + .fix_command + "`" else "  - " + .name + ": " + .guidance end'
+              echo "$FAILURES" | jq -r 'if has("fix_command") and .fix_command != "" then "  - " + .name + ": Run `" + .fix_command + "`" else "  - " + .name + ": " + .guidance end'
             else
               echo "  No issues to fix! 🎉"
             fi

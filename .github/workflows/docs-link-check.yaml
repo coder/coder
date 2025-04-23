@@ -42,7 +42,7 @@ jobs:
       # Check links with lychee (faster and more robust than linkspector)
       - name: Check Markdown links
         id: lychee
-        uses: lycheeverse/lychee-action@v1
+        uses: lycheeverse/lychee-action@v1.8.0
         with:
           args: >-
             --verbose
@@ -128,7 +128,7 @@ jobs:
             ISSUE_CONTENT+="### For Broken Links\n\n"
             ISSUE_CONTENT+="1. Check if the link is correct\n"
             ISSUE_CONTENT+="2. Update the link if needed or remove it\n"
-            ISSUE_CONTENT+="3. If the link is valid but fails the check, consider adding it to the ignore list in `.github/docs/.linkspector.yml`\n\n"
+            ISSUE_CONTENT+="3. If the link is valid but fails the check, consider adding it to the ignore list in `.github/docs/.lycheeignore`\n\n"
             
             ISSUE_CONTENT+="### For Broken Cross-References\n\n"
             ISSUE_CONTENT+="1. Update references to deleted or renamed files\n"
@@ -155,7 +155,8 @@ jobs:
       # Create a single GitHub issue for all problems found
       - name: Create GitHub issue
         if: steps.process-results.outputs.has_issues == 'true'
-        uses: peter-evans/create-issue-from-file@v4
+        id: create-issue
+        uses: peter-evans/create-issue-from-file@v4.0.1
         with:
           title: ${{ steps.process-results.outputs.issue_title }}
           content: ${{ steps.process-results.outputs.issue_content }}
@@ -164,5 +165,16 @@ jobs:
             bug
             needs-triage
           assignees: EdwardAngert # Assign to docs team lead
+          
+      # Log result for troubleshooting  
+      - name: Log issue creation status
+        if: steps.process-results.outputs.has_issues == 'true'
+        run: |
+          if [ -n "${{ steps.create-issue.outputs.issue-number }}" ]; then
+            echo "✅ GitHub issue #${{ steps.create-issue.outputs.issue-number }} created successfully"
+          else
+            echo "⚠️ Failed to create GitHub issue for documentation issues"
+            echo "Check GitHub API permissions and rate limits"
+          fi
 
 # Slack notification removed per request

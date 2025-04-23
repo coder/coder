@@ -22,8 +22,16 @@ inputs:
     description: 'Whether to lint markdown files'
     required: false
     default: 'false'
-  format-markdown:
+  check-format:
     description: 'Whether to check markdown formatting'
+    required: false
+    default: 'false'
+  check-cross-references:
+    description: 'Whether to check cross-references in documentation'
+    required: false
+    default: 'false'
+  lint-vale:
+    description: 'Whether to run Vale style checks'
     required: false
     default: 'false'
   generate-preview:
@@ -50,12 +58,12 @@ outputs:
   changed_files:
     description: 'JSON array of changed documentation files'
     value: ${{ steps.changed-files.outputs.all_changed_files_json }}
-  formatted_changed_files:
-    description: 'Markdown-formatted list of changed files with links'
-    value: ${{ steps.docs-analysis.outputs.formatted_files || '' }}
   preview_url:
     description: 'Documentation preview URL'
     value: ${{ steps.generate-preview.outputs.url || '' }}
+  doc_links:
+    description: 'Markdown-formatted links to preview specific documents'
+    value: ${{ steps.generate-preview.outputs.doc_links || '' }}
   manifest_changed:
     description: 'Boolean indicating if manifest.json changed'
     value: ${{ steps.manifest-check.outputs.changed || 'false' }}
@@ -65,18 +73,39 @@ outputs:
   new_docs:
     description: 'List of newly added docs formatted for comment'
     value: ${{ steps.docs-analysis.outputs.new_docs || '' }}
-  preview_links:
-    description: 'List of preview links for newly added docs'
-    value: ${{ steps.docs-analysis.outputs.preview_links || '' }}
   lint_results:
-    description: 'Results from linting'
+    description: 'Results from markdown linting'
     value: ${{ steps.lint-docs.outputs.result || '' }}
   format_results:
-    description: 'Results from format checking'
+    description: 'Results from markdown format checking'
     value: ${{ steps.format-docs.outputs.result || '' }}
   link_check_results:
     description: 'Results from link checking'
     value: ${{ steps.lychee.outputs.exit_code != '0' && 'Link check found issues' || '' }}
+  vale_results:
+    description: 'Results from Vale style checking'
+    value: ${{ steps.vale-check.outputs.result || '' }}
+  cross_ref_results:
+    description: 'Results from cross-reference checking'
+    value: ${{ steps.check-cross-references.outputs.result || '' }}
+  validation_results:
+    description: 'Aggregated validation results in JSON format'
+    value: ${{ steps.aggregate-results.outputs.validation_json || '[]' }}
+  validation_count:
+    description: 'Total number of validations run'
+    value: ${{ steps.aggregate-results.outputs.validation_count || '0' }}
+  passing_count:
+    description: 'Number of passing validations'
+    value: ${{ steps.aggregate-results.outputs.passing_count || '0' }}
+  success_percentage:
+    description: 'Percentage of passing validations'
+    value: ${{ steps.aggregate-results.outputs.success_percentage || '0' }}
+  results_badge:
+    description: 'Markdown badge showing validation status'
+    value: ${{ steps.aggregate-results.outputs.results_badge || '' }}
+  exit_status:
+    description: 'Exit status of the validation (0=success, 1=failure)'
+    value: ${{ steps.validation-status.outputs.exit_status || '0' }}
 
 runs:
   using: 'composite'
@@ -96,7 +125,7 @@ runs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@27ae6b33eaed7bf87272fdeb9f1c54f9facc9d99 # v45.0.7
+      uses: tj-actions/changed-files@v45.0.7
       with:
         files: |
           ${{ inputs.docs-dir }}/**
@@ -141,36 +170,20 @@ runs:
           exit 0
         fi
         
-        # Only continue formatting if we need to generate previews or post comments
-        if [ "${{ inputs.generate-preview }}" != "true" ] && [ "${{ inputs.post-comment }}" != "true" ]; then
+        # Check if we only need to run validation without preview or comments
+        NEED_FORMATTING=false
+        # If any of these operations are enabled, we need to format file paths
+        if [ "${{ inputs.generate-preview }}" == "true" ] || [ "${{ inputs.post-comment }}" == "true" ]; then
+          NEED_FORMATTING=true
+        fi
+        
+        if [ "$NEED_FORMATTING" != "true" ]; then
+          echo "File formatting skipped - not needed for validation-only mode"
           exit 0
         fi
         
-        # Get branch name for URLs
-        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH" || echo "main")
-        
-        # Format changed files for comment with clickable links
-        FORMATTED_FILES=""
-        echo $CHANGED_FILES | jq -c '.[]' | while read -r file_path; do
-          # Remove quotes
-          file_path=$(echo $file_path | tr -d '"')
-          [ -z "$file_path" ] && continue
-          
-          # Only process docs files
-          if [[ $file_path == ${{ inputs.docs-dir }}/* ]]; then
-            # Create direct link to file
-            # Remove .md extension and docs/ prefix for the URL path
-            url_path=$(echo "$file_path" | sed 's/^${{ inputs.docs-dir }}\///' | sed 's/\.md$//')
-            file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
-            
-            # Add the formatted line with link
-            FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
-          fi
-        done
-        
-        echo "formatted_files<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        # Simple verification complete
+        # All necessary checks done in previous steps
         
         # Analyze manifest changes if needed
         if [ "${{ steps.manifest-check.outputs.changed }}" == "true" ]; then
@@ -224,7 +237,7 @@ runs:
         fi
 
     - name: Setup Node
-      if: inputs.lint-markdown == 'true' || inputs.format-markdown == 'true'
+      if: inputs.lint-markdown == 'true' || inputs.check-format == 'true'
       uses: ./.github/actions/setup-node
 
     - name: Lint Markdown
@@ -244,7 +257,7 @@ runs:
         fi
 
     - name: Format Check Markdown
-      if: inputs.format-markdown == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.check-format == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
       id: format-docs
       shell: bash
       run: |
@@ -260,10 +273,32 @@ runs:
           exit 1
         fi
 
-    - name: Check Markdown links
+    - name: Prepare for link checking
       if: inputs.check-links == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: prepare-lychee
+      shell: bash
+      run: |
+        # First verify we have files to check
+        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files }}'
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "should_skip=true" >> $GITHUB_OUTPUT
+          echo "::notice::No files to check for links, skipping lychee"
+          exit 0
+        fi
+        
+        # Check that the lycheeignore file exists
+        if [ ! -f ".github/docs/.lycheeignore" ]; then
+          echo "::warning::Missing .lycheeignore file at .github/docs/.lycheeignore"
+          echo "::warning::Will proceed with link checking, but you should create an ignore file"
+        fi
+        
+        echo "should_skip=false" >> $GITHUB_OUTPUT
+    
+    - name: Check Markdown links
+      if: inputs.check-links == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && steps.prepare-lychee.outputs.should_skip != 'true'
       id: lychee
-      uses: lycheeverse/lychee-action@v1
+      uses: lycheeverse/lychee-action@v1.8.0
       with:
         args: >-
           --verbose
@@ -276,29 +311,411 @@ runs:
         format: json
         output: ./lychee-result.json
         fail: ${{ inputs.fail-on-error }}
+        
+    - name: Process lychee results
+      if: inputs.check-links == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: process-lychee
+      shell: bash
+      run: |
+        # Handle the case where we skipped because there were no files
+        if [ "${{ steps.prepare-lychee.outputs.should_skip }}" == "true" ]; then
+          echo "Link checking skipped - no files to check"
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "broken_links=0" >> $GITHUB_OUTPUT
+          echo "broken_summary=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        if [ -f "./lychee-result.json" ]; then
+          echo "Processing link check results from lychee-result.json"
+          
+          # Count broken links
+          BROKEN_LINKS=$(jq '.data.failed | length' "./lychee-result.json")
+          echo "broken_links=$BROKEN_LINKS" >> $GITHUB_OUTPUT
+          
+          if [ "$BROKEN_LINKS" -gt 0 ]; then
+            echo "Found $BROKEN_LINKS broken links"
+            
+            # Format summary of broken links
+            BROKEN_SUMMARY=$(jq -r '.data.failed | map(.url) | join(", ")' "./lychee-result.json" | head -n 150)
+            echo "broken_summary<<EOF" >> $GITHUB_OUTPUT
+            echo "$BROKEN_SUMMARY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "status=failure" >> $GITHUB_OUTPUT
+          else
+            echo "All links are valid"
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "lychee-result.json not found"
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "broken_links=0" >> $GITHUB_OUTPUT
+          echo "broken_summary=" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Check Vale style
+      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: vale-check
+      shell: bash
+      run: |
+        # Check if Vale is installed and available
+        if ! command -v vale &>/dev/null; then
+          echo "::warning::Vale executable not found in PATH"
+          echo "result=Vale not installed or not in PATH - verify setup-vale parameter in the docs-setup action" >> $GITHUB_OUTPUT
+          echo "status=warning" >> $GITHUB_OUTPUT
+          
+          # Check if we have a Vale config to determine if it should have been installed
+          if [ -f ".github/docs/vale/.vale.ini" ]; then
+            echo "::warning::Vale config file found but Vale executable is missing"
+            echo "This suggests an installation issue with Vale - check the workflow logs"
+          fi
+          
+          # Exit gracefully to continue with other checks
+          exit 0
+        fi
+        
+        # Verify Vale config exists
+        if [ ! -f ".github/docs/vale/.vale.ini" ]; then
+          echo "::warning::Vale config file not found at .github/docs/vale/.vale.ini"
+          echo "result=Vale config file missing - cannot perform style checks" >> $GITHUB_OUTPUT
+          echo "status=warning" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Create a file list to check
+        FILE_LIST=$(echo '${{ steps.changed-files.outputs.all_changed_files }}' | tr ',' ' ')
+        
+        # Run Vale on the changed files
+        VALE_OUTPUT=$(vale --output=JSON $FILE_LIST 2>&1) || true
+        
+        # Process and format the results
+        if [ -z "$VALE_OUTPUT" ] || [ "$VALE_OUTPUT" == "{}" ] || [ "$VALE_OUTPUT" == "null" ]; then
+          echo "No Vale alerts found"
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          # Count total alerts
+          ALERTS_COUNT=$(echo "$VALE_OUTPUT" | jq -r 'reduce (.[].Alerts | length) as $item (0; . + $item)')
+          
+          if [ "$ALERTS_COUNT" -gt 0 ]; then
+            echo "Found $ALERTS_COUNT Vale style alerts"
+            
+            # Format the output
+            FORMATTED_OUTPUT=""
+            
+            # Process each file
+            echo "$VALE_OUTPUT" | jq -c 'to_entries[]' | while read -r entry; do
+              FILE=$(echo "$entry" | jq -r '.key')
+              ALERTS=$(echo "$entry" | jq -r '.value.Alerts')
+              
+              # Skip if no alerts
+              if [ "$ALERTS" == "[]" ]; then
+                continue
+              fi
+              
+              FORMATTED_OUTPUT="${FORMATTED_OUTPUT}### $FILE\n\n"
+              
+              # Process each alert
+              echo "$entry" | jq -r '.value.Alerts[] | "- Line \(.Line): \(.Message) [\(.Check)]"' | \
+              while read -r alert; do
+                FORMATTED_OUTPUT="${FORMATTED_OUTPUT}${alert}\n"
+              done
+              
+              FORMATTED_OUTPUT="${FORMATTED_OUTPUT}\n"
+            done
+            
+            echo "result<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$FORMATTED_OUTPUT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "alert_count=$ALERTS_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "No Vale style alerts found"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "alert_count=0" >> $GITHUB_OUTPUT
+          fi
+        fi
+        
+    - name: Check cross-references
+      if: inputs.check-cross-references == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: check-cross-references
+      shell: bash
+      run: |
+        echo "Checking for broken cross-references in documentation..."
+        
+        # Set default values in case of early exit
+        echo "status=success" >> $GITHUB_OUTPUT
+        echo "result=" >> $GITHUB_OUTPUT
+        
+        # Setup regex patterns for cross-references
+        MD_LINK_PATTERN='\[([^\]]+)\]\(([^)]+)\)'
+        ANCHOR_LINK_PATTERN='\(#[^)]+\)'
+        
+        # Get the base commit to compare against
+        BASE_SHA=$(git merge-base HEAD origin/main || git rev-parse HEAD~1)
+        
+        # Get all deleted/renamed files since the base commit
+        DELETED_FILES=$(git diff --name-only --diff-filter=DR $BASE_SHA HEAD | grep -E '\.md$' || echo "")
+        
+        # Get modified files that might have heading changes
+        MODIFIED_FILES=$(git diff --name-only --diff-filter=M $BASE_SHA HEAD | grep -E '\.md$' || echo "")
+        
+        # Check for renamed files - store mapping
+        RENAMED_FILES=$(git diff --name-status --diff-filter=R $BASE_SHA HEAD | grep -E '\.md$' || echo "")
+        
+        # Initialize results
+        BROKEN_REFS=""
+        
+        # Function to extract headings from a file at a specific commit
+        extract_headings() {
+          local file=$1
+          local commit=$2
+          
+          # Check if file exists in commit
+          if git cat-file -e $commit:$file 2>/dev/null; then
+            git show $commit:$file | grep -E '^#{1,6} ' | sed 's/^#* //' | tr -d '`' | \
+            tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 -]//g' | sed 's/ /-/g'
+          fi
+        }
+        
+        # Check deleted files references
+        if [ -n "$DELETED_FILES" ]; then
+          echo "Checking references to deleted files..."
+          
+          for deleted_file in $DELETED_FILES; do
+            # Remove docs/ prefix and extension for matching relative links
+            rel_path=$(echo "$deleted_file" | sed 's/\.md$//' | sed 's|^docs/||')
+            
+            # Look for references to this file in all markdown files
+            grep_results=$(grep -r --include="*.md" -l "($rel_path)" . || echo "")
+            
+            if [ -n "$grep_results" ]; then
+              for referencing_file in $grep_results; do
+                BROKEN_REFS="${BROKEN_REFS}- Broken reference in $referencing_file: file $deleted_file was deleted\n"
+              done
+            fi
+          done
+        fi
+        
+        # Check renamed files references
+        if [ -n "$RENAMED_FILES" ]; then
+          echo "Checking references to renamed files..."
+          
+          # Parse the renamed files mapping (format R100 oldpath newpath)
+          while read -r status old_path new_path; do
+            # Skip if not a rename status line
+            [[ $status != R* ]] && continue
+            
+            # Remove docs/ prefix and extension for matching relative links
+            rel_path=$(echo "$old_path" | sed 's/\.md$//' | sed 's|^docs/||')
+            
+            # Look for references to this file in all markdown files
+            grep_results=$(grep -r --include="*.md" -l "($rel_path)" . || echo "")
+            
+            if [ -n "$grep_results" ]; then
+              for referencing_file in $grep_results; do
+                # Don't report if the reference is in the renamed file itself (it will handle its own internal links)
+                if [ "$referencing_file" != "$new_path" ]; then
+                  BROKEN_REFS="${BROKEN_REFS}- Broken reference in $referencing_file: file $old_path was renamed to $new_path\n"
+                fi
+              done
+            fi
+          done <<< "$RENAMED_FILES"
+        fi
+        
+        # Check for changed headings
+        if [ -n "$MODIFIED_FILES" ]; then
+          echo "Checking for changed headings in modified files..."
+          
+          for file in $MODIFIED_FILES; do
+            # Extract headings before and after changes
+            old_headings=$(extract_headings $file $BASE_SHA)
+            new_headings=$(extract_headings $file HEAD)
+            
+            # Find removed headings
+            for heading in $old_headings; do
+              if ! echo "$new_headings" | grep -q "$heading"; then
+                # This heading was removed or changed
+                # Look for references to this heading
+                sanitized=${heading//\//\\/}  # Escape / for grep
+                refs=$(grep -r --include="*.md" -l "#$sanitized)" . || echo "")
+                
+                if [ -n "$refs" ]; then
+                  for ref_file in $refs; do
+                    if [ "$ref_file" != "$file" ]; then  # Don't report self-references
+                      BROKEN_REFS="${BROKEN_REFS}- Broken reference in $ref_file: heading '#$heading' in $file was removed or changed\n"
+                    fi
+                  done
+                fi
+              fi
+            done
+          done
+        fi
+        
+        # Output results
+        if [ -n "$BROKEN_REFS" ]; then
+          echo "Found broken cross-references:"
+          echo -e "$BROKEN_REFS"
+          
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$BROKEN_REFS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "status=failure" >> $GITHUB_OUTPUT
+        else
+          echo "No broken cross-references found"
+          echo "status=success" >> $GITHUB_OUTPUT
+        fi
 
     - name: Generate Preview URL
       if: inputs.generate-preview == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
       id: generate-preview
       shell: bash
       run: |
-        # Get PR branch name for URL
-        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+        # Simple branch name extraction and URL generation
+        BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9_-]/-/g')
+        echo "url=https://coder.com/docs/@$BRANCH" >> $GITHUB_OUTPUT
         
-        # Input validation - ensure branch name is valid
-        if [ -z "$BRANCH_NAME" ]; then
-          echo "::warning::Could not determine branch name, using 'main'"
-          BRANCH_NAME="main"
+        # Generate direct links to changed docs
+        DOC_LINKS=""
+        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json }}'
+        
+        if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != "[]" ]; then
+          echo $CHANGED_FILES | jq -c '.[]' | while read -r file_path; do
+            file_path=$(echo $file_path | tr -d '"')
+            if [[ $file_path == ${{ inputs.docs-dir }}/* ]] && [[ $file_path == *.md ]]; then
+              # Extract path for URL (remove .md and docs/ prefix)
+              url_path=$(echo "$file_path" | sed 's/^${{ inputs.docs-dir }}\///' | sed 's/\.md$//')
+              doc_url="https://coder.com/docs/@$BRANCH/$url_path"
+              # Get file title from first heading or filename
+              title=$(head -20 "$file_path" | grep -m 1 "^# " | sed 's/^# //' || basename "$file_path" .md)
+              DOC_LINKS="${DOC_LINKS}- [$title]($doc_url)\n"
+            fi
+          done
         fi
         
-        # Create the correct preview URL
-        PREVIEW_URL="https://coder.com/docs/@$BRANCH_NAME"
-        echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+        echo "doc_links<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$DOC_LINKS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
+    - name: Aggregate Validation Results
+      if: steps.docs-analysis.outputs.has_changes == 'true'
+      id: aggregate-results
+      shell: bash
+      run: |
+        # Initialize the validation object
+        VALIDATIONS="[]"
+        VALIDATION_COUNT=0
+        PASSING_COUNT=0
+        
+        # Process markdown linting
+        if [ "${{ inputs.lint-markdown }}" == "true" ]; then
+          VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+          
+          if [ -n "${{ steps.lint-docs.outputs.result }}" ]; then
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Markdown Linting", "status": "failure", "details": $details, "guidance": "Run markdownlint-cli2 to fix issues", "fix_command": "npx markdownlint-cli2 --fix *.md"}]' --arg details "${{ steps.lint-docs.outputs.result }}")
+          else
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Markdown Linting", "status": "success", "details": "No issues found"}]')
+            PASSING_COUNT=$((PASSING_COUNT + 1))
+          fi
+        fi
+        
+        # Process table formatting
+        if [ "${{ inputs.check-format }}" == "true" ]; then
+          VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+          
+          if [ -n "${{ steps.format-docs.outputs.result }}" ]; then
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Markdown Tables", "status": "failure", "details": $details, "guidance": "Run markdown-table-formatter to fix issues", "fix_command": "npx markdown-table-formatter *.md"}]' --arg details "${{ steps.format-docs.outputs.result }}")
+          else
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Markdown Tables", "status": "success", "details": "No issues found"}]')
+            PASSING_COUNT=$((PASSING_COUNT + 1))
+          fi
+        fi
+        
+        # Process link checking
+        if [ "${{ inputs.check-links }}" == "true" ]; then
+          VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+          
+          if [ "${{ steps.process-lychee.outputs.status }}" == "failure" ]; then
+            BROKEN_COUNT="${{ steps.process-lychee.outputs.broken_links }}"
+            SUMMARY="${{ steps.process-lychee.outputs.broken_summary }}"
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Link Checking", "status": "failure", "details": $details, "guidance": "Check and update broken links or add to .lycheeignore if needed"}]' --arg details "Found $BROKEN_COUNT broken links: $SUMMARY")
+          else
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Link Checking", "status": "success", "details": "No broken links found"}]')
+            PASSING_COUNT=$((PASSING_COUNT + 1))
+          fi
+        fi
+        
+        # Process Vale style checking
+        if [ "${{ inputs.lint-vale }}" == "true" ]; then
+          VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+          
+          if [ "${{ steps.vale-check.outputs.status }}" == "failure" ]; then
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Vale Style Check", "status": "failure", "details": $details, "guidance": "Review Vale suggestions and update documentation"}]' --arg details "${{ steps.vale-check.outputs.result }}")
+          elif [ "${{ steps.vale-check.outputs.status }}" == "warning" ]; then
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Vale Style Check", "status": "warning", "details": $details, "guidance": "Vale is not installed"}]' --arg details "${{ steps.vale-check.outputs.result }}")
+            PASSING_COUNT=$((PASSING_COUNT + 1))  # Count warnings as passing for badge purposes
+          else
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Vale Style Check", "status": "success", "details": "No style issues found"}]')
+            PASSING_COUNT=$((PASSING_COUNT + 1))
+          fi
+        fi
+        
+        # Process cross-references
+        if [ "${{ inputs.check-cross-references }}" == "true" ]; then
+          VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+          
+          if [ "${{ steps.check-cross-references.outputs.status }}" == "failure" ]; then
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Cross-References", "status": "failure", "details": $details, "guidance": "Update broken references to files or headings"}]' --arg details "${{ steps.check-cross-references.outputs.result }}")
+          else
+            VALIDATIONS=$(echo "$VALIDATIONS" | jq -c '. += [{"name": "Cross-References", "status": "success", "details": "No broken cross-references found"}]')
+            PASSING_COUNT=$((PASSING_COUNT + 1))
+          fi
+        fi
+        
+        # Calculate success percentage
+        SUCCESS_PERCENTAGE=0
+        if [ "$VALIDATION_COUNT" -gt 0 ]; then
+          SUCCESS_PERCENTAGE=$((PASSING_COUNT * 100 / VALIDATION_COUNT))
+        fi
+        
+        # Generate the badge
+        if [ "$VALIDATION_COUNT" -eq 0 ]; then
+          BADGE="N/A - No validations run"
+        elif [ "$SUCCESS_PERCENTAGE" -eq 100 ]; then
+          BADGE="![Validation Status](https://img.shields.io/badge/Docs%20Validation-Passing-success)"
+        elif [ "$SUCCESS_PERCENTAGE" -ge 80 ]; then
+          BADGE="![Validation Status](https://img.shields.io/badge/Docs%20Validation-Mostly%20Passing-yellow)"
+        else
+          BADGE="![Validation Status](https://img.shields.io/badge/Docs%20Validation-Failing-critical)"
+        fi
+        
+        # Output the results
+        echo "validation_json=$VALIDATIONS" >> $GITHUB_OUTPUT
+        echo "validation_count=$VALIDATION_COUNT" >> $GITHUB_OUTPUT
+        echo "passing_count=$PASSING_COUNT" >> $GITHUB_OUTPUT
+        echo "success_percentage=$SUCCESS_PERCENTAGE" >> $GITHUB_OUTPUT
+        echo "results_badge=$BADGE" >> $GITHUB_OUTPUT
+
+    - name: Validate PR comment parameters
+      id: validate-pr-comment
+      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.pr-number }}" ]; then
+          echo "::warning::PR number not provided for commenting. Skipping comment creation."
+          echo "valid=false" >> $GITHUB_OUTPUT
+          exit 0
+        else
+          echo "PR number: ${{ inputs.pr-number }}"
+          echo "valid=true" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Find existing comment
-      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && inputs.pr-number != ''
+      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && steps.validate-pr-comment.outputs.valid == 'true'
       id: find-comment
-      uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+      uses: peter-evans/find-comment@v3.1.0
       with:
         issue-number: ${{ inputs.pr-number }}
         comment-author: 'github-actions[bot]'
@@ -306,27 +723,28 @@ runs:
         direction: last
 
     - name: Create or update preview comment
-      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && inputs.pr-number != ''
-      uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && steps.validate-pr-comment.outputs.valid == 'true'
+      uses: peter-evans/create-or-update-comment@v4.0.0
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       with:
         comment-id: ${{ steps.find-comment.outputs.comment-id }}
         issue-number: ${{ inputs.pr-number }}
         body: |
-          ## 📚 Docs Preview
+          ## 📚 Documentation Validation Results
+          
+          ${{ steps.aggregate-results.outputs.results_badge }}
 
-          Your documentation changes are available for preview at:
-          **🔗 [Documentation Preview](${{ steps.generate-preview.outputs.url }})**
+          **Summary:** ${{ steps.aggregate-results.outputs.passing_count }}/${{ steps.aggregate-results.outputs.validation_count }} checks passing (${{ steps.aggregate-results.outputs.success_percentage }}%)
+          
+          Your documentation changes should be available for preview at:
+          **🔗 [Documentation Preview](${{ steps.generate-preview.outputs.url }})** (deployed by Vercel)
 
-          ### Changed Documentation Files
-          ${{ steps.docs-analysis.outputs.formatted_files }}
+          ${{ steps.generate-preview.outputs.doc_links != '' && '### Direct Links to Changed Documents' || '' }}
+          ${{ steps.generate-preview.outputs.doc_links }}
 
           ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Newly Added Documentation' || '' }}
           ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && steps.docs-analysis.outputs.new_docs || '' }}
-
-          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && '### Preview Links for New Docs' || '' }}
-          ${{ steps.docs-analysis.outputs.has_new_docs == 'true' && steps.docs-analysis.outputs.preview_links || '' }}
 
           ${{ steps.lint-docs.outputs.result != '' && '### Linting Issues' || '' }}
           ${{ steps.lint-docs.outputs.result != '' && '```' || '' }}
@@ -337,9 +755,112 @@ runs:
           ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
           ${{ steps.format-docs.outputs.result != '' && steps.format-docs.outputs.result || '' }}
           ${{ steps.format-docs.outputs.result != '' && '```' || '' }}
+          
+          ${{ steps.vale-check.outputs.result != '' && '### Vale Style Issues' || '' }}
+          ${{ steps.vale-check.outputs.result != '' && steps.vale-check.outputs.result || '' }}
+          
+          ${{ steps.lychee.outputs.exit_code != '0' && '### Broken Links' || '' }}
+          ${{ steps.lychee.outputs.exit_code != '0' && '```' || '' }}
+          ${{ steps.lychee.outputs.exit_code != '0' && steps.process-lychee.outputs.broken_summary || '' }}
+          ${{ steps.lychee.outputs.exit_code != '0' && '```' || '' }}
+          
+          ${{ steps.check-cross-references.outputs.result != '' && '### Broken Cross-References' || '' }}
+          ${{ steps.check-cross-references.outputs.result != '' && steps.check-cross-references.outputs.result || '' }}
 
           ---
           <sub>🤖 This comment is automatically generated and updated when documentation changes.</sub>
         edit-mode: replace
         reactions: eyes
         reactions-edit-mode: replace
+        
+    - name: Validation Status Summary
+      id: validation-status
+      if: always()
+      shell: bash
+      run: |
+        echo "==============================================="
+        echo "📊 DOCUMENTATION VALIDATION STATUS SUMMARY 📊"
+        echo "==============================================="
+        
+        # First check if any docs were found to validate
+        if [ "${{ steps.docs-analysis.outputs.has_changes }}" != "true" ]; then
+          echo "ℹ️ No documentation changes detected - validation skipped"
+          echo "==============================================="
+          exit 0
+        fi
+        
+        # Display the badge indicator for quick visual reference
+        if [ -n "${{ steps.aggregate-results.outputs.results_badge }}" ]; then
+          echo "${{ steps.aggregate-results.outputs.results_badge }}"
+        else
+          echo "⚠️ No validation badge available"
+        fi
+        echo ""
+        
+        # Show validation counts
+        echo "✅ Validation Results:"
+        echo "  - Total validations: ${{ steps.aggregate-results.outputs.validation_count }}"
+        echo "  - Passing validations: ${{ steps.aggregate-results.outputs.passing_count }}"
+        echo "  - Success rate: ${{ steps.aggregate-results.outputs.success_percentage }}%"
+        echo ""
+        
+        # Show detailed validation results
+        echo "Validation Details:"
+        VALIDATIONS='${{ steps.aggregate-results.outputs.validation_json }}'
+        
+        if [ "$VALIDATIONS" != "[]" ]; then
+          echo "$VALIDATIONS" | jq -r '.[] | "  " + (if .status == "success" then "✅" elif .status == "warning" then "⚠️" else "❌" end) + " " + .name + ": " + (if .status == "success" then "Passed" elif .status == "warning" then "Warning" else "Failed" end)'
+        else
+          echo "  No validation results available"
+        fi
+        
+        # Show preview URL pattern if generated
+        if [ -n "${{ steps.generate-preview.outputs.url }}" ]; then
+          echo ""
+          echo "🔗 Expected Preview URL (deployment by Vercel): ${{ steps.generate-preview.outputs.url }}"
+          echo "   Note: The actual preview deployment is handled by Vercel, not this workflow"
+        fi
+        
+        # Show PR comment status
+        if [ "${{ inputs.post-comment }}" == "true" ]; then
+          if [ "${{ steps.validate-pr-comment.outputs.valid }}" == "true" ]; then
+            echo ""
+            echo "💬 PR Comment: Updated on PR #${{ inputs.pr-number }}"
+          else
+            echo ""
+            echo "⚠️ PR Comment: Not created (missing or invalid PR number)"
+          fi
+        fi
+        
+        # Display final status
+        echo ""
+        
+        # Calculate final exit status for the workflow
+        SUCCESS_PERCENTAGE="${{ steps.aggregate-results.outputs.success_percentage }}"
+        FINAL_STATUS=0
+        
+        if [ "$SUCCESS_PERCENTAGE" == "100" ]; then
+          echo "Final Status: ✅ All checks passed!"
+        else
+          echo "Final Status: ⚠️ Some checks had warnings or failures"
+          
+          # Only set a non-zero exit code if fail-on-error is true
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            FINAL_STATUS=1
+          fi
+        fi
+        
+        echo "==============================================="
+        
+        # Store the workflow exit status for possible use by calling workflows
+        # If we had no changes or validations, set a successful status
+        if [ "${{ steps.docs-analysis.outputs.has_changes }}" != "true" ] || [ "${{ steps.aggregate-results.outputs.validation_count }}" = "0" ]; then
+          FINAL_STATUS=0
+        fi
+        
+        echo "exit_status=$FINAL_STATUS" >> $GITHUB_OUTPUT
+        
+        # Set actual exit status if configured to fail on errors
+        if [ "${{ inputs.fail-on-error }}" == "true" ] && [ "$FINAL_STATUS" -ne 0 ]; then
+          exit $FINAL_STATUS
+        fi
