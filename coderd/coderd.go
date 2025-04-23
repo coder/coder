@@ -1663,7 +1663,7 @@ func (api *API) Close() error {
 	_ = api.UpdatesProvider.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
-		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
+		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))
 		defer giveUp()
 		(*current).Stop(ctx, nil)
 	}
