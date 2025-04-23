@@ -924,7 +924,7 @@ jobs:
         continue-on-error: true
         run: |
           make sqlc-push
-          
+
   update-calendar:
     name: "Update release calendar in docs"
     runs-on: "ubuntu-latest"
@@ -938,21 +938,22 @@ jobs:
         uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
         with:
           egress-policy: audit
-      
+
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 0  # Needed to get all tags for version calculation
-      
+          fetch-depth: 0 # Needed to get all tags for version calculation
+
       - name: Set up Git
         run: |
-          git config user.name "Coder Bot"
-          git config user.email "coder-bot@coder.com"
-      
+          git config user.name "Coder CI"
+          git config user.email "cdrci@coder.com"
+
       - name: Run update script
         run: |
           ./scripts/update-release-calendar.sh
-      
+          make fmt/markdown
+
       - name: Check for changes
         id: check_changes
         run: |
@@ -963,7 +964,7 @@ jobs:
             echo "Changes detected in release calendar."
             echo "changes=true" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Create Pull Request
         if: steps.check_changes.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
@@ -972,13 +973,6 @@ jobs:
           title: "docs: update release calendar"
           body: |
             This PR automatically updates the release calendar in the docs.
-            
-            The calendar shows:
-            - Not Supported (older versions)
-            - Security Support (`n-2`)
-            - Stable (`n-1`)
-            - Mainline (`n`)
-            - Next Release (`n+1`, Not Released)
           branch: bot/update-release-calendar
           delete-branch: true
           labels: docs
