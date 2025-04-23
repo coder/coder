@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -154,8 +153,6 @@ func TestClaimPrebuild(t *testing.T) {
 			require.Len(t, presets, presetCount)
 
 			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
-
-			ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
 
 			// Given: the reconciliation state is snapshot.
 			state, err := reconciler.SnapshotState(ctx, spy)
@@ -428,8 +425,6 @@ func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
 			require.Len(t, presets, presetCount)
 
 			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
-
-			ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
 
 			// Given: the reconciliation state is snapshot.
 			state, err := reconciler.SnapshotState(ctx, errorStore)
