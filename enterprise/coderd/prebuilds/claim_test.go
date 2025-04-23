@@ -175,7 +175,9 @@ func TestClaimPrebuild(t *testing.T) {
 			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
 			require.Eventually(t, func() bool {
 				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
-				require.NoError(t, err)
+				if err != nil {
+					return false
+				}
 
 				for _, row := range rows {
 					runningPrebuilds[row.CurrentPresetID.UUID] = row
@@ -185,16 +187,21 @@ func TestClaimPrebuild(t *testing.T) {
 					}
 
 					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
-					require.NoError(t, err)
+					if err != nil {
+						return false
+					}
 
 					// Workspaces are eligible once its agent is marked "ready".
 					for _, agent := range agents {
-						require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+						err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 							ID:             agent.ID,
 							LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 							StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
 							ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-						}))
+						})
+						if err != nil {
+							return false
+						}
 					}
 				}
 
@@ -270,7 +277,9 @@ func TestClaimPrebuild(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
-				require.NoError(t, err)
+				if err != nil {
+					return false
+				}
 
 				t.Logf("found %d running prebuilds so far, want %d", len(rows), expectedPrebuildsCount)
 
@@ -447,22 +456,29 @@ func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
 			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
 			require.Eventually(t, func() bool {
 				rows, err := errorStore.GetRunningPrebuiltWorkspaces(ctx)
-				require.NoError(t, err)
+				if err != nil {
+					return false
+				}
 
 				for _, row := range rows {
 					runningPrebuilds[row.CurrentPresetID.UUID] = row
 
 					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
-					require.NoError(t, err)
+					if err != nil {
+						return false
+					}
 
 					// Workspaces are eligible once its agent is marked "ready".
 					for _, agent := range agents {
-						require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+						err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 							ID:             agent.ID,
 							LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 							StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
 							ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-						}))
+						})
+						if err != nil {
+							return false
+						}
 					}
 				}
 
