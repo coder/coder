@@ -499,11 +499,6 @@ export const MockUser: TypesGen.User = {
 	name: "",
 };
 
-export const MockUserAdmin: TypesGen.User = {
-	...MockUser,
-	roles: [MockUserAdminRole],
-};
-
 export const MockUser2: TypesGen.User = {
 	id: "test-user-2",
 	username: "TestUser2",
@@ -566,7 +561,7 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
-export const MockProvisionerKey: TypesGen.ProvisionerKey = {
+const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	id: "test-provisioner-key",
 	organization: MockOrganization.id,
 	created_at: "2022-05-17T17:39:01.382927298Z",
@@ -574,22 +569,16 @@ export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	tags: { scope: "organization" },
 };
 
-export const MockProvisionerBuiltinKey: TypesGen.ProvisionerKey = {
+const MockProvisionerBuiltinKey: TypesGen.ProvisionerKey = {
 	...MockProvisionerKey,
 	id: "00000000-0000-0000-0000-000000000001",
 	name: "built-in",
 };
 
-export const MockProvisionerUserAuthKey: TypesGen.ProvisionerKey = {
+const MockProvisionerUserAuthKey: TypesGen.ProvisionerKey = {
 	...MockProvisionerKey,
 	id: "00000000-0000-0000-0000-000000000002",
 	name: "user-auth",
-};
-
-export const MockProvisionerPskKey: TypesGen.ProvisionerKey = {
-	...MockProvisionerKey,
-	id: "00000000-0000-0000-0000-000000000003",
-	name: "psk",
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
@@ -609,38 +598,12 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	previous_job: null,
 };
 
-export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
+const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-user-auth-provisioner",
 	key_id: MockProvisionerUserAuthKey.id,
 	name: `${MockUser.name}'s provisioner`,
 	tags: { scope: "user" },
-};
-
-export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
-	...MockProvisioner,
-	id: "test-psk-provisioner",
-	key_id: MockProvisionerPskKey.id,
-	key_name: MockProvisionerPskKey.name,
-	name: "Test psk provisioner",
-};
-
-export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
-	...MockProvisioner,
-	id: "test-key-provisioner",
-	key_id: MockProvisionerKey.id,
-	key_name: MockProvisionerKey.name,
-	organization_id: MockProvisionerKey.organization,
-	name: "Test key provisioner",
-	tags: MockProvisionerKey.tags,
-};
-
-export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
-	...MockProvisioner,
-	id: "test-provisioner-2",
-	name: "Test Provisioner 2",
-	key_id: MockProvisionerKey.id,
-	key_name: MockProvisionerKey.name,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -829,38 +792,6 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 };
 
-export const MockTemplateVersionFiles: TemplateVersionFiles = {
-	"README.md": "# Example\n\nThis is an example template.",
-	"main.tf": `// Provides info about the workspace.
-data "coder_workspace" "me" {}
-
-// Provides the startup script used to download
-// the agent and communicate with Coder.
-resource "coder_agent" "dev" {
-os = "linux"
-arch = "amd64"
-}
-
-resource "kubernetes_pod" "main" {
-// Ensures that the Pod dies when the workspace shuts down!
-count = data.coder_workspace.me.start_count
-metadata {
-  name      = "dev-\${data.coder_workspace.me.id}"
-}
-spec {
-  container {
-    image   = "ubuntu"
-    command = ["sh", "-c", coder_agent.main.init_script]
-    env {
-      name  = "CODER_AGENT_TOKEN"
-      value = coder_agent.main.token
-    }
-  }
-}
-}
-`,
-};
-
 export const MockTemplateVersionFileTree: FileTree = {
 	"README.md": "# Example\n\nThis is an example template.",
 	"main.tf": `// Provides info about the workspace.
@@ -925,7 +856,7 @@ export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
-export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	id: "08eaca83-1221-4fad-b882-d1136981f54d",
 	log_source_id: MockWorkspaceAgentLogSource.id,
 	cron: "",
@@ -992,7 +923,7 @@ export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	icon: "",
 };
 
-export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
+const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-agent-2",
 	name: "another-workspace-agent",
@@ -1187,13 +1118,6 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
-	...MockWorkspaceResource,
-	id: "test-workspace-resource-hidden",
-	name: "workspace-resource-hidden",
-	hide: true,
-};
-
 export const MockWorkspaceVolumeResource: TypesGen.WorkspaceResource = {
 	id: "test-workspace-volume-resource",
 	created_at: "",
@@ -1230,12 +1154,7 @@ export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
 	daily_cost: 0,
 };
 
-export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
-	{
-		schedule: "",
-	};
-
-export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest =
+const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest =
 	{
 		// Runs at 9:30am Monday through Friday using Canada/Eastern
 		// (America/Toronto) time
@@ -1270,7 +1189,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 	template_version_preset_id: null,
 };
 
-export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
+const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "1",
@@ -1294,7 +1213,7 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	template_version_preset_id: null,
 };
 
-export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
+const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "1",
@@ -1467,7 +1386,7 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 	},
 };
 
-export const MockWorkspaceWithDeletion = {
+const MockWorkspaceWithDeletion = {
 	...MockStoppedWorkspace,
 	deleting_at: new Date().toISOString(),
 };
@@ -1504,23 +1423,11 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockWorkspace,
-		id: "test-outdated-workspace-require-active-version",
-		outdated: true,
-		template_require_active_version: true,
-	};
-
-export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
 	...MockWorkspace,
-	id: "test-outdated-workspace-always-update",
+	id: "test-outdated-workspace-require-active-version",
 	outdated: true,
-	automatic_updates: "always",
-	latest_build: {
-		...MockWorkspaceBuild,
-		status: "running",
-	},
+	template_require_active_version: true,
 };
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
@@ -1531,14 +1438,6 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 			status: "stopped",
 		},
 	};
-
-export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
-	...MockOutdatedRunningWorkspaceAlwaysUpdate,
-	latest_build: {
-		...MockWorkspaceBuild,
-		status: "stopped",
-	},
-};
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1559,11 +1458,6 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 		name: `${MockWorkspace.name}${id}`,
 	})),
 	count: 26,
-};
-
-export const MockWorkspacesResponseWithDeletions = {
-	workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
-	count: MockWorkspacesResponse.count + 1,
 };
 
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
@@ -1627,22 +1521,21 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
 		ephemeral: false,
 	};
 
-export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
-	{
-		name: "fifth_parameter",
-		type: "number",
-		description: "This is fifth parameter",
-		description_plaintext: "Markdown: This is fifth parameter",
-		default_value: "5",
-		mutable: true,
-		icon: "/icon/folder.svg",
-		options: [],
-		validation_min: 1,
-		validation_max: 10,
-		validation_monotonic: "decreasing",
-		required: true,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
+	name: "fifth_parameter",
+	type: "number",
+	description: "This is fifth parameter",
+	description_plaintext: "Markdown: This is fifth parameter",
+	default_value: "5",
+	mutable: true,
+	icon: "/icon/folder.svg",
+	options: [],
+	validation_min: 1,
+	validation_max: 10,
+	validation_monotonic: "decreasing",
+	required: true,
+	ephemeral: false,
+};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -1711,13 +1604,6 @@ export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest
 			},
 		],
 	};
-
-export const MockUserAgent = {
-	browser: "Chrome 99.0.4844",
-	device: "Other",
-	ip_address: "11.22.33.44",
-	os: "Windows 10",
-};
 
 export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
 	password: { enabled: true },
@@ -2394,31 +2280,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	refreshed_at: "2022-05-20T16:45:57.122Z",
 };
 
-export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
-	errors: [],
-	warnings: ["You are over your active user limit.", "And another thing."],
-	has_license: true,
-	trial: false,
-	require_telemetry: false,
-	refreshed_at: "2022-05-20T16:45:57.122Z",
-	features: withDefaultFeatures({
-		user_limit: {
-			enabled: true,
-			entitlement: "grace_period",
-			limit: 100,
-			actual: 102,
-		},
-		audit_log: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-		browser_only: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-	}),
-};
-
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -2445,22 +2306,6 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 		advanced_template_scheduling: {
 			enabled: true,
 			entitlement: "entitled",
-		},
-	}),
-};
-
-export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
-	errors: [],
-	warnings: [],
-	has_license: true,
-	require_telemetry: false,
-	trial: false,
-	refreshed_at: "2022-05-20T16:45:57.122Z",
-	features: withDefaultFeatures({
-		user_limit: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 25,
 		},
 	}),
 };
@@ -2621,42 +2466,6 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
 		public_key: {
 			old: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRUPjBSNtOAnL22+r07OSu9t3Lnm8/5OX8bRHECKS9g\n",
 			new: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwoUPJPMekuSzMZyV0rA82TGGNzw/Uj/dhLbwiczTpV\n",
-			secret: false,
-		},
-	},
-};
-
-export const MockAuditOauthConvert: TypesGen.AuditLog = {
-	...MockAuditLog,
-	resource_type: "convert_login",
-	resource_target: "oidc",
-	action: "create",
-	status_code: 201,
-	description: "{user} created login type conversion to {target}}",
-	diff: {
-		created_at: {
-			old: "0001-01-01T00:00:00Z",
-			new: "2023-06-20T20:44:54.243019Z",
-			secret: false,
-		},
-		expires_at: {
-			old: "0001-01-01T00:00:00Z",
-			new: "2023-06-20T20:49:54.243019Z",
-			secret: false,
-		},
-		state_string: {
-			old: "",
-			new: "",
-			secret: true,
-		},
-		to_type: {
-			old: "",
-			new: "oidc",
-			secret: false,
-		},
-		user_id: {
-			old: "",
-			new: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
 			secret: false,
 		},
 	},
@@ -4335,9 +4144,3 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 		"/mnt/volume1": "/volume1",
 	},
 };
-
-export const MockWorkspaceAgentListContainersResponse: TypesGen.WorkspaceAgentListContainersResponse =
-	{
-		containers: [MockWorkspaceAgentContainer],
-		warnings: ["This is a warning"],
-	};

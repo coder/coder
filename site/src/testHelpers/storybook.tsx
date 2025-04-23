@@ -125,30 +125,6 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withProvisioners = (Story: FC, { parameters }: StoryContext) => {
-	if (!parameters.organization_id) {
-		throw new Error(
-			"You forgot to add `parameters.organization_id` to your story",
-		);
-	}
-	if (!parameters.provisioners) {
-		throw new Error(
-			"You forgot to add `parameters.provisioners` to your story",
-		);
-	}
-	if (!parameters.tags) {
-		throw new Error("You forgot to add `parameters.tags` to your story");
-	}
-
-	const queryClient = useQueryClient();
-	queryClient.setQueryData(
-		getProvisionerDaemonsKey(parameters.organization_id, parameters.tags),
-		parameters.provisioners,
-	);
-
-	return <Story />;
-};
-
 export const withGlobalSnackbar = (Story: FC) => (
 	<>
 		<Story />
