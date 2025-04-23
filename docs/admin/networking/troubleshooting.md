@@ -108,9 +108,13 @@ Possible client-side issues with direct connection:
  - Network interface utun0 has MTU 1280 (less than 1378), which may degrade the quality of direct connections or render them unusable.
 ```
 
-If another interface cannot be used, and the MTU cannot be changed, you may need
-to disable direct connections, and relay all traffic via DERP instead, which
+If another interface cannot be used, and the MTU cannot be changed, you should
+disable direct connections and relay all traffic via DERP instead, which
 will not be affected by the low MTU.
+
+To disable direct connections, set the
+[`--block-direct-connections`](../../reference/cli/server.md#--block-direct-connections)
+flag or `CODER_BLOCK_DIRECT` environment variable on the Coder server.
 
 ## Throughput
 
