@@ -33,7 +33,7 @@ import {
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
 
-export const Language = {
+const Language = {
 	pageTitle: "Workspaces",
 	yourWorkspacesButton: "Your workspaces",
 	allWorkspacesButton: "All workspaces",

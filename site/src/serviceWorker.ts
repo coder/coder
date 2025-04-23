@@ -5,7 +5,7 @@ import type { WebpushMessage } from "api/typesGenerated";
 // @ts-ignore
 declare const self: ServiceWorkerGlobalScope;
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", (_) => {
 	self.skipWaiting();
 });
 
