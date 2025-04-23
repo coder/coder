@@ -95,6 +95,14 @@ var testCases = []testCase{
 		name:          "name_override_existing_sa",
 		expectedError: "",
 	},
+	{
+		name:          "custom_resources",
+		expectedError: "",
+	},
+	{
+		name:          "partial_resources",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

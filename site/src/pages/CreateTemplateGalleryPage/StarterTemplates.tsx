@@ -26,7 +26,7 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 	// The docker template should be the first template in the list,
 	// as it's the easiest way to get started with Coder.
 	const dockerTemplateId = "docker";
-	return templates.sort((a, b) => {
+	return [...templates].sort((a, b) => {
 		if (a.id === dockerTemplateId) {
 			return -1;
 		}

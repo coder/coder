@@ -156,6 +156,7 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 									</defs>
 
 									<Area
+										isAnimationActive={false}
 										dataKey="users"
 										type="linear"
 										fill="url(#fillUsers)"

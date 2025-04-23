@@ -1432,84 +1432,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/integrations/jfrog/xray-scan": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get JFrog XRay scan by workspace agent ID.",
-                "operationId": "get-jfrog-xray-scan-by-workspace-agent-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Workspace ID",
-                        "name": "workspace_id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "agent_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Post JFrog XRay scan by workspace agent ID.",
-                "operationId": "post-jfrog-xray-scan-by-workspace-agent-id",
-                "parameters": [
-                    {
-                        "description": "Post JFrog XRay scan request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/licenses": {
             "get": {
                 "security": [
@@ -7619,6 +7541,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/templateversions/{templateversion}/parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Open dynamic parameters WebSocket by template version",
+                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/users/{user}/webpush/subscription": {
             "post": {
                 "security": [
@@ -10291,12 +10250,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Deprecated: this field is unused and will be removed in a future version.",
                     "type": "string"
                 },
                 "message": {
                     "type": "string"
                 },
                 "needs_user_attention": {
+                    "description": "Deprecated: this field is unused and will be removed in a future version.",
                     "type": "boolean"
                 },
                 "state": {
@@ -11332,73 +11293,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateTestAuditLogRequest": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "enum": [
-                        "create",
-                        "write",
-                        "delete",
-                        "start",
-                        "stop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AuditAction"
-                        }
-                    ]
-                },
-                "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "build_reason": {
-                    "enum": [
-                        "autostart",
-                        "autostop",
-                        "initiator"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "request_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "resource_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "resource_type": {
-                    "enum": [
-                        "template",
-                        "template_version",
-                        "user",
-                        "workspace",
-                        "workspace_build",
-                        "git_ssh_key",
-                        "auditable_group"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ResourceType"
-                        }
-                    ]
-                },
-                "time": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
+            "type": "object"
         },
         "codersdk.CreateTokenRequest": {
             "type": "object",
@@ -11509,6 +11404,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "template_version_preset_id": {
+                    "description": "TemplateVersionPresetID is the ID of the template version preset to use for the build.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "transition": {
                     "enum": [
                         "start",
@@ -11541,7 +11441,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateWorkspaceRequest": {
-            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.",
+            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used. Workspace names: - Must start with a letter or number - Can only contain letters, numbers, and hyphens - Cannot contain spaces or special characters - Cannot be named ` + "`" + `new` + "`" + ` or ` + "`" + `create` + "`" + ` - Must be unique within your workspaces - Maximum length of 32 characters",
             "type": "object",
             "required": [
                 "name"
@@ -11570,6 +11470,10 @@ const docTemplate = `{
                 },
                 "template_version_id": {
                     "description": "TemplateVersionID can be used to specify a specific version of a template for creating the workspace.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_preset_id": {
                     "type": "string",
                     "format": "uuid"
                 },
@@ -12613,31 +12517,6 @@ const docTemplate = `{
             "properties": {
                 "signed_token": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.JFrogXrayScan": {
-            "type": "object",
-            "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "critical": {
-                    "type": "integer"
-                },
-                "high": {
-                    "type": "integer"
-                },
-                "medium": {
-                    "type": "integer"
-                },
-                "results_url": {
-                    "type": "string"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },
@@ -17056,7 +16935,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "icon": {
-                    "description": "Icon is an external URL to an icon that will be rendered in the UI.",
+                    "description": "Deprecated: This field is unused and will be removed in a future version.\nIcon is an external URL to an icon that will be rendered in the UI.",
                     "type": "string"
                 },
                 "id": {
@@ -17067,6 +16946,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "needs_user_attention": {
+                    "description": "Deprecated: This field is unused and will be removed in a future version.\nNeedsUserAttention specifies whether the status needs user attention.",
                     "type": "boolean"
                 },
                 "state": {
@@ -17176,6 +17056,10 @@ const docTemplate = `{
                 },
                 "template_version_name": {
                     "type": "string"
+                },
+                "template_version_preset_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "transition": {
                     "enum": [
@@ -18652,6 +18536,9 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                },
+                "hostname_suffix": {
+                    "type": "string"
                 }
             }
         },

@@ -886,7 +886,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: a.ID})
 		b := dbgen.Organization(s.T(), db, database.Organization{})
 		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: b.ID})
-		check.Args(database.GetOrganizationsByUserIDParams{UserID: u.ID, Deleted: false}).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
+		check.Args(database.GetOrganizationsByUserIDParams{UserID: u.ID, Deleted: sql.NullBool{Valid: true, Bool: false}}).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("InsertOrganization", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertOrganizationParams{
@@ -994,8 +994,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			member, policy.ActionRead,
 			member, policy.ActionDelete).
 			WithNotAuthorized("no rows").
-			WithCancelled(cancelledErr).
-			ErrorsWithInMemDB(sql.ErrNoRows)
+			WithCancelled(cancelledErr)
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
@@ -4292,74 +4291,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetUserLinksByUserID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		pj := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{
-			JobID: pj.ID,
-		})
-		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
-			ResourceID: res.ID,
-		})
-
-		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
-			AgentID:     agent.ID,
-			WorkspaceID: ws.ID,
-			Critical:    1,
-			High:        12,
-			Medium:      14,
-			ResultsUrl:  "http://hello",
-		})
-		require.NoError(s.T(), err)
-
-		expect := database.JfrogXrayScan{
-			WorkspaceID: ws.ID,
-			AgentID:     agent.ID,
-			Critical:    1,
-			High:        12,
-			Medium:      14,
-			ResultsUrl:  "http://hello",
-		}
-
-		check.Args(database.GetJFrogXrayScanByWorkspaceAndAgentIDParams{
-			WorkspaceID: ws.ID,
-			AgentID:     agent.ID,
-		}).Asserts(ws, policy.ActionRead).Returns(expect)
-	}))
-	s.Run("UpsertJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		pj := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{
-			JobID: pj.ID,
-		})
-		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
-			ResourceID: res.ID,
-		})
-		check.Args(database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
-			WorkspaceID: ws.ID,
-			AgentID:     agent.ID,
-		}).Asserts(tpl, policy.ActionCreate)
 	}))
 	s.Run("DeleteRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionDelete)

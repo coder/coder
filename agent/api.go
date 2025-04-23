@@ -36,9 +36,24 @@ func (a *agent) apiHandler() http.Handler {
 		ignorePorts:   cpy,
 		cacheDuration: cacheDuration,
 	}
-	ch := agentcontainers.New(agentcontainers.WithLister(a.lister))
+
+	containerAPIOpts := []agentcontainers.Option{
+		agentcontainers.WithLister(a.lister),
+	}
+	if a.experimentalDevcontainersEnabled {
+		manifest := a.manifest.Load()
+		if manifest != nil && len(manifest.Devcontainers) > 0 {
+			containerAPIOpts = append(
+				containerAPIOpts,
+				agentcontainers.WithDevcontainers(manifest.Devcontainers),
+			)
+		}
+	}
+	containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
-	r.Get("/api/v0/containers", ch.ServeHTTP)
+
+	r.Mount("/api/v0/containers", containerAPI.Routes())
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Post("/api/v0/list-directory", a.HandleLS)

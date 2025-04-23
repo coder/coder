@@ -91,7 +91,7 @@ export const DERPPage: FC = () => {
 				<section>
 					<SectionLabel>Regions</SectionLabel>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-						{Object.values(regions!)
+						{Object.values(regions ?? {})
 							.filter((region) => {
 								// Values can technically be null
 								return region !== null;

@@ -155,7 +155,7 @@ func TestBuildPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: expect that a payload will be constructed and have the expected values
-	payload := testutil.RequireRecvCtx(ctx, t, interceptor.payload)
+	payload := testutil.TryReceive(ctx, t, interceptor.payload)
 	require.Len(t, payload.Actions, 1)
 	require.Equal(t, label, payload.Actions[0].Label)
 	require.Equal(t, url, payload.Actions[0].URL)

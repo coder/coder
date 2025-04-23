@@ -31,6 +31,8 @@ import (
 
 	"github.com/coder/pretty"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
@@ -38,7 +40,6 @@ import (
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/serpent"
 )
 
 var (
@@ -49,6 +50,10 @@ var (
 	workspaceCommand = map[string]string{
 		"workspaces": "",
 	}
+
+	// ErrSilent is a sentinel error that tells the command handler to just exit with a non-zero error, but not print
+	// anything.
+	ErrSilent = xerrors.New("silent error")
 )
 
 const (
@@ -122,6 +127,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.whoami(),
 
 		// Hidden
+		r.connectCmd(),
 		r.expCmd(),
 		r.gitssh(),
 		r.support(),
@@ -172,6 +178,10 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			err = exitErr.err
 		}
 		if errors.Is(err, cliui.ErrCanceled) {
+			//nolint:revive,gocritic
+			os.Exit(code)
+		}
+		if errors.Is(err, ErrSilent) {
 			//nolint:revive,gocritic
 			os.Exit(code)
 		}

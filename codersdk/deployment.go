@@ -791,6 +791,19 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	// ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.
+	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval
+	// when errors occur during reconciliation.
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffLookback determines the time window to look back when calculating
+	// the number of failed prebuilds, which influences the backoff strategy.
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -3245,11 +3258,11 @@ const (
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 )
 
-// ExperimentsAll should include all experiments that are safe for
+// ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

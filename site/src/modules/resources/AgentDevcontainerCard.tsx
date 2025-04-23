@@ -54,6 +54,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					devContainerName={container.name}
 					devContainerFolder={containerFolder}
 					displayApps={agent.display_apps}
+					agentName={agent.name}
 				/>
 
 				<TerminalLink

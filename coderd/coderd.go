@@ -43,6 +43,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -64,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
@@ -314,6 +316,9 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 
 	if options.AccessControlStore == nil {
@@ -456,8 +461,22 @@ func New(options *Options) *API {
 		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+	// We add this middleware early, to make sure that authorization checks made
+	// by other middleware get recorded.
+	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
+	if buildinfo.IsDev() {
+		// TODO: Find another solution to opt into these checks.
+		//   If the header grows too large, it breaks `fetch()` requests.
+		//   Temporarily disabling this until we can find a better solution.
+		//	 One idea is to include checking the request for `X-Authz-Record=true`
+		//   header. To opt in on a per-request basis.
+		//   Some authz calls (like filtering lists) might be able to be
+		//   summarized better to condense the header payload.
+		// r.Use(httpmw.RecordAuthzChecks)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// nolint:gocritic // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
@@ -548,6 +567,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		FileCache:                   files.NewFromStore(options.Database),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -664,10 +684,11 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	dialer := &InmemTailnetDialer{
-		CoordPtr: &api.TailnetCoordinator,
-		DERPFn:   api.DERPMap,
-		Logger:   options.Logger,
-		ClientID: uuid.New(),
+		CoordPtr:            &api.TailnetCoordinator,
+		DERPFn:              api.DERPMap,
+		Logger:              options.Logger,
+		ClientID:            uuid.New(),
+		DatabaseHealthCheck: api.Database,
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
@@ -799,7 +820,7 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		httpmw.Logger(api.Logger),
+		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,
@@ -1146,64 +1167,85 @@ func New(options *Options) *API {
 					r.Get("/", api.AssignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Post("/convert-login", api.postConvertLoginType)
-					r.Delete("/", api.deleteUser)
-					r.Get("/", api.userByName)
-					r.Get("/autofill-parameters", api.userAutofillParameters)
-					r.Get("/login-type", api.userLoginType)
-					r.Put("/profile", api.putUserProfile)
-					r.Route("/status", func(r chi.Router) {
-						r.Put("/suspend", api.putSuspendUserAccount())
-						r.Put("/activate", api.putActivateUserAccount())
-					})
-					r.Get("/appearance", api.userAppearanceSettings)
-					r.Put("/appearance", api.putUserAppearanceSettings)
-					r.Route("/password", func(r chi.Router) {
-						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
-						r.Put("/", api.putUserPassword)
-					})
-					// These roles apply to the site wide permissions.
-					r.Put("/roles", api.putUserRoles)
-					r.Get("/roles", api.userRoles)
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParamOptional(options.Database))
+						// Creating workspaces does not require permissions on the user, only the
+						// organization member. This endpoint should match the authz story of
+						// postWorkspacesByOrganization
+						r.Post("/workspaces", api.postUserWorkspaces)
 
-					r.Route("/keys", func(r chi.Router) {
-						r.Post("/", api.postAPIKey)
-						r.Route("/tokens", func(r chi.Router) {
-							r.Post("/", api.postToken)
-							r.Get("/", api.tokens)
-							r.Get("/tokenconfig", api.tokenConfig)
-							r.Route("/{keyname}", func(r chi.Router) {
-								r.Get("/", api.apiKeyByName)
+						// Similarly to creating a workspace, evaluating parameters for a
+						// new workspace should also match the authz story of
+						// postWorkspacesByOrganization
+						r.Route("/templateversions/{templateversion}", func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractTemplateVersionParam(options.Database),
+								httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
+							)
+							r.Get("/parameters", api.templateVersionDynamicParameters)
+						})
+					})
+
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
+
+						r.Post("/convert-login", api.postConvertLoginType)
+						r.Delete("/", api.deleteUser)
+						r.Get("/", api.userByName)
+						r.Get("/autofill-parameters", api.userAutofillParameters)
+						r.Get("/login-type", api.userLoginType)
+						r.Put("/profile", api.putUserProfile)
+						r.Route("/status", func(r chi.Router) {
+							r.Put("/suspend", api.putSuspendUserAccount())
+							r.Put("/activate", api.putActivateUserAccount())
+						})
+						r.Get("/appearance", api.userAppearanceSettings)
+						r.Put("/appearance", api.putUserAppearanceSettings)
+						r.Route("/password", func(r chi.Router) {
+							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
+							r.Put("/", api.putUserPassword)
+						})
+						// These roles apply to the site wide permissions.
+						r.Put("/roles", api.putUserRoles)
+						r.Get("/roles", api.userRoles)
+
+						r.Route("/keys", func(r chi.Router) {
+							r.Post("/", api.postAPIKey)
+							r.Route("/tokens", func(r chi.Router) {
+								r.Post("/", api.postToken)
+								r.Get("/", api.tokens)
+								r.Get("/tokenconfig", api.tokenConfig)
+								r.Route("/{keyname}", func(r chi.Router) {
+									r.Get("/", api.apiKeyByName)
+								})
+							})
+							r.Route("/{keyid}", func(r chi.Router) {
+								r.Get("/", api.apiKeyByID)
+								r.Delete("/", api.deleteAPIKey)
 							})
 						})
-						r.Route("/{keyid}", func(r chi.Router) {
-							r.Get("/", api.apiKeyByID)
-							r.Delete("/", api.deleteAPIKey)
-						})
-					})
 
-					r.Route("/organizations", func(r chi.Router) {
-						r.Get("/", api.organizationsByUser)
-						r.Get("/{organizationname}", api.organizationByUserAndName)
-					})
-					r.Post("/workspaces", api.postUserWorkspaces)
-					r.Route("/workspace/{workspacename}", func(r chi.Router) {
-						r.Get("/", api.workspaceByOwnerAndName)
-						r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
-					})
-					r.Get("/gitsshkey", api.gitSSHKey)
-					r.Put("/gitsshkey", api.regenerateGitSSHKey)
-					r.Route("/notifications", func(r chi.Router) {
-						r.Route("/preferences", func(r chi.Router) {
-							r.Get("/", api.userNotificationPreferences)
-							r.Put("/", api.putUserNotificationPreferences)
+						r.Route("/organizations", func(r chi.Router) {
+							r.Get("/", api.organizationsByUser)
+							r.Get("/{organizationname}", api.organizationByUserAndName)
 						})
-					})
-					r.Route("/webpush", func(r chi.Router) {
-						r.Post("/subscription", api.postUserWebpushSubscription)
-						r.Delete("/subscription", api.deleteUserWebpushSubscription)
-						r.Post("/test", api.postUserPushNotificationTest)
+						r.Route("/workspace/{workspacename}", func(r chi.Router) {
+							r.Get("/", api.workspaceByOwnerAndName)
+							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
+						})
+						r.Get("/gitsshkey", api.gitSSHKey)
+						r.Put("/gitsshkey", api.regenerateGitSSHKey)
+						r.Route("/notifications", func(r chi.Router) {
+							r.Route("/preferences", func(r chi.Router) {
+								r.Get("/", api.userNotificationPreferences)
+								r.Put("/", api.putUserNotificationPreferences)
+							})
+						})
+						r.Route("/webpush", func(r chi.Router) {
+							r.Post("/subscription", api.postUserWebpushSubscription)
+							r.Delete("/subscription", api.deleteUserWebpushSubscription)
+							r.Post("/test", api.postUserPushNotificationTest)
+						})
 					})
 				})
 			})
@@ -1526,6 +1568,7 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	FileCache          files.Cache
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -1773,10 +1816,10 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	for _, v := range raw {
 		switch v {
 		case "*":
-			exps = append(exps, codersdk.ExperimentsAll...)
+			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)
