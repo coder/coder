@@ -1,4 +1,4 @@
-import type { ApiErrorResponse } from "api/errors";
+import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
@@ -107,6 +107,15 @@ const CreateWorkspacePageExperimental: FC = () => {
 				onError: (error) => {
 					setWsError(error);
 				},
+				onClose: () => {
+					// There is no reason for the websocket to close while a user is on the page
+					setWsError(
+						new DetailedError(
+							"Websocket connection for dynamic parameters unexpectedly closed.",
+							"Refresh the page to reset the form.",
+						),
+					);
+				},
 			},
 		);
 
@@ -141,7 +150,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	} = useExternalAuth(realizedVersionId);
 
 	const isLoadingFormData =
-		ws.current?.readyState !== WebSocket.OPEN ||
+		ws.current?.readyState === WebSocket.CONNECTING ||
 		templateQuery.isLoading ||
 		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
