@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   # This job shows how to use the unified docs validation workflow
+  # All checks run concurrently inside the workflow
   docs-validation:
     name: Validate Documentation Using Reusable Workflow
     uses: ./.github/workflows/docs-unified.yaml
@@ -27,6 +28,7 @@ jobs:
 
   # This job shows how to call the docs-shared composite action directly
   # This is an alternative to using the reusable workflow
+  # The action is optimized internally to run validation steps concurrently
   manual-docs-check:
     name: Manual Documentation Validation
     runs-on: ubuntu-latest
@@ -39,26 +41,15 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout
-        uses: actions/checkout@v4
+      # === PHASE 1: SETUP AND CHECKOUT ===
+      # Use the reusable setup action for efficient environment setup
+      - name: Setup Documentation Environment
+        uses: ./.github/docs/actions/docs-setup
         with:
-          fetch-depth: 0
+          setup-vale: true
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          run_install: false
-
-      - name: Install dependencies
-        run: ./scripts/pnpm_install.sh
-
-      - name: Get PR info
+      # === PHASE 2: PR INFORMATION ===
+      - name: Get PR Information
         id: pr_info
         run: |
           set -euo pipefail
@@ -68,6 +59,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # === PHASE 3: VALIDATION (CONCURRENT) ===
+      # The docs-shared action performs all validation steps in parallel
+      # where possible based on its own internal phases
       - name: Process Documentation Manually
         id: docs-shared
         uses: ./.github/docs/actions/docs-shared
@@ -85,17 +79,72 @@ jobs:
           pr-number: "${{ env.PR_NUMBER }}"
           fail-on-error: "false"
 
-      - name: Debug Outputs
+      # === PHASE 4: RESULTS SUMMARY ===
+      - name: Validation Results Summary
+        if: always()
         run: |
-          echo "Has changes: ${{ steps.docs-shared.outputs.has_changes }}"
-          echo "Preview URL: ${{ steps.docs-shared.outputs.preview_url }}"
-          echo "Manifest changed: ${{ steps.docs-shared.outputs.manifest_changed }}"
-          echo "New docs found: ${{ steps.docs-shared.outputs.has_new_docs }}"
+          echo "==================================================="
+          echo "📊 DOCUMENTATION VALIDATION RESULTS SUMMARY 📊"
+          echo "==================================================="
           
-          if [ "${{ steps.docs-shared.outputs.format_results }}" != "" ]; then
-            echo "Formatting issues found, please run 'make fmt/markdown' locally"
+          # Check if any docs were processed
+          if [ "${{ steps.docs-shared.outputs.has_changes }}" != "true" ]; then
+            echo "✅ No documentation changes found to validate"
+            exit 0
           fi
           
-          if [ "${{ steps.docs-shared.outputs.cross_ref_results }}" != "" ]; then
-            echo "Broken cross-references found"
+          # Display the unified badge
+          echo "${{ steps.docs-shared.outputs.results_badge }}"
+          echo ""
+          
+          echo "🔎 File Analysis Results:"
+          echo "  - Changed Files: $(echo '${{ steps.docs-shared.outputs.changed_files }}' | jq '. | length') files"
+          echo "  - Manifest Changed: ${{ steps.docs-shared.outputs.manifest_changed }}"
+          echo "  - New Docs Added: ${{ steps.docs-shared.outputs.has_new_docs }}"
+          
+          echo ""
+          echo "📋 Validation Results Breakdown:"
+          
+          # Parse the JSON results and display them in a formatted way
+          RESULTS='${{ steps.docs-shared.outputs.validation_results }}'
+          
+          if [ "$RESULTS" != "[]" ]; then
+            # Show passed/failed status for each validation type
+            echo "$RESULTS" | jq -r '.[] | "  " + (if .status == "success" then "✅" else "❌" end) + " " + .name + ": " + (if .status == "success" then "Passed" else "Failed" end)'
+            
+            # Show failing check details with guidance
+            echo ""
+            echo "🔧 How to Fix Issues:"
+            FAILURES=$(echo "$RESULTS" | jq -r '.[] | select(.status == "failure")')
+            
+            if [ -n "$FAILURES" ]; then
+              echo "$FAILURES" | jq -r 'if .fix_command != "" then "  - " + .name + ": Run `" + .fix_command + "`" else "  - " + .name + ": " + .guidance end'
+            else
+              echo "  No issues to fix! 🎉"
+            fi
+          else
+            echo "  No validation results available"
           fi
+          
+          echo ""
+          echo "📈 Summary Statistics:"
+          echo "  - Total checks: ${{ steps.docs-shared.outputs.validation_count }}"
+          echo "  - Passing: ${{ steps.docs-shared.outputs.passing_count }}"
+          echo "  - Success rate: ${{ steps.docs-shared.outputs.success_percentage }}%"
+          
+          echo ""
+          echo "🌐 Preview Information:"
+          if [ "${{ steps.docs-shared.outputs.preview_url }}" != "" ]; then
+            echo "  🔗 Preview URL: ${{ steps.docs-shared.outputs.preview_url }}"
+          else
+            echo "  ⚠️ No preview URL generated"
+          fi
+          
+          echo ""
+          echo "📱 Unified Reporting:"
+          echo "  All validation results are now aggregated into a single JSON structure"
+          echo "  This enables:"
+          echo "  - Consistent reporting across different environments"
+          echo "  - Easy integration with other tools through the JSON output"
+          echo "  - Better error handling and aggregation"
+          echo "  - Progress tracking across multiple validation types"

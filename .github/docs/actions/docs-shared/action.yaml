@@ -54,7 +54,7 @@ inputs:
 outputs:
   has_changes:
     description: 'Boolean indicating if documentation files have changed'
-    value: ${{ steps.docs-analysis.outputs.has_changes }}
+    value: ${{ steps.process-files.outputs.has_changes }}
   changed_files:
     description: 'JSON array of changed documentation files'
     value: ${{ steps.changed-files.outputs.all_changed_files_json }}
@@ -91,11 +91,34 @@ outputs:
   cross_ref_results:
     description: 'Results from cross-reference checking'
     value: ${{ steps.cross-references.outputs.cross_ref_results || '' }}
+  # Aggregated validation results
+  validation_results:
+    description: 'Aggregated validation results as JSON'
+    value: ${{ steps.aggregate-results.outputs.results || '[]' }}
+  validation_count:
+    description: 'Total number of validation checks run'
+    value: ${{ steps.aggregate-results.outputs.validation_count || '0' }}
+  passing_count:
+    description: 'Number of passing validation checks'
+    value: ${{ steps.aggregate-results.outputs.passing_count || '0' }}
+  success_percentage:
+    description: 'Percentage of passing validation checks'
+    value: ${{ steps.aggregate-results.outputs.success_percentage || '0' }}
+  overall_success:
+    description: 'Boolean indicating if all validation checks passed'
+    value: ${{ steps.aggregate-results.outputs.success || 'true' }}
+  results_badge:
+    description: 'A formatted badge string summarizing the validation results'
+    value: ${{ steps.aggregate-results.outputs.badge || '✅ No validation run' }}
 
 runs:
   using: 'composite'
   steps:
+    # === PHASE 1: SETUP AND ENVIRONMENT VALIDATION ===
+    # These are essential security and validation steps that must run first
+    
     - name: Set security environment
+      id: security-check
       shell: bash
       run: |
         # Secure the environment by clearing potentially harmful variables
@@ -107,9 +130,15 @@ runs:
           echo "::error::Docs directory '${{ inputs.docs-dir }}' does not exist"
           exit 1
         fi
+        
+        echo "validated=true" >> $GITHUB_OUTPUT
 
+    # === PHASE 2: FILE ANALYSIS ===
+    # These steps collect and process file information for later parallel phases
+    
     - name: Get changed files
       id: changed-files
+      if: steps.security-check.outputs.validated == 'true'
       uses: tj-actions/changed-files@27ae6b33eaed7bf87272fdeb9f1c54f9facc9d99 # v45.0.7
       with:
         files: |
@@ -120,15 +149,16 @@ runs:
         
     - name: Process file lists
       id: process-files
+      if: steps.security-check.outputs.validated == 'true'
       shell: bash
       run: |
         # Set up environment
-        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json }}'
+        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json || '[]' }}'
         DELETED_FILES='${{ steps.changed-files.outputs.deleted_files_json || '[]' }}'
         
         # Process files into different formats once
         echo "md_files_comma<<EOF" >> $GITHUB_OUTPUT
-        echo "${{ steps.changed-files.outputs.all_changed_files }}" >> $GITHUB_OUTPUT
+        echo "${{ steps.changed-files.outputs.all_changed_files || '' }}" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
         echo "md_files_line<<EOF" >> $GITHUB_OUTPUT
@@ -142,9 +172,18 @@ runs:
         echo "deleted_md_files_line<<EOF" >> $GITHUB_OUTPUT
         echo "$DELETED_FILES" | jq -r '.[] | select(endswith(".md"))' >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Determine if docs have changed
+        DOC_COUNT=$(echo "$CHANGED_FILES" | jq '. | length')
+        if [ "$DOC_COUNT" -gt 0 ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Check if manifest changed
       id: manifest-check
+      if: steps.process-files.outputs.has_changes == 'true'
       shell: bash
       run: |
         if [[ "${{ steps.changed-files.outputs.all_changed_files }}" == *"${{ inputs.docs-dir }}/manifest.json"* ]]; then
@@ -153,124 +192,21 @@ runs:
           echo "changed=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Analyze docs changes
-      id: docs-analysis
-      shell: bash
-      run: |
-        # Set up environment
-        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json }}'
-        
-        # Make sure we have valid JSON
-        if [ -z "$CHANGED_FILES" ] || [ "$CHANGED_FILES" == "[]" ]; then
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-          echo "formatted_files=" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        
-        # Count total changed doc files
-        DOC_FILES_COUNT=$(echo $CHANGED_FILES | jq -r 'length')
-        echo "doc_files_count=$DOC_FILES_COUNT" >> $GITHUB_OUTPUT
-        
-        # Determine if docs have changed
-        if [ "$DOC_FILES_COUNT" -gt 0 ]; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        else
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-          echo "formatted_files=" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        
-        # Only continue formatting if we need to generate previews or post comments
-        if [ "${{ inputs.generate-preview }}" != "true" ] && [ "${{ inputs.post-comment }}" != "true" ]; then
-          exit 0
-        fi
-        
-        # Get branch name for URLs
-        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH" || echo "main")
-        
-        # Format changed files for comment with clickable links
-        FORMATTED_FILES=""
-        echo $CHANGED_FILES | jq -c '.[]' | while read -r file_path; do
-          # Remove quotes
-          file_path=$(echo $file_path | tr -d '"')
-          [ -z "$file_path" ] && continue
-          
-          # Only process docs files
-          if [[ $file_path == ${{ inputs.docs-dir }}/* ]]; then
-            # Create direct link to file
-            # Remove .md extension and docs/ prefix for the URL path
-            url_path=$(echo "$file_path" | sed 's/^${{ inputs.docs-dir }}\///' | sed 's/\.md$//')
-            file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
-            
-            # Add the formatted line with link
-            FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
-          fi
-        done
-        
-        echo "formatted_files<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
-        # Analyze manifest changes if needed
-        if [ "${{ steps.manifest-check.outputs.changed }}" == "true" ]; then
-          # Get the base SHA for diff
-          BASE_SHA=$(git merge-base HEAD origin/main)
-          
-          # Extract new docs from manifest.json diff with safe patterns
-          NEW_DOCS=$(git diff "$BASE_SHA"..HEAD -- "${{ inputs.docs-dir }}/manifest.json" | grep -E '^\+.*"path":' | sed -E 's/.*"path": *"(.*)".*/\1/g')
-          
-          if [ -n "$NEW_DOCS" ]; then
-            echo "has_new_docs=true" >> $GITHUB_OUTPUT
-            
-            # Format new docs for comment
-            FORMATTED_NEW_DOCS=$(echo "$NEW_DOCS" | sort | uniq | grep -v "^$" | sed 's/^/- `/g' | sed 's/$/`/g')
-            echo "new_docs<<EOF" >> $GITHUB_OUTPUT
-            echo "$FORMATTED_NEW_DOCS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            # Generate preview links for new docs
-            PREVIEW_LINKS=""
-            while IFS= read -r doc_path; do
-              # Skip empty lines
-              [ -z "$doc_path" ] && continue
-              
-              # Clean the path and sanitize
-              clean_path=${doc_path#./}
-              clean_path=$(echo "$clean_path" | tr -cd 'a-zA-Z0-9_./-')
-              
-              # Generate preview URL with correct format
-              url_path=$(echo "$clean_path" | sed 's/\.md$//')
-              preview_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
-              
-              # Extract doc title or use filename safely
-              if [ -f "$doc_path" ]; then
-                title=$(grep -m 1 "^# " "$doc_path" | sed 's/^# //')
-                title=$(echo "$title" | tr -cd 'a-zA-Z0-9 _.,-')
-                [ -z "$title" ] && title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
-              else
-                title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
-              fi
-              
-              PREVIEW_LINKS="${PREVIEW_LINKS}- [$title]($preview_url)\n"
-            done <<< "$NEW_DOCS"
-            
-            echo "preview_links<<EOF" >> $GITHUB_OUTPUT
-            echo -e "$PREVIEW_LINKS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "has_new_docs=false" >> $GITHUB_OUTPUT
-          fi
-        fi
-
-    - name: Setup Node
-      if: inputs.lint-markdown == 'true' || inputs.format-markdown == 'true'
-      uses: ./.github/actions/setup-node
+    # === PHASE 3: CONCURRENT VALIDATION CHECKS ===
+    # These steps can run in parallel as they only depend on file analysis
+    # and are independent of each other
 
     - name: Lint Markdown
-      if: inputs.lint-markdown == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.lint-markdown == 'true' && steps.process-files.outputs.has_changes == 'true'
       id: lint-docs
       shell: bash
       run: |
+        # Use the pre-processed file list
+        if [ -z "${{ steps.process-files.outputs.md_files_comma }}" ]; then
+          echo "No markdown files to lint"
+          exit 0
+        fi
+        
         lint_output=$(pnpm exec markdownlint-cli2 ${{ steps.process-files.outputs.md_files_comma }} 2>&1) || true
         echo "result<<EOF" >> $GITHUB_OUTPUT
         echo "$lint_output" >> $GITHUB_OUTPUT
@@ -283,10 +219,16 @@ runs:
         fi
 
     - name: Check Markdown Table Formatting
-      if: inputs.check-format == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.check-format == 'true' && steps.process-files.outputs.has_changes == 'true'
       id: format-docs
       shell: bash
       run: |
+        # Use the pre-processed file list
+        if [ -z "${{ steps.process-files.outputs.md_files_line }}" ]; then
+          echo "No markdown files to check formatting"
+          exit 0
+        fi
+        
         # markdown-table-formatter requires a space separated list of files
         format_output=$(echo "${{ steps.process-files.outputs.md_files_line }}" | pnpm exec markdown-table-formatter --check 2>&1) || true
         echo "result<<EOF" >> $GITHUB_OUTPUT
@@ -300,7 +242,7 @@ runs:
         fi
 
     - name: Check Markdown links
-      if: inputs.check-links == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.check-links == 'true' && steps.process-files.outputs.has_changes == 'true'
       id: check-links
       uses: umbrelladocs/action-linkspector@49cf4f8da82db70e691bb8284053add5028fa244 # v1.3.2
       with:
@@ -310,14 +252,14 @@ runs:
         filter_mode: "nofilter"
         
     - name: Run Vale style checks
-      if: inputs.lint-vale == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.lint-vale == 'true' && steps.process-files.outputs.has_changes == 'true'
       id: lint-vale
       shell: bash
       run: |
         # Run Vale on changed markdown files using our pre-processed list
         # First check if we have any markdown files to process
         if [ -z "${{ steps.process-files.outputs.md_files_line }}" ]; then
-          echo "No markdown files to check"
+          echo "No markdown files to check with Vale"
           exit 0
         fi
         
@@ -336,7 +278,7 @@ runs:
         fi
         
     - name: Check for broken cross-references
-      if: inputs.check-cross-references == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.check-cross-references == 'true' && steps.process-files.outputs.has_changes == 'true'
       id: cross-references
       shell: bash
       run: |
@@ -466,8 +408,11 @@ runs:
           echo "No broken cross-references found"
         fi
 
+    # === PHASE 4: PREVIEW GENERATION ===
+    # Runs concurrently with validation checks
+
     - name: Generate Preview URL
-      if: inputs.generate-preview == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      if: inputs.generate-preview == 'true' && steps.process-files.outputs.has_changes == 'true'
       id: generate-preview
       shell: bash
       run: |
@@ -484,8 +429,220 @@ runs:
         PREVIEW_URL="https://coder.com/docs/@$BRANCH_NAME"
         echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
 
+    # === PHASE 4B: ANALYZE DOCS FOR PR COMMENT ===
+    # Run concurrently with validation checks as part of preview generation
+    
+    - name: Analyze docs changes
+      id: docs-analysis
+      if: (inputs.generate-preview == 'true' || inputs.post-comment == 'true') && steps.process-files.outputs.has_changes == 'true'
+      shell: bash
+      run: |
+        # Set up environment
+        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json }}'
+        
+        # Get branch name for URLs
+        BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH" || echo "main")
+        
+        # Format changed files for comment with clickable links
+        FORMATTED_FILES=""
+        echo $CHANGED_FILES | jq -c '.[]' | while read -r file_path; do
+          # Remove quotes
+          file_path=$(echo $file_path | tr -d '"')
+          [ -z "$file_path" ] && continue
+          
+          # Only process docs files
+          if [[ $file_path == ${{ inputs.docs-dir }}/* ]]; then
+            # Create direct link to file
+            # Remove .md extension and docs/ prefix for the URL path
+            url_path=$(echo "$file_path" | sed 's/^${{ inputs.docs-dir }}\///' | sed 's/\.md$//')
+            file_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+            
+            # Add the formatted line with link
+            FORMATTED_FILES="${FORMATTED_FILES}- [$file_path]($file_url)\n"
+          fi
+        done
+        
+        echo "formatted_files<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$FORMATTED_FILES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Analyze manifest changes if needed
+        if [ "${{ steps.manifest-check.outputs.changed }}" == "true" ]; then
+          # Get the base SHA for diff
+          BASE_SHA=$(git merge-base HEAD origin/main)
+          
+          # Extract new docs from manifest.json diff with safe patterns
+          NEW_DOCS=$(git diff "$BASE_SHA"..HEAD -- "${{ inputs.docs-dir }}/manifest.json" | grep -E '^\+.*"path":' | sed -E 's/.*"path": *"(.*)".*/\1/g')
+          
+          if [ -n "$NEW_DOCS" ]; then
+            echo "has_new_docs=true" >> $GITHUB_OUTPUT
+            
+            # Format new docs for comment
+            FORMATTED_NEW_DOCS=$(echo "$NEW_DOCS" | sort | uniq | grep -v "^$" | sed 's/^/- `/g' | sed 's/$/`/g')
+            echo "new_docs<<EOF" >> $GITHUB_OUTPUT
+            echo "$FORMATTED_NEW_DOCS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            # Generate preview links for new docs
+            PREVIEW_LINKS=""
+            while IFS= read -r doc_path; do
+              # Skip empty lines
+              [ -z "$doc_path" ] && continue
+              
+              # Clean the path and sanitize
+              clean_path=${doc_path#./}
+              clean_path=$(echo "$clean_path" | tr -cd 'a-zA-Z0-9_./-')
+              
+              # Generate preview URL with correct format
+              url_path=$(echo "$clean_path" | sed 's/\.md$//')
+              preview_url="https://coder.com/docs/@${BRANCH_NAME}/${url_path}"
+              
+              # Extract doc title or use filename safely
+              if [ -f "$doc_path" ]; then
+                title=$(grep -m 1 "^# " "$doc_path" | sed 's/^# //')
+                title=$(echo "$title" | tr -cd 'a-zA-Z0-9 _.,-')
+                [ -z "$title" ] && title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
+              else
+                title=$(basename "$doc_path" .md | tr -cd 'a-zA-Z0-9_.-')
+              fi
+              
+              PREVIEW_LINKS="${PREVIEW_LINKS}- [$title]($preview_url)\n"
+            done <<< "$NEW_DOCS"
+            
+            echo "preview_links<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$PREVIEW_LINKS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_new_docs=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+    # === PHASE 5: AGGREGATION OF RESULTS ===
+    # This step collects all validation results and creates a unified report
+    # It runs after (and depends on) all validation steps
+
+    - name: Aggregate validation results
+      id: aggregate-results
+      if: steps.process-files.outputs.has_changes == 'true'
+      shell: bash
+      run: |
+        # Initialize validation status array
+        echo "initializing validation status aggregation"
+        
+        # Track overall success/failure
+        OVERALL_SUCCESS="true"
+        VALIDATION_COUNT=0
+        PASSING_COUNT=0
+        
+        # Create a JSON array to store validation results
+        VALIDATION_RESULTS="["
+        
+        # Helper to add an item to the results array
+        add_result() {
+          local NAME="$1"
+          local STATUS="$2"
+          local OUTPUT="$3"
+          local GUIDANCE="$4"
+          local FIX_COMMAND="$5"
+          
+          if [ -n "$OUTPUT" ]; then
+            STATUS="failure"
+            OVERALL_SUCCESS="false"
+          else
+            STATUS="success"
+            PASSING_COUNT=$((PASSING_COUNT + 1))
+          fi
+          
+          VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+          
+          # Add comma if not the first item
+          if [ "$VALIDATION_COUNT" -gt 1 ]; then
+            VALIDATION_RESULTS="${VALIDATION_RESULTS},"
+          fi
+          
+          # Add the validation result
+          VALIDATION_RESULTS="${VALIDATION_RESULTS}{\"name\":\"$NAME\",\"status\":\"$STATUS\",\"output\":\"${OUTPUT//\"/\\\"}\",\"guidance\":\"$GUIDANCE\",\"fix_command\":\"$FIX_COMMAND\"}"
+        }
+        
+        # Process markdown linting results
+        if [ "${{ inputs.lint-markdown }}" == "true" ]; then
+          add_result "markdown-lint" \
+            "${{ steps.lint-docs.outputs.result == '' && 'success' || 'failure' }}" \
+            "${{ steps.lint-docs.outputs.result }}" \
+            "Run these commands locally to fix or see detailed issues" \
+            "npm run lint-docs && npm run lint-docs -- --fix"
+        fi
+        
+        # Process table formatting results
+        if [ "${{ inputs.check-format }}" == "true" ]; then
+          add_result "table-format" \
+            "${{ steps.format-docs.outputs.result == '' && 'success' || 'failure' }}" \
+            "${{ steps.format-docs.outputs.result }}" \
+            "Run this command locally to automatically fix all table formatting issues" \
+            "make fmt/markdown"
+        fi
+        
+        # Process Vale style results
+        if [ "${{ inputs.lint-vale }}" == "true" ]; then
+          add_result "vale-style" \
+            "${{ steps.lint-vale.outputs.result == '' && 'success' || 'failure' }}" \
+            "${{ steps.lint-vale.outputs.result }}" \
+            "These style issues help maintain consistent documentation quality" \
+            "vale --config=.github/docs/vale/.vale.ini <file>"
+        fi
+        
+        # Process cross-reference results
+        if [ "${{ inputs.check-cross-references }}" == "true" ]; then
+          add_result "cross-references" \
+            "${{ steps.cross-references.outputs.cross_ref_results == '' && 'success' || 'failure' }}" \
+            "${{ steps.cross-references.outputs.cross_ref_results }}" \
+            "Update links to reference new locations or remove references to deleted content" \
+            ""
+        fi
+        
+        # Process link checking results
+        if [ "${{ inputs.check-links }}" == "true" ]; then
+          add_result "links" \
+            "${{ steps.check-links.outputs.result == '' && 'success' || 'failure' }}" \
+            "${{ steps.check-links.outputs.result }}" \
+            "Fix or update broken links" \
+            ""
+        fi
+        
+        # Close the JSON array
+        VALIDATION_RESULTS="${VALIDATION_RESULTS}]"
+        
+        # Generate summary metrics
+        echo "validation_count=$VALIDATION_COUNT" >> $GITHUB_OUTPUT
+        echo "passing_count=$PASSING_COUNT" >> $GITHUB_OUTPUT
+        echo "success=$OVERALL_SUCCESS" >> $GITHUB_OUTPUT
+        
+        # Calculate success percentage
+        if [ "$VALIDATION_COUNT" -gt 0 ]; then
+          SUCCESS_PERCENTAGE=$(( PASSING_COUNT * 100 / VALIDATION_COUNT ))
+        else
+          SUCCESS_PERCENTAGE=100
+        fi
+        echo "success_percentage=$SUCCESS_PERCENTAGE" >> $GITHUB_OUTPUT
+        
+        # Store the validation results as JSON
+        echo "results<<EOF" >> $GITHUB_OUTPUT
+        echo "$VALIDATION_RESULTS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Create a badge based on results
+        if [ "$OVERALL_SUCCESS" == "true" ]; then
+          BADGE="✅ All $PASSING_COUNT validation checks passed (100%)"
+        else
+          BADGE="⚠️ $PASSING_COUNT of $VALIDATION_COUNT validation checks passed ($SUCCESS_PERCENTAGE%)"
+        fi
+        echo "badge=$BADGE" >> $GITHUB_OUTPUT
+
+# === PHASE 6: PR COMMENT MANAGEMENT ===
+    # This runs after all the validation checks are complete
+
     - name: Find existing comment
-      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && inputs.pr-number != ''
+      if: inputs.post-comment == 'true' && steps.process-files.outputs.has_changes == 'true' && inputs.pr-number != ''
       id: find-comment
       uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
       with:
@@ -495,7 +652,7 @@ runs:
         direction: last
 
     - name: Create or update preview comment
-      if: inputs.post-comment == 'true' && steps.docs-analysis.outputs.has_changes == 'true' && inputs.pr-number != ''
+      if: inputs.post-comment == 'true' && steps.process-files.outputs.has_changes == 'true' && inputs.pr-number != ''
       uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -506,6 +663,8 @@ runs:
           # 📚 Documentation Check Results
 
           ## 🔎 Status Overview
+
+          ${{ steps.aggregate-results.outputs.badge }}
 
           ${{ steps.lint-docs.outputs.result == '' && '✅ **Markdown Linting**: No issues found' || '❌ **Markdown Linting**: Issues found' }}
           ${{ steps.format-docs.outputs.result == '' && '✅ **Table Formatting**: No issues found' || '❌ **Table Formatting**: Issues found' }}

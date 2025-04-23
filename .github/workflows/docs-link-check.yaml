@@ -1,4 +1,4 @@
-name: Documentation Link Checker
+name: Documentation Post-Merge Checks
 on:
   # Run after merges to main
   push:
@@ -20,8 +20,8 @@ permissions:
   issues: write # needed to create GitHub issues
 
 jobs:
-  check-links:
-    name: Check Documentation Links
+  post-merge-checks:
+    name: Check Links and Cross-References
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
@@ -31,7 +31,15 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for cross-reference checking
 
+      - name: Setup Environment
+        uses: ./.github/docs/actions/docs-setup
+        with:
+          setup-vale: false  # Don't need Vale for post-merge checks
+
+      # Check links with linkspector
       - name: Check Markdown links
         uses: umbrelladocs/action-linkspector@v1
         id: link-check
@@ -42,11 +50,34 @@ jobs:
           filter_mode: "nofilter"
           format: "json" # Output in JSON format to parse results
 
-      - name: Process link check results
+      # Check cross-references specifically using our shared action
+      - name: Check Cross-References
+        id: cross-references
+        uses: ./.github/docs/actions/docs-shared
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          docs-dir: docs
+          include-md-files: "true"
+          check-links: "false"           # Skip link check (already done)
+          lint-markdown: "false"         # Skip linting on merge
+          check-format: "false"          # Skip format checking on merge
+          lint-vale: "false"             # Skip Vale on merge
+          check-cross-references: "true" # Only check cross-references
+          generate-preview: "false"      # No preview needed
+          post-comment: "false"          # No PR to comment on
+          fail-on-error: "false"         # Don't fail workflow
+
+      # Aggregate results from both checks
+      - name: Process validation results
         id: process-results
-        if: always() # Run even if the previous step fails
+        if: always() # Run even if the previous steps fail
         run: |
-          # Check if the link-check output contains results
+          # Initialize variables
+          HAS_ISSUES="false"
+          ISSUE_CONTENT=""
+          ISSUE_TITLE=""
+          
+          # Process link check results
           if [ -f "${{ steps.link-check.outputs.output_file }}" ]; then
             echo "Reading link check results from ${{ steps.link-check.outputs.output_file }}"
             
@@ -55,56 +86,74 @@ jobs:
             echo "broken_links=$BROKEN_LINKS" >> $GITHUB_OUTPUT
             
             if [ "$BROKEN_LINKS" -gt 0 ]; then
-              # Format results for issue description
-              echo "results<<EOF" >> $GITHUB_OUTPUT
-              echo "# Broken Links in Documentation" >> $GITHUB_ENV
-              echo "" >> $GITHUB_ENV
-              echo "## Summary" >> $GITHUB_ENV
-              echo "" >> $GITHUB_ENV
-              echo "Found $BROKEN_LINKS broken links in the documentation." >> $GITHUB_ENV
-              echo "" >> $GITHUB_ENV
-              echo "## Details" >> $GITHUB_ENV
-              echo "" >> $GITHUB_ENV
-              echo "| File | Link | Status |" >> $GITHUB_ENV
-              echo "|------|------|--------|" >> $GITHUB_ENV
+              HAS_ISSUES="true"
+              ISSUE_TITLE="📚 Documentation Health Check: Broken Links and References"
               
-              jq -r '.[] | select(.status != "alive") | "| \(.file) | \(.link) | \(.status) |"' "${{ steps.link-check.outputs.output_file }}" >> $GITHUB_ENV
+              # Format link results
+              LINK_RESULTS="## Broken Links ($BROKEN_LINKS found)\n\n"
+              LINK_RESULTS+="| File | Link | Status |\n"
+              LINK_RESULTS+="|------|------|--------|\n"
+              LINK_RESULTS+=$(jq -r '.[] | select(.status != "alive") | "| \(.file) | \(.link) | \(.status) |"' "${{ steps.link-check.outputs.output_file }}")
               
-              echo "" >> $GITHUB_ENV
-              echo "## How to Fix" >> $GITHUB_ENV
-              echo "" >> $GITHUB_ENV
-              echo "1. Check if the link is correct" >> $GITHUB_ENV
-              echo "2. Update the link if needed or remove it" >> $GITHUB_ENV
-              echo "3. If the link is valid but fails the check, consider adding it to the ignore list in `.github/docs/.linkspector.yml`" >> $GITHUB_ENV
-              
-              cat $GITHUB_ENV >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-              
-              echo "has_broken_links=true" >> $GITHUB_OUTPUT
-            else
-              echo "has_broken_links=false" >> $GITHUB_OUTPUT
+              ISSUE_CONTENT+="$LINK_RESULTS\n\n"
             fi
+          fi
+          
+          # Process cross-reference results
+          if [ -n "${{ steps.cross-references.outputs.cross_ref_results }}" ]; then
+            echo "Found broken cross-references"
+            HAS_ISSUES="true"
+            ISSUE_TITLE="📚 Documentation Health Check: Broken Links and References"
+            
+            # Format cross-reference results
+            XREF_RESULTS="## Broken Cross-References\n\n"
+            XREF_RESULTS+="The following cross-references were broken in the recent merge:\n\n"
+            XREF_RESULTS+="${{ steps.cross-references.outputs.cross_ref_results }}"
+            
+            ISSUE_CONTENT+="$XREF_RESULTS\n\n"
+          fi
+          
+          # Add guidance if issues were found
+          if [ "$HAS_ISSUES" == "true" ]; then
+            ISSUE_CONTENT+="## How to Fix\n\n"
+            ISSUE_CONTENT+="### For Broken Links\n\n"
+            ISSUE_CONTENT+="1. Check if the link is correct\n"
+            ISSUE_CONTENT+="2. Update the link if needed or remove it\n"
+            ISSUE_CONTENT+="3. If the link is valid but fails the check, consider adding it to the ignore list in `.github/docs/.linkspector.yml`\n\n"
+            
+            ISSUE_CONTENT+="### For Broken Cross-References\n\n"
+            ISSUE_CONTENT+="1. Update references to deleted or renamed files\n"
+            ISSUE_CONTENT+="2. Update references to removed headings\n"
+            ISSUE_CONTENT+="3. Check for references in both documentation and code\n\n"
+            
+            ISSUE_CONTENT+="---\n\nThis issue was automatically created by the Documentation Post-Merge Checks workflow."
+            
+            # Save for issue creation
+            echo "issue_title<<EOF" >> $GITHUB_OUTPUT
+            echo "$ISSUE_TITLE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "issue_content<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$ISSUE_CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "has_issues=true" >> $GITHUB_OUTPUT
           else
-            echo "No link check results found"
-            echo "has_broken_links=false" >> $GITHUB_OUTPUT
+            echo "No issues found in documentation checks"
+            echo "has_issues=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create GitHub issue for broken links
-        if: steps.process-results.outputs.has_broken_links == 'true'
+      # Create a single GitHub issue for all problems found
+      - name: Create GitHub issue
+        if: steps.process-results.outputs.has_issues == 'true'
         uses: peter-evans/create-issue-from-file@v4
         with:
-          title: "📚 Broken Links in Documentation"
-          content: ${{ steps.process-results.outputs.results }}
+          title: ${{ steps.process-results.outputs.issue_title }}
+          content: ${{ steps.process-results.outputs.issue_content }}
           labels: |
             documentation
             bug
             needs-triage
           assignees: EdwardAngert # Assign to docs team lead
 
-      - name: Send Slack notification
-        if: steps.process-results.outputs.has_broken_links == 'true' && (github.event_name == 'schedule' || github.event_name == 'push')
-        run: |
-          curl -X POST -H 'Content-type: application/json' -d '{
-            "msg":"Found ${{ steps.process-results.outputs.broken_links }} broken links in the documentation. A GitHub issue has been created. Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }' ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
-          echo "Sent Slack notification"
+# Slack notification removed per request

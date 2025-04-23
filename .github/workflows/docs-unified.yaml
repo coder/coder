@@ -56,11 +56,13 @@ jobs:
         with:
           egress-policy: audit
 
+      # Phase 1: Setup and Initial Checkout
       - name: Setup Environment
         uses: ./.github/docs/actions/docs-setup
         with:
           setup-vale: ${{ inputs.lint-vale }}
 
+      # Phase 2: Prepare PR Information
       - name: Get PR info
         id: pr_info
         run: |
@@ -71,6 +73,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Phase 3: Process Documentation
+      # The docs-shared action is now phase-based internally
+      # and will execute appropriate validation steps concurrently
       - name: Process Documentation
         id: docs-shared
         uses: ./.github/docs/actions/docs-shared
@@ -88,27 +93,61 @@ jobs:
           pr-number: "${{ env.PR_NUMBER }}"
           fail-on-error: ${{ inputs.fail-on-error }}
 
-      - name: Debug Outputs
+      # Phase 4: Results Summary
+      - name: Validation Results Summary
+        if: always()
         run: |
-          echo "Has changes: ${{ steps.docs-shared.outputs.has_changes }}"
-          echo "Preview URL: ${{ steps.docs-shared.outputs.preview_url }}"
-          echo "Manifest changed: ${{ steps.docs-shared.outputs.manifest_changed }}"
-          echo "New docs found: ${{ steps.docs-shared.outputs.has_new_docs }}"
+          echo "==============================================="
+          echo "📊 DOCUMENTATION VALIDATION RESULTS SUMMARY 📊"
+          echo "==============================================="
           
-          # Only display errors if there are any
-          if [ "${{ steps.docs-shared.outputs.lint_results }}" != "" ]; then
-            echo "Linting issues found"
+          # Check if any docs were processed
+          if [ "${{ steps.docs-shared.outputs.has_changes }}" != "true" ]; then
+            echo "✅ No documentation changes found to validate"
+            exit 0
           fi
           
-          if [ "${{ steps.docs-shared.outputs.format_results }}" != "" ]; then
-            echo "Formatting issues found" 
-            echo "Run 'make fmt/markdown' locally to fix formatting issues"
+          # Display the unified badge
+          echo "${{ steps.docs-shared.outputs.results_badge }}"
+          echo ""
+          
+          echo "🔎 Changed Files: $(echo '${{ steps.docs-shared.outputs.changed_files }}' | jq '. | length') files"
+          
+          # Extract and display the aggregated results
+          echo ""
+          echo "📋 Validation Results Breakdown:"
+          
+          # Parse the JSON results and display them
+          RESULTS='${{ steps.docs-shared.outputs.validation_results }}'
+          
+          if [ "$RESULTS" != "[]" ]; then
+            echo "$RESULTS" | jq -r '.[] | "  " + (if .status == "success" then "✅" else "❌" end) + " " + .name + ": " + (if .status == "success" then "Passed" else "Failed" end)'
+          
+            # Show failing check details
+            echo ""
+            echo "🔧 How to fix issues:"
+            FAILURES=$(echo "$RESULTS" | jq -r '.[] | select(.status == "failure")')
+            
+            if [ -n "$FAILURES" ]; then
+              echo "$FAILURES" | jq -r 'if .fix_command != "" then "  - " + .name + ": Run `" + .fix_command + "`" else "  - " + .name + ": " + .guidance end'
+            else
+              echo "  No issues to fix! 🎉"
+            fi
+          else
+            echo "  No validation results available"
           fi
           
-          if [ "${{ steps.docs-shared.outputs.vale_results }}" != "" ]; then
-            echo "Vale style issues found"
-          fi
+          echo ""
+          echo "📈 Summary Statistics:"
+          echo "  - Total checks: ${{ steps.docs-shared.outputs.validation_count }}"
+          echo "  - Passing: ${{ steps.docs-shared.outputs.passing_count }}"
+          echo "  - Success rate: ${{ steps.docs-shared.outputs.success_percentage }}%"
           
-          if [ "${{ steps.docs-shared.outputs.cross_ref_results }}" != "" ]; then
-            echo "Broken cross-references found"
+          # New Docs Information
+          if [ "${{ steps.docs-shared.outputs.has_new_docs }}" == "true" ]; then
+            echo ""
+            echo "🆕 New Documentation Added"
+            if [ "${{ steps.docs-shared.outputs.preview_url }}" != "" ]; then
+              echo "🔗 Preview URL: ${{ steps.docs-shared.outputs.preview_url }}"
+            fi
           fi
