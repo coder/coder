@@ -125,7 +125,7 @@ runs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v45.0.7
+      uses: tj-actions/changed-files@^45
       with:
         files: |
           ${{ inputs.docs-dir }}/**
