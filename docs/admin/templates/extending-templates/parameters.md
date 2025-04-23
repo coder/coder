@@ -381,6 +381,7 @@ You need to enable `auto-fill-parameters` first:
 ```shell
 coder server --experiments=auto-fill-parameters
 ```
+
 Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 With the feature enabled:
 
