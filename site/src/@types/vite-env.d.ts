@@ -5,7 +5,7 @@ interface ViteTypeOptions {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_IS_CI_BUILD: string
+  readonly VITE_DISABLE_EXTERNAL_LOGIN_PAGE: string
 }
 
 interface ImportMeta {

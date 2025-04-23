@@ -71,9 +71,9 @@ export const LoginPage: FC = () => {
 		}
 	}
 
-	const isCI = import.meta.env.VITE_IS_CI_BUILD === "true"
+	const disableExternalLoginPage = import.meta.env.VITE_DISABLE_EXTERNAL_LOGIN_PAGE === "true";
 
-	if (!isSignedIn && !isCI) {
+	if (!isSignedIn && !disableExternalLoginPage) {
 		window.location.replace(`https://heaan.io`);
 		return null;
 	}
