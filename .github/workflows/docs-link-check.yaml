@@ -135,11 +135,11 @@ jobs:
             
             # Use cat with heredoc instead of echo -e for more reliable newline handling
             cat << 'EOT' >> /tmp/issue-guidance.txt
-### Additional Guidance
-- For 404 errors: Check if the resource was moved or renamed
-- For timeout errors: The site might be temporarily down, consider retrying
-- For redirect issues: Update to the final URL
-EOT
+            ### Additional Guidance
+            - For 404 errors: Check if the resource was moved or renamed
+            - For timeout errors: The site might be temporarily down, consider retrying
+            - For redirect issues: Update to the final URL
+            EOT
             ISSUE_CONTENT+=$(cat /tmp/issue-guidance.txt)
             
             ISSUE_CONTENT+="### For Broken Cross-References\n\n"
