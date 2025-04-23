@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"unicode"
 
 	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
@@ -207,10 +209,10 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 	}
 }
 
-// readSecretInput reads secret input from the terminal character by character,
-// masking the input with asterisks.
+// readSecretInput reads secret input from the terminal rune-by-rune,
+// masking each character with an asterisk.
 func readSecretInput(f *os.File, w io.Writer) (string, error) {
-	// Set terminal to raw mode to capture input character by character
+	// Put terminal into raw mode (no echo, no line buffering).
 	oldState, err := pty.MakeInputRaw(f.Fd())
 	if err != nil {
 		return "", err
@@ -218,25 +220,46 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 	defer func() {
 		_ = pty.RestoreTerminal(f.Fd(), oldState)
 	}()
-	var valb []byte
 
-	// Read input character by character
-	buf := make([]byte, 1)
+	reader := bufio.NewReader(f)
+	var runes []rune
+
 	for {
-		n, err := f.Read(buf)
-
-		if err != nil && err != io.EOF {
+		r, _, err := reader.ReadRune()
+		if err != nil {
 			return "", err
 		}
-		if n == 0 || buf[0] == '\n' || buf[0] == '\r' {
-			break
-		}
-		if buf[0] == 3 {
+
+		switch {
+		case r == '\r' || r == '\n':
+			// Finish on Enter
+			if _, err := fmt.Fprint(w, "\r\n"); err != nil {
+				return "", err
+			}
+			return string(runes), nil
+
+		case r == 3:
+			// Ctrl+C
 			return "", ErrCanceled
+
+		case r == 127 || r == '\b':
+			// Backspace/Delete: remove last rune
+			if len(runes) > 0 {
+				// Erase the last '*' on the screen
+				if _, err := fmt.Fprint(w, "\b \b"); err != nil {
+					return "", err
+				}
+				runes = runes[:len(runes)-1]
+			}
+
+		default:
+			// Only mask printable, non-control runes
+			if !unicode.IsControl(r) {
+				runes = append(runes, r)
+				if _, err := fmt.Fprint(w, "*"); err != nil {
+					return "", err
+				}
+			}
 		}
-		valb = append(valb, buf[0])
-		_, _ = w.Write([]byte("*"))
 	}
-	_, _ = w.Write([]byte("\r\n"))
-	return strings.TrimSuffix(string(valb), "\r"), nil
 }
