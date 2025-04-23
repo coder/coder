@@ -54,17 +54,17 @@ pages.
 
 ## Release schedule
 
-| Release name | Release Date       | Status           |
-|--------------|--------------------|------------------|
-| 2.12.x       | June 04, 2024      | Not Supported    |
-| 2.13.x       | July 02, 2024      | Not Supported    |
-| 2.14.x       | August 06, 2024    | Not Supported    |
-| 2.15.x       | September 03, 2024 | Not Supported    |
-| 2.16.x       | October 01, 2024   | Not Supported    |
-| 2.17.x       | November 05, 2024  | Not Supported    |
-| 2.18.x       | December 03, 2024  | Security Support |
-| 2.19.x       | February 04, 2024  | Stable           |
-| 2.20.x       | March 05, 2024     | Mainline         |
+<!-- RELEASE_CALENDAR_START -->
+| Release name | Release Date       | Status           | Latest Release |
+|-------------|-------------------|------------------|----------------|
+| [2.16](https://coder.com/changelog/coder-2-16) | November 05, 2024 | Not Supported | [v2.16.1](https://github.com/coder/coder/releases/tag/v2.16.1) |
+| [2.17](https://coder.com/changelog/coder-2-17) | December 03, 2024 | Not Supported | [v2.17.3](https://github.com/coder/coder/releases/tag/v2.17.3) |
+| [2.18](https://coder.com/changelog/coder-2-18) | February 04, 2025 | Not Supported | [v2.18.5](https://github.com/coder/coder/releases/tag/v2.18.5) |
+| [2.19](https://coder.com/changelog/coder-2-19) | February 04, 2025 | Security Support | [v2.19.1](https://github.com/coder/coder/releases/tag/v2.19.1) |
+| [2.20](https://coder.com/changelog/coder-2-20) | March 04, 2025 | Stable | [v2.20.2](https://github.com/coder/coder/releases/tag/v2.20.2) |
+| [2.21](https://coder.com/changelog/coder-2-21) | April 01, 2025 | Mainline | [v2.21.0](https://github.com/coder/coder/releases/tag/v2.21.0) |
+| 2.22 | May 07, 2024 | Not Released | N/A |
+<!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]
 > We publish a
