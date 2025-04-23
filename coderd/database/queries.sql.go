@@ -11487,24 +11487,32 @@ INSERT INTO
 	template_version_terraform_values (
 		template_version_id,
 		cached_plan,
+	    tfstate,
 		updated_at
 	)
 VALUES
 	(
 		(select id from template_versions where job_id = $1),
 		$2,
-		$3
+	 	$3,
+		$4
 	)
 `
 
 type InsertTemplateVersionTerraformValuesByJobIDParams struct {
 	JobID      uuid.UUID       `db:"job_id" json:"job_id"`
 	CachedPlan json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	Tfstate    []byte          `db:"tfstate" json:"tfstate"`
 	UpdatedAt  time.Time       `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, insertTemplateVersionTerraformValuesByJobID, arg.JobID, arg.CachedPlan, arg.UpdatedAt)
+	_, err := q.db.ExecContext(ctx, insertTemplateVersionTerraformValuesByJobID,
+		arg.JobID,
+		arg.CachedPlan,
+		arg.Tfstate,
+		arg.UpdatedAt,
+	)
 	return err
 }
 

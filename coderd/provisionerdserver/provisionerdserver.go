@@ -1428,6 +1428,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			err := s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
 				JobID:      jobID,
 				CachedPlan: jobType.TemplateImport.Plan,
+				Tfstate:    nil,
 				UpdatedAt:  now,
 			})
 			if err != nil {
