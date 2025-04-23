@@ -1,0 +1,23 @@
+# Ignore patterns for lychee link checker
+# These patterns match those previously configured in .linkspector.yml
+
+# Common non-http links
+^#.*                 # Anchor links
+^mailto:.*           # Email links
+^file:///.*          # Local file links
+^\${.*}              # Template variables
+
+# Local development links
+^https?://localhost.*
+^https?://127\.0\.0\.1.*
+^https?://0\.0\.0\.0.*
+
+# Domains that may have connectivity issues in CI but are known to be valid
+github.com
+coder.com
+example.com
+kubernetes.io
+k8s.io
+docker.com
+terraform.io
+hashicorp.com

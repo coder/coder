@@ -29,14 +29,21 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@49cf4f8da82db70e691bb8284053add5028fa244 # v1.3.2
-        id: markdown-link-check
+        uses: lycheeverse/lychee-action@v1
+        id: lychee
         # checks all markdown files from /docs including all subfolders
         with:
-          reporter: github-pr-review
-          config_file: ".github/.linkspector.yml"
-          fail_on_error: "true"
-          filter_mode: "nofilter"
+          args: >-
+            --verbose
+            --no-progress
+            --exclude-mail
+            --exclude-loopback
+            --exclude-private
+            --ignore-file=.github/docs/.lycheeignore
+            './docs/**/*.md'
+          format: json
+          output: ./lychee-result.json
+          fail: true
 
       - name: Send Slack notification
         if: failure() && github.event_name == 'schedule'

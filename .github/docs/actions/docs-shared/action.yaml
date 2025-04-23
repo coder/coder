@@ -84,7 +84,7 @@ outputs:
     value: ${{ steps.format-docs.outputs.result || '' }}
   link_check_results:
     description: 'Results from link checking'
-    value: ${{ steps.check-links.outputs.result || '' }}
+    value: ${{ steps.process-lychee.outputs.result || '' }}
   vale_results:
     description: 'Results from Vale style checks'
     value: ${{ steps.lint-vale.outputs.result || '' }}
@@ -243,13 +243,55 @@ runs:
 
     - name: Check Markdown links
       if: inputs.check-links == 'true' && steps.process-files.outputs.has_changes == 'true'
-      id: check-links
-      uses: umbrelladocs/action-linkspector@49cf4f8da82db70e691bb8284053add5028fa244 # v1.3.2
+      id: lychee
+      uses: lycheeverse/lychee-action@v1
       with:
-        reporter: github-pr-review
-        config_file: ".github/docs/.linkspector.yml"
-        fail_on_error: ${{ inputs.fail-on-error }}
-        filter_mode: "nofilter"
+        args: >-
+          --verbose
+          --no-progress
+          --exclude-mail
+          --exclude-loopback
+          --exclude-private
+          --ignore-file=.github/docs/.lycheeignore
+          '${{ steps.process-files.outputs.md_files_line }}'
+        format: json
+        output: ./lychee-result.json
+        fail: false # We'll handle failure in the next step
+        
+    - name: Process lychee results
+      if: inputs.check-links == 'true' && steps.process-files.outputs.has_changes == 'true'
+      id: process-lychee
+      shell: bash
+      run: |
+        if [ -f "./lychee-result.json" ]; then
+          # Count broken links - lychee format is different from linkspector
+          BROKEN_LINKS=$(jq '.data.failed | length' "./lychee-result.json")
+          
+          if [ "$BROKEN_LINKS" -gt 0 ]; then
+            # Format results for output
+            LINK_RESULTS="# Broken Links ($BROKEN_LINKS found)\n\n"
+            LINK_RESULTS+="| File | Link | Status |\n"
+            LINK_RESULTS+="|------|------|--------|\n"
+            
+            # Process lychee's output format
+            LINK_TABLE=$(jq -r '.data.failed[] | "| \(.input_file // "Unknown") | \(.url) | \(.status_code // "Error") |"' "./lychee-result.json")
+            LINK_RESULTS+="$LINK_TABLE"
+            
+            echo "result<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$LINK_RESULTS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+              echo "::error::Broken links found:"
+              echo -e "$LINK_RESULTS"
+              exit 1
+            fi
+          else
+            echo "No broken links found"
+          fi
+        else
+          echo "No lychee results file found"
+        fi
         
     - name: Run Vale style checks
       if: inputs.lint-vale == 'true' && steps.process-files.outputs.has_changes == 'true'

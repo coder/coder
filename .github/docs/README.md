@@ -7,7 +7,7 @@ This directory contains GitHub Actions, configurations, and workflows for Coder'
 - `actions/docs-setup`: Common setup action for documentation workflows
 - `actions/docs-shared`: Phase-based composite action providing core documentation functionality
 - `vale`: Configuration and style rules for Vale documentation linting
-- `.linkspector.yml`: Configuration for link checking
+- `.lycheeignore`: Configuration patterns for lychee link checking
 
 ## Available Workflows
 

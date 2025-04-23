@@ -39,16 +39,22 @@ jobs:
         with:
           setup-vale: false  # Don't need Vale for post-merge checks
 
-      # Check links with linkspector
+      # Check links with lychee (faster and more robust than linkspector)
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@v1
-        id: link-check
+        id: lychee
+        uses: lycheeverse/lychee-action@v1
         with:
-          reporter: github-check
-          config_file: ".github/docs/.linkspector.yml"
-          fail_on_error: "false" # Don't fail the workflow so we can create an issue
-          filter_mode: "nofilter"
-          format: "json" # Output in JSON format to parse results
+          args: >-
+            --verbose
+            --no-progress
+            --exclude-mail
+            --exclude-loopback
+            --exclude-private
+            --ignore-file=.github/docs/.lycheeignore
+            './docs/**/*.md'
+          format: json
+          output: ./lychee-result.json
+          fail: false
 
       # Check cross-references specifically using our shared action
       - name: Check Cross-References
@@ -77,23 +83,26 @@ jobs:
           ISSUE_CONTENT=""
           ISSUE_TITLE=""
           
-          # Process link check results
-          if [ -f "${{ steps.link-check.outputs.output_file }}" ]; then
-            echo "Reading link check results from ${{ steps.link-check.outputs.output_file }}"
+          # Process link check results from lychee
+          if [ -f "./lychee-result.json" ]; then
+            echo "Reading link check results from lychee-result.json"
             
-            # Count broken links
-            BROKEN_LINKS=$(jq -r '.[] | select(.status != "alive") | .link' "${{ steps.link-check.outputs.output_file }}" | wc -l)
+            # Count broken links - lychee format is different from linkspector
+            BROKEN_LINKS=$(jq '.data.failed | length' "./lychee-result.json")
             echo "broken_links=$BROKEN_LINKS" >> $GITHUB_OUTPUT
             
             if [ "$BROKEN_LINKS" -gt 0 ]; then
               HAS_ISSUES="true"
               ISSUE_TITLE="📚 Documentation Health Check: Broken Links and References"
               
-              # Format link results
+              # Format link results with lychee's output structure
               LINK_RESULTS="## Broken Links ($BROKEN_LINKS found)\n\n"
               LINK_RESULTS+="| File | Link | Status |\n"
               LINK_RESULTS+="|------|------|--------|\n"
-              LINK_RESULTS+=$(jq -r '.[] | select(.status != "alive") | "| \(.file) | \(.link) | \(.status) |"' "${{ steps.link-check.outputs.output_file }}")
+              
+              # Process lychee's output format which is different from linkspector
+              LINK_TABLE=$(jq -r '.data.failed[] | "| \(.input_file // "Unknown") | \(.url) | \(.status_code // "Error") |"' "./lychee-result.json")
+              LINK_RESULTS+="$LINK_TABLE"
               
               ISSUE_CONTENT+="$LINK_RESULTS\n\n"
             fi

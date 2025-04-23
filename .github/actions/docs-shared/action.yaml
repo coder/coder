@@ -76,7 +76,7 @@ outputs:
     value: ${{ steps.format-docs.outputs.result || '' }}
   link_check_results:
     description: 'Results from link checking'
-    value: ${{ steps.check-links.outputs.result || '' }}
+    value: ${{ steps.lychee.outputs.exit_code != '0' && 'Link check found issues' || '' }}
 
 runs:
   using: 'composite'
@@ -262,13 +262,20 @@ runs:
 
     - name: Check Markdown links
       if: inputs.check-links == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
-      id: check-links
-      uses: umbrelladocs/action-linkspector@49cf4f8da82db70e691bb8284053add5028fa244 # v1.3.2
+      id: lychee
+      uses: lycheeverse/lychee-action@v1
       with:
-        reporter: github-pr-review
-        config_file: ".github/.linkspector.yml"
-        fail_on_error: ${{ inputs.fail-on-error }}
-        filter_mode: "nofilter"
+        args: >-
+          --verbose
+          --no-progress
+          --exclude-mail
+          --exclude-loopback
+          --exclude-private
+          --ignore-file=.github/docs/.lycheeignore
+          '${{ steps.changed-files.outputs.all_changed_files }}'
+        format: json
+        output: ./lychee-result.json
+        fail: ${{ inputs.fail-on-error }}
 
     - name: Generate Preview URL
       if: inputs.generate-preview == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
