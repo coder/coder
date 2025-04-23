@@ -42,7 +42,7 @@ jobs:
       # Check links with lychee (faster and more robust than linkspector)
       - name: Check Markdown links
         id: lychee
-        uses: lycheeverse/lychee-action@v1.8.0
+        uses: lycheeverse/lychee-action@v1.9.0
         with:
           args: >-
             --verbose
@@ -50,8 +50,8 @@ jobs:
             --exclude-mail
             --exclude-loopback
             --exclude-private
-            --ignore-file=.github/docs/.lycheeignore
             './docs/**/*.md'
+          ignore-file: .github/docs/.lycheeignore
           format: json
           output: ./lychee-result.json
           fail: false

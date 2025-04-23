@@ -19,7 +19,9 @@ runs:
         node-version: 20.16.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "pnpm"
-        cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          ${{ inputs.directory }}/pnpm-lock.yaml
 
     - name: Install root node_modules
       shell: bash
