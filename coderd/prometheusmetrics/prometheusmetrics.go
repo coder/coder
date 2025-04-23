@@ -655,7 +655,7 @@ func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) 
 		return err
 	}
 
-	for _, exp := range codersdk.ExperimentsAll {
+	for _, exp := range codersdk.ExperimentsSafe {
 		var val float64
 		for _, enabled := range active {
 			if exp == enabled {

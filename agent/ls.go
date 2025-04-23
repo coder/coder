@@ -125,10 +125,14 @@ func listFiles(query LSRequest) (LSResponse, error) {
 }
 
 func listDrives() (LSResponse, error) {
+	// disk.Partitions() will return partitions even if there was a failure to
+	// get one. Any errored partitions will not be returned.
 	partitionStats, err := disk.Partitions(true)
-	if err != nil {
+	if err != nil && len(partitionStats) == 0 {
+		// Only return the error if there were no partitions returned.
 		return LSResponse{}, xerrors.Errorf("failed to get partitions: %w", err)
 	}
+
 	contents := make([]LSFile, 0, len(partitionStats))
 	for _, a := range partitionStats {
 		// Drive letters on Windows have a trailing separator as part of their name.

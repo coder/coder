@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20250410041146-e62bfe0e9301
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20250422090654-5090e715905e
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -102,7 +102,7 @@ require (
 	github.com/coder/quartz v0.1.2
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1
+	github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1.0.20250417100258-c86bb5c3ddcd
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -488,7 +488,7 @@ require (
 )
 
 require (
-	github.com/coder/preview v0.0.0-20250417203026-7edcb9e02d99
+	github.com/coder/preview v0.0.1
 	github.com/kylecarbs/aisdk-go v0.0.5
 	github.com/mark3labs/mcp-go v0.22.0
 )
