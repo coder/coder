@@ -448,9 +448,9 @@ runs:
         echo "status=success" >> $GITHUB_OUTPUT
         echo "result=" >> $GITHUB_OUTPUT
         
-        # Setup regex patterns for cross-references (escape special regex characters)
-        MD_LINK_PATTERN='\[[^\]]+\]\([^)]+\)'
-        ANCHOR_LINK_PATTERN='\(#[^)]+\)'
+        # Patterns for matching markdown links and anchors
+        MD_LINK_PATTERN='\[.*\](.*)'
+        ANCHOR_LINK_PATTERN='(#[^)]*)' 
         
         # Get the base commit to compare against
         BASE_SHA=$(git merge-base HEAD origin/main || git rev-parse HEAD~1)
@@ -474,11 +474,22 @@ runs:
           
           # Check if file exists in commit
           if git cat-file -e $commit:$file 2>/dev/null; then
-            # Extract and process headings with error handling
-            git show $commit:$file 2>/dev/null | grep -E '^#{1,6} ' | 
+            # Extract and process headings
+            git show $commit:$file 2>/dev/null | grep '^#' | 
             while IFS= read -r line; do
-              echo "$line" | sed 's/^#* //' | tr -d '`' | 
-              tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 -]//g' | sed 's/ /-/g' || echo ""
+              # Step-by-step processing for maximum reliability
+              # 1. Remove initial #s and leading space
+              cleaned=$(echo "$line" | sed 's/^#* //')
+              # 2. Remove backticks
+              cleaned=$(echo "$cleaned" | tr -d '`')
+              # 3. Convert to lowercase
+              cleaned=$(echo "$cleaned" | tr '[:upper:]' '[:lower:]')
+              # 4. Remove special characters
+              cleaned=$(echo "$cleaned" | sed 's/[^a-z0-9 -]//g')
+              # 5. Replace spaces with dashes
+              cleaned=$(echo "$cleaned" | sed 's/ /-/g')
+              # Output the result
+              echo "$cleaned"
             done
           else
             echo "File not found in commit: $file@$commit" >&2
@@ -594,11 +605,17 @@ runs:
           echo $CHANGED_FILES | jq -c '.[]' | while read -r file_path; do
             file_path=$(echo $file_path | tr -d '"')
             if [[ $file_path == ${{ inputs.docs-dir }}/* ]] && [[ $file_path == *.md ]]; then
-              # Extract path for URL (remove .md and docs/ prefix)
-              url_path=$(echo "$file_path" | sed 's/^${{ inputs.docs-dir }}\///' | sed 's/\.md$//')
+              # Extract path for URL using parameter expansion
+              DOCS_DIR="${{ inputs.docs-dir }}"
+              # Remove docs dir prefix and .md extension
+              temp_path="${file_path#$DOCS_DIR/}"
+              url_path="${temp_path%.md}"
+              
+              # Generate the full preview URL
               doc_url="https://coder.com/docs/@$BRANCH/$url_path"
-              # Get file title from first heading or filename
-              title=$(head -20 "$file_path" | grep -m 1 "^# " | sed 's/^# //' || basename "$file_path" .md)
+              
+              # Get file title from first heading or fallback to filename
+              title=$(head -20 "$file_path" | grep "^# " | head -1 | cut -c 3- || basename "$file_path" .md)
               DOC_LINKS="${DOC_LINKS}- [$title]($doc_url)\n"
             fi
           done

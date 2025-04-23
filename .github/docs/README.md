@@ -24,24 +24,28 @@ jobs:
       contents: read
       pull-requests: write
     with:
-      lint-markdown: true
-      check-format: true
-      check-links: true
-      check-cross-references: true
-      lint-vale: true
-      generate-preview: true
-      post-comment: true
-      fail-on-error: false
+      # Validation options
+      lint-markdown: true      # Run markdownlint-cli2
+      check-format: true       # Check markdown table formatting
+      check-links: true        # Check for broken links with lychee
+      check-cross-references: true  # Detect broken internal references
+      lint-vale: true          # Run Vale style checking
+      
+      # Output options
+      generate-preview: true   # Generate preview URLs
+      post-comment: true       # Post results as PR comment
+      fail-on-error: false     # Continue workflow on validation errors
 ```
 
 ### Post-Merge Link Checking
 
-The `docs-link-check.yaml` workflow runs after merges to main and on a weekly schedule to check for broken links and create GitHub issues automatically:
+The `docs-link-check.yaml` workflow runs after merges to main and on a weekly schedule to check for broken links and cross-references:
 
 - Runs after merges to main that affect documentation
 - Runs weekly on Monday mornings
-- Creates GitHub issues with broken link details
-- Sends Slack notifications when issues are found
+- Uses lychee for robust link checking
+- Detects broken internal cross-references
+- Creates GitHub issues with detailed error information and fix guidance
 
 ## Features
 
@@ -81,29 +85,31 @@ The documentation workflow is designed for maximum efficiency using a phase-base
 
 ### Phase 4: Preview Generation
 - Generate preview URLs for documentation changes
-- Build links to new documentation
+- Create direct links to specific changed documents
+- Extract document titles from markdown headings
 
 ### Phase 5: Results Aggregation
 - Collect results from all validation steps
 - Normalize into a unified JSON structure
 - Calculate success metrics and statistics
-- Generate summary badge
+- Generate status badge based on success percentage
 
 ### Phase 6: PR Comment Management
 - Find existing comments or create new ones
 - Format results in a user-friendly way
 - Provide actionable guidance for fixing issues
+- Include direct links to affected documents
 
 ## Unified Results Reporting
 
-The workflow now aggregates all validation results into a single JSON structure:
+The workflow aggregates all validation results into a single JSON structure:
 
 ```json
 [
   {
-    "name": "markdown-lint",
-    "status": "success|failure",
-    "output": "Raw output from the validation tool",
+    "name": "Markdown Linting",
+    "status": "success|failure|warning",
+    "details": "Details about the validation result",
     "guidance": "Human-readable guidance on how to fix",
     "fix_command": "Command to run to fix the issue"
   },
@@ -111,10 +117,18 @@ The workflow now aggregates all validation results into a single JSON structure:
 ]
 ```
 
+### Status Badge Generation
+
+Results are automatically converted to a GitHub-compatible badge:
+
+- ✅ **Passing**: 100% of validations pass
+- ⚠️ **Mostly Passing**: ≥80% of validations pass
+- ❌ **Failing**: <80% of validations pass
+
 ### Benefits of Unified Reporting:
 
 1. **Consistency**: All validation tools report through the same structure
-2. **Integration**: JSON output can be easily consumed by other tools or dashboards
+2. **Visibility**: Status badge clearly shows overall health at a glance
 3. **Statistics**: Automatic calculation of pass/fail rates and success percentages
 4. **Diagnostics**: All validation results in one place for easier debugging
 5. **Extensibility**: New validators can be added with the same reporting format

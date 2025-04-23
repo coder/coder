@@ -1,5 +1,5 @@
 name: 'Docs Shared Action'
-description: 'A composite action providing shared functionality for docs-related workflows'
+description: 'A unified, phase-based composite action for documentation validation and reporting'
 author: 'Coder'
 
 inputs:
