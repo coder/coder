@@ -5,8 +5,6 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/coderd/database"
 )
 
 var ErrNoClaimablePrebuiltWorkspaces = errors.New("no claimable prebuilt workspaces found")
@@ -34,6 +32,6 @@ type Reconciler interface {
 }
 
 type Claimer interface {
-	Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error)
+	Claim(ctx context.Context, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error)
 	Initiator() uuid.UUID
 }

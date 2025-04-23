@@ -11,16 +11,23 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
-type EnterpriseClaimer struct{}
+type EnterpriseClaimer struct {
+	store database.Store
+}
 
-func (_ EnterpriseClaimer) Claim(
+func NewEnterpriseClaimer(store database.Store) *EnterpriseClaimer {
+	return &EnterpriseClaimer{
+		store: store,
+	}
+}
+
+func (c EnterpriseClaimer) Claim(
 	ctx context.Context,
-	store database.Store,
 	userID uuid.UUID,
 	name string,
 	presetID uuid.UUID,
 ) (*uuid.UUID, error) {
-	result, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+	result, err := c.store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
 		NewUserID: userID,
 		NewName:   name,
 		PresetID:  presetID,

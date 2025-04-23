@@ -880,7 +880,7 @@ func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.S
 	claimCtx, cancel := context.WithTimeout(prebuildsCtx, time.Second*10)
 	defer cancel()
 
-	claimedID, err := claimer.Claim(claimCtx, db, owner.ID, req.Name, req.TemplateVersionPresetID)
+	claimedID, err := claimer.Claim(claimCtx, owner.ID, req.Name, req.TemplateVersionPresetID)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)

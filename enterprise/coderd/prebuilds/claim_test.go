@@ -143,7 +143,7 @@ func TestClaimPrebuild(t *testing.T) {
 			})
 
 			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
-			var claimer agplprebuilds.Claimer = &prebuilds.EnterpriseClaimer{}
+			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
@@ -417,7 +417,7 @@ func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
 			})
 
 			reconciler := prebuilds.NewStoreReconciler(errorStore, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
-			var claimer agplprebuilds.Claimer = &prebuilds.EnterpriseClaimer{}
+			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(errorStore)
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
