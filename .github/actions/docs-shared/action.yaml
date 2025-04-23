@@ -125,7 +125,7 @@ runs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@^45
+      uses: tj-actions/changed-files@v45
       with:
         files: |
           ${{ inputs.docs-dir }}/**
@@ -592,7 +592,9 @@ runs:
       shell: bash
       run: |
         # Robust branch name extraction with fallbacks for CI environments
-        BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" | sed 's/[^a-zA-Z0-9_-]/-/g')
+        RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}")
+        # Replace slashes with dashes for the URL
+        BRANCH=$(echo "$RAW_BRANCH" | sed 's|/|-|g' | sed 's|[^a-zA-Z0-9_-]|-|g')
         # Store branch for other steps
         echo "BRANCH=$BRANCH" >> $GITHUB_ENV
         echo "url=https://coder.com/docs/@$BRANCH" >> $GITHUB_OUTPUT

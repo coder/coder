@@ -166,7 +166,9 @@ runs:
             clean_path=$(echo "$clean_path" | tr -cd 'a-zA-Z0-9_./-')
             
             # Get branch name for URLs
-            BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+            RAW_BRANCH_NAME=$(jq --raw-output .pull_request.head.ref "$GITHUB_EVENT_PATH")
+            # Replace slashes with dashes for the URL
+            BRANCH_NAME=$(echo "$RAW_BRANCH_NAME" | sed 's|/|-|g' | sed 's|[^a-zA-Z0-9_-]|-|g')
             
             # Generate preview URL with correct format
             url_path=$(echo "$clean_path" | sed 's/\.md$//')
