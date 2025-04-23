@@ -69,7 +69,11 @@ export const LoginPage: FC = () => {
 				/>
 			);
 		}
-	} else {
+	}
+
+	const isCI = import.meta.env.VITE_IS_CI_BUILD === "true"
+
+	if (!isSignedIn && !isCI) {
 		window.location.replace(`https://heaan.io`);
 		return null;
 	}
