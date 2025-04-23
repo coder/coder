@@ -374,7 +374,13 @@ data "coder_parameter" "jetbrains_ide" {
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
-parameters.
+parameters. To enable this feature, run the Coder server with:
+
+```shell
+coder server --experiments=auto-fill-parameters
+```
+
+With the feature enabled:
 
 1. Coder will look for URL query parameters with form `param.<name>=<value>`.
    This feature enables platform teams to create pre-filled template creation
