@@ -376,7 +376,7 @@ data "coder_parameter" "jetbrains_ide" {
 When the template doesn't specify default values, Coder may still autofill
 parameters.
 
-Enable this feature with the `--experiments` flag:
+You need to enable `auto-fill-parameters` first:
 
 ```shell
 coder server --experiments=auto-fill-parameters
