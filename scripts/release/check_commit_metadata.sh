@@ -118,6 +118,23 @@ main() {
 				title2=${parts2[*]:2}
 			fi
 
+			# Handle cherry-pick bot, it turns "chore: foo bar (#42)" to
+			# "chore: foo bar (cherry-pick #42) (#43)".
+			if [[ ${title1} == *"(cherry-pick #"* ]]; then
+				title1=${title1%" ("*}
+				pr=${title1#*#}
+				pr=${pr%)}
+				title1=${title1%" ("*}
+				title1="${title1} (#${pr})"$'\n'
+			fi
+			if [[ ${title2} == *"(cherry-pick #"* ]]; then
+				title2=${title2%" ("*}
+				pr=${title2#*#}
+				pr=${pr%)}
+				title2=${title2%" ("*}
+				title2="${title2} (#${pr})"$'\n'
+			fi
+
 			if [[ ${title1} != "${title2}" ]]; then
 				log "Invariant failed, cherry-picked commits have different titles: \"${title1%$'\n'}\" != \"${title2%$'\n'}\", attempting to check commit body for cherry-pick information..."
 
