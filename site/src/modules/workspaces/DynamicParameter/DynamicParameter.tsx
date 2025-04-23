@@ -86,13 +86,11 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 	return (
 		<div className="flex items-start gap-2">
 			{parameter.icon && (
-				<span className="w-5 h-5">
-					<ExternalImage
-						className="w-full h-full mt-0.5 object-contain"
-						alt="Parameter icon"
-						src={parameter.icon}
-					/>
-				</span>
+				<ExternalImage
+					className="w-5 h-5 mt-0.5 object-contain"
+					alt="Parameter icon"
+					src={parameter.icon}
+				/>
 			)}
 
 			<div className="flex flex-col w-full gap-1">
