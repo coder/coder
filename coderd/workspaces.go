@@ -676,6 +676,9 @@ func createWorkspace(
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}
+		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+			builder = builder.UsingDynamicParameters()
+		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,

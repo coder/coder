@@ -11453,6 +11453,9 @@ const docTemplate = `{
                 "autostart_schedule": {
                     "type": "string"
                 },
+                "enable_dynamic_parameters": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
