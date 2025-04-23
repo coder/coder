@@ -515,7 +515,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		var workspaceOwnerOIDCAccessToken string
-		if s.OIDCConfig != nil {
+		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
+		// pointing to a typed nil.
+		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
 			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
@@ -595,17 +597,24 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			})
 		}
 
-		roles, err := s.Database.GetAuthorizationUserRoles(ctx, owner.ID)
+		allUserRoles, err := s.Database.GetAuthorizationUserRoles(ctx, owner.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner authorization roles: %s", err))
 		}
 		ownerRbacRoles := []*sdkproto.Role{}
-		for _, role := range roles.Roles {
-			if s.OrganizationID == uuid.Nil {
-				ownerRbacRoles = append(ownerRbacRoles, &sdkproto.Role{Name: role, OrgId: ""})
-				continue
+		roles, err := allUserRoles.RoleNames()
+		if err == nil {
+			for _, role := range roles {
+				if role.OrganizationID != uuid.Nil && role.OrganizationID != s.OrganizationID {
+					continue // Only include site wide and org specific roles
+				}
+
+				orgID := role.OrganizationID.String()
+				if role.OrganizationID == uuid.Nil {
+					orgID = ""
+				}
+				ownerRbacRoles = append(ownerRbacRoles, &sdkproto.Role{Name: role.Name, OrgId: orgID})
 			}
-			ownerRbacRoles = append(ownerRbacRoles, &sdkproto.Role{Name: role, OrgId: s.OrganizationID.String()})
 		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{

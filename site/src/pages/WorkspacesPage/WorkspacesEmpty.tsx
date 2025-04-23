@@ -1,7 +1,7 @@
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
@@ -31,12 +31,12 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	);
 
 	if (isUsingFilter) {
-		return <TableEmpty message="No results matched your search" />;
+		return <EmptyState message="No results matched your search" />;
 	}
 
 	if (templates && templates.length === 0 && canCreateTemplate) {
 		return (
-			<TableEmpty
+			<EmptyState
 				message={defaultTitle}
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
@@ -52,7 +52,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 
 	if (templates && templates.length === 0 && !canCreateTemplate) {
 		return (
-			<TableEmpty
+			<EmptyState
 				message={defaultTitle}
 				description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
 				className="pb-0"
@@ -62,7 +62,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	}
 
 	return (
-		<TableEmpty
+		<EmptyState
 			message={defaultTitle}
 			description={`${defaultMessage} Select one template below to start.`}
 			cta={

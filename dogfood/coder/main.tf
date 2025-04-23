@@ -425,10 +425,16 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
-  # Ensure the workspace is given time to execute shutdown scripts.
-  destroy_grace_seconds = 60
-  stop_timeout          = 60
+
+  # Ensure the workspace is given time to:
+  # - Execute shutdown scripts
+  # - Stop the in workspace Docker daemon
+  # - Stop the container, especially when using devcontainers,
+  #   deleting the overlay filesystem can take a while.
+  destroy_grace_seconds = 300
+  stop_timeout          = 300
   stop_signal           = "SIGINT"
+
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "USE_CAP_NET_ADMIN=true",

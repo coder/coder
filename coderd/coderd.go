@@ -1108,10 +1108,6 @@ func New(options *Options) *API {
 			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
 			r.Get("/schema", templateVersionSchemaDeprecated)
 			r.Get("/parameters", templateVersionParametersDeprecated)
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters))
-				r.Get("/dynamic-parameters", api.templateVersionDynamicParameters)
-			})
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
@@ -1177,6 +1173,17 @@ func New(options *Options) *API {
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
 						r.Post("/workspaces", api.postUserWorkspaces)
+
+						// Similarly to creating a workspace, evaluating parameters for a
+						// new workspace should also match the authz story of
+						// postWorkspacesByOrganization
+						r.Route("/templateversions/{templateversion}", func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractTemplateVersionParam(options.Database),
+								httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
+							)
+							r.Get("/parameters", api.templateVersionDynamicParameters)
+						})
 					})
 
 					r.Group(func(r chi.Router) {
@@ -1809,10 +1816,10 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	for _, v := range raw {
 		switch v {
 		case "*":
-			exps = append(exps, codersdk.ExperimentsAll...)
+			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

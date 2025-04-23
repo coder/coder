@@ -17,12 +17,12 @@
 						"provider_name": "registry.terraform.io/coder/coder",
 						"schema_version": 0,
 						"values": {
-							"id": "25e81ec3-0eb9-4ee3-8b6d-738b8552f7a9",
-							"name": "default",
-							"email": "default@example.com",
+							"id": "",
+							"name": "",
+							"email": "",
 							"groups": [],
-							"full_name": "default",
-							"login_type": null,
+							"full_name": "",
+							"login_type": "",
 							"rbac_roles": [],
 							"session_token": "",
 							"ssh_public_key": "",
@@ -74,19 +74,7 @@
 	"relevant_attributes": [
 		{
 			"resource": "data.coder_workspace_owner.me",
-			"attribute": ["full_name"]
-		},
-		{
-			"resource": "data.coder_workspace_owner.me",
-			"attribute": ["email"]
-		},
-		{
-			"resource": "data.coder_workspace_owner.me",
-			"attribute": ["id"]
-		},
-		{
-			"resource": "data.coder_workspace_owner.me",
-			"attribute": ["name"]
+			"attribute": ["groups"]
 		}
 	]
 }

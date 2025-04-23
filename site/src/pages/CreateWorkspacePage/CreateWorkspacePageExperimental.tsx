@@ -57,6 +57,8 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
+	const defaultOwner = me;
+	const [owner, setOwner] = useState(defaultOwner);
 
 	const queryClient = useQueryClient();
 	const autoCreateWorkspaceMutation = useMutation(
@@ -67,10 +69,11 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
-	const templateVersionPresetsQuery = useQuery({
-		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: templateQuery.data !== undefined,
-	});
+	const templateVersionPresetsQuery = useQuery(
+		templateQuery.data
+			? templateVersionPresets(templateQuery.data.active_version_id)
+			: { enabled: false },
+	);
 	const permissionsQuery = useQuery(
 		templateQuery.data
 			? checkAuthorization({
@@ -96,19 +99,23 @@ const CreateWorkspacePageExperimental: FC = () => {
 			return;
 		}
 
-		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
-			onMessage,
-			onError: (error) => {
-				setWsError(error);
+		const socket = API.templateVersionDynamicParameters(
+			owner.id,
+			realizedVersionId,
+			{
+				onMessage,
+				onError: (error) => {
+					setWsError(error);
+				},
 			},
-		});
+		);
 
 		ws.current = socket;
 
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage]);
+	}, [owner.id, realizedVersionId, onMessage]);
 
 	const sendMessage = useCallback((formValues: Record<string, string>) => {
 		setWSResponseId((prevId) => {
@@ -237,7 +244,9 @@ const CreateWorkspacePageExperimental: FC = () => {
 					defaultName={defaultName}
 					diagnostics={currentResponse?.diagnostics ?? []}
 					disabledParams={disabledParams}
-					defaultOwner={me}
+					defaultOwner={defaultOwner}
+					owner={owner}
+					setOwner={setOwner}
 					autofillParameters={autofillParameters}
 					error={
 						wsError ||

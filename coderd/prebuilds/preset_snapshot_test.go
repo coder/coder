@@ -146,7 +146,9 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateState(t, prebuilds.ReconciliationState{}, *state)
+	validateState(t, prebuilds.ReconciliationState{
+		Actual: 1,
+	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
 		ActionType: prebuilds.ActionTypeDelete,
 		DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
@@ -208,6 +210,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
+		Actual:   1,
 		Deleting: 1,
 	}, *state)
 
@@ -530,7 +533,9 @@ func TestDeprecated(t *testing.T) {
 	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateState(t, prebuilds.ReconciliationState{}, *state)
+	validateState(t, prebuilds.ReconciliationState{
+		Actual: 1,
+	}, *state)
 	validateActions(t, prebuilds.ReconciliationActions{
 		ActionType: prebuilds.ActionTypeDelete,
 		DeleteIDs:  []uuid.UUID{current.prebuiltWorkspaceID},

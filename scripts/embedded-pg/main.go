@@ -24,6 +24,8 @@ func main() {
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V16).
 			BinariesPath(filepath.Join(postgresPath, "bin")).
+			// Default BinaryRepositoryURL repo1.maven.org is flaky.
+			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			DataPath(filepath.Join(postgresPath, "data")).
 			RuntimePath(filepath.Join(postgresPath, "runtime")).
 			CachePath(filepath.Join(postgresPath, "cache")).
