@@ -352,17 +352,17 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			}
 
 			return (
-					<Input
-						type={inputType}
-						defaultValue={defaultValue}
-						onChange={(e) => onChange(e.target.value)}
-						disabled={disabled}
-						required={parameter.required}
-						placeholder={
-							(parameter.styling as { placeholder?: string })?.placeholder
-						}
-						{...inputProps}
-					/>
+				<Input
+					type={inputType}
+					defaultValue={defaultValue}
+					onChange={(e) => onChange(e.target.value)}
+					disabled={disabled}
+					required={parameter.required}
+					placeholder={
+						(parameter.styling as { placeholder?: string })?.placeholder
+					}
+					{...inputProps}
+				/>
 			);
 		}
 	}
