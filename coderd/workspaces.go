@@ -886,8 +886,8 @@ func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.S
 
 	lookup, err := db.GetWorkspaceByID(prebuildsCtx, *claimedID)
 	if err != nil {
-		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", (*claimedID).String()))
-		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", (*claimedID).String(), err)
+		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", claimedID.String()))
+		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", claimedID.String(), err)
 	}
 	return &lookup, nil
 }

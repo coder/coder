@@ -38,12 +38,12 @@ var _ ReconciliationOrchestrator = NoopReconciler{}
 
 type AGPLPrebuildClaimer struct{}
 
-func (c AGPLPrebuildClaimer) Claim(context.Context, uuid.UUID, string, uuid.UUID) (*uuid.UUID, error) {
+func (AGPLPrebuildClaimer) Claim(context.Context, uuid.UUID, string, uuid.UUID) (*uuid.UUID, error) {
 	// Not entitled to claim prebuilds in AGPL version.
 	return nil, ErrNoClaimablePrebuiltWorkspaces
 }
 
-func (c AGPLPrebuildClaimer) Initiator() uuid.UUID {
+func (AGPLPrebuildClaimer) Initiator() uuid.UUID {
 	return uuid.Nil
 }
 
