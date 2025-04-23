@@ -448,8 +448,8 @@ runs:
         echo "status=success" >> $GITHUB_OUTPUT
         echo "result=" >> $GITHUB_OUTPUT
         
-        # Setup regex patterns for cross-references
-        MD_LINK_PATTERN='\[([^\]]+)\]\(([^)]+)\)'
+        # Setup regex patterns for cross-references (escape special regex characters)
+        MD_LINK_PATTERN='\[[^\]]+\]\([^)]+\)'
         ANCHOR_LINK_PATTERN='\(#[^)]+\)'
         
         # Get the base commit to compare against
@@ -474,8 +474,14 @@ runs:
           
           # Check if file exists in commit
           if git cat-file -e $commit:$file 2>/dev/null; then
-            git show $commit:$file | grep -E '^#{1,6} ' | sed 's/^#* //' | tr -d '`' | \
-            tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 -]//g' | sed 's/ /-/g'
+            # Extract and process headings with error handling
+            git show $commit:$file 2>/dev/null | grep -E '^#{1,6} ' | 
+            while IFS= read -r line; do
+              echo "$line" | sed 's/^#* //' | tr -d '`' | 
+              tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 -]//g' | sed 's/ /-/g' || echo ""
+            done
+          else
+            echo "File not found in commit: $file@$commit" >&2
           fi
         }
         
@@ -537,9 +543,10 @@ runs:
             for heading in $old_headings; do
               if ! echo "$new_headings" | grep -q "$heading"; then
                 # This heading was removed or changed
-                # Look for references to this heading
-                sanitized=${heading//\//\\/}  # Escape / for grep
-                refs=$(grep -r --include="*.md" -l "#$sanitized)" . || echo "")
+                # Look for references to this heading with proper escaping
+                # Use grep -F for fixed string matching instead of regex
+                sanitized="${heading}"
+                refs=$(grep -r --include="*.md" -F -l "#$sanitized)" . || echo "")
                 
                 if [ -n "$refs" ]; then
                   for ref_file in $refs; do
@@ -573,8 +580,10 @@ runs:
       id: generate-preview
       shell: bash
       run: |
-        # Simple branch name extraction and URL generation
-        BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9_-]/-/g')
+        # Robust branch name extraction with fallbacks for CI environments
+        BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" | sed 's/[^a-zA-Z0-9_-]/-/g')
+        # Store branch for other steps
+        echo "BRANCH=$BRANCH" >> $GITHUB_ENV
         echo "url=https://coder.com/docs/@$BRANCH" >> $GITHUB_OUTPUT
         
         # Generate direct links to changed docs

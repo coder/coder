@@ -87,8 +87,11 @@ jobs:
           if [ -f "./lychee-result.json" ]; then
             echo "Reading link check results from lychee-result.json"
             
-            # Count broken links - lychee format is different from linkspector
-            BROKEN_LINKS=$(jq '.data.failed | length' "./lychee-result.json")
+            # Count broken links with error handling
+            BROKEN_LINKS=0
+            if jq -e '.data.failed' "./lychee-result.json" > /dev/null 2>&1; then
+              BROKEN_LINKS=$(jq '.data.failed | length' "./lychee-result.json" || echo "0")
+            fi
             echo "broken_links=$BROKEN_LINKS" >> $GITHUB_OUTPUT
             
             if [ "$BROKEN_LINKS" -gt 0 ]; then
@@ -130,6 +133,15 @@ jobs:
             ISSUE_CONTENT+="2. Update the link if needed or remove it\n"
             ISSUE_CONTENT+="3. If the link is valid but fails the check, consider adding it to the ignore list in `.github/docs/.lycheeignore`\n\n"
             
+            # Use cat with heredoc instead of echo -e for more reliable newline handling
+            cat << 'EOT' >> /tmp/issue-guidance.txt
+### Additional Guidance
+- For 404 errors: Check if the resource was moved or renamed
+- For timeout errors: The site might be temporarily down, consider retrying
+- For redirect issues: Update to the final URL
+EOT
+            ISSUE_CONTENT+=$(cat /tmp/issue-guidance.txt)
+            
             ISSUE_CONTENT+="### For Broken Cross-References\n\n"
             ISSUE_CONTENT+="1. Update references to deleted or renamed files\n"
             ISSUE_CONTENT+="2. Update references to removed headings\n"
@@ -164,7 +176,8 @@ jobs:
             documentation
             bug
             needs-triage
-          assignees: EdwardAngert # Assign to docs team lead
+          # Configure assignee through CODEOWNERS or a team instead of hardcoding
+          # Additional reviewers can be added in codeowners file or docs team
           
       # Log result for troubleshooting  
       - name: Log issue creation status

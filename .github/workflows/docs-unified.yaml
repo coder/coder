@@ -65,6 +65,7 @@ jobs:
       # Phase 2: Prepare PR Information
       - name: Get PR info
         id: pr_info
+        if: github.event.pull_request
         run: |
           set -euo pipefail
           PR_NUMBER=${{ github.event.pull_request.number }}
