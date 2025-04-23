@@ -2,12 +2,12 @@ package prebuilds
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
-var ErrNoClaimablePrebuiltWorkspaces = errors.New("no claimable prebuilt workspaces found")
+var ErrNoClaimablePrebuiltWorkspaces = xerrors.New("no claimable prebuilt workspaces found")
 
 // ReconciliationOrchestrator manages the lifecycle of prebuild reconciliation.
 // It runs a continuous loop to check and reconcile prebuild states, and can be stopped gracefully.

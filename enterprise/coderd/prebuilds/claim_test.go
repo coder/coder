@@ -3,7 +3,6 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/quartz"
 
@@ -366,7 +366,7 @@ func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
 			},
 		},
 		"unexpected error during claim is returned": {
-			claimingErr: errors.New("unexpected error during claim"),
+			claimingErr: xerrors.New("unexpected error during claim"),
 			checkFn: func(
 				t *testing.T,
 				ctx context.Context,
