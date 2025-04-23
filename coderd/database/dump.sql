@@ -1409,8 +1409,11 @@ CREATE TABLE template_version_presets (
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    cached_plan jsonb NOT NULL
+    cached_plan jsonb NOT NULL,
+    tfstate bytea
 );
+
+COMMENT ON COLUMN template_version_terraform_values.tfstate IS 'Tarball of the relevant tfstate directory files for dynamic parameters. Not all files are included.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,

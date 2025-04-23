@@ -3207,6 +3207,8 @@ type TemplateVersionTerraformValue struct {
 	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
 	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	// Tarball of the relevant tfstate directory files for dynamic parameters. Not all files are included.
+	Tfstate []byte `db:"tfstate" json:"tfstate"`
 }
 
 type TemplateVersionVariable struct {
