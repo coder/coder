@@ -1152,7 +1152,13 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
 	experimentEnabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
 	if !experimentEnabled || !featureEnabled {
-		api.Logger.Debug(context.Background(), "prebuilds not enabled",
+		levelFn := api.Logger.Debug
+		// If the experiment is enabled but the license does not entitle the feature, operators should be warned.
+		if !featureEnabled {
+			levelFn = api.Logger.Warn
+		}
+
+		levelFn(context.Background(), "prebuilds not enabled",
 			slog.F("experiment_enabled", experimentEnabled), slog.F("feature_enabled", featureEnabled))
 
 		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer

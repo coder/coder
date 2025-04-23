@@ -3038,7 +3038,6 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
-		// Push notifications.
 
 		// Workspace Prebuilds Options
 		{
