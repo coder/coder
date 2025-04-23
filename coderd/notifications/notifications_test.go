@@ -978,102 +978,45 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
-				Labels:       map[string]string{},
+				Labels: map[string]string{
+					"template_name":         "bobby-first-template",
+					"template_display_name": "Bobby First Template",
+				},
 				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
 				Data: map[string]any{
+					"failed_builds":    4.0,
+					"total_builds":     55.0,
 					"report_frequency": "week",
-					"templates": []map[string]any{
+					"template_versions": []map[string]any{
 						{
-							"name":          "bobby-first-template",
-							"display_name":  "Bobby First Template",
-							"failed_builds": 4.0,
-							"total_builds":  55.0,
-							"versions": []map[string]any{
+							"template_version_name": "bobby-template-version-1",
+							"failed_count":          3.0,
+							"failed_builds": []map[string]any{
 								{
-									"template_version_name": "bobby-template-version-1",
-									"failed_count":          3.0,
-									"failed_builds": []map[string]any{
-										{
-											"workspace_owner_username": "mtojek",
-											"workspace_name":           "workspace-1",
-											"workspace_id":             "24f5bd8f-1566-4374-9734-c3efa0454dc7",
-											"build_number":             1234.0,
-										},
-										{
-											"workspace_owner_username": "johndoe",
-											"workspace_name":           "my-workspace-3",
-											"workspace_id":             "372a194b-dcde-43f1-b7cf-8a2f3d3114a0",
-											"build_number":             5678.0,
-										},
-										{
-											"workspace_owner_username": "jack",
-											"workspace_name":           "workwork",
-											"workspace_id":             "1386d294-19c1-4351-89e2-6cae1afb9bfe",
-											"build_number":             774.0,
-										},
-									},
+									"workspace_owner_username": "mtojek",
+									"workspace_name":           "workspace-1",
+									"build_number":             1234.0,
 								},
 								{
-									"template_version_name": "bobby-template-version-2",
-									"failed_count":          1.0,
-									"failed_builds": []map[string]any{
-										{
-											"workspace_owner_username": "ben",
-											"workspace_name":           "cool-workspace",
-											"workspace_id":             "86fd99b1-1b6e-4b7e-b58e-0aee6e35c159",
-											"build_number":             8888.0,
-										},
-									},
+									"workspace_owner_username": "johndoe",
+									"workspace_name":           "my-workspace-3",
+									"build_number":             5678.0,
+								},
+								{
+									"workspace_owner_username": "jack",
+									"workspace_name":           "workwork",
+									"build_number":             774.0,
 								},
 							},
 						},
 						{
-							"name":          "bobby-second-template",
-							"display_name":  "Bobby Second Template",
-							"failed_builds": 5.0,
-							"total_builds":  50.0,
-							"versions": []map[string]any{
+							"template_version_name": "bobby-template-version-2",
+							"failed_count":          1.0,
+							"failed_builds": []map[string]any{
 								{
-									"template_version_name": "bobby-template-version-1",
-									"failed_count":          3.0,
-									"failed_builds": []map[string]any{
-										{
-											"workspace_owner_username": "daniellemaywood",
-											"workspace_name":           "workspace-9",
-											"workspace_id":             "cd469690-b6eb-4123-b759-980be7a7b278",
-											"build_number":             9234.0,
-										},
-										{
-											"workspace_owner_username": "johndoe",
-											"workspace_name":           "my-workspace-7",
-											"workspace_id":             "c447d472-0800-4529-a836-788754d5e27d",
-											"build_number":             8678.0,
-										},
-										{
-											"workspace_owner_username": "jack",
-											"workspace_name":           "workworkwork",
-											"workspace_id":             "919db6df-48f0-4dc1-b357-9036a2c40f86",
-											"build_number":             374.0,
-										},
-									},
-								},
-								{
-									"template_version_name": "bobby-template-version-2",
-									"failed_count":          2.0,
-									"failed_builds": []map[string]any{
-										{
-											"workspace_owner_username": "ben",
-											"workspace_name":           "more-cool-workspace",
-											"workspace_id":             "c8fb0652-9290-4bf2-a711-71b910243ac2",
-											"build_number":             8878.0,
-										},
-										{
-											"workspace_owner_username": "ben",
-											"workspace_name":           "less-cool-workspace",
-											"workspace_id":             "703d718d-2234-4990-9a02-5b1df6cf462a",
-											"build_number":             8848.0,
-										},
-									},
+									"workspace_owner_username": "ben",
+									"workspace_name":           "cool-workspace",
+									"build_number":             8888.0,
 								},
 							},
 						},
