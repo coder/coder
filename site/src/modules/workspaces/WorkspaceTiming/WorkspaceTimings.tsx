@@ -12,7 +12,12 @@ import type {
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
 import { type FC, useState } from "react";
-import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
+import {
+	type TimeRange,
+	calcDuration,
+	formatTime,
+	mergeTimeRanges,
+} from "./Chart/utils";
 import { ResourcesChart, isCoderResource } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
@@ -85,7 +90,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	const displayProvisioningTime = () => {
 		const totalRange = mergeTimeRanges(timings.map(toTimeRange));
 		const totalDuration = calcDuration(totalRange);
-		return humanizeDuration(totalDuration);
+		return formatTime(totalDuration);
 	};
 
 	return (
