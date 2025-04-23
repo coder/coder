@@ -440,7 +440,6 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		organizationMember, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: template.OrganizationID,
 			UserID:         user.ID,
-			IncludeSystem:  false,
 		}))
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
