@@ -1158,7 +1158,7 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 			levelFn = api.Logger.Warn
 		}
 
-		levelFn(context.Background(), "prebuilds not enabled",
+		levelFn(context.Background(), "prebuilds not enabled; ensure you have a premium license and the 'workspace-prebuilds' experiment set",
 			slog.F("experiment_enabled", experimentEnabled), slog.F("feature_enabled", featureEnabled))
 
 		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
