@@ -1,0 +1,36 @@
+name: 'Docs Setup'
+description: 'Sets up the environment for docs-related workflows'
+author: 'Coder'
+
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: false
+    default: '20'
+  fetch-depth:
+    description: 'Git fetch depth'
+    required: false
+    default: '0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+
+    - name: Install PNPM
+      uses: pnpm/action-setup@v3
+      with:
+        run_install: false
+
+    - name: Install dependencies
+      shell: bash
+      run: ./scripts/pnpm_install.sh

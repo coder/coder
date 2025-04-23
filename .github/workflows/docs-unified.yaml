@@ -17,6 +17,11 @@ on:
         required: false 
         type: boolean
         default: true
+      check-cross-references:
+        description: 'Whether to check for broken cross-references when files or headings change'
+        required: false
+        type: boolean
+        default: true
       lint-vale:
         description: 'Whether to run Vale style checks on documentation'
         required: false
@@ -51,24 +56,8 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          run_install: false
-
-      - name: Install dependencies
-        run: ./scripts/pnpm_install.sh
+      - name: Setup Environment
+        uses: ./.github/docs/actions/docs-setup
 
       - name: Get PR info
         id: pr_info
@@ -90,6 +79,7 @@ jobs:
           check-links: ${{ inputs.check-links }}
           lint-markdown: ${{ inputs.lint-markdown }}
           check-format: ${{ inputs.check-format }}
+          check-cross-references: ${{ inputs.check-cross-references }}
           lint-vale: ${{ inputs.lint-vale }}
           generate-preview: ${{ inputs.generate-preview }}
           post-comment: ${{ inputs.post-comment }}
@@ -115,4 +105,8 @@ jobs:
           
           if [ "${{ steps.docs-shared.outputs.vale_results }}" != "" ]; then
             echo "Vale style issues found"
+          fi
+          
+          if [ "${{ steps.docs-shared.outputs.cross_ref_results }}" != "" ]; then
+            echo "Broken cross-references found"
           fi

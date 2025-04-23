@@ -19,6 +19,7 @@ jobs:
       lint-markdown: true
       check-format: true
       check-links: true
+      check-cross-references: true
       lint-vale: true
       generate-preview: true
       post-comment: true
@@ -77,6 +78,7 @@ jobs:
           check-links: "true"
           lint-markdown: "true"
           check-format: "true"
+          check-cross-references: "true"
           lint-vale: "true"
           generate-preview: "true"
           post-comment: "true"
@@ -92,4 +94,8 @@ jobs:
           
           if [ "${{ steps.docs-shared.outputs.format_results }}" != "" ]; then
             echo "Formatting issues found, please run 'make fmt/markdown' locally"
+          fi
+          
+          if [ "${{ steps.docs-shared.outputs.cross_ref_results }}" != "" ]; then
+            echo "Broken cross-references found"
           fi

@@ -27,6 +27,7 @@ jobs:
       lint-markdown: true
       check-format: true
       check-links: true
+      check-cross-references: true
       lint-vale: true
       generate-preview: true
       post-comment: true
@@ -47,11 +48,12 @@ The `docs-link-check.yaml` workflow runs after merges to main and on a weekly sc
 1. **Documentation Preview**: Generates preview links for documentation changes
 2. **Vale Style Checking**: Enforces consistent terminology and style
 3. **Link Validation**: Checks for broken links in documentation
-4. **Markdown Linting**: Ensures proper markdown formatting with markdownlint-cli2
-5. **Markdown Table Format Checking**: Checks (but doesn't apply) markdown table formatting
-6. **PR Comments**: Creates or updates PR comments with preview links and validation results
-7. **Post-Merge Validation**: Ensures documentation quality after merges to main
-8. **Issue Creation**: Automatically creates GitHub issues for broken links
+4. **Cross-Reference Validation**: Detects broken references when files or headings are changed/removed
+5. **Markdown Linting**: Ensures proper markdown formatting with markdownlint-cli2
+6. **Markdown Table Format Checking**: Checks (but doesn't apply) markdown table formatting
+7. **PR Comments**: Creates or updates PR comments with preview links and validation results
+8. **Post-Merge Validation**: Ensures documentation quality after merges to main
+9. **Issue Creation**: Automatically creates GitHub issues for broken links
 
 ## Formatting Local Workflow
 

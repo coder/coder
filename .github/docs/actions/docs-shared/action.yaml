@@ -30,6 +30,10 @@ inputs:
     description: 'Whether to run Vale style checks on documentation'
     required: false
     default: 'true'
+  check-cross-references:
+    description: 'Whether to check for broken cross-references when files or headings change'
+    required: false
+    default: 'true'
   generate-preview:
     description: 'Whether to generate preview links'
     required: false
@@ -84,6 +88,9 @@ outputs:
   vale_results:
     description: 'Results from Vale style checks'
     value: ${{ steps.lint-vale.outputs.result || '' }}
+  cross_ref_results:
+    description: 'Results from cross-reference checking'
+    value: ${{ steps.cross-references.outputs.cross_ref_results || '' }}
 
 runs:
   using: 'composite'
@@ -110,6 +117,31 @@ runs:
           ${{ inputs.include-md-files == 'true' && '**.md' || '' }}
         separator: ','
         json: true
+        
+    - name: Process file lists
+      id: process-files
+      shell: bash
+      run: |
+        # Set up environment
+        CHANGED_FILES='${{ steps.changed-files.outputs.all_changed_files_json }}'
+        DELETED_FILES='${{ steps.changed-files.outputs.deleted_files_json || '[]' }}'
+        
+        # Process files into different formats once
+        echo "md_files_comma<<EOF" >> $GITHUB_OUTPUT
+        echo "${{ steps.changed-files.outputs.all_changed_files }}" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "md_files_line<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGED_FILES" | jq -r '.[] | select(endswith(".md"))' >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "docs_files_line<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGED_FILES" | jq -r '.[] | select(endswith(".md")) | select(startswith("${{ inputs.docs-dir }}/"))' >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "deleted_md_files_line<<EOF" >> $GITHUB_OUTPUT
+        echo "$DELETED_FILES" | jq -r '.[] | select(endswith(".md"))' >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Check if manifest changed
       id: manifest-check
@@ -239,7 +271,7 @@ runs:
       id: lint-docs
       shell: bash
       run: |
-        lint_output=$(pnpm exec markdownlint-cli2 ${{ steps.changed-files.outputs.all_changed_files }} 2>&1) || true
+        lint_output=$(pnpm exec markdownlint-cli2 ${{ steps.process-files.outputs.md_files_comma }} 2>&1) || true
         echo "result<<EOF" >> $GITHUB_OUTPUT
         echo "$lint_output" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
@@ -256,7 +288,7 @@ runs:
       shell: bash
       run: |
         # markdown-table-formatter requires a space separated list of files
-        format_output=$(echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | pnpm exec markdown-table-formatter --check 2>&1) || true
+        format_output=$(echo "${{ steps.process-files.outputs.md_files_line }}" | pnpm exec markdown-table-formatter --check 2>&1) || true
         echo "result<<EOF" >> $GITHUB_OUTPUT
         echo "$format_output" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
@@ -289,7 +321,7 @@ runs:
       shell: bash
       run: |
         # Run Vale on changed files and capture output
-        vale_output=$(echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | grep '\.md$' | xargs -r vale --config=.github/docs/vale/.vale.ini --output=line 2>&1) || true
+        vale_output=$(echo "${{ steps.process-files.outputs.md_files_line }}" | xargs -r vale --config=.github/docs/vale/.vale.ini --output=line 2>&1) || true
         
         echo "result<<EOF" >> $GITHUB_OUTPUT
         echo "$vale_output" >> $GITHUB_OUTPUT
@@ -299,6 +331,137 @@ runs:
           echo "::error::Vale style check found issues:"
           echo "$vale_output"
           exit 1
+        fi
+        
+    - name: Check for broken cross-references
+      if: inputs.check-cross-references == 'true' && steps.docs-analysis.outputs.has_changes == 'true'
+      id: cross-references
+      shell: bash
+      run: |
+        # Get the base branch (usually main)
+        BASE_SHA=$(git merge-base HEAD origin/main)
+        
+        echo "Checking for broken cross-references..."
+        
+        # Initialize results
+        BROKEN_REFS=""
+        
+        # Process deleted files
+        if [ -n "${{ steps.process-files.outputs.deleted_md_files_line }}" ]; then
+          echo "Processing deleted files"
+          
+          # Loop through deleted markdown files
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            
+            echo "File $file was deleted, checking for references..."
+            
+            # Convert file path to potential link formats (removing .md extension)
+            OLD_PATH=$(echo "$file" | sed 's/\.md$//')
+            
+            # Search in docs directory
+            DOC_REFS=$(grep -r --include="*.md" -l -E "\[$OLD_PATH\]|\($OLD_PATH\)" ${{ inputs.docs-dir }} || echo "")
+            
+            # Search in codebase (excluding specific directories)
+            CODE_REFS=$(grep -r --include="*.{go,ts,js,py,java,cs,php}" -l "$OLD_PATH" . --exclude-dir={node_modules,.git,build,dist} || echo "")
+            
+            if [ -n "$DOC_REFS" ] || [ -n "$CODE_REFS" ]; then
+              BROKEN_REFS="${BROKEN_REFS}## References to deleted file: $file\n\n"
+              
+              if [ -n "$DOC_REFS" ]; then
+                BROKEN_REFS="${BROKEN_REFS}### In documentation:\n"
+                BROKEN_REFS="${BROKEN_REFS}$(echo "$DOC_REFS" | sed 's/^/- /')\n\n"
+              fi
+              
+              if [ -n "$CODE_REFS" ]; then
+                BROKEN_REFS="${BROKEN_REFS}### In codebase:\n"
+                BROKEN_REFS="${BROKEN_REFS}$(echo "$CODE_REFS" | sed 's/^/- /')\n\n"
+              fi
+            fi
+          done <<< "${{ steps.process-files.outputs.deleted_md_files_line }}"
+        fi
+        
+        # Process modified files for heading changes
+        while IFS= read -r file; do
+          [ -z "$file" ] && continue
+          
+          if [ -f "$file" ]; then
+            echo "Checking for changed headings in $file..."
+            
+            # Extract headings before the change
+            OLD_HEADINGS=$(git show "$BASE_SHA:$file" 2>/dev/null | grep -E "^#{1,6} " | sed 's/^#\{1,6\} \(.*\)$/\1/' || echo "")
+            
+            # Extract current headings
+            NEW_HEADINGS=$(cat "$file" | grep -E "^#{1,6} " | sed 's/^#\{1,6\} \(.*\)$/\1/')
+            
+            # Find removed headings
+            REMOVED_HEADINGS=$(comm -23 <(echo "$OLD_HEADINGS" | sort) <(echo "$NEW_HEADINGS" | sort))
+            
+            if [ -n "$REMOVED_HEADINGS" ]; then
+              while IFS= read -r heading; do
+                [ -z "$heading" ] && continue
+                
+                # Convert heading to anchor format (lowercase, spaces to hyphens)
+                ANCHOR=$(echo "$heading" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:] -' | tr ' ' '-')
+                
+                # Search for references to this anchor in documentation
+                HEAD_REFS=$(grep -r --include="*.md" -l "#$ANCHOR" ${{ inputs.docs-dir }} || echo "")
+                
+                if [ -n "$HEAD_REFS" ]; then
+                  BROKEN_REFS="${BROKEN_REFS}## References to removed heading: '$heading' in $file\n\n"
+                  BROKEN_REFS="${BROKEN_REFS}$(echo "$HEAD_REFS" | sed 's/^/- /')\n\n"
+                fi
+              done <<< "$REMOVED_HEADINGS"
+            fi
+          fi
+        done <<< "${{ steps.process-files.outputs.docs_files_line }}"
+        
+        # Check for renamed files by comparing paths
+        while IFS= read -r file; do
+          [ -z "$file" ] && continue
+          
+          # Use git to check if this is a renamed file
+          PREV_PATH=$(git diff --name-status "$BASE_SHA" | grep "^R" | grep "$file$" | cut -f2)
+          
+          if [ -n "$PREV_PATH" ] && [ "$PREV_PATH" != "$file" ]; then
+            echo "File renamed from $PREV_PATH to $file, checking for references..."
+            
+            # Convert old file path to potential link formats
+            OLD_PATH=$(echo "$PREV_PATH" | sed 's/\.md$//')
+            
+            # Search in docs directory
+            DOC_REFS=$(grep -r --include="*.md" -l -E "\[$OLD_PATH\]|\($OLD_PATH\)" ${{ inputs.docs-dir }} || echo "")
+            
+            # Search in codebase (excluding specific directories)
+            CODE_REFS=$(grep -r --include="*.{go,ts,js,py,java,cs,php}" -l "$OLD_PATH" . --exclude-dir={node_modules,.git,build,dist} || echo "")
+            
+            if [ -n "$DOC_REFS" ] || [ -n "$CODE_REFS" ]; then
+              BROKEN_REFS="${BROKEN_REFS}## References to renamed file: $PREV_PATH → $file\n\n"
+              
+              if [ -n "$DOC_REFS" ]; then
+                BROKEN_REFS="${BROKEN_REFS}### In documentation:\n"
+                BROKEN_REFS="${BROKEN_REFS}$(echo "$DOC_REFS" | sed 's/^/- /')\n\n"
+              fi
+              
+              if [ -n "$CODE_REFS" ]; then
+                BROKEN_REFS="${BROKEN_REFS}### In codebase:\n"
+                BROKEN_REFS="${BROKEN_REFS}$(echo "$CODE_REFS" | sed 's/^/- /')\n\n"
+              fi
+            fi
+          fi
+        done <<< "${{ steps.process-files.outputs.md_files_line }}"
+        
+        if [ -n "$BROKEN_REFS" ]; then
+          echo "cross_ref_results<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$BROKEN_REFS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            echo "::error::Broken cross-references found. See output for details."
+            exit 1
+          fi
+        else
+          echo "No broken cross-references found"
         fi
 
     - name: Generate Preview URL
@@ -367,6 +530,10 @@ runs:
           ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
           ${{ steps.lint-vale.outputs.result != '' && steps.lint-vale.outputs.result || '' }}
           ${{ steps.lint-vale.outputs.result != '' && '```' || '' }}
+
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && '### Broken Cross-References' || '' }}
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && 'The following cross-references may be broken due to file or heading changes:' || '' }}
+          ${{ steps.cross-references.outputs.cross_ref_results != '' && steps.cross-references.outputs.cross_ref_results || '' }}
 
           ---
           <sub>🤖 This comment is automatically generated and updated when documentation changes.</sub>
