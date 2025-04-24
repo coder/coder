@@ -202,6 +202,27 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "test", resp)
 	})
+
+	t.Run("UTF8Password", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+				Text:   "Password:",
+				Secret: true,
+			}, nil)
+			assert.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Password: ")
+
+		ptty.WriteLine("和製漢字")
+
+		resp := testutil.TryReceive(ctx, t, doneChan)
+		require.Equal(t, "和製漢字", resp)
+	})
 }
 
 func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {

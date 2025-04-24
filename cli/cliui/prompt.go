@@ -91,15 +91,13 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		var line string
 		var err error
 
+		signal.Notify(interrupt, os.Interrupt)
+		defer signal.Stop(interrupt)
+
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
-			signal.Notify(interrupt, os.Interrupt)
-			defer signal.Stop(interrupt)
 			line, err = readSecretInput(inFile, inv.Stdout)
 		} else {
-			signal.Notify(interrupt, os.Interrupt)
-			defer signal.Stop(interrupt)
-
 			line, err = readUntil(inv.Stdin, '\n')
 
 			// Check if the first line beings with JSON object or array chars.
