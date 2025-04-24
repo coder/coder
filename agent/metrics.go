@@ -20,7 +20,6 @@ type agentMetrics struct {
 	// took to run. This is reported once per agent.
 	startupScriptSeconds *prometheus.GaugeVec
 	currentConnections   *prometheus.GaugeVec
-	manifestsReceived    prometheus.Counter
 }
 
 func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
@@ -55,20 +54,11 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	}, []string{"connection_type"})
 	registerer.MustRegister(currentConnections)
 
-	manifestsReceived := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "coderd",
-		Subsystem: "agentstats",
-		Name:      "manifests_received",
-		Help:      "The number of manifests this agent has received from the control plane.",
-	})
-	registerer.MustRegister(manifestsReceived)
-
 	return &agentMetrics{
 		connectionsTotal:      connectionsTotal,
 		reconnectingPTYErrors: reconnectingPTYErrors,
 		startupScriptSeconds:  startupScriptSeconds,
 		currentConnections:    currentConnections,
-		manifestsReceived:     manifestsReceived,
 	}
 }
 
