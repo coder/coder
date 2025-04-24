@@ -250,16 +250,22 @@ jobs:
       # Extract context information for PR/branch
       - name: Extract context information
         id: context-info
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr-number }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
           echo "::group::Extracting context information"
 
           # Extract PR number from inputs or context
-          if [ -n "${{ inputs.pr-number }}" ]; then
-            PR_NUMBER="${{ inputs.pr-number }}"
+          if [ -n "$INPUT_PR_NUMBER" ]; then
+            PR_NUMBER="$INPUT_PR_NUMBER"
             echo "::notice::Using PR number from action input: #${PR_NUMBER}"
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            PR_NUMBER="$GITHUB_PR_NUMBER"
             echo "::notice::Using PR number from event context: #${PR_NUMBER}"
           else
             echo "::notice::No PR number available. Features requiring PR number will be disabled."
@@ -267,10 +273,10 @@ jobs:
           fi
 
           # Extract branch information (used for preview URLs)
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BRANCH_NAME="${{ github.head_ref }}"
+          if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            BRANCH_NAME="$GITHUB_HEAD_REF"
           else
-            BRANCH_NAME="${{ github.ref_name }}"
+            BRANCH_NAME="$GITHUB_REF_NAME"
           fi
 
           # Sanitize branch name for URLs
