@@ -346,10 +346,11 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Setup Test Cache
-        uses: ./.github/actions/setup-test-cache
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go
+          key-prefix: test-go-${{ runner.os }}-${{ runner.arch }}
 
       - name: Test with Mock Database
         id: test
@@ -374,6 +375,11 @@ jobs:
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -472,10 +478,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/setup-imdisk
 
-      - name: Setup Test Cache
-        uses: ./.github/actions/setup-test-cache
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go-pg
+          key-prefix: test-go-pg-${{ runner.os }}-${{ runner.arch }}
 
       - name: Test with PostgreSQL Database
         env:
@@ -490,6 +497,11 @@ jobs:
           PARALLEL_FLAG=""
 
           make test-postgres
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -529,10 +541,11 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Setup Test Cache
-        uses: ./.github/actions/setup-test-cache
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go-pg-16
+          key-prefix: test-go-pg-16-${{ runner.os }}-${{ runner.arch }}
 
       - name: Test with PostgreSQL Database
         env:
@@ -540,6 +553,11 @@ jobs:
           TS_DEBUG_DISCO: "true"
         run: |
           make test-postgres
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -571,10 +589,11 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Setup Test Cache
-        uses: ./.github/actions/setup-test-cache
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go-race
+          key-prefix: test-go-race-${{ runner.os }}-${{ runner.arch }}
 
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
@@ -583,6 +602,11 @@ jobs:
       - name: Run Tests
         run: |
           gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -614,10 +638,11 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Setup Test Cache
-        uses: ./.github/actions/setup-test-cache
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go-race-pg
+          key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
 
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
@@ -629,6 +654,11 @@ jobs:
         run: |
           make test-postgres-docker
           DB=ci gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1

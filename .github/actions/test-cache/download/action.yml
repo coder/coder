@@ -1,0 +1,50 @@
+name: "Download Test Cache"
+description: |
+  Downloads the test cache and outputs today's cache key.
+  A PR job can use a cache if it was created by its base branch, its current
+  branch, or the default branch.
+  https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache
+outputs:
+  cache-key:
+    description: "Today's cache key"
+    value: ${{ steps.vars.outputs.cache-key }}
+inputs:
+  key-prefix:
+    description: "Prefix for the cache key"
+    required: true
+  cache-path:
+    description: "Path to the cache directory"
+    required: true
+    # This path is defined in testutil/cache.go
+    default: "~/.cache/coderv2-test"
+runs:
+  using: "composite"
+  steps:
+    - name: Get date values and cache key
+      id: vars
+      shell: bash
+      run: |
+        export YEAR_MONTH=$(date +'%Y-%m')
+        export PREV_YEAR_MONTH=$(date -d 'last month' +'%Y-%m')
+        export DAY=$(date +'%d')
+        echo "year-month=$YEAR_MONTH" >> $GITHUB_OUTPUT
+        echo "prev-year-month=$PREV_YEAR_MONTH" >> $GITHUB_OUTPUT
+        echo "cache-key=${{ inputs.key-prefix }}-${YEAR_MONTH}-${DAY}" >> $GITHUB_OUTPUT
+
+    # TODO: As a cost optimization, we could remove caches that are older than
+    # a day or two. By default, depot keeps caches for 14 days, which isn't
+    # necessary for the test cache.
+    # https://depot.dev/docs/github-actions/overview#cache-retention-policy
+    - name: Download test cache
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ${{ inputs.cache-path }}
+        key: ${{ steps.vars.outputs.cache-key }}
+        # > If there are multiple partial matches for a restore key, the action returns the most recently created cache.
+        # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/caching-dependencies-to-speed-up-workflows#matching-a-cache-key
+        # The second restore key allows non-main branches to use the cache from the previous month.
+        # This prevents PRs from rebuilding the cache on the first day of the month.
+        # It also makes sure that once a month, the cache is fully reset.
+        restore-keys: |
+          ${{ inputs.key-prefix }}-${{ steps.vars.outputs.year-month }}-
+          ${{ github.ref != 'refs/heads/main' && format('{0}-{1}-', inputs.key-prefix, steps.vars.outputs.prev-year-month) || '' }}
