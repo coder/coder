@@ -140,10 +140,16 @@ export const CreateWorkspacePageViewExperimental: FC<
 		}
 	}, [error]);
 
-	const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
-		form,
-		error,
-	);
+	useEffect(() => {
+		if (form.submitCount > 0 && form.errors) {
+			const fieldId = `${id}-workspace-name`;
+			const el = document.getElementById(fieldId);
+			if (el) {
+				el.scrollIntoView({ behavior: "smooth", block: "center" });
+				(el as HTMLElement).focus?.();
+			}
+		}
+	}, [form.submitCount, form.errors, id]);
 
 	const [presetOptions, setPresetOptions] = useState([
 		{ label: "None", value: "" },
@@ -333,7 +339,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 										Workspace name
 									</Label>
-									<div>
+									<div className="flex flex-col">
 										<Input
 											id={`${id}-workspace-name`}
 											value={form.values.name}
@@ -343,6 +349,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}}
 											disabled={creatingWorkspace}
 										/>
+										{form.touched.name && form.errors.name && (
+											<div className="text-content-destructive text-xs mt-2">
+												{form.errors.name}
+											</div>
+										)}
 										<div className="flex gap-2 text-xs text-content-secondary items-center">
 											Need a suggestion?
 											<Button
@@ -477,7 +488,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 									return (
 										<DynamicParameter
-											{...getFieldHelpers(parameterInputName)}
 											key={parameter.name}
 											parameter={parameter}
 											onChange={(value) =>
