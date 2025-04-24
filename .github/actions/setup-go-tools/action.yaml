@@ -1,6 +1,6 @@
 name: "Setup Go tools"
 description: |
-  Set up tools for `make gen` and `offlinedocs`
+  Set up tools for `make gen`, `offlinedocs` and Schmoder CI.
 runs:
   using: "composite"
   steps:
