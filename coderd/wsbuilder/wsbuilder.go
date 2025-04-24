@@ -647,11 +647,6 @@ func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBui
 }
 
 func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, error) {
-	// TODO: exclude preset params from this list instead of returning nothing?
-	if b.prebuildClaimedBy != uuid.Nil {
-		return nil, nil
-	}
-
 	if b.lastBuildParameters != nil {
 		return *b.lastBuildParameters, nil
 	}
