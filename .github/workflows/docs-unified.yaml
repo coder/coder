@@ -89,6 +89,10 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for proper file comparison
 
+      # Setup Node.js environment
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
       # Record start time for validation
       - name: Record start time
         id: start-time
