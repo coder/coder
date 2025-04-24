@@ -296,8 +296,6 @@ jobs:
       # Post initial comment with preview links
       - name: Post initial preview comment
         if: inputs.post-comment == 'true' && inputs.generate-preview == 'true' && (inputs.pr-number != '' || github.event.pull_request)
-        env:
-          TIMESTAMP: ${{ steps.start-time.outputs.timestamp }}
         uses: marocchino/sticky-pull-request-comment@v2.9.2
         with:
           header: docs-preview-comment
@@ -314,8 +312,8 @@ jobs:
             - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
             - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
 
-            <sub>⏳ Validating documentation... (Started at $(date -u -d @$TIMESTAMP '+%Y-%m-%d %H:%M:%S UTC'))</sub>
-            <sub>⏱️ Status update: Waiting for validation results - last update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')</sub>
+            <sub>⏳ Validating documentation... (Started at $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC'))</sub>
+            <sub>⏱️ Status update: Waiting for validation results - last update: $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC')</sub>
 
       # Get changed files
       - name: Get changed files
@@ -345,7 +343,7 @@ jobs:
             - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
             - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
 
-            <sub>⏳ Found ${{ steps.changed-files.outputs.all_changed_files_count }} markdown files to validate. Starting validation at $(date -u '+%Y-%m-%d %H:%M:%S UTC')...</sub>
+            <sub>⏳ Found ${{ steps.changed-files.outputs.all_changed_files_count }} markdown files to validate. Starting validation at $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC')...</sub>
             
       # Run MegaLinter (documentation flavor)
       - name: MegaLinter Documentation
@@ -673,7 +671,7 @@ jobs:
           echo "- **Validation Success**: $SUCCESS% ($PASSING/$TOTAL checks passed)" >> $TEMP_FILE
           echo "- **Processing Time**: $DURATION" >> $TEMP_FILE
           echo "" >> $TEMP_FILE
-          echo "<sub>⏱️ Validation completed in $DURATION | Completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC') | [View Workflow Run]($WORKFLOW_RUN)</sub>" >> $TEMP_FILE
+          echo "<sub>⏱️ Validation completed in $DURATION | Completed at $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC') | [View Workflow Run]($WORKFLOW_RUN)</sub>" >> $TEMP_FILE
 
           # Export content to GitHub output
           echo "comment<<EOF" >> $GITHUB_OUTPUT
