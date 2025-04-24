@@ -670,12 +670,6 @@ workspaces stopping during the day due to template scheduling.
           must be *. Only one hour and minute can be specified (ranges or comma
           separated values are not supported).
 
-WORKSPACE PREBUILDS OPTIONS: 
-Configure how workspace prebuilds behave.
-
-      --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 15s)
-          How often to reconcile workspace prebuilds state.
-
 ⚠️ DANGEROUS OPTIONS: 
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
           Allow workspace apps that are not served from subdomains to be shared.
