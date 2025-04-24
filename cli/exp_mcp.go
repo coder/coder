@@ -400,21 +400,23 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	)
 
 	// Create a new context for the tools with all relevant information.
-	tb := toolsdk.NewToolbox(client)
+	tb := toolsdk.Deps{
+		CoderClient: client,
+	}
 	// Get the workspace agent token from the environment.
 	var hasAgentClient bool
 	if agentToken, err := getAgentToken(fs); err == nil && agentToken != "" {
 		hasAgentClient = true
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
-		tb = tb.WithAgentClient(agentClient)
+		tb.AgentClient = agentClient
 	} else {
 		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
 	}
 	if appStatusSlug == "" {
 		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
 	} else {
-		tb = tb.WithAppStatusSlug(appStatusSlug)
+		tb.AppStatusSlug = appStatusSlug
 	}
 
 	// Register tools based on the allowlist (if specified)
@@ -695,7 +697,7 @@ func getAgentToken(fs afero.Fs) (string, error) {
 
 // mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
 // It assumes that the tool responds with a valid JSON object.
-func mcpFromSDK(sdkTool toolsdk.Tool[any, any], tb toolsdk.Toolbox) server.ServerTool {
+func mcpFromSDK(sdkTool toolsdk.Tool[any, any], tb toolsdk.Deps) server.ServerTool {
 	// NOTE: some clients will silently refuse to use tools if there is an issue
 	// with the tool's schema or configuration.
 	if sdkTool.Schema.Properties == nil {

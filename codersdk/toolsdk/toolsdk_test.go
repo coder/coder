@@ -70,7 +70,11 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient).WithAgentClient(agentClient).WithAppStatusSlug("some-agent-app")
+		tb := toolsdk.Deps{
+			CoderClient:   memberClient,
+			AgentClient:   agentClient,
+			AppStatusSlug: "some-agent-app",
+		}
 		_, err := testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
 			Summary: "test summary",
 			State:   "complete",
@@ -80,7 +84,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspace", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
 			WorkspaceID: r.Workspace.ID.String(),
 		})
@@ -90,7 +94,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		// Get the templates directly for comparison
 		expected, err := memberClient.Templates(context.Background(), codersdk.TemplateFilter{})
 		require.NoError(t, err)
@@ -113,7 +117,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("Whoami", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		result, err := testTool(t, toolsdk.GetAuthenticatedUser, tb, toolsdk.NoArgs{})
 
 		require.NoError(t, err)
@@ -122,7 +126,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ListWorkspaces", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		result, err := testTool(t, toolsdk.ListWorkspaces, tb, toolsdk.ListWorkspacesArgs{})
 
 		require.NoError(t, err)
@@ -134,7 +138,7 @@ func TestTools(t *testing.T) {
 	t.Run("CreateWorkspaceBuild", func(t *testing.T) {
 		t.Run("Stop", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tb := toolsdk.NewToolbox(memberClient)
+			tb := toolsdk.Deps{CoderClient: memberClient}
 			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
 				WorkspaceID: r.Workspace.ID.String(),
 				Transition:  "stop",
@@ -153,7 +157,7 @@ func TestTools(t *testing.T) {
 
 		t.Run("Start", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tb := toolsdk.NewToolbox(memberClient)
+			tb := toolsdk.Deps{CoderClient: memberClient}
 			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
 				WorkspaceID: r.Workspace.ID.String(),
 				Transition:  "start",
@@ -172,7 +176,7 @@ func TestTools(t *testing.T) {
 
 		t.Run("TemplateVersionChange", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tb := toolsdk.NewToolbox(memberClient)
+			tb := toolsdk.Deps{CoderClient: memberClient}
 			// Get the current template version ID before updating
 			workspace, err := memberClient.Workspace(ctx, r.Workspace.ID)
 			require.NoError(t, err)
@@ -216,7 +220,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ListTemplateVersionParameters", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		params, err := testTool(t, toolsdk.ListTemplateVersionParameters, tb, toolsdk.ListTemplateVersionParametersArgs{
 			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
@@ -226,7 +230,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(client)
+		tb := toolsdk.Deps{CoderClient: client}
 		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
 			WorkspaceAgentID: agentID.String(),
 		})
@@ -236,7 +240,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceBuildLogs", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		logs, err := testTool(t, toolsdk.GetWorkspaceBuildLogs, tb, toolsdk.GetWorkspaceBuildLogsArgs{
 			WorkspaceBuildID: r.Build.ID.String(),
 		})
@@ -246,7 +250,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetTemplateVersionLogs", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		logs, err := testTool(t, toolsdk.GetTemplateVersionLogs, tb, toolsdk.GetTemplateVersionLogsArgs{
 			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
@@ -256,7 +260,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("UpdateTemplateActiveVersion", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(client)
+		tb := toolsdk.Deps{CoderClient: client}
 		result, err := testTool(t, toolsdk.UpdateTemplateActiveVersion, tb, toolsdk.UpdateTemplateActiveVersionArgs{
 			TemplateID:        r.Template.ID.String(),
 			TemplateVersionID: r.TemplateVersion.ID.String(),
@@ -267,7 +271,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("DeleteTemplate", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(client)
+		tb := toolsdk.Deps{CoderClient: client}
 		_, err := testTool(t, toolsdk.DeleteTemplate, tb, toolsdk.DeleteTemplateArgs{
 			TemplateID: r.Template.ID.String(),
 		})
@@ -277,7 +281,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("UploadTarFile", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(client)
+		tb := toolsdk.Deps{CoderClient: client}
 		files := map[string]string{
 			"main.tf": `resource "null_resource" "example" {}`,
 		}
@@ -291,7 +295,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("CreateTemplateVersion", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(client)
+		tb := toolsdk.Deps{CoderClient: client}
 		// nolint:gocritic // This is in a test package and does not end up in the build
 		file := dbgen.File(t, store, database.File{})
 
@@ -304,7 +308,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("CreateTemplate", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(client)
+		tb := toolsdk.Deps{CoderClient: client}
 		// Create a new template version for use here.
 		tv := dbfake.TemplateVersion(t, store).
 			// nolint:gocritic // This is in a test package and does not end up in the build
@@ -323,7 +327,7 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
-		tb := toolsdk.NewToolbox(memberClient)
+		tb := toolsdk.Deps{CoderClient: memberClient}
 		// We need a template version ID to create a workspace
 		res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
 			User:              "me",
@@ -343,7 +347,7 @@ func TestTools(t *testing.T) {
 var testedTools sync.Map
 
 // testTool is a helper function to test a tool and mark it as tested.
-func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Toolbox, args Arg) (Ret, error) {
+func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Deps, args Arg) (Ret, error) {
 	t.Helper()
 	testedTools.Store(tool.Tool.Name, true)
 	result, err := tool.Handler(tb, args)
@@ -391,14 +395,14 @@ func TestWithRecovery(t *testing.T) {
 				Name:        "fake_tool",
 				Description: "Returns a string for testing.",
 			},
-			Handler: func(tb toolsdk.Toolbox, args string) (string, error) {
+			Handler: func(tb toolsdk.Deps, args string) (string, error) {
 				require.Equal(t, "test", args)
 				return "ok", nil
 			},
 		}
 
 		wrapped := toolsdk.WithRecover(fakeTool.Handler)
-		v, err := wrapped(nil, "test")
+		v, err := wrapped(toolsdk.Deps{}, "test")
 		require.NoError(t, err)
 		require.Equal(t, "ok", v)
 	})
@@ -410,13 +414,13 @@ func TestWithRecovery(t *testing.T) {
 				Name:        "fake_tool",
 				Description: "Returns an error for testing.",
 			},
-			Handler: func(tb toolsdk.Toolbox, args string) (string, error) {
+			Handler: func(tb toolsdk.Deps, args string) (string, error) {
 				require.Equal(t, "test", args)
 				return "", assert.AnError
 			},
 		}
 		wrapped := toolsdk.WithRecover(fakeTool.Handler)
-		v, err := wrapped(nil, "test")
+		v, err := wrapped(toolsdk.Deps{}, "test")
 		require.Empty(t, v)
 		require.ErrorIs(t, err, assert.AnError)
 	})
@@ -428,13 +432,13 @@ func TestWithRecovery(t *testing.T) {
 				Name:        "panic_tool",
 				Description: "Panics for testing.",
 			},
-			Handler: func(tb toolsdk.Toolbox, args string) (string, error) {
+			Handler: func(tb toolsdk.Deps, args string) (string, error) {
 				panic("you can't sweat this fever out")
 			},
 		}
 
 		wrapped := toolsdk.WithRecover(panicTool.Handler)
-		v, err := wrapped(nil, "disco")
+		v, err := wrapped(toolsdk.Deps{}, "disco")
 		require.Empty(t, v)
 		require.ErrorContains(t, err, "you can't sweat this fever out")
 	})

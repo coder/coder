@@ -13,52 +13,15 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-// Toolbox provides access to tool dependencies.
-type Toolbox interface {
-	CoderClient() *codersdk.Client
-	AgentClient() (*agentsdk.Client, bool)
-	AppStatusSlug() (string, bool)
-
-	WithAgentClient(*agentsdk.Client) Toolbox
-	WithAppStatusSlug(string) Toolbox
-}
-
-// toolbox is the concrete implementation of Toolbox.
-type toolbox struct {
-	coderClient   *codersdk.Client
-	agentClient   *agentsdk.Client
-	appStatusSlug string
-}
-
-// NewToolbox constructs a Toolbox with a required CoderClient.
-func NewToolbox(coder *codersdk.Client) Toolbox {
-	return &toolbox{coderClient: coder}
-}
-
-func (tb *toolbox) CoderClient() *codersdk.Client {
-	return tb.coderClient
-}
-
-func (tb *toolbox) AgentClient() (*agentsdk.Client, bool) {
-	return tb.agentClient, tb.agentClient != nil
-}
-
-func (tb *toolbox) AppStatusSlug() (string, bool) {
-	return tb.appStatusSlug, tb.appStatusSlug != ""
-}
-
-func (tb *toolbox) WithAgentClient(agent *agentsdk.Client) Toolbox {
-	tb.agentClient = agent
-	return tb
-}
-
-func (tb *toolbox) WithAppStatusSlug(slug string) Toolbox {
-	tb.appStatusSlug = slug
-	return tb
+// Deps provides access to tool dependencies.
+type Deps struct {
+	CoderClient   *codersdk.Client
+	AgentClient   *agentsdk.Client
+	AppStatusSlug string
 }
 
 // HandlerFunc is a function that handles a tool call.
-type HandlerFunc[Arg, Ret any] func(tb Toolbox, args Arg) (Ret, error)
+type HandlerFunc[Arg, Ret any] func(tb Deps, args Arg) (Ret, error)
 
 type Tool[Arg, Ret any] struct {
 	aisdk.Tool
@@ -69,7 +32,7 @@ type Tool[Arg, Ret any] struct {
 func (t Tool[Arg, Ret]) Generic() Tool[any, any] {
 	return Tool[any, any]{
 		Tool: t.Tool,
-		Handler: func(tb Toolbox, args any) (any, error) {
+		Handler: func(tb Deps, args any) (any, error) {
 			typedArg, ok := args.(Arg)
 			if !ok {
 				return nil, xerrors.Errorf("developer error: invalid argument type for tool %s", t.Tool.Name)
@@ -152,7 +115,7 @@ type UploadTarFileArgs struct {
 
 // WithRecover wraps a HandlerFunc to recover from panics and return an error.
 func WithRecover[Arg, Ret any](h HandlerFunc[Arg, Ret]) HandlerFunc[Arg, Ret] {
-	return func(tb Toolbox, args Arg) (ret Ret, err error) {
+	return func(tb Deps, args Arg) (ret Ret, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				err = xerrors.Errorf("tool handler panic: %v", r)
@@ -220,17 +183,15 @@ var (
 				Required: []string{"summary", "link", "state"},
 			},
 		},
-		Handler: func(tb Toolbox, args ReportTaskArgs) (string, error) {
-			agentClient, ok := tb.AgentClient()
-			if !ok {
+		Handler: func(tb Deps, args ReportTaskArgs) (string, error) {
+			if tb.AgentClient == nil {
 				return "", xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
 			}
-			appStatusSlug, ok := tb.AppStatusSlug()
-			if !ok {
+			if tb.AppStatusSlug == "" {
 				return "", xerrors.New("workspace app status slug not found in toolbox")
 			}
-			if err := agentClient.PatchAppStatus(context.TODO(), agentsdk.PatchAppStatus{
-				AppSlug: appStatusSlug,
+			if err := tb.AgentClient.PatchAppStatus(context.TODO(), agentsdk.PatchAppStatus{
+				AppSlug: tb.AppStatusSlug,
 				Message: args.Summary,
 				URI:     args.Link,
 				State:   codersdk.WorkspaceAppStatusState(args.State),
@@ -256,12 +217,12 @@ This returns more data than list_workspaces to reduce token usage.`,
 				Required: []string{"workspace_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args GetWorkspaceArgs) (codersdk.Workspace, error) {
+		Handler: func(tb Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
 			wsID, err := uuid.Parse(args.WorkspaceID)
 			if err != nil {
 				return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
 			}
-			return tb.CoderClient().Workspace(context.TODO(), wsID)
+			return tb.CoderClient.Workspace(context.TODO(), wsID)
 		},
 	}
 
@@ -296,7 +257,7 @@ is provisioned correctly and the agent can connect to the control plane.
 				Required: []string{"user", "template_version_id", "name", "rich_parameters"},
 			},
 		},
-		Handler: func(tb Toolbox, args CreateWorkspaceArgs) (codersdk.Workspace, error) {
+		Handler: func(tb Deps, args CreateWorkspaceArgs) (codersdk.Workspace, error) {
 			tvID, err := uuid.Parse(args.TemplateVersionID)
 			if err != nil {
 				return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
@@ -311,7 +272,7 @@ is provisioned correctly and the agent can connect to the control plane.
 					Value: v,
 				})
 			}
-			workspace, err := tb.CoderClient().CreateUserWorkspace(context.TODO(), args.User, codersdk.CreateWorkspaceRequest{
+			workspace, err := tb.CoderClient.CreateUserWorkspace(context.TODO(), args.User, codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   tvID,
 				Name:                args.Name,
 				RichParameterValues: buildParams,
@@ -336,12 +297,12 @@ is provisioned correctly and the agent can connect to the control plane.
 				},
 			},
 		},
-		Handler: func(tb Toolbox, args ListWorkspacesArgs) ([]MinimalWorkspace, error) {
+		Handler: func(tb Deps, args ListWorkspacesArgs) ([]MinimalWorkspace, error) {
 			owner := args.Owner
 			if owner == "" {
 				owner = codersdk.Me
 			}
-			workspaces, err := tb.CoderClient().Workspaces(context.TODO(), codersdk.WorkspaceFilter{
+			workspaces, err := tb.CoderClient.Workspaces(context.TODO(), codersdk.WorkspaceFilter{
 				Owner: owner,
 			})
 			if err != nil {
@@ -373,8 +334,8 @@ is provisioned correctly and the agent can connect to the control plane.
 				Required:   []string{},
 			},
 		},
-		Handler: func(tb Toolbox, _ NoArgs) ([]MinimalTemplate, error) {
-			templates, err := tb.CoderClient().Templates(context.TODO(), codersdk.TemplateFilter{})
+		Handler: func(tb Deps, _ NoArgs) ([]MinimalTemplate, error) {
+			templates, err := tb.CoderClient.Templates(context.TODO(), codersdk.TemplateFilter{})
 			if err != nil {
 				return nil, err
 			}
@@ -406,12 +367,12 @@ is provisioned correctly and the agent can connect to the control plane.
 				Required: []string{"template_version_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args ListTemplateVersionParametersArgs) ([]codersdk.TemplateVersionParameter, error) {
+		Handler: func(tb Deps, args ListTemplateVersionParametersArgs) ([]codersdk.TemplateVersionParameter, error) {
 			templateVersionID, err := uuid.Parse(args.TemplateVersionID)
 			if err != nil {
 				return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 			}
-			parameters, err := tb.CoderClient().TemplateVersionRichParameters(context.TODO(), templateVersionID)
+			parameters, err := tb.CoderClient.TemplateVersionRichParameters(context.TODO(), templateVersionID)
 			if err != nil {
 				return nil, err
 			}
@@ -428,8 +389,8 @@ is provisioned correctly and the agent can connect to the control plane.
 				Required:   []string{},
 			},
 		},
-		Handler: func(tb Toolbox, _ NoArgs) (codersdk.User, error) {
-			return tb.CoderClient().User(context.TODO(), "me")
+		Handler: func(tb Deps, _ NoArgs) (codersdk.User, error) {
+			return tb.CoderClient.User(context.TODO(), "me")
 		},
 	}
 
@@ -455,7 +416,7 @@ is provisioned correctly and the agent can connect to the control plane.
 				Required: []string{"workspace_id", "transition"},
 			},
 		},
-		Handler: func(tb Toolbox, args CreateWorkspaceBuildArgs) (codersdk.WorkspaceBuild, error) {
+		Handler: func(tb Deps, args CreateWorkspaceBuildArgs) (codersdk.WorkspaceBuild, error) {
 			workspaceID, err := uuid.Parse(args.WorkspaceID)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("workspace_id must be a valid UUID: %w", err)
@@ -474,7 +435,7 @@ is provisioned correctly and the agent can connect to the control plane.
 			if templateVersionID != uuid.Nil {
 				cbr.TemplateVersionID = templateVersionID
 			}
-			return tb.CoderClient().CreateWorkspaceBuild(context.TODO(), workspaceID, cbr)
+			return tb.CoderClient.CreateWorkspaceBuild(context.TODO(), workspaceID, cbr)
 		},
 	}
 
@@ -936,8 +897,8 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"file_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
-			me, err := tb.CoderClient().User(context.TODO(), "me")
+		Handler: func(tb Deps, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
+			me, err := tb.CoderClient.User(context.TODO(), "me")
 			if err != nil {
 				return codersdk.TemplateVersion{}, err
 			}
@@ -949,7 +910,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			if err != nil {
 				return codersdk.TemplateVersion{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 			}
-			templateVersion, err := tb.CoderClient().CreateTemplateVersion(context.TODO(), me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
+			templateVersion, err := tb.CoderClient.CreateTemplateVersion(context.TODO(), me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
 				Message:       "Created by AI",
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,
 				FileID:        fileID,
@@ -978,12 +939,12 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"workspace_agent_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args GetWorkspaceAgentLogsArgs) ([]string, error) {
+		Handler: func(tb Deps, args GetWorkspaceAgentLogsArgs) ([]string, error) {
 			workspaceAgentID, err := uuid.Parse(args.WorkspaceAgentID)
 			if err != nil {
 				return nil, xerrors.Errorf("workspace_agent_id must be a valid UUID: %w", err)
 			}
-			logs, closer, err := tb.CoderClient().WorkspaceAgentLogsAfter(context.TODO(), workspaceAgentID, 0, false)
+			logs, closer, err := tb.CoderClient.WorkspaceAgentLogsAfter(context.TODO(), workspaceAgentID, 0, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1013,12 +974,12 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"workspace_build_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args GetWorkspaceBuildLogsArgs) ([]string, error) {
+		Handler: func(tb Deps, args GetWorkspaceBuildLogsArgs) ([]string, error) {
 			workspaceBuildID, err := uuid.Parse(args.WorkspaceBuildID)
 			if err != nil {
 				return nil, xerrors.Errorf("workspace_build_id must be a valid UUID: %w", err)
 			}
-			logs, closer, err := tb.CoderClient().WorkspaceBuildLogsAfter(context.TODO(), workspaceBuildID, 0)
+			logs, closer, err := tb.CoderClient.WorkspaceBuildLogsAfter(context.TODO(), workspaceBuildID, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -1044,13 +1005,13 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"template_version_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args GetTemplateVersionLogsArgs) ([]string, error) {
+		Handler: func(tb Deps, args GetTemplateVersionLogsArgs) ([]string, error) {
 			templateVersionID, err := uuid.Parse(args.TemplateVersionID)
 			if err != nil {
 				return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 			}
 
-			logs, closer, err := tb.CoderClient().TemplateVersionLogsAfter(context.TODO(), templateVersionID, 0)
+			logs, closer, err := tb.CoderClient.TemplateVersionLogsAfter(context.TODO(), templateVersionID, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -1079,7 +1040,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"template_id", "template_version_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args UpdateTemplateActiveVersionArgs) (string, error) {
+		Handler: func(tb Deps, args UpdateTemplateActiveVersionArgs) (string, error) {
 			templateID, err := uuid.Parse(args.TemplateID)
 			if err != nil {
 				return "", xerrors.Errorf("template_id must be a valid UUID: %w", err)
@@ -1088,7 +1049,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			if err != nil {
 				return "", xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 			}
-			err = tb.CoderClient().UpdateActiveTemplateVersion(context.TODO(), templateID, codersdk.UpdateActiveTemplateVersion{
+			err = tb.CoderClient.UpdateActiveTemplateVersion(context.TODO(), templateID, codersdk.UpdateActiveTemplateVersion{
 				ID: templateVersionID,
 			})
 			if err != nil {
@@ -1112,7 +1073,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"mime_type", "files"},
 			},
 		},
-		Handler: func(tb Toolbox, args UploadTarFileArgs) (codersdk.UploadResponse, error) {
+		Handler: func(tb Deps, args UploadTarFileArgs) (codersdk.UploadResponse, error) {
 			pipeReader, pipeWriter := io.Pipe()
 			go func() {
 				defer pipeWriter.Close()
@@ -1137,7 +1098,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				}
 			}()
 
-			resp, err := tb.CoderClient().Upload(context.TODO(), codersdk.ContentTypeTar, pipeReader)
+			resp, err := tb.CoderClient.Upload(context.TODO(), codersdk.ContentTypeTar, pipeReader)
 			if err != nil {
 				return codersdk.UploadResponse{}, err
 			}
@@ -1172,8 +1133,8 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				Required: []string{"name", "display_name", "description", "version_id"},
 			},
 		},
-		Handler: func(tb Toolbox, args CreateTemplateArgs) (codersdk.Template, error) {
-			me, err := tb.CoderClient().User(context.TODO(), "me")
+		Handler: func(tb Deps, args CreateTemplateArgs) (codersdk.Template, error) {
+			me, err := tb.CoderClient.User(context.TODO(), "me")
 			if err != nil {
 				return codersdk.Template{}, err
 			}
@@ -1181,7 +1142,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			if err != nil {
 				return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
 			}
-			template, err := tb.CoderClient().CreateTemplate(context.TODO(), me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
+			template, err := tb.CoderClient.CreateTemplate(context.TODO(), me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
 				Name:        args.Name,
 				DisplayName: args.DisplayName,
 				Description: args.Description,
@@ -1206,12 +1167,12 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				},
 			},
 		},
-		Handler: func(tb Toolbox, args DeleteTemplateArgs) (string, error) {
+		Handler: func(tb Deps, args DeleteTemplateArgs) (string, error) {
 			templateID, err := uuid.Parse(args.TemplateID)
 			if err != nil {
 				return "", xerrors.Errorf("template_id must be a valid UUID: %w", err)
 			}
-			err = tb.CoderClient().DeleteTemplate(context.TODO(), templateID)
+			err = tb.CoderClient.DeleteTemplate(context.TODO(), templateID)
 			if err != nil {
 				return "", err
 			}
