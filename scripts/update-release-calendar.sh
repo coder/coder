@@ -8,16 +8,13 @@ set -euo pipefail
 
 DOCS_FILE="docs/install/releases/index.md"
 
-# Define unique markdown comments as anchors
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
-# Get current date
 current_date=$(date +"%Y-%m-%d")
 current_month=$(date +"%m")
 current_year=$(date +"%Y")
 
-# Function to get the first Tuesday of a given month and year
 get_first_tuesday() {
 	local year=$1
 	local month=$2
@@ -25,24 +22,20 @@ get_first_tuesday() {
 	local days_until_tuesday
 	local first_tuesday
 
-	# Find the first day of the month
 	first_day=$(date -d "$year-$month-01" +"%u")
 
-	# Calculate days until first Tuesday (if day 1 is Tuesday, first_day=2)
 	days_until_tuesday=$((first_day == 2 ? 0 : (9 - first_day) % 7))
 
-	# Get the date of the first Tuesday
 	first_tuesday=$(date -d "$year-$month-01 +$days_until_tuesday days" +"%Y-%m-%d")
 
 	echo "$first_tuesday"
 }
 
-# Function to format date as "Month DD, YYYY"
+# Format date as "Month DD, YYYY"
 format_date() {
 	date -d "$1" +"%B %d, %Y"
 }
 
-# Function to get the latest patch version for a minor release
 get_latest_patch() {
 	local version_major=$1
 	local version_minor=$2
@@ -52,19 +45,15 @@ get_latest_patch() {
 	# Get all tags for this minor version
 	tags=$(cd "$(git rev-parse --show-toplevel)" && git tag | grep "^v$version_major\\.$version_minor\\." | sort -V)
 
-	# Get the latest one
 	latest=$(echo "$tags" | tail -1)
 
 	if [ -z "$latest" ]; then
-		# If no tags found, return empty
 		echo ""
 	else
-		# Return without the v prefix
 		echo "${latest#v}"
 	fi
 }
 
-# Function to get the next release month, accounting for skipped January releases
 get_next_release_month() {
 	local current_month=$1
 	local next_month=$((current_month + 1))
@@ -103,12 +92,8 @@ generate_release_calendar() {
 	# Start with 3 unsupported releases back
 	start_minor=$((version_minor - 5))
 
-	# Initialize the calendar table with an additional column for latest release
 	result="| Release name | Release Date | Status | Latest Release |\n"
 	result+="|--------------|--------------|--------|----------------|\n"
-
-	# We know we skip January in our release schedule
-	# Months when releases happen (Feb-Dec, skip Jan)
 
 	# Find the latest release month and year
 	local current_release_minor=$((version_minor - 1)) # Current stable release
