@@ -345,6 +345,30 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if len(req.Message) > 160 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Message is too long.",
+			Detail:  "Message must be less than 160 characters.",
+			Validations: []codersdk.ValidationError{
+				{Field: "message", Detail: "Message must be less than 160 characters."},
+			},
+		})
+		return
+	}
+
+	switch req.State {
+	case codersdk.WorkspaceAppStatusStateComplete, codersdk.WorkspaceAppStatusStateFailure, codersdk.WorkspaceAppStatusStateWorking: // valid states
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid state provided.",
+			Detail:  fmt.Sprintf("invalid state: %q", req.State),
+			Validations: []codersdk.ValidationError{
+				{Field: "state", Detail: "State must be one of: complete, failure, working."},
+			},
+		})
+		return
+	}
+
 	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

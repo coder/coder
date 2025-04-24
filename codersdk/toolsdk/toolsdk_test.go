@@ -71,12 +71,24 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithAgentClient(ctx, agentClient)
 		ctx = toolsdk.WithWorkspaceAppStatusSlug(ctx, "some-agent-app")
-		_, err := testTool(ctx, t, toolsdk.ReportTask, map[string]any{
-			"summary": "test summary",
-			"state":   "complete",
-			"link":    "https://example.com",
+		_, err := testTool(ctx, t, toolsdk.ReportTask, toolsdk.ReportTaskArgs{
+			Summary: "test summary",
+			State:   "complete",
+			Link:    "https://example.com",
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("GetWorkspace", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx = toolsdk.WithClient(ctx, memberClient)
+
+		result, err := testTool(ctx, t, toolsdk.GetWorkspace, toolsdk.GetWorkspaceArgs{
+			WorkspaceID: r.Workspace.ID.String(),
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
@@ -87,7 +99,7 @@ func TestTools(t *testing.T) {
 		expected, err := memberClient.Templates(context.Background(), codersdk.TemplateFilter{})
 		require.NoError(t, err)
 
-		result, err := testTool(ctx, t, toolsdk.ListTemplates, map[string]any{})
+		result, err := testTool(ctx, t, toolsdk.ListTemplates, toolsdk.NoArgs{})
 
 		require.NoError(t, err)
 		require.Len(t, result, len(expected))
@@ -108,7 +120,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
-		result, err := testTool(ctx, t, toolsdk.GetAuthenticatedUser, map[string]any{})
+		result, err := testTool(ctx, t, toolsdk.GetAuthenticatedUser, toolsdk.NoArgs{})
 
 		require.NoError(t, err)
 		require.Equal(t, member.ID, result.ID)
@@ -119,9 +131,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
-		result, err := testTool(ctx, t, toolsdk.ListWorkspaces, map[string]any{
-			"owner": "me",
-		})
+		result, err := testTool(ctx, t, toolsdk.ListWorkspaces, toolsdk.ListWorkspacesArgs{})
 
 		require.NoError(t, err)
 		require.Len(t, result, 1, "expected 1 workspace")
@@ -129,26 +139,14 @@ func TestTools(t *testing.T) {
 		require.Equal(t, r.Workspace.ID.String(), workspace.ID, "expected the workspace to match the one we created")
 	})
 
-	t.Run("GetWorkspace", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctx = toolsdk.WithClient(ctx, memberClient)
-
-		result, err := testTool(ctx, t, toolsdk.GetWorkspace, map[string]any{
-			"workspace_id": r.Workspace.ID.String(),
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
-	})
-
 	t.Run("CreateWorkspaceBuild", func(t *testing.T) {
 		t.Run("Stop", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			ctx = toolsdk.WithClient(ctx, memberClient)
 
-			result, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, map[string]any{
-				"workspace_id": r.Workspace.ID.String(),
-				"transition":   "stop",
+			result, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID: r.Workspace.ID.String(),
+				Transition:  "stop",
 			})
 
 			require.NoError(t, err)
@@ -166,9 +164,9 @@ func TestTools(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			ctx = toolsdk.WithClient(ctx, memberClient)
 
-			result, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, map[string]any{
-				"workspace_id": r.Workspace.ID.String(),
-				"transition":   "start",
+			result, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID: r.Workspace.ID.String(),
+				Transition:  "start",
 			})
 
 			require.NoError(t, err)
@@ -201,10 +199,10 @@ func TestTools(t *testing.T) {
 				}).Do()
 
 			// Update to new version
-			updateBuild, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, map[string]any{
-				"workspace_id":        r.Workspace.ID.String(),
-				"transition":          "start",
-				"template_version_id": newVersion.TemplateVersion.ID.String(),
+			updateBuild, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:       r.Workspace.ID.String(),
+				Transition:        "start",
+				TemplateVersionID: newVersion.TemplateVersion.ID.String(),
 			})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.WorkspaceTransitionStart, updateBuild.Transition)
@@ -214,10 +212,10 @@ func TestTools(t *testing.T) {
 			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID))
 
 			// Roll back to the original version
-			rollbackBuild, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, map[string]any{
-				"workspace_id":        r.Workspace.ID.String(),
-				"transition":          "start",
-				"template_version_id": originalVersionID.String(),
+			rollbackBuild, err := testTool(ctx, t, toolsdk.CreateWorkspaceBuild, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:       r.Workspace.ID.String(),
+				Transition:        "start",
+				TemplateVersionID: originalVersionID.String(),
 			})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.WorkspaceTransitionStart, rollbackBuild.Transition)
@@ -232,8 +230,8 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
-		params, err := testTool(ctx, t, toolsdk.ListTemplateVersionParameters, map[string]any{
-			"template_version_id": r.TemplateVersion.ID.String(),
+		params, err := testTool(ctx, t, toolsdk.ListTemplateVersionParameters, toolsdk.ListTemplateVersionParametersArgs{
+			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
@@ -244,8 +242,8 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, client)
 
-		logs, err := testTool(ctx, t, toolsdk.GetWorkspaceAgentLogs, map[string]any{
-			"workspace_agent_id": agentID.String(),
+		logs, err := testTool(ctx, t, toolsdk.GetWorkspaceAgentLogs, toolsdk.GetWorkspaceAgentLogsArgs{
+			WorkspaceAgentID: agentID.String(),
 		})
 
 		require.NoError(t, err)
@@ -256,8 +254,8 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
-		logs, err := testTool(ctx, t, toolsdk.GetWorkspaceBuildLogs, map[string]any{
-			"workspace_build_id": r.Build.ID.String(),
+		logs, err := testTool(ctx, t, toolsdk.GetWorkspaceBuildLogs, toolsdk.GetWorkspaceBuildLogsArgs{
+			WorkspaceBuildID: r.Build.ID.String(),
 		})
 
 		require.NoError(t, err)
@@ -268,8 +266,8 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
-		logs, err := testTool(ctx, t, toolsdk.GetTemplateVersionLogs, map[string]any{
-			"template_version_id": r.TemplateVersion.ID.String(),
+		logs, err := testTool(ctx, t, toolsdk.GetTemplateVersionLogs, toolsdk.GetTemplateVersionLogsArgs{
+			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
@@ -280,9 +278,9 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, client) // Use owner client for permission
 
-		result, err := testTool(ctx, t, toolsdk.UpdateTemplateActiveVersion, map[string]any{
-			"template_id":         r.Template.ID.String(),
-			"template_version_id": r.TemplateVersion.ID.String(),
+		result, err := testTool(ctx, t, toolsdk.UpdateTemplateActiveVersion, toolsdk.UpdateTemplateActiveVersionArgs{
+			TemplateID:        r.Template.ID.String(),
+			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
@@ -293,8 +291,8 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, client)
 
-		_, err := testTool(ctx, t, toolsdk.DeleteTemplate, map[string]any{
-			"template_id": r.Template.ID.String(),
+		_, err := testTool(ctx, t, toolsdk.DeleteTemplate, toolsdk.DeleteTemplateArgs{
+			TemplateID: r.Template.ID.String(),
 		})
 
 		// This will fail with because there already exists a workspace.
@@ -305,13 +303,12 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = toolsdk.WithClient(ctx, client)
 
-		files := map[string]any{
-			"main.tf": "resource \"null_resource\" \"example\" {}",
+		files := map[string]string{
+			"main.tf": `resource "null_resource" "example" {}`,
 		}
 
-		result, err := testTool(ctx, t, toolsdk.UploadTarFile, map[string]any{
-			"mime_type": string(codersdk.ContentTypeTar),
-			"files":     files,
+		result, err := testTool(ctx, t, toolsdk.UploadTarFile, toolsdk.UploadTarFileArgs{
+			Files: files,
 		})
 
 		require.NoError(t, err)
@@ -325,8 +322,9 @@ func TestTools(t *testing.T) {
 		// nolint:gocritic // This is in a test package and does not end up in the build
 		file := dbgen.File(t, store, database.File{})
 
-		tv, err := testTool(ctx, t, toolsdk.CreateTemplateVersion, map[string]any{
-			"file_id": file.ID.String(),
+		tv, err := testTool(ctx, t, toolsdk.CreateTemplateVersion, toolsdk.CreateTemplateVersionArgs{
+			FileID:     file.ID.String(),
+			TemplateID: r.Template.ID.String(),
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, tv)
@@ -343,11 +341,11 @@ func TestTools(t *testing.T) {
 			SkipCreateTemplate().Do()
 
 		// We're going to re-use the pre-existing template version
-		_, err := testTool(ctx, t, toolsdk.CreateTemplate, map[string]any{
-			"name":         testutil.GetRandomNameHyphenated(t),
-			"display_name": "Test Template",
-			"description":  "This is a test template",
-			"version_id":   tv.TemplateVersion.ID.String(),
+		_, err := testTool(ctx, t, toolsdk.CreateTemplate, toolsdk.CreateTemplateArgs{
+			Name:        testutil.GetRandomNameHyphenated(t),
+			DisplayName: "Test Template",
+			Description: "This is a test template",
+			VersionID:   tv.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
@@ -358,11 +356,11 @@ func TestTools(t *testing.T) {
 		ctx = toolsdk.WithClient(ctx, memberClient)
 
 		// We need a template version ID to create a workspace
-		res, err := testTool(ctx, t, toolsdk.CreateWorkspace, map[string]any{
-			"user":                "me",
-			"template_version_id": r.TemplateVersion.ID.String(),
-			"name":                testutil.GetRandomNameHyphenated(t),
-			"rich_parameters":     map[string]any{},
+		res, err := testTool(ctx, t, toolsdk.CreateWorkspace, toolsdk.CreateWorkspaceArgs{
+			User:              "me",
+			TemplateVersionID: r.TemplateVersion.ID.String(),
+			Name:              testutil.GetRandomNameHyphenated(t),
+			RichParameters:    map[string]string{},
 		})
 
 		// The creation might fail for various reasons, but the important thing is
@@ -376,7 +374,7 @@ func TestTools(t *testing.T) {
 var testedTools sync.Map
 
 // testTool is a helper function to test a tool and mark it as tested.
-func testTool[T any](ctx context.Context, t *testing.T, tool toolsdk.Tool[T], args map[string]any) (T, error) {
+func testTool[Arg, Ret any](ctx context.Context, t *testing.T, tool toolsdk.Tool[Arg, Ret], args Arg) (Ret, error) {
 	t.Helper()
 	testedTools.Store(tool.Tool.Name, true)
 	result, err := tool.Handler(ctx, args)
