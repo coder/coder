@@ -4,9 +4,12 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
+
+var ErrNoClaimablePrebuiltWorkspaces = xerrors.New("no claimable prebuilt workspaces found")
 
 // ReconciliationOrchestrator manages the lifecycle of prebuild reconciliation.
 // It runs a continuous loop to check and reconcile prebuild states, and can be stopped gracefully.
@@ -55,6 +58,6 @@ type Reconciler interface {
 }
 
 type Claimer interface {
-	Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error)
+	Claim(ctx context.Context, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error)
 	Initiator() uuid.UUID
 }

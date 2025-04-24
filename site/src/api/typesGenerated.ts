@@ -468,6 +468,7 @@ export interface CreateWorkspaceRequest {
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
 	readonly claim_prebuild_if_available?: boolean;
+	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/deployment.go

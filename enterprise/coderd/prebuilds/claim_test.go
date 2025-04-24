@@ -3,6 +3,9 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/quartz"
+	"golang.org/x/xerrors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -65,6 +68,32 @@ func (m *storeSpy) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Clai
 		m.claimedWorkspace.Store(&result)
 	}
 	return result, err
+}
+
+type errorStore struct {
+	claimingErr error
+
+	database.Store
+}
+
+func newErrorStore(db database.Store, claimingErr error) *errorStore {
+	return &errorStore{
+		Store:       db,
+		claimingErr: claimingErr,
+	}
+}
+
+func (es *errorStore) InTx(fn func(store database.Store) error, opts *database.TxOptions) error {
+	// Pass failure store down into transaction store.
+	return es.Store.InTx(func(store database.Store) error {
+		newES := newErrorStore(store, es.claimingErr)
+
+		return fn(newES)
+	}, opts)
+}
+
+func (es *errorStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	return database.ClaimPrebuiltWorkspaceRow{}, es.claimingErr
 }
 
 func TestClaimPrebuild(t *testing.T) {
@@ -348,6 +377,181 @@ func TestClaimPrebuild(t *testing.T) {
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, startBuild.ID)
 
 			require.Zero(t, spy.claims.Load())
+		})
+	}
+}
+
+func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	const (
+		desiredInstances = 1
+		presetCount      = 2
+
+		expectedPrebuildsCount = desiredInstances * presetCount
+	)
+
+	cases := map[string]struct {
+		claimingErr error
+		checkFn     func(
+			t *testing.T,
+			ctx context.Context,
+			store database.Store,
+			userClient *codersdk.Client,
+			user codersdk.User,
+			templateVersionID uuid.UUID,
+			presetID uuid.UUID,
+		)
+	}{
+		"ErrNoClaimablePrebuiltWorkspaces is returned": {
+			claimingErr: agplprebuilds.ErrNoClaimablePrebuiltWorkspaces,
+			checkFn: func(
+				t *testing.T,
+				ctx context.Context,
+				store database.Store,
+				userClient *codersdk.Client,
+				user codersdk.User,
+				templateVersionID uuid.UUID,
+				presetID uuid.UUID,
+			) {
+				// When: a user creates a new workspace with a preset for which prebuilds are configured.
+				workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
+					TemplateVersionID:       templateVersionID,
+					Name:                    workspaceName,
+					TemplateVersionPresetID: presetID,
+				})
+
+				require.NoError(t, err)
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
+
+				// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed and we fallback to creating new workspace.
+				currentPrebuilds, err := store.GetRunningPrebuiltWorkspaces(ctx)
+				require.NoError(t, err)
+				require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
+			},
+		},
+		"unexpected error during claim is returned": {
+			claimingErr: xerrors.New("unexpected error during claim"),
+			checkFn: func(
+				t *testing.T,
+				ctx context.Context,
+				store database.Store,
+				userClient *codersdk.Client,
+				user codersdk.User,
+				templateVersionID uuid.UUID,
+				presetID uuid.UUID,
+			) {
+				// When: a user creates a new workspace with a preset for which prebuilds are configured.
+				workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				_, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
+					TemplateVersionID:       templateVersionID,
+					Name:                    workspaceName,
+					TemplateVersionPresetID: presetID,
+				})
+
+				// Then: unexpected error happened and was propagated all the way to the caller
+				require.Error(t, err)
+				require.ErrorContains(t, err, "unexpected error during claim")
+
+				// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed.
+				currentPrebuilds, err := store.GetRunningPrebuiltWorkspaces(ctx)
+				require.NoError(t, err)
+				require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup.
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+			db, pubsub := dbtestutil.NewDB(t)
+			errorStore := newErrorStore(db, tc.claimingErr)
+
+			logger := testutil.Logger(t)
+			client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					Database:                 errorStore,
+					Pubsub:                   pubsub,
+				},
+
+				EntitlementsUpdateInterval: time.Second,
+			})
+
+			reconciler := prebuilds.NewStoreReconciler(errorStore, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
+			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(errorStore)
+			api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			presets, err := client.TemplateVersionPresets(ctx, version.ID)
+			require.NoError(t, err)
+			require.Len(t, presets, presetCount)
+
+			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+			// Given: the reconciliation state is snapshot.
+			state, err := reconciler.SnapshotState(ctx, errorStore)
+			require.NoError(t, err)
+			require.Len(t, state.Presets, presetCount)
+
+			// When: a reconciliation is setup for each preset.
+			for _, preset := range presets {
+				ps, err := state.FilterByPreset(preset.ID)
+				require.NoError(t, err)
+				require.NotNil(t, ps)
+				actions, err := reconciler.CalculateActions(ctx, *ps)
+				require.NoError(t, err)
+				require.NotNil(t, actions)
+
+				require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+			}
+
+			// Given: a set of running, eligible prebuilds eventually starts up.
+			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
+			require.Eventually(t, func() bool {
+				rows, err := errorStore.GetRunningPrebuiltWorkspaces(ctx)
+				if err != nil {
+					return false
+				}
+
+				for _, row := range rows {
+					runningPrebuilds[row.CurrentPresetID.UUID] = row
+
+					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
+					if err != nil {
+						return false
+					}
+
+					// Workspaces are eligible once its agent is marked "ready".
+					for _, agent := range agents {
+						err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+							ID:             agent.ID,
+							LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+							StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+							ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+						})
+						if err != nil {
+							return false
+						}
+					}
+				}
+
+				t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), expectedPrebuildsCount)
+
+				return len(runningPrebuilds) == expectedPrebuildsCount
+			}, testutil.WaitSuperLong, testutil.IntervalSlow)
+
+			tc.checkFn(t, ctx, errorStore, userClient, user, version.ID, presets[0].ID)
 		})
 	}
 }

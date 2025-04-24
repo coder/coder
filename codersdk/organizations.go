@@ -228,6 +228,7 @@ type CreateWorkspaceRequest struct {
 	AutomaticUpdates         AutomaticUpdates          `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID  uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
 	ClaimPrebuildIfAvailable bool                      `json:"claim_prebuild_if_available,omitempty"`
+	EnableDynamicParameters  bool                      `json:"enable_dynamic_parameters,omitempty"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

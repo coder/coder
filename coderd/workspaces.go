@@ -641,19 +641,18 @@ func createWorkspace(
 		runningWorkspaceAgentID uuid.UUID
 	)
 
-	prebuilds := (*api.PrebuildsClaimer.Load()).(prebuilds.Claimer)
-
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
 			workspaceID      uuid.UUID
 			claimedWorkspace *database.Workspace
+			prebuildsClaimer = *api.PrebuildsClaimer.Load()
 		)
 
-		// If a template preset was chosen, try claim a prebuild.
+		// If a template preset was chosen, try claim a prebuilt workspace.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, prebuilds, db, api.Logger, req, owner)
-			if err != nil {
+			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			if err != nil && !errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) {
 				return xerrors.Errorf("claim prebuild: %w", err)
 			}
 		}
@@ -685,7 +684,7 @@ func createWorkspace(
 		} else {
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
-			initiatorID = prebuilds.Initiator()
+			initiatorID = prebuildsClaimer.Initiator()
 			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, claimedWorkspace.ID)
 			if err != nil {
 				// TODO: comment about best-effort, workspace can be restarted if this fails...
@@ -722,6 +721,10 @@ func createWorkspace(
 
 		if claimedWorkspace != nil {
 			builder = builder.MarkPrebuildClaimedBy(owner.ID)
+		}
+
+		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+			builder = builder.UsingDynamicParameters()
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
@@ -887,29 +890,18 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 }
 
 func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
-
-	// TODO: do we need a timeout here?
-	claimCtx, cancel := context.WithTimeout(prebuildsCtx, time.Second*10)
-	defer cancel()
-
-	claimedID, err := claimer.Claim(claimCtx, db, owner.ID, req.Name, req.TemplateVersionPresetID)
+	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
 	}
 
-	// No prebuild available.
-	if claimedID == nil {
-		return nil, nil
-	}
-
-	lookup, err := db.GetWorkspaceByID(prebuildsCtx, *claimedID)
+	lookup, err := db.GetWorkspaceByID(ctx, *claimedID)
 	if err != nil {
-		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", (*claimedID).String()))
-		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", (*claimedID).String(), err)
+		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", claimedID.String()))
+		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", claimedID.String(), err)
 	}
-	return &lookup, err
+	return &lookup, nil
 }
 
 func (api *API) notifyWorkspaceCreated(

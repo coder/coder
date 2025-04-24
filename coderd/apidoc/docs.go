@@ -11501,6 +11501,9 @@ const docTemplate = `{
                 "claim_prebuild_if_available": {
                     "type": "boolean"
                 },
+                "enable_dynamic_parameters": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },

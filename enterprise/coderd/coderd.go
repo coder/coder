@@ -1183,6 +1183,6 @@ func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.ReconciliationOrche
 	}
 
 	return reconciler,
-		prebuilds.EnterpriseClaimer{},
+		prebuilds.NewEnterpriseClaimer(api.Database),
 		collector
 }

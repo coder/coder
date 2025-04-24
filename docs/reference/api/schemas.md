@@ -1493,6 +1493,7 @@ None
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "claim_prebuild_if_available": true,
+  "enable_dynamic_parameters": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -1516,6 +1517,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `automatic_updates`           | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
 | `autostart_schedule`          | string                                                                        | false    |              |                                                                                                         |
 | `claim_prebuild_if_available` | boolean                                                                       | false    |              |                                                                                                         |
+| `enable_dynamic_parameters`   | boolean                                                                       | false    |              |                                                                                                         |
 | `name`                        | string                                                                        | true     |              |                                                                                                         |
 | `rich_parameter_values`       | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
 | `template_id`                 | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
