@@ -113,7 +113,7 @@ func TestClaimPrebuild(t *testing.T) {
 		presetCount      = 2
 	)
 
-	var unexpectedClaimingError = xerrors.New("unexpected claiming error")
+	unexpectedClaimingError := xerrors.New("unexpected claiming error")
 
 	cases := map[string]struct {
 		expectPrebuildClaimed  bool
