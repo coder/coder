@@ -754,23 +754,34 @@ export class Awaiter {
 	}
 }
 
-export const createServer = async (
-	port: number,
-): Promise<ReturnType<typeof express>> => {
+interface Symbol {
+	readonly asyncDispose: unique symbol;
+}
+
+type Server = ReturnType<typeof express> & {
+	[Symbol.asyncDispose]: () => Promise<void>;
+};
+
+export const createServer = async (port: number): Promise<Server> => {
 	await waitForPort(port); // Wait until the port is available
 
-	const e = express();
+	const e: Server = express() as Server;
 	// We need to specify the local IP address as the web server
 	// tends to fail with IPv6 related error:
 	// listen EADDRINUSE: address already in use :::50516
-	await new Promise<void>((r) => e.listen(port, "0.0.0.0", r));
+	await new Promise<void>((r) => {
+		const server = e.listen(port, "0.0.0.0", r);
+		e[Symbol.asyncDispose] = async () => {
+			server.close();
+		};
+	});
 	return e;
 };
 
 async function waitForPort(
 	port: number,
 	host = "0.0.0.0",
-	timeout = 60_000,
+	timeout = 15_000,
 ): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < timeout) {

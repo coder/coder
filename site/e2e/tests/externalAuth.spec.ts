@@ -12,9 +12,12 @@ import {
 } from "../helpers";
 import { beforeCoderTest, resetExternalAuthKey } from "../hooks";
 
-test.describe.skip("externalAuth", () => {
+test.describe("externalAuth", () => {
+	let closeServerCallback: () => void;
+
 	test.beforeAll(async ({ baseURL }) => {
 		const srv = await createServer(gitAuth.webPort);
+		closeServerCallback = () => srv[Symbol.asyncDispose]();
 
 		// The GitHub validate endpoint returns the currently authenticated user!
 		srv.use(gitAuth.validatePath, (req, res) => {
@@ -31,6 +34,10 @@ test.describe.skip("externalAuth", () => {
 				`${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=${req.query.state}`,
 			);
 		});
+	});
+
+	test.afterAll(() => {
+		closeServerCallback?.();
 	});
 
 	test.beforeEach(async ({ context, page }) => {
@@ -50,7 +57,7 @@ test.describe.skip("externalAuth", () => {
 		};
 
 		// Start a server to mock the GitHub API.
-		const srv = await createServer(gitAuth.devicePort);
+		await using srv = await createServer(gitAuth.devicePort);
 		srv.use(gitAuth.validatePath, (req, res) => {
 			res.write(JSON.stringify(ghUser));
 			res.end();
