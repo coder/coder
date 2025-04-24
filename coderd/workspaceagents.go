@@ -338,9 +338,9 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		Slug:    req.AppSlug,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace app.",
-			Detail:  err.Error(),
+			Detail:  fmt.Sprintf("No app found with slug %q", req.AppSlug),
 		})
 		return
 	}
