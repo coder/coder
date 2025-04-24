@@ -876,15 +876,13 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 }
 
 func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
-
-	claimedID, err := claimer.Claim(prebuildsCtx, owner.ID, req.Name, req.TemplateVersionPresetID)
+	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
 	}
 
-	lookup, err := db.GetWorkspaceByID(prebuildsCtx, *claimedID)
+	lookup, err := db.GetWorkspaceByID(ctx, *claimedID)
 	if err != nil {
 		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", claimedID.String()))
 		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", claimedID.String(), err)
