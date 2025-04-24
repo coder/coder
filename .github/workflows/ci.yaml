@@ -249,12 +249,7 @@ jobs:
         uses: ./.github/actions/setup-tf
 
       - name: go install tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
-          go install golang.org/x/tools/cmd/goimports@v0.31.0
-          go install github.com/mikefarah/yq/v4@v4.44.3
-          go install go.uber.org/mock/mockgen@v0.5.0
+        uses: ./.github/actions/setup-go-tools
 
       - name: Install Protoc
         run: |
@@ -860,12 +855,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install go tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
-          go install golang.org/x/tools/cmd/goimports@v0.31.0
-          go install github.com/mikefarah/yq/v4@v4.44.3
-          go install go.uber.org/mock/mockgen@v0.5.0
+        uses: ./.github/actions/setup-go-tools
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
