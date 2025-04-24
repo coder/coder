@@ -3050,6 +3050,7 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      ExperimentsSafe.Enabled(ExperimentWorkspacePrebuilds), // Hide setting while this feature is experimental.
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
