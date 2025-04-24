@@ -623,6 +623,15 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 }
 
 func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBuildParameter {
+	// If a preset has been chosen during workspace creation, we must ensure that the parameters defined by the preset
+	// are set *exactly* as they as defined. For example, if a preset is chosen but a different value for one of the
+	// parameters (defined in that preset) are set explicitly, we need to ignore those values.
+	//
+	// If this were to occur, a workspace build's parameters and its associated preset's parameters would not match,
+	// causing inconsistency, and would be especially problematic for prebuilds. When a prebuild is claimed, we assume
+	// that the prebuild was built using *at least* the parameters defined in the selected preset.
+	//
+	// This should generally not happen, but this is added protection against that situation.
 	for _, v := range b.templateVersionPresetParameterValues {
 		if v.Name == name {
 			return &codersdk.WorkspaceBuildParameter{
