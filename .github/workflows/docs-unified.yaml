@@ -296,11 +296,10 @@ jobs:
       # Post initial comment with preview links
       - name: Post initial preview comment
         if: inputs.post-comment == 'true' && inputs.generate-preview == 'true' && (inputs.pr-number != '' || github.event.pull_request)
-        uses: marocchino/sticky-pull-request-comment@v2.9.2
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
-          header: docs-preview-comment
-          number: ${{ inputs.pr-number || github.event.pull_request.number }}
-          message: |
+          issue-number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          body: |
             # 📚 Documentation Preview ⏳
 
             ## 🖥️ [View Documentation Preview](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }})
@@ -312,8 +311,8 @@ jobs:
             - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
             - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
 
-            <sub>⏳ Validating documentation... (Started at $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC'))</sub>
-            <sub>⏱️ Status update: Waiting for validation results - last update: $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC')</sub>
+            <sub>⏳ Waiting for validation results...</sub>
+          reactions: eyes
 
       # Get changed files
       - name: Get changed files
@@ -327,11 +326,10 @@ jobs:
       # Update PR comment to show we're starting validation
       - name: Update PR comment with in-progress status
         if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
-        uses: marocchino/sticky-pull-request-comment@v2.9.2
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
-          header: docs-preview-comment
-          number: ${{ inputs.pr-number || github.event.pull_request.number }}
-          message: |
+          issue-number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          body: |
             # 📚 Documentation Preview ⏳
 
             ## 🖥️ [View Documentation Preview](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }})
@@ -343,7 +341,8 @@ jobs:
             - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
             - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
 
-            <sub>⏳ Found ${{ steps.changed-files.outputs.all_changed_files_count }} markdown files to validate. Starting validation at $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC')...</sub>
+            <sub>⏳ Found ${{ steps.changed-files.outputs.all_changed_files_count }} markdown files. Validating documentation...</sub>
+          reactions: eyes
             
       # Run MegaLinter (documentation flavor)
       - name: MegaLinter Documentation
@@ -623,14 +622,14 @@ jobs:
 
           echo "::endgroup::"
 
-      # Prepare comment for PR using a template file approach
+      # Prepare comment for PR
       - name: Prepare PR comment
         id: prepare-comment
         if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
         shell: bash
         run: |
           echo "::group::Preparing PR comment"
-
+          
           # Variables for template
           SANITIZED_BRANCH="${{ steps.context-info.outputs.sanitized_branch }}"
           PREVIEW_URL="https://coder.com/docs/@$SANITIZED_BRANCH"
@@ -641,57 +640,64 @@ jobs:
           TOTAL="${{ steps.validation-results.outputs.validation_count }}"
           DURATION="${{ steps.validation-duration.outputs.duration }}"
           WORKFLOW_RUN="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          # Create a temporary file
-          TEMP_FILE=$(mktemp)
-
+          
           # Create header based on success
           if [ "${{ steps.validation-results.outputs.overall_success }}" == "true" ]; then
-            echo "# 📚 Documentation Preview ✅" > $TEMP_FILE
+            HEADER="# 📚 Documentation Preview ✅"
             EMOJI="✅"
           else
-            echo "# 📚 Documentation Preview ⚠️" > $TEMP_FILE
+            HEADER="# 📚 Documentation Preview ⚠️"
             EMOJI="⚠️"
           fi
+          
+          # Create comment content
+          COMMENT="$HEADER
 
-          # Add content line by line
-          echo "" >> $TEMP_FILE
-          echo "## 🖥️ [View Documentation Preview]($PREVIEW_URL)" >> $TEMP_FILE
-          echo "" >> $TEMP_FILE
-          echo "> $EMOJI **Validation Result**: $BADGE" >> $TEMP_FILE
-          echo "" >> $TEMP_FILE
-          echo "### Quick Links" >> $TEMP_FILE
-          echo "- [Main Docs]($PREVIEW_URL)" >> $TEMP_FILE
-          echo "- [Installation Guide]($PREVIEW_URL/install)" >> $TEMP_FILE
-          echo "- [Quickstart]($PREVIEW_URL/tutorials/quickstart)" >> $TEMP_FILE
-          echo "" >> $TEMP_FILE
-          echo "### 📊 Validation Stats" >> $TEMP_FILE
-          echo "" >> $TEMP_FILE
-          echo "- **Changed Files**: $FILES files checked" >> $TEMP_FILE
-          echo "- **Validation Success**: $SUCCESS% ($PASSING/$TOTAL checks passed)" >> $TEMP_FILE
-          echo "- **Processing Time**: $DURATION" >> $TEMP_FILE
-          echo "" >> $TEMP_FILE
-          echo "<sub>⏱️ Validation completed in $DURATION | Completed at $(TZ=UTC date '+%Y-%m-%d %H:%M:%S UTC') | [View Workflow Run]($WORKFLOW_RUN)</sub>" >> $TEMP_FILE
+## 🖥️ [View Documentation Preview]($PREVIEW_URL)
 
+> $EMOJI **Validation Result**: $BADGE
+
+### Quick Links
+- [Main Docs]($PREVIEW_URL)
+- [Installation Guide]($PREVIEW_URL/install)
+- [Quickstart]($PREVIEW_URL/tutorials/quickstart)
+
+### 📊 Validation Stats
+
+- **Changed Files**: $FILES files checked
+- **Validation Success**: $SUCCESS% ($PASSING/$TOTAL checks passed)
+- **Processing Time**: $DURATION
+
+<sub>⏱️ Validation completed in $DURATION | [View Workflow Run]($WORKFLOW_RUN)</sub>"
+          
           # Export content to GitHub output
           echo "comment<<EOF" >> $GITHUB_OUTPUT
-          cat $TEMP_FILE >> $GITHUB_OUTPUT
+          echo "$COMMENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
-          # Cleanup
-          rm $TEMP_FILE
-
+          
           echo "::endgroup::"
 
+      # Find existing comment
+      - name: Find existing comment
+        if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+        id: find-comment
+        with:
+          issue-number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "Documentation Preview"
+          direction: last
+          
       # Update the PR comment with results
       - name: Update PR comment with results
         if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
-        uses: marocchino/sticky-pull-request-comment@v2.9.2
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
-          header: docs-preview-comment
-          number: ${{ inputs.pr-number || github.event.pull_request.number }}
-          message: ${{ steps.prepare-comment.outputs.comment }}
-          recreate: true
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          body: ${{ steps.prepare-comment.outputs.comment }}
+          edit-mode: replace
+          reactions: ${{ steps.validation-results.outputs.overall_success == 'true' && 'rocket' || 'eyes' }}
 
       # Fail the workflow if specified and there are errors
       - name: Check for validation failure
