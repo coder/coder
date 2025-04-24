@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/armon/circbuf"
@@ -25,6 +26,11 @@ type bufferedReconnectingPTY struct {
 
 	activeConns    map[string]net.Conn
 	circularBuffer *circbuf.Buffer
+
+	// For channel-based output handling
+	outputChan   chan []byte
+	outputClosed bool
+	outputMu     sync.Mutex
 
 	ptty    pty.PTYCmd
 	process pty.Process
@@ -47,6 +53,7 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 		metrics:     options.Metrics,
 		state:       newState(),
 		timeout:     options.Timeout,
+		outputChan:  make(chan []byte, 32), // Buffered channel to avoid blocking during output
 	}
 
 	// Default to buffer 64KiB.
@@ -73,8 +80,8 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 
 	go rpty.lifecycle(ctx, logger)
 
-	// Multiplex the output onto the circular buffer and each active connection.
-	// We do not need to separately monitor for the process exiting.  When it
+	// Multiplex the output onto the circular buffer and broadcast to the output channel.
+	// We do not need to separately monitor for the process exiting. When it
 	// exits, our ptty.OutputReader() will return EOF after reading all process
 	// output.
 	go func() {
@@ -92,32 +99,33 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 				}
 				// Could have been killed externally or failed to start at all (command
 				// not found for example).
-				// TODO: Should we check the process's exit code in case the command was
-				//       invalid?
+				// Close the outputChan to signal all connection handlers that no more output is coming
+				rpty.closeOutputChannel()
 				rpty.Close(nil)
 				break
 			}
+			
 			part := buffer[:read]
+			
+			// Write to the circular buffer for history/scrollback
 			rpty.state.cond.L.Lock()
 			_, err = rpty.circularBuffer.Write(part)
 			if err != nil {
 				logger.Error(ctx, "write to circular buffer", slog.Error(err))
 				rpty.metrics.WithLabelValues("write_buffer").Add(1)
 			}
-			// TODO: Instead of ranging over a map, could we send the output to a
-			// channel and have each individual Attach read from that?
-			for cid, conn := range rpty.activeConns {
-				_, err = conn.Write(part)
-				if err != nil {
-					logger.Warn(ctx,
-						"error writing to active connection",
-						slog.F("connection_id", cid),
-						slog.Error(err),
-					)
-					rpty.metrics.WithLabelValues("write").Add(1)
-				}
-			}
 			rpty.state.cond.L.Unlock()
+			
+			// Send output to channel for all connected clients to consume
+			// This replaces the need to iterate through all connections on each output
+			select {
+			case rpty.outputChan <- slices.Clone(part):
+				// Successfully sent output
+			default:
+				// Channel buffer is full, this is unusual but we'll log it
+				logger.Warn(ctx, "output channel buffer full, some output may be lost")
+				rpty.metrics.WithLabelValues("output_channel_full").Add(1)
+			}
 		}
 	}()
 
@@ -141,6 +149,9 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 		rpty.Close(reasonErr)
 	}
 	rpty.timer.Stop()
+
+	// Close the output channel to signal all readers that no more output is coming
+	rpty.closeOutputChannel()
 
 	rpty.state.cond.L.Lock()
 	// Log these closes only for debugging since the connections or processes
@@ -171,6 +182,17 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 
 	logger.Info(ctx, "closed reconnecting pty")
 	rpty.state.setState(StateDone, reasonErr)
+}
+
+// closeOutputChannel closes the output channel safely
+func (rpty *bufferedReconnectingPTY) closeOutputChannel() {
+	rpty.outputMu.Lock()
+	defer rpty.outputMu.Unlock()
+	
+	if !rpty.outputClosed {
+		close(rpty.outputChan)
+		rpty.outputClosed = true
+	}
 }
 
 func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
@@ -206,7 +228,21 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 		rpty.metrics.WithLabelValues("resize").Add(1)
 	}
 
-	// Pipe conn -> pty and block.  pty -> conn is handled in newBuffered().
+	// Start a goroutine to read from the output channel and write to the connection
+	go func() {
+		for output := range rpty.outputChan {
+			_, err := conn.Write(output)
+			if err != nil {
+				logger.Warn(ctx, "error writing to connection", 
+					slog.F("connection_id", connID), 
+					slog.Error(err))
+				rpty.metrics.WithLabelValues("write").Add(1)
+				return
+			}
+		}
+	}()
+
+	// Pipe conn -> pty and block.
 	readConnLoop(ctx, conn, rpty.ptty, rpty.metrics, logger)
 	return nil
 }
