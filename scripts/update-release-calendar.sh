@@ -64,6 +64,25 @@ get_latest_patch() {
 	fi
 }
 
+# Function to get the next release month, accounting for skipped January releases
+get_next_release_month() {
+	local current_month=$1
+	local next_month=$((current_month + 1))
+
+	# Handle December -> February transition (skip January)
+	if [[ $next_month -eq 13 ]]; then
+		next_month=2 # Skip to February
+		return $next_month
+	fi
+
+	# Skip January for all years starting 2025
+	if [[ $next_month -eq 1 ]]; then
+		next_month=2
+	fi
+
+	return $next_month
+}
+
 # Generate releases table showing:
 # - 3 previous unsupported releases
 # - 1 security support release (n-2)
@@ -88,11 +107,31 @@ generate_release_calendar() {
 	result="| Release name | Release Date | Status | Latest Release |\n"
 	result+="|--------------|--------------|--------|----------------|\n"
 
+	# We know we skip January in our release schedule
+	# Months when releases happen (Feb-Dec, skip Jan)
+
+	# Find the latest release month and year
+	local current_release_minor=$((version_minor - 1)) # Current stable release
+	local tag_date
+	tag_date=$(cd "$(git rev-parse --show-toplevel)" && git log -1 --format=%ai "v$version_major.$current_release_minor.0" 2>/dev/null || echo "")
+
+	local current_release_month
+	local current_release_year
+
+	if [ -n "$tag_date" ]; then
+		# Extract month and year from tag date
+		current_release_month=$(date -d "$tag_date" +"%m")
+		current_release_year=$(date -d "$tag_date" +"%Y")
+	else
+		# Default to current month/year if tag not found
+		current_release_month=$current_month
+		current_release_year=$current_year
+	fi
+
 	# Generate rows for each release (7 total: 3 unsupported, 1 security, 1 stable, 1 mainline, 1 next)
 	for i in {0..6}; do
 		# Calculate release minor version
 		local rel_minor=$((start_minor + i))
-		# Format release name without the .x
 		local version_name="$version_major.$rel_minor"
 		local release_date
 		local formatted_date
@@ -101,22 +140,41 @@ generate_release_calendar() {
 		local status
 		local formatted_version_name
 
-		# Calculate release month and year based on release pattern
-		# This is a simplified calculation assuming monthly releases
-		local rel_month=$(((current_month - (5 - i) + 12) % 12))
-		[[ $rel_month -eq 0 ]] && rel_month=12
-		local rel_year=$current_year
-		if [[ $rel_month -gt $current_month ]]; then
-			rel_year=$((rel_year - 1))
-		fi
-		if [[ $rel_month -lt $current_month && $i -gt 5 ]]; then
-			rel_year=$((rel_year + 1))
-		fi
+		# Calculate the release month and year based on the current release's date
+		# For previous releases, go backward in the release_months array
+		# For future releases, go forward
+		local month_offset=$((i - 4)) # 4 is the index of the stable release (i=4)
 
-		# Skip January releases starting from 2025
-		if [[ $rel_month -eq 1 && $rel_year -ge 2025 ]]; then
-			rel_month=2
-			# No need to reassign rel_year to itself
+		# Start from the current stable release month
+		local rel_month=$current_release_month
+		local rel_year=$current_release_year
+
+		# Apply the offset to get the target release month
+		if [ $month_offset -lt 0 ]; then
+			# For previous releases, go backward
+			for ((j = 0; j > month_offset; j--)); do
+				rel_month=$((rel_month - 1))
+				if [ $rel_month -eq 0 ]; then
+					rel_month=12
+					rel_year=$((rel_year - 1))
+				elif [ $rel_month -eq 1 ]; then
+					# Skip January (go from February to December of previous year)
+					rel_month=12
+					rel_year=$((rel_year - 1))
+				fi
+			done
+		elif [ $month_offset -gt 0 ]; then
+			# For future releases, go forward
+			for ((j = 0; j < month_offset; j++)); do
+				rel_month=$((rel_month + 1))
+				if [ $rel_month -eq 13 ]; then
+					rel_month=2 # Skip from December to February
+					rel_year=$((rel_year + 1))
+				elif [ $rel_month -eq 1 ]; then
+					# Skip January
+					rel_month=2
+				fi
+			done
 		fi
 
 		# Get release date (first Tuesday of the month)
@@ -147,7 +205,6 @@ generate_release_calendar() {
 		fi
 
 		# Format version name and patch link based on release status
-		# No links for unreleased versions
 		if [[ "$status" == "Not Released" ]]; then
 			formatted_version_name="$version_name"
 			patch_link="N/A"
