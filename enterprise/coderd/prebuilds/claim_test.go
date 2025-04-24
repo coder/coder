@@ -420,7 +420,7 @@ func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
 				EntitlementsUpdateInterval: time.Second,
 			})
 
-			reconciler := prebuilds.NewStoreReconciler(errorStore, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
+			reconciler := prebuilds.NewStoreReconciler(errorStore, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), api.PrometheusRegistry)
 			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(errorStore)
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 

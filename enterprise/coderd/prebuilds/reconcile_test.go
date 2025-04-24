@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/google/uuid"
@@ -1011,6 +1012,29 @@ func setupTestDBWorkspace(
 	return workspace
 }
 
+func setupTestDBWorkspaceAgent(t *testing.T, db database.Store, workspaceID uuid.UUID, eligible bool) database.WorkspaceAgent {
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(t.Context(), workspaceID)
+	require.NoError(t, err)
+
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+
+	// A prebuilt workspace is considered eligible when its agent is in a "ready" lifecycle state.
+	// i.e. connected to the control plane and all startup scripts have run.
+	if eligible {
+		require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(t.Context(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-time.Minute), Valid: true},
+			ReadyAt:        sql.NullTime{Time: dbtime.Now(), Valid: true},
+		}))
+	}
+
+	return agent
+}
+
 var allTransitions = []database.WorkspaceTransition{
 	database.WorkspaceTransitionStart,
 	database.WorkspaceTransitionStop,
@@ -1026,4 +1050,8 @@ var allJobStatuses = []database.ProvisionerJobStatus{
 	database.ProvisionerJobStatusCanceling,
 }
 
-// TODO (sasswart): test mutual exclusion
+func allJobStatusesExcept(except ...database.ProvisionerJobStatus) []database.ProvisionerJobStatus {
+	return slice.Filter(except, func(status database.ProvisionerJobStatus) bool {
+		return !slice.Contains(allJobStatuses, status)
+	})
+}
