@@ -1105,6 +1105,59 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	return w
 }
 
+type WaitForCriterium func(agent codersdk.WorkspaceAgent) bool
+
+func AgentReady(agent codersdk.WorkspaceAgent) bool {
+	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+}
+
+func AgentNotReady(agent codersdk.WorkspaceAgent) bool {
+	return !AgentReady(agent)
+}
+
+func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForCriterium) {
+	w.t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(w.agentNames))
+	for _, name := range w.agentNames {
+		agentNamesMap[name] = struct{}{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
+	require.Eventually(w.t, func() bool {
+		var err error
+		workspace, err := w.client.Workspace(ctx, w.workspaceID)
+		if err != nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				if len(w.agentNames) > 0 {
+					if _, ok := agentNamesMap[agent.Name]; !ok {
+						continue
+					}
+				}
+				for _, criterium := range criteria {
+					if !criterium(agent) {
+						return false
+					}
+				}
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
+}
+
 // Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
 func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 	w.t.Helper()

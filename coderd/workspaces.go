@@ -689,10 +689,13 @@ func createWorkspace(
 				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
 					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
 			}
-			agentTokensByAgentID = make(map[uuid.UUID]string, len(agents))
-			for _, agent := range agents {
-				agentTokensByAgentID[agent.ID] = agent.AuthToken.String()
+			if len(agents) > 1 {
+				return xerrors.Errorf("multiple agents are not yet supported in prebuilt workspaces")
 			}
+			// agentTokensByAgentID = make(map[uuid.UUID]string, len(agents))
+			// for _, agent := range agents {
+			// 	agentTokensByAgentID[agent.ID] = agent.AuthToken.String()
+			// }
 		}
 
 		// We have to refetch the workspace for the joined in fields.

@@ -413,7 +413,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					break
 				}
 
-				logger.Info(ctx, "reinitializing...")
+				logger.Info(ctx, "agent reinitializing")
 			}
 			return lastErr
 		},

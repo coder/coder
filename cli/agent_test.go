@@ -21,7 +21,9 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -319,6 +321,56 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Greater(t, atomic.LoadInt64(&called), int64(0), "expected coderd to be reached with custom headers")
 		require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called with custom headers")
 	})
+}
+
+func TestAgent_Prebuild(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+		a[0].Scripts = []*proto.Script{
+			{
+				DisplayName: "Prebuild Test Script",
+				Script:      "sleep 5", // Make reinitiazation take long enough to assert that it happened
+				RunOnStart:  true,
+			},
+		}
+		return a
+	}).Do()
+
+	// Spin up an agent
+	logDir := t.TempDir()
+	inv, _ := clitest.New(t,
+		"agent",
+		"--auth", "token",
+		"--agent-token", r.AgentToken,
+		"--agent-url", client.URL.String(),
+		"--log-dir", logDir,
+	)
+	clitest.Start(t, inv)
+
+	// Check that the agent is in a happy steady state
+	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+	waiter.WaitFor(coderdtest.AgentReady)
+
+	// Trigger reinitialization
+	channel := agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+	err := pubsub.Publish(channel, []byte(user.UserID.String()))
+	require.NoError(t, err)
+
+	// Check that the agent reinitializes
+	waiter.WaitFor(coderdtest.AgentNotReady)
+
+	// Check that reinitialization completed
+	waiter.WaitFor(coderdtest.AgentReady)
 }
 
 func matchAgentWithVersion(rs []codersdk.WorkspaceResource) bool {
