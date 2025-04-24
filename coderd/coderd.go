@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/webpush"
 
@@ -595,6 +596,7 @@ func New(options *Options) *API {
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
+	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -1569,6 +1571,7 @@ type API struct {
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
 	FileCache          files.Cache
+	PrebuildsClaimer   atomic.Pointer[prebuilds.Claimer]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

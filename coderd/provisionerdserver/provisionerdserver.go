@@ -2471,10 +2471,11 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
-	DryRun           bool      `json:"dry_run"`
-	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
-	LogLevel         string    `json:"log_level,omitempty"`
+	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
+	DryRun                bool      `json:"dry_run"`
+	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
+	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
+	LogLevel              string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

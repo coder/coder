@@ -2,7 +2,12 @@ package prebuilds
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
+
+var ErrNoClaimablePrebuiltWorkspaces = xerrors.New("no claimable prebuilt workspaces found")
 
 // ReconciliationOrchestrator manages the lifecycle of prebuild reconciliation.
 // It runs a continuous loop to check and reconcile prebuild states, and can be stopped gracefully.
@@ -24,4 +29,9 @@ type Reconciler interface {
 	// It takes a global snapshot of the system state and then reconciles each preset
 	// in parallel, creating or deleting prebuilds as needed to reach their desired states.
 	ReconcileAll(ctx context.Context) error
+}
+
+type Claimer interface {
+	Claim(ctx context.Context, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error)
+	Initiator() uuid.UUID
 }
