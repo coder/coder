@@ -616,7 +616,7 @@ jobs:
 
 ## 🖥️ [View Documentation Preview]($PREVIEW_URL)
 
-> $STATUS_EMOJI **Validation Result**: ${{ steps.validation-results.outputs.badge }}
+> ${STATUS_EMOJI} **Validation Result**: ${{ steps.validation-results.outputs.badge }}
 
 ### Quick Links
 - [Main Docs]($PREVIEW_URL)
