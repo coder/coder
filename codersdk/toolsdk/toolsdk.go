@@ -150,10 +150,31 @@ type UploadTarFileArgs struct {
 	Files map[string]string `json:"files"`
 }
 
+// WithRecover wraps a HandlerFunc to recover from panics and return an error.
+func WithRecover[Arg, Ret any](h HandlerFunc[Arg, Ret]) HandlerFunc[Arg, Ret] {
+	return func(tb Toolbox, args Arg) (ret Ret, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = xerrors.Errorf("tool handler panic: %v", r)
+			}
+		}()
+		return h(tb, args)
+	}
+}
+
+// wrapAll wraps all provided tools with the given middleware function.
+func wrapAll(mw func(HandlerFunc[any, any]) HandlerFunc[any, any], tools ...Tool[any, any]) []Tool[any, any] {
+	for i, t := range tools {
+		t.Handler = mw(t.Handler)
+		tools[i] = t
+	}
+	return tools
+}
+
 var (
 	// All is a list of all tools that can be used in the Coder CLI.
 	// When you add a new tool, be sure to include it here!
-	All = []Tool[any, any]{
+	All = wrapAll(WithRecover,
 		CreateTemplate.Generic(),
 		CreateTemplateVersion.Generic(),
 		CreateWorkspace.Generic(),
@@ -170,7 +191,7 @@ var (
 		ReportTask.Generic(),
 		UploadTarFile.Generic(),
 		UpdateTemplateActiveVersion.Generic(),
-	}
+	)
 
 	ReportTask = Tool[ReportTaskArgs, string]{
 		Tool: aisdk.Tool{

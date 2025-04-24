@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kylecarbs/aisdk-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -378,4 +380,62 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
+}
+
+func TestWithRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		fakeTool := toolsdk.Tool[string, string]{
+			Tool: aisdk.Tool{
+				Name:        "fake_tool",
+				Description: "Returns a string for testing.",
+			},
+			Handler: func(tb toolsdk.Toolbox, args string) (string, error) {
+				require.Equal(t, "test", args)
+				return "ok", nil
+			},
+		}
+
+		wrapped := toolsdk.WithRecover(fakeTool.Handler)
+		v, err := wrapped(nil, "test")
+		require.NoError(t, err)
+		require.Equal(t, "ok", v)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+		fakeTool := toolsdk.Tool[string, string]{
+			Tool: aisdk.Tool{
+				Name:        "fake_tool",
+				Description: "Returns an error for testing.",
+			},
+			Handler: func(tb toolsdk.Toolbox, args string) (string, error) {
+				require.Equal(t, "test", args)
+				return "", assert.AnError
+			},
+		}
+		wrapped := toolsdk.WithRecover(fakeTool.Handler)
+		v, err := wrapped(nil, "test")
+		require.Empty(t, v)
+		require.ErrorIs(t, err, assert.AnError)
+	})
+
+	t.Run("Panic", func(t *testing.T) {
+		t.Parallel()
+		panicTool := toolsdk.Tool[string, string]{
+			Tool: aisdk.Tool{
+				Name:        "panic_tool",
+				Description: "Panics for testing.",
+			},
+			Handler: func(tb toolsdk.Toolbox, args string) (string, error) {
+				panic("you can't sweat this fever out")
+			},
+		}
+
+		wrapped := toolsdk.WithRecover(panicTool.Handler)
+		v, err := wrapped(nil, "disco")
+		require.Empty(t, v)
+		require.ErrorContains(t, err, "you can't sweat this fever out")
+	})
 }
