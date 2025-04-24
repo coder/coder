@@ -296,6 +296,8 @@ jobs:
       # Post initial comment with preview links
       - name: Post initial preview comment
         if: inputs.post-comment == 'true' && inputs.generate-preview == 'true' && (inputs.pr-number != '' || github.event.pull_request)
+        env:
+          TIMESTAMP: ${{ steps.start-time.outputs.timestamp }}
         uses: marocchino/sticky-pull-request-comment@v2.9.2
         with:
           header: docs-preview-comment
@@ -312,7 +314,8 @@ jobs:
             - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
             - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
 
-            <sub>⏳ Validating documentation...</sub>
+            <sub>⏳ Validating documentation... (Started at $(date -u -d @$TIMESTAMP '+%Y-%m-%d %H:%M:%S UTC'))</sub>
+            <sub>⏱️ Status update: Waiting for validation results - last update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')</sub>
 
       # Get changed files
       - name: Get changed files
@@ -323,6 +326,27 @@ jobs:
             docs/**/*.md
             **/*.md
 
+      # Update PR comment to show we're starting validation
+      - name: Update PR comment with in-progress status
+        if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
+        uses: marocchino/sticky-pull-request-comment@v2.9.2
+        with:
+          header: docs-preview-comment
+          number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          message: |
+            # 📚 Documentation Preview ⏳
+
+            ## 🖥️ [View Documentation Preview](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }})
+
+            > ℹ️ **Validation in progress**: Preview links are available now! This comment will update with validation results when complete.
+
+            ### Quick Links
+            - [Main Docs](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }})
+            - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
+            - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
+
+            <sub>⏳ Found ${{ steps.changed-files.outputs.all_changed_files_count }} markdown files to validate. Starting validation at $(date -u '+%Y-%m-%d %H:%M:%S UTC')...</sub>
+            
       # Run MegaLinter (documentation flavor)
       - name: MegaLinter Documentation
         id: megalinter
@@ -649,7 +673,7 @@ jobs:
           echo "- **Validation Success**: $SUCCESS% ($PASSING/$TOTAL checks passed)" >> $TEMP_FILE
           echo "- **Processing Time**: $DURATION" >> $TEMP_FILE
           echo "" >> $TEMP_FILE
-          echo "<sub>⏱️ Validation completed in $DURATION | [View Workflow Run]($WORKFLOW_RUN)</sub>" >> $TEMP_FILE
+          echo "<sub>⏱️ Validation completed in $DURATION | Completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC') | [View Workflow Run]($WORKFLOW_RUN)</sub>" >> $TEMP_FILE
 
           # Export content to GitHub output
           echo "comment<<EOF" >> $GITHUB_OUTPUT
