@@ -339,11 +339,11 @@ module "jetbrains_gateway" {
   source = "registry.coder.com/modules/jetbrains-gateway/coder"
 
   # JetBrains IDEs to make available for the user to select
-  jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
+  jetbrains_ides = ["IU", "PS", "WS", "PY", "CL", "GO", "RM", "RD", "RR"]
   default        = "IU"
 
   # Default folder to open when starting a JetBrains IDE
-  folder = "/home/coder"
+  folder = "/workspaces"
 
   # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = ">= 1.0.0"
