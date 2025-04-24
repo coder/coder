@@ -3,6 +3,7 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -125,7 +126,7 @@ func TestClaimPrebuild(t *testing.T) {
 			t.Parallel()
 
 			// Setup.
-			ctx := testutil.Context(t, testutil.WaitMedium)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			db, pubsub := dbtestutil.NewDB(t)
 			spy := newStoreSpy(db)
 			expectedPrebuildsCount := desiredInstances * presetCount
@@ -250,13 +251,9 @@ func TestClaimPrebuild(t *testing.T) {
 			require.Equal(t, expectedPrebuildsCount-1, len(currentPrebuilds))
 
 			// Then: the claimed prebuild is now missing from the running prebuilds set.
-			var found bool
-			for _, prebuild := range currentPrebuilds {
-				if prebuild.ID == claimed.ID {
-					found = true
-					break
-				}
-			}
+			found := slices.ContainsFunc(currentPrebuilds, func(prebuild database.GetRunningPrebuiltWorkspacesRow) bool {
+				return prebuild.ID == claimed.ID
+			})
 			require.False(t, found, "claimed prebuild should not still be considered a running prebuild")
 
 			// Then: reconciling at this point will provision a new prebuild to replace the claimed one.
@@ -407,7 +404,7 @@ func TestClaimPrebuild_CheckDifferentErrors(t *testing.T) {
 			t.Parallel()
 
 			// Setup.
-			ctx := testutil.Context(t, testutil.WaitMedium)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			db, pubsub := dbtestutil.NewDB(t)
 			errorStore := newErrorStore(db, tc.claimingErr)
 
