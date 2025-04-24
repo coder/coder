@@ -69,7 +69,11 @@ export const LoginPage: FC = () => {
 				/>
 			);
 		}
-	} else {
+	}
+
+	const disableExternalLoginPage = import.meta.env.VITE_DISABLE_EXTERNAL_LOGIN_PAGE === "true";
+
+	if (!isSignedIn && !disableExternalLoginPage) {
 		window.location.replace(`https://heaan.io`);
 		return null;
 	}

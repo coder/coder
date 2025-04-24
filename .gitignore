@@ -11,6 +11,7 @@ gotests.json
 node_modules/
 vendor/
 yarn-error.log
+.env
 
 # VSCode settings.
 **/.vscode/*

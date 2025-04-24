@@ -29,6 +29,7 @@ export default defineConfig({
 		// 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
 		sourcemap: "hidden",
 	},
+	envDir: "../",
 	define: {
 		"process.env": {
 			NODE_ENV: process.env.NODE_ENV,
