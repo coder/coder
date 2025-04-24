@@ -1,0 +1,13 @@
+extends: substitution
+message: "Use '%s' instead of '%s'"
+level: error
+ignorecase: false
+swap:
+  "(?<!/)coder": Coder
+  "docker container": "Docker container"
+  "kubernetes": Kubernetes
+  "k8s": Kubernetes
+  "YAML file": "YAML file"
+  "yaml file": "YAML file"
+  "json file": "JSON file"
+  "markdown file": "Markdown file"

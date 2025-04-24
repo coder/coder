@@ -1,0 +1,7 @@
+extends: metric
+message: "Try to keep sentences under 30 words."
+level: suggestion
+scope: sentence
+formula: |
+  size(tokens)
+condition: "> 30"

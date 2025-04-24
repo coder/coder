@@ -1,0 +1,7 @@
+extends: repetition
+message: "'%s' is repeated"
+level: error
+scope: paragraph
+ignorecase: true
+tokens:
+  - '[a-z]+'

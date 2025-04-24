@@ -1,0 +1,14 @@
+extends: capitalization
+message: "'%s' should use title case"
+level: warning
+scope: heading
+match: $title
+style: AP # The Associated Press Style Guide
+exceptions:
+  - Coder
+  - CLI
+  - API
+  - UI
+  - SSH
+  - URLs
+  - IP

@@ -590,7 +590,7 @@ jobs:
           
           echo "::endgroup::"
       
-      # Prepare comment for PR
+      # Prepare comment for PR using a template file approach
       - name: Prepare PR comment
         id: prepare-comment
         if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
@@ -598,43 +598,55 @@ jobs:
         run: |
           echo "::group::Preparing PR comment"
           
-          # Build the comment
+          # Variables for template
           SANITIZED_BRANCH="${{ steps.context-info.outputs.sanitized_branch }}"
           PREVIEW_URL="https://coder.com/docs/@$SANITIZED_BRANCH"
+          BADGE="${{ steps.validation-results.outputs.badge }}"
+          FILES="${{ steps.changed-files.outputs.all_changed_files_count }}"
+          SUCCESS="${{ steps.validation-results.outputs.success_percentage }}"
+          PASSING="${{ steps.validation-results.outputs.passing_count }}"
+          TOTAL="${{ steps.validation-results.outputs.validation_count }}"
+          DURATION="${{ steps.validation-duration.outputs.duration }}"
+          WORKFLOW_RUN="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           
-          # Create comment header
+          # Create a temporary file
+          TEMP_FILE=$(mktemp)
+          
+          # Create header based on success
           if [ "${{ steps.validation-results.outputs.overall_success }}" == "true" ]; then
-            HEADER="# 📚 Documentation Preview ✅"
-            STATUS_EMOJI="✅"
+            echo "# 📚 Documentation Preview ✅" > $TEMP_FILE
+            EMOJI="✅"
           else
-            HEADER="# 📚 Documentation Preview ⚠️"
-            STATUS_EMOJI="⚠️"
+            echo "# 📚 Documentation Preview ⚠️" > $TEMP_FILE
+            EMOJI="⚠️"
           fi
           
-          # Build the full comment
-          COMMENT="$HEADER
-
-## 🖥️ [View Documentation Preview]($PREVIEW_URL)
-
-> ${STATUS_EMOJI} **Validation Result**: ${{ steps.validation-results.outputs.badge }}
-
-### Quick Links
-- [Main Docs]($PREVIEW_URL)
-- [Installation Guide]($PREVIEW_URL/install)
-- [Quickstart]($PREVIEW_URL/tutorials/quickstart)
-
-### 📊 Validation Stats
-
-- **Changed Files**: ${{ steps.changed-files.outputs.all_changed_files_count }} files checked
-- **Validation Success**: ${{ steps.validation-results.outputs.success_percentage }}% (${{ steps.validation-results.outputs.passing_count }}/${{ steps.validation-results.outputs.validation_count }} checks passed)
-- **Processing Time**: ${{ steps.validation-duration.outputs.duration }}
-
-<sub>⏱️ Validation completed in ${{ steps.validation-duration.outputs.duration }} | [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+          # Add content line by line
+          echo "" >> $TEMP_FILE
+          echo "## 🖥️ [View Documentation Preview]($PREVIEW_URL)" >> $TEMP_FILE
+          echo "" >> $TEMP_FILE
+          echo "> $EMOJI **Validation Result**: $BADGE" >> $TEMP_FILE
+          echo "" >> $TEMP_FILE
+          echo "### Quick Links" >> $TEMP_FILE
+          echo "- [Main Docs]($PREVIEW_URL)" >> $TEMP_FILE
+          echo "- [Installation Guide]($PREVIEW_URL/install)" >> $TEMP_FILE
+          echo "- [Quickstart]($PREVIEW_URL/tutorials/quickstart)" >> $TEMP_FILE
+          echo "" >> $TEMP_FILE
+          echo "### 📊 Validation Stats" >> $TEMP_FILE
+          echo "" >> $TEMP_FILE
+          echo "- **Changed Files**: $FILES files checked" >> $TEMP_FILE
+          echo "- **Validation Success**: $SUCCESS% ($PASSING/$TOTAL checks passed)" >> $TEMP_FILE
+          echo "- **Processing Time**: $DURATION" >> $TEMP_FILE
+          echo "" >> $TEMP_FILE
+          echo "<sub>⏱️ Validation completed in $DURATION | [View Workflow Run]($WORKFLOW_RUN)</sub>" >> $TEMP_FILE
           
-          # Save the comment to output
+          # Export content to GitHub output
           echo "comment<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMENT" >> $GITHUB_OUTPUT
+          cat $TEMP_FILE >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Cleanup
+          rm $TEMP_FILE
           
           echo "::endgroup::"
       
