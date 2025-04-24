@@ -1,0 +1,657 @@
+name: Docs Unified Workflow
+on:
+  workflow_call:
+    inputs:
+      preset:
+        description: 'Predefined configuration preset (pr, post-merge, weekly, ci)'
+        required: false
+        type: string
+        default: ''
+      lint-markdown:
+        description: 'Whether to lint markdown files (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      check-format:
+        description: 'Whether to check table formatting (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      check-links:
+        description: 'Whether to check links (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      check-cross-references:
+        description: 'Whether to check cross-references (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      lint-vale:
+        description: 'Whether to run Vale style checks (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      generate-preview:
+        description: 'Whether to generate preview links (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      post-comment:
+        description: 'Whether to post a PR comment (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      create-issues:
+        description: 'Whether to create GitHub issues (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      fail-on-error:
+        description: 'Whether to fail the workflow on errors (overrides preset)'
+        required: false
+        type: boolean
+        default: false
+      pr-number:
+        description: 'PR number for commenting (if passed from calling workflow)'
+        required: false
+        type: string
+        default: ''
+      notification-channels:
+        description: 'Comma-separated list of notification channels (github-issue, slack)'
+        required: false
+        type: string
+        default: ''
+      issue-labels:
+        description: 'Labels to apply to created issues (comma-separated)'
+        required: false
+        type: string
+        default: 'documentation,bug'
+
+jobs:
+  docs-validation:
+    name: Documentation Validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # needed for commenting on PRs
+      
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        with:
+          egress-policy: audit
+
+      # Setup: Checkout code with full history for proper comparisons
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # Fetch all history for proper file comparison
+      
+      # Record start time for validation
+      - name: Record start time
+        id: start-time
+        shell: bash
+        run: |
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+          
+      # Apply configuration presets
+      - name: Apply configuration preset
+        id: config
+        shell: bash
+        run: |
+          echo "::group::Applying configuration settings"
+          
+          # Default values (will be overridden by presets or specific inputs)
+          LINT_MARKDOWN="false"
+          CHECK_FORMAT="false"
+          CHECK_LINKS="false"
+          CHECK_XREFS="false"
+          LINT_VALE="false"
+          GEN_PREVIEW="false"
+          POST_COMMENT="false"
+          CREATE_ISSUES="false"
+          FAIL_ON_ERROR="false"
+          
+          # Apply presets if specified
+          if [ -n "${{ inputs.preset }}" ]; then
+            case "${{ inputs.preset }}" in
+              "pr")
+                # PR preset: Comprehensive validation with preview for PRs
+                LINT_MARKDOWN="true"  # Ensure markdown format is correct
+                CHECK_FORMAT="true"   # Check table formatting
+                CHECK_LINKS="true"    # Verify all links work
+                CHECK_XREFS="true"    # Check document cross-references
+                LINT_VALE="true"      # Run style checks
+                GEN_PREVIEW="true"    # Generate preview links
+                POST_COMMENT="true"   # Post comment with results
+                CREATE_ISSUES="false" # No auto-issue creation for PRs
+                FAIL_ON_ERROR="false" # Don't fail workflow to allow previews with warnings
+                echo "::notice::Applied PR preset configuration"
+                ;;
+              "post-merge")
+                # Post-merge preset: Lightweight check focused on link integrity
+                LINT_MARKDOWN="false"
+                CHECK_FORMAT="false"
+                CHECK_LINKS="true"  # Only check links after merge to main
+                CHECK_XREFS="false" # Cross-references should be checked pre-merge
+                LINT_VALE="false"   # Style should be checked pre-merge
+                GEN_PREVIEW="false"
+                POST_COMMENT="false"
+                CREATE_ISSUES="false"
+                FAIL_ON_ERROR="false"
+                echo "::notice::Applied post-merge preset configuration"
+                ;;
+              "weekly")
+                # Weekly check preset: Comprehensive validation with notifications (no style checks)
+                LINT_MARKDOWN="true"
+                CHECK_FORMAT="true"
+                CHECK_LINKS="true"
+                CHECK_XREFS="true"
+                LINT_VALE="false"     # Skip Vale style checking in weekly checks
+                GEN_PREVIEW="false"
+                POST_COMMENT="false"
+                CREATE_ISSUES="false" # Issue creation feature is planned but not implemented yet
+                FAIL_ON_ERROR="true"
+                echo "::notice::Applied weekly check preset configuration"
+                ;;
+              "ci")
+                # CI preset: Fast checks for CI pipelines
+                LINT_MARKDOWN="true"
+                CHECK_FORMAT="true"
+                CHECK_LINKS="false"
+                CHECK_XREFS="false"
+                LINT_VALE="false"
+                GEN_PREVIEW="false"
+                POST_COMMENT="false"
+                CREATE_ISSUES="false"
+                FAIL_ON_ERROR="true"
+                echo "::notice::Applied CI preset configuration"
+                ;;
+              *)
+                echo "::warning::Unknown preset '${{ inputs.preset }}', using default values"
+                ;;
+            esac
+          fi
+          
+          # Apply explicit overrides if provided
+          if [ "${{ inputs.lint-markdown }}" == "true" ]; then
+            LINT_MARKDOWN="true"
+          elif [ "${{ inputs.lint-markdown }}" == "false" ]; then
+            LINT_MARKDOWN="false"
+          fi
+          
+          if [ "${{ inputs.check-format }}" == "true" ]; then
+            CHECK_FORMAT="true"
+          elif [ "${{ inputs.check-format }}" == "false" ]; then
+            CHECK_FORMAT="false"
+          fi
+          
+          if [ "${{ inputs.check-links }}" == "true" ]; then
+            CHECK_LINKS="true"
+          elif [ "${{ inputs.check-links }}" == "false" ]; then
+            CHECK_LINKS="false"
+          fi
+          
+          if [ "${{ inputs.check-cross-references }}" == "true" ]; then
+            CHECK_XREFS="true"
+          elif [ "${{ inputs.check-cross-references }}" == "false" ]; then
+            CHECK_XREFS="false"
+          fi
+          
+          if [ "${{ inputs.lint-vale }}" == "true" ]; then
+            LINT_VALE="true"
+          elif [ "${{ inputs.lint-vale }}" == "false" ]; then
+            LINT_VALE="false"
+          fi
+          
+          if [ "${{ inputs.generate-preview }}" == "true" ]; then
+            GEN_PREVIEW="true"
+          elif [ "${{ inputs.generate-preview }}" == "false" ]; then
+            GEN_PREVIEW="false"
+          fi
+          
+          if [ "${{ inputs.post-comment }}" == "true" ]; then
+            POST_COMMENT="true"
+          elif [ "${{ inputs.post-comment }}" == "false" ]; then
+            POST_COMMENT="false"
+          fi
+          
+          if [ "${{ inputs.create-issues }}" == "true" ]; then
+            CREATE_ISSUES="true"
+          elif [ "${{ inputs.create-issues }}" == "false" ]; then
+            CREATE_ISSUES="false"
+          fi
+          
+          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+            FAIL_ON_ERROR="true"
+          elif [ "${{ inputs.fail-on-error }}" == "false" ]; then
+            FAIL_ON_ERROR="false"
+          fi
+          
+          # Store configuration as outputs
+          echo "lint_markdown=$LINT_MARKDOWN" >> $GITHUB_OUTPUT
+          echo "check_format=$CHECK_FORMAT" >> $GITHUB_OUTPUT
+          echo "check_links=$CHECK_LINKS" >> $GITHUB_OUTPUT
+          echo "check_xrefs=$CHECK_XREFS" >> $GITHUB_OUTPUT
+          echo "lint_vale=$LINT_VALE" >> $GITHUB_OUTPUT
+          echo "gen_preview=$GEN_PREVIEW" >> $GITHUB_OUTPUT
+          echo "post_comment=$POST_COMMENT" >> $GITHUB_OUTPUT
+          echo "create_issues=$CREATE_ISSUES" >> $GITHUB_OUTPUT
+          echo "fail_on_error=$FAIL_ON_ERROR" >> $GITHUB_OUTPUT
+          
+          echo "::endgroup::"
+
+      # Extract context information for PR/branch
+      - name: Extract context information
+        id: context-info
+        shell: bash
+        run: |
+          echo "::group::Extracting context information"
+          
+          # Extract PR number from inputs or context
+          if [ -n "${{ inputs.pr-number }}" ]; then
+            PR_NUMBER="${{ inputs.pr-number }}"
+            echo "::notice::Using PR number from action input: #${PR_NUMBER}"
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            echo "::notice::Using PR number from event context: #${PR_NUMBER}"
+          else
+            echo "::notice::No PR number available. Features requiring PR number will be disabled."
+            PR_NUMBER=""
+          fi
+          
+          # Extract branch information (used for preview URLs)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          
+          # Sanitize branch name for URLs
+          SANITIZED_BRANCH="${BRANCH_NAME//\//-}"
+          
+          # Generate preview URL
+          PREVIEW_URL="https://coder.com/docs/@$SANITIZED_BRANCH"
+          
+          # Store variables for later steps
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT 
+          echo "sanitized_branch=$SANITIZED_BRANCH" >> $GITHUB_OUTPUT
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+          
+          echo "::endgroup::"
+      
+      # Post initial comment with preview links
+      - name: Post initial preview comment
+        if: inputs.post-comment == 'true' && inputs.generate-preview == 'true' && (inputs.pr-number != '' || github.event.pull_request)
+        uses: marocchino/sticky-pull-request-comment@v2.9.2
+        with:
+          header: docs-preview-comment
+          number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          message: |
+            # 📚 Documentation Preview ⏳
+
+            ## 🖥️ [View Documentation Preview](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }})
+
+            > ℹ️ **Validation in progress**: Preview links are available now! This comment will update with validation results when complete.
+
+            ### Quick Links
+            - [Main Docs](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }})
+            - [Installation Guide](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/install)
+            - [Quickstart](https://coder.com/docs/@${{ steps.context-info.outputs.sanitized_branch }}/tutorials/quickstart)
+            
+            <sub>⏳ Validating documentation...</sub>
+
+      # Get changed files
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            docs/**/*.md
+            **/*.md
+            
+      # Run MegaLinter (documentation flavor)
+      - name: MegaLinter Documentation
+        id: megalinter
+        uses: oxsecurity/megalinter/flavors/documentation@v7
+        if: steps.changed-files.outputs.all_changed_files != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Only run specific linters based on configuration
+          ENABLE_LINTERS: ${{ steps.config.outputs.lint_markdown == 'true' && 'MARKDOWN_MARKDOWNLINT,' || '' }}${{ steps.config.outputs.lint_vale == 'true' && 'MARKDOWN_VALE,' || '' }}${{ steps.config.outputs.check_links == 'true' && 'MARKDOWN_MARKDOWN_LINK_CHECK,' || '' }}
+          # Directories to scan
+          MARKDOWN_VALE_FILE_EXTENSIONS: ".md"
+          MARKDOWN_VALE_FILTER_REGEX_INCLUDE: "(\\.md)$"
+          # Vale configuration
+          MARKDOWN_VALE_CONFIG_FILE: .github/docs/vale/.vale.ini
+          # Markdownlint configuration
+          MARKDOWN_MARKDOWNLINT_CONFIG_FILE: .github/docs/config/.markdownlint.yml
+          # Link checking
+          MARKDOWN_MARKDOWN_LINK_CHECK_CONFIG_FILE: .github/docs/config/markdown-link-check.json
+          MARKDOWN_MARKDOWN_LINK_CHECK_ARGUMENTS: "--quiet"
+          # Only check changed files
+          MEGALINTER_FILES_TO_LINT: ${{ steps.changed-files.outputs.all_changed_files }}
+          MEGALINTER_ONLY_UPDATED_FILES: true
+          # Report settings
+          DISABLE_ERRORS: ${{ steps.config.outputs.fail_on_error != 'true' }}
+          FILEIO_REPORTER: false
+          GITHUB_STATUS_REPORTER: false
+          GITHUB_COMMENT_REPORTER: false
+          TEXT_REPORTER: true
+          SARIF_REPORTER: true
+          JSON_REPORTER: true
+
+      # Custom cross-reference check for documentation changes
+      - name: Check cross-references
+        id: check-cross-refs
+        if: steps.config.outputs.check_xrefs == 'true' && steps.changed-files.outputs.all_changed_files != ''
+        shell: bash
+        run: |
+          echo "::group::Checking cross-references"
+          
+          DOCS_DIR="docs"
+          FOUND_ISSUES=0
+          BROKEN_REFS=0
+          
+          # Check for broken references to deleted files
+          if [ -n "${{ steps.changed-files.outputs.deleted_files }}" ]; then
+            echo "Checking for references to deleted files..."
+            
+            # For each deleted file, check if any remaining files reference it
+            for deleted_file in ${{ steps.changed-files.outputs.deleted_files }}; do
+              # Skip non-markdown files
+              if [[ "$deleted_file" != *.md ]]; then
+                continue
+              fi
+              
+              # Extract filename for matching
+              deleted_name=$(basename "$deleted_file")
+              
+              # Use grep to find references to this file
+              echo "Checking references to: $deleted_name"
+              REFS_TO_DELETED=$(grep -l -r --include="*.md" "\[$deleted_name\]" "$DOCS_DIR" 2>/dev/null || echo "")
+              
+              if [ -n "$REFS_TO_DELETED" ]; then
+                echo "::warning::Found references to deleted file '$deleted_name' in these files:"
+                echo "$REFS_TO_DELETED" | sed 's/^/  - /'
+                BROKEN_REFS=$((BROKEN_REFS + 1))
+                FOUND_ISSUES=1
+              fi
+            done
+          fi
+          
+          # Check for broken cross-references in changed files
+          if [ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]; then
+            echo "Checking for broken internal links in changed files..."
+            
+            for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+              # Skip non-markdown files
+              if [[ "$file" != *.md ]]; then
+                continue
+              fi
+              
+              # Extract all internal links with the [text](link) pattern (exclude http/https links)
+              LINKS=$(grep -o -E '\[.+?\]\(\s*[^(http|https|mailto|#)][^)]+\s*\)' "$file" 2>/dev/null || echo "")
+              
+              if [ -n "$LINKS" ]; then
+                # For each link, check if the target exists
+                echo "$LINKS" | while read -r link_match; do
+                  # Extract just the URL part from [text](url)
+                  link_url=$(echo "$link_match" | sed -E 's/\[.+?\]\(\s*([^)]+)\s*\)/\1/')
+                  
+                  # Handle relative links correctly
+                  if [[ "$link_url" == /* ]]; then
+                    # Absolute path from repo root
+                    link_path="$link_url"
+                  else
+                    # Relative path, get directory of current file
+                    file_dir=$(dirname "$file")
+                    link_path="$file_dir/$link_url"
+                  fi
+                  
+                  # Add .md extension if missing and it's likely a markdown link
+                  if [[ ! "$link_path" == *.* ]]; then
+                    link_path="${link_path}.md"
+                  fi
+                  
+                  # Clean up the path (remove double slashes, etc.)
+                  link_path=$(echo "$link_path" | sed 's@//@/@g' | sed 's@\./@/@g')
+                  
+                  # Check if the link target exists
+                  if [ ! -f "$link_path" ]; then
+                    echo "::warning::Broken link in $file: $link_match -> $link_path (file not found)"
+                    BROKEN_REFS=$((BROKEN_REFS + 1))
+                    FOUND_ISSUES=1
+                  fi
+                done
+              fi
+            done
+          fi
+          
+          # Check for broken image references
+          if [ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]; then
+            echo "Checking for broken image references..."
+            
+            for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+              # Skip non-markdown files
+              if [[ "$file" != *.md ]]; then
+                continue
+              fi
+              
+              # Extract all image references with the ![text](link) pattern (exclude http/https links)
+              IMAGES=$(grep -o -E '!\[.+?\]\(\s*[^(http|https)][^)]+\s*\)' "$file" 2>/dev/null || echo "")
+              
+              if [ -n "$IMAGES" ]; then
+                # For each image, check if it exists
+                echo "$IMAGES" | while read -r img_match; do
+                  # Extract just the URL part from ![text](url)
+                  img_url=$(echo "$img_match" | sed -E 's/!\[.+?\]\(\s*([^)]+)\s*\)/\1/')
+                  
+                  # Handle relative paths correctly
+                  if [[ "$img_url" == /* ]]; then
+                    # Absolute path from repo root
+                    img_path="$img_url"
+                  else
+                    # Relative path, get directory of current file
+                    file_dir=$(dirname "$file")
+                    img_path="$file_dir/$img_url"
+                  fi
+                  
+                  # Clean up the path (remove double slashes, etc.)
+                  img_path=$(echo "$img_path" | sed 's@//@/@g' | sed 's@\./@/@g')
+                  
+                  # Check if the image exists
+                  if [ ! -f "$img_path" ]; then
+                    echo "::warning::Broken image in $file: $img_match -> $img_path (file not found)"
+                    BROKEN_REFS=$((BROKEN_REFS + 1))
+                    FOUND_ISSUES=1
+                  fi
+                done
+              fi
+            done
+          fi
+          
+          # Set status based on findings
+          if [ $FOUND_ISSUES -eq 0 ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=No broken cross-references found" >> $GITHUB_OUTPUT
+          else
+            echo "status=warning" >> $GITHUB_OUTPUT
+            echo "message=Found $BROKEN_REFS broken cross-references" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "::endgroup::"
+
+      # Calculate validation duration
+      - name: Calculate validation duration
+        id: validation-duration
+        if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request)
+        shell: bash
+        run: |
+          START_TIME=${{ steps.start-time.outputs.timestamp }}
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          # Format duration as minutes and seconds
+          MINS=$((DURATION / 60))
+          SECS=$((DURATION % 60))
+          if [ $MINS -gt 0 ]; then
+            DURATION_TEXT="${MINS}m ${SECS}s"
+          else
+            DURATION_TEXT="${SECS}s"
+          fi
+          
+          echo "duration=$DURATION_TEXT" >> $GITHUB_OUTPUT
+      
+      # Prepare validation results
+      - name: Prepare validation results
+        id: validation-results
+        if: always() && steps.changed-files.outputs.all_changed_files != ''
+        shell: bash
+        run: |
+          echo "::group::Preparing validation results"
+          
+          # Initialize results
+          VALIDATION_COUNT=0
+          PASSING_COUNT=0
+          SUCCESS_PERCENTAGE=0
+          OVERALL_SUCCESS="true"
+          
+          # Function to process a validation result
+          process_validation() {
+            local name="$1"
+            local status="$2"
+            local message="$3"
+            
+            VALIDATION_COUNT=$((VALIDATION_COUNT + 1))
+            
+            if [ "$status" == "success" ]; then
+              PASSING_COUNT=$((PASSING_COUNT + 1))
+              echo "✅ $name: $message"
+            elif [ "$status" == "skipped" ]; then
+              echo "⏭️ $name: $message"
+            else
+              OVERALL_SUCCESS="false"
+              echo "❌ $name: $message"
+            fi
+          }
+          
+          # Check MegaLinter results
+          if [ "${{ steps.config.outputs.lint_markdown }}" == "true" ] || [ "${{ steps.config.outputs.lint_vale }}" == "true" ] || [ "${{ steps.config.outputs.check_links }}" == "true" ]; then
+            MEGALINTER_STATUS="${{ steps.megalinter.outcome }}"
+            
+            if [ "$MEGALINTER_STATUS" == "success" ]; then
+              process_validation "MegaLinter" "success" "All linting checks passed"
+            elif [ "$MEGALINTER_STATUS" == "skipped" ]; then
+              process_validation "MegaLinter" "skipped" "MegaLinter was not run"
+            else
+              process_validation "MegaLinter" "error" "Some linting checks failed"
+            fi
+          fi
+          
+          # Check cross-references results
+          if [ "${{ steps.config.outputs.check_xrefs }}" == "true" ]; then
+            XREFS_STATUS="${{ steps.check-cross-refs.outputs.status }}"
+            XREFS_MESSAGE="${{ steps.check-cross-refs.outputs.message }}"
+            
+            if [ "$XREFS_STATUS" == "success" ]; then
+              process_validation "Cross-references" "success" "$XREFS_MESSAGE"
+            elif [ "$XREFS_STATUS" == "skipped" ]; then
+              process_validation "Cross-references" "skipped" "$XREFS_MESSAGE"
+            else
+              process_validation "Cross-references" "warning" "$XREFS_MESSAGE"
+            fi
+          fi
+          
+          # Calculate success percentage
+          if [ $VALIDATION_COUNT -gt 0 ]; then
+            SUCCESS_PERCENTAGE=$((PASSING_COUNT * 100 / VALIDATION_COUNT))
+          else
+            SUCCESS_PERCENTAGE=100 # No validations ran
+          fi
+          
+          # Create badge text
+          if [ "$OVERALL_SUCCESS" == "true" ]; then
+            BADGE="✅ All validation checks passed"
+          elif [ $SUCCESS_PERCENTAGE -ge 80 ]; then
+            BADGE="⚠️ Most validation checks passed"
+          else
+            BADGE="❌ Several validation issues were found"
+          fi
+          
+          # Set outputs
+          echo "validation_count=$VALIDATION_COUNT" >> $GITHUB_OUTPUT
+          echo "passing_count=$PASSING_COUNT" >> $GITHUB_OUTPUT
+          echo "success_percentage=$SUCCESS_PERCENTAGE" >> $GITHUB_OUTPUT
+          echo "overall_success=$OVERALL_SUCCESS" >> $GITHUB_OUTPUT
+          echo "badge=$BADGE" >> $GITHUB_OUTPUT
+          
+          echo "::endgroup::"
+      
+      # Prepare comment for PR
+      - name: Prepare PR comment
+        id: prepare-comment
+        if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
+        shell: bash
+        run: |
+          echo "::group::Preparing PR comment"
+          
+          # Build the comment
+          SANITIZED_BRANCH="${{ steps.context-info.outputs.sanitized_branch }}"
+          PREVIEW_URL="https://coder.com/docs/@$SANITIZED_BRANCH"
+          
+          # Create comment header
+          if [ "${{ steps.validation-results.outputs.overall_success }}" == "true" ]; then
+            HEADER="# 📚 Documentation Preview ✅"
+            STATUS_EMOJI="✅"
+          else
+            HEADER="# 📚 Documentation Preview ⚠️"
+            STATUS_EMOJI="⚠️"
+          fi
+          
+          # Build the full comment
+          COMMENT="$HEADER
+
+## 🖥️ [View Documentation Preview]($PREVIEW_URL)
+
+> $STATUS_EMOJI **Validation Result**: ${{ steps.validation-results.outputs.badge }}
+
+### Quick Links
+- [Main Docs]($PREVIEW_URL)
+- [Installation Guide]($PREVIEW_URL/install)
+- [Quickstart]($PREVIEW_URL/tutorials/quickstart)
+
+### 📊 Validation Stats
+
+- **Changed Files**: ${{ steps.changed-files.outputs.all_changed_files_count }} files checked
+- **Validation Success**: ${{ steps.validation-results.outputs.success_percentage }}% (${{ steps.validation-results.outputs.passing_count }}/${{ steps.validation-results.outputs.validation_count }} checks passed)
+- **Processing Time**: ${{ steps.validation-duration.outputs.duration }}
+
+<sub>⏱️ Validation completed in ${{ steps.validation-duration.outputs.duration }} | [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+          
+          # Save the comment to output
+          echo "comment<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "::endgroup::"
+      
+      # Update the PR comment with results
+      - name: Update PR comment with results
+        if: inputs.post-comment == 'true' && (inputs.pr-number != '' || github.event.pull_request) && steps.changed-files.outputs.all_changed_files != ''
+        uses: marocchino/sticky-pull-request-comment@v2.9.2
+        with:
+          header: docs-preview-comment
+          number: ${{ inputs.pr-number || github.event.pull_request.number }}
+          message: ${{ steps.prepare-comment.outputs.comment }}
+          recreate: true
+      
+      # Fail the workflow if specified and there are errors
+      - name: Check for validation failure
+        if: steps.config.outputs.fail-on-error == 'true' && steps.validation-results.outputs.overall_success == 'false'
+        shell: bash
+        run: |
+          echo "::error::Documentation validation failed with ${{ steps.validation-results.outputs.badge }}"
+          exit 1

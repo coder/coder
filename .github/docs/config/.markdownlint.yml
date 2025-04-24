@@ -1,0 +1,88 @@
+# Markdownlint configuration for Coder documentation
+# Based on markdownlint defaults with some customizations
+
+# MD001 - Heading levels should only increment by one level at a time
+MD001: true
+
+# MD003 - Heading style
+MD003:
+  style: "atx"  # Use # style headers
+
+# MD004 - Unordered list style
+MD004:
+  style: "dash"  # Use - for unordered lists
+
+# MD007 - Unordered list indentation
+MD007:
+  indent: 2  # Use 2 spaces for list indentation
+
+# MD009 - Trailing spaces
+MD009:
+  br_spaces: 2  # Allow 2 spaces for line breaks
+  list_item_empty_lines: false  # Don't allow trailing spaces on empty lines in lists
+
+# MD010 - Hard tabs
+MD010: true  # No hard tabs
+
+# MD012 - Multiple consecutive blank lines
+MD012:
+  maximum: 1  # Allow at most 1 consecutive blank line
+
+# MD013 - Line length
+MD013:
+  line_length: 120  # Allow longer lines for docs
+  heading_line_length: 120
+  code_block_line_length: 120
+  tables: false  # Don't check tables
+
+# MD018 - No space after hash on atx style heading
+MD018: true
+
+# MD022 - Headings should be surrounded by blank lines
+MD022: true
+
+# MD023 - Headings must start at the beginning of the line
+MD023: true
+
+# MD025 - Single title/h1 per document
+MD025:
+  level: 1  # Only check level 1 headings
+  front_matter_title: ""  # Don't check title in front matter
+
+# MD026 - Trailing punctuation in heading
+MD026:
+  punctuation: ".,;:!。，；：！"  # Default punctuation
+
+# MD029 - Ordered list item prefix
+MD029:
+  style: "one_or_ordered"  # Allow 1. 2. 3. or 1. 1. 1.
+
+# MD033 - Inline HTML
+MD033:
+  allowed_elements: ["br", "img", "a", "details", "summary", "kbd", "div", "span", "sup", "sub", "Image", "br"]  # Allow certain HTML elements
+
+# MD034 - Bare URL should be in angle brackets or Markdown link
+MD034: true
+
+# MD036 - Emphasis used instead of heading
+MD036: false  # Allow emphasis for non-heading purposes
+
+# MD040 - Fenced code blocks should have a language specified
+MD040: true
+
+# MD041 - First line in a file should be a top-level heading
+MD041:
+  level: 1  # Only check for level 1 headings
+  front_matter_title: "^\\s*title\\s*:"  # Title in front matter
+
+# MD043 - Required heading structure
+MD043: false  # Don't require specific heading structure
+
+# MD044 - Proper names should have consistent capitalization
+MD044:
+  names: ["Coder", "GitHub", "Docker", "Kubernetes", "JavaScript", "TypeScript", "React", "SSH", "API"]  # List of proper names
+  code_blocks: false  # Don't check code blocks
+
+# MD046 - Code block style
+MD046:
+  style: "fenced"  # Use ```code``` style
