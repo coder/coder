@@ -100,16 +100,28 @@ func hashTemplateFilesAndTestName(t *testing.T, testName string, templateFiles m
 	}
 	sort.Strings(sortedFileNames)
 
+	// Inserting a delimiter between the file name and the file content
+	// ensures that a file named `ab` with content `cd`
+	// will not hash to the same value as a file named `abc` with content `d`.
+	// This can still happen if the file name or content include the delimiter,
+	// but hopefully they won't.
+	delimiter := []byte("🎉 🌱 🌷")
+
 	hasher := sha256.New()
 	for _, fileName := range sortedFileNames {
 		file := templateFiles[fileName]
 		_, err := hasher.Write([]byte(fileName))
 		require.NoError(t, err)
+		_, err = hasher.Write(delimiter)
+		require.NoError(t, err)
 		_, err = hasher.Write([]byte(file))
 		require.NoError(t, err)
 	}
-	_, err := hasher.Write([]byte(testName))
+	_, err := hasher.Write(delimiter)
 	require.NoError(t, err)
+	_, err = hasher.Write([]byte(testName))
+	require.NoError(t, err)
+
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
@@ -156,19 +168,26 @@ func runCmd(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// Ensures Terraform providers are downloaded and cached locally in a unique directory for this test.
-// Uses `terraform init` then `mirror` to populate the cache if needed.
-// Returns the cache directory path.
-func downloadProviders(t *testing.T, rootDir string, templateFiles map[string]string) string {
+// Each test gets a unique cache dir based on its name and template files.
+// This ensures that tests can download providers in parallel and that they
+// will redownload providers if the template files change.
+func getTestCacheDir(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
 	t.Helper()
 
-	// Each test gets a unique cache dir based on its name and template files.
-	// This ensures that tests can download providers in parallel and that they
-	// will redownload providers if the template files change.
-	hash := hashTemplateFilesAndTestName(t, t.Name(), templateFiles)
+	hash := hashTemplateFilesAndTestName(t, testName, templateFiles)
 	dir := filepath.Join(rootDir, hash[:12])
+	return dir
+}
+
+// Ensures Terraform providers are downloaded and cached locally in a unique directory for the test.
+// Uses `terraform init` then `mirror` to populate the cache if needed.
+// Returns the cache directory path.
+func downloadProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+	t.Helper()
+
+	dir := getTestCacheDir(t, rootDir, testName, templateFiles)
 	if _, err := os.Stat(dir); err == nil {
-		t.Logf("%s: using cached terraform providers", t.Name())
+		t.Logf("%s: using cached terraform providers", testName)
 		return dir
 	}
 	filesDir := filepath.Join(dir, cacheTemplateFilesDirName)
@@ -182,6 +201,8 @@ func downloadProviders(t *testing.T, rootDir string, templateFiles map[string]st
 		if !t.Failed() {
 			return
 		}
+		// If `downloadProviders` function failed, clean up the cache dir.
+		// We don't want to leave it around because it may be incomplete or corrupted.
 		if err := os.RemoveAll(dir); err != nil {
 			t.Logf("failed to remove dir %s: %s", dir, err)
 		}
@@ -191,10 +212,8 @@ func downloadProviders(t *testing.T, rootDir string, templateFiles map[string]st
 
 	for fileName, file := range templateFiles {
 		filePath := filepath.Join(filesDir, fileName)
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o700))
-			require.NoError(t, os.WriteFile(filePath, []byte(file), 0o600))
-		}
+		require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o700))
+		require.NoError(t, os.WriteFile(filePath, []byte(file), 0o600))
 	}
 
 	providersDir := filepath.Join(dir, cacheProvidersDirName)
@@ -226,10 +245,10 @@ func downloadProviders(t *testing.T, rootDir string, templateFiles map[string]st
 // This setup prevents network access for providers during `terraform init`, improving reliability
 // in subsequent test runs.
 // Returns the path to the generated CLI config file.
-func cacheProviders(t *testing.T, templateFiles map[string]string, rootDir string) string {
+func cacheProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
 	t.Helper()
 
-	providersParentDir := downloadProviders(t, rootDir, templateFiles)
+	providersParentDir := downloadProviders(t, rootDir, testName, templateFiles)
 	cliConfigPath := writeCliConfig(t, providersParentDir)
 	return cliConfigPath
 }
@@ -991,6 +1010,23 @@ func TestProvision(t *testing.T) {
 		},
 	}
 
+	// Remove unused cache dirs before running tests.
+	// This cleans up any cache dirs that were created by tests that no longer exist.
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_provision_test")
+	expectedCacheDirs := make(map[string]bool)
+	for _, testCase := range testCases {
+		cacheDir := getTestCacheDir(t, cacheRootDir, testCase.Name, testCase.Files)
+		expectedCacheDirs[cacheDir] = true
+	}
+	currentCacheDirs, err := filepath.Glob(filepath.Join(cacheRootDir, "*"))
+	require.NoError(t, err)
+	for _, cacheDir := range currentCacheDirs {
+		if _, ok := expectedCacheDirs[cacheDir]; !ok {
+			t.Logf("removing unused cache dir: %s", cacheDir)
+			require.NoError(t, os.RemoveAll(cacheDir))
+		}
+	}
+
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
@@ -1004,8 +1040,9 @@ func TestProvision(t *testing.T) {
 			if !testCase.SkipCacheProviders {
 				cliConfigPath = cacheProviders(
 					t,
+					cacheRootDir,
+					testCase.Name,
 					testCase.Files,
-					filepath.Join(testutil.PersistentCacheDir(t), "terraform_provision_test"),
 				)
 			}
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
