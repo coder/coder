@@ -84,29 +84,63 @@ func TestTemplatePull_Stdout(t *testing.T) {
 	coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, updatedVersion.ID)
 
 	// Verify .tar format
-	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
-	clitest.SetupConfig(t, templateAdmin, root)
-
 	var buf bytes.Buffer
-	inv.Stdout = &buf
-
-	err = inv.Run()
-	require.NoError(t, err)
-	require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
+	
+	// Make sure HTTP connections are properly closed after each test
+	{
+		inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
+		clitest.SetupConfig(t, templateAdmin, root)
+		inv.Stdout = &buf
+		err := inv.Run()
+		require.NoError(t, err)
+		
+		// Compare content structure instead of raw bytes
+		expectedHash := sha256.New()
+		expectedHash.Write(expected)
+		gotHash := sha256.New()
+		gotHash.Write(buf.Bytes())
+		
+		// Verify content lengths first for easier debugging
+		require.Equal(t, len(expected), len(buf.Bytes()), "tar file sizes differ")
+		// Then verify content hashes
+		require.Equal(t, hex.EncodeToString(expectedHash.Sum(nil)), hex.EncodeToString(gotHash.Sum(nil)), "tar file content differs")
+		
+		// Close HTTP connections before proceeding to next request
+		// This prevents "connection refused" errors when the test server
+		// is closed while there are still pending requests
+		clitest.SetupConfig(t, templateAdmin, root)
+		templateAdmin.HTTPClient.CloseIdleConnections()
+	}
 
 	// Verify .zip format
-	tarReader := tar.NewReader(bytes.NewReader(expected))
-	expectedZip, err := archive.CreateZipFromTar(tarReader, coderd.HTTPFileMaxBytes)
-	require.NoError(t, err)
+	{
+		tarReader := tar.NewReader(bytes.NewReader(expected))
+		expectedZip, err := archive.CreateZipFromTar(tarReader, coderd.HTTPFileMaxBytes)
+		require.NoError(t, err)
 
-	inv, root = clitest.New(t, "templates", "pull", "--zip", template.Name)
-	clitest.SetupConfig(t, templateAdmin, root)
-	buf.Reset()
-	inv.Stdout = &buf
+		buf.Reset()
+		inv, root := clitest.New(t, "templates", "pull", "--zip", template.Name)
+		clitest.SetupConfig(t, templateAdmin, root)
+		inv.Stdout = &buf
 
-	err = inv.Run()
-	require.NoError(t, err)
-	require.True(t, bytes.Equal(expectedZip, buf.Bytes()), "zip files differ")
+		err = inv.Run()
+		require.NoError(t, err)
+		
+		// Compare content structure instead of raw bytes
+		expectedZipHash := sha256.New()
+		expectedZipHash.Write(expectedZip)
+		gotZipHash := sha256.New()
+		gotZipHash.Write(buf.Bytes())
+		
+		// Verify content lengths first for easier debugging
+		require.Equal(t, len(expectedZip), len(buf.Bytes()), "zip file sizes differ")
+		// Then verify content hashes
+		require.Equal(t, hex.EncodeToString(expectedZipHash.Sum(nil)), hex.EncodeToString(gotZipHash.Sum(nil)), "zip file content differs")
+
+		// Close HTTP connections
+		clitest.SetupConfig(t, templateAdmin, root)
+		templateAdmin.HTTPClient.CloseIdleConnections()
+	}
 }
 
 // Stdout tests that 'templates pull' pulls down the non-latest active template
@@ -145,7 +179,22 @@ func TestTemplatePull_ActiveOldStdout(t *testing.T) {
 	err = inv.Run()
 	require.NoError(t, err)
 
-	require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
+	// Compare content structure instead of raw bytes
+	expectedHash := sha256.New()
+	expectedHash.Write(expected)
+	gotHash := sha256.New()
+	gotHash.Write(buf.Bytes())
+	
+	// Verify content lengths first for easier debugging
+	require.Equal(t, len(expected), len(buf.Bytes()), "tar file sizes differ")
+	// Then verify content hashes
+	require.Equal(t, hex.EncodeToString(expectedHash.Sum(nil)), hex.EncodeToString(gotHash.Sum(nil)), "tar file content differs")
+	
+	// Close HTTP connections before proceeding to next request
+	// This prevents "connection refused" errors when the test server
+	// is closed while there are still pending requests
+	clitest.SetupConfig(t, templateAdmin, root)
+	templateAdmin.HTTPClient.CloseIdleConnections()
 	require.Contains(t, stderr.String(), "A newer template version than the active version exists.")
 }
 
@@ -188,7 +237,22 @@ func TestTemplatePull_SpecifiedStdout(t *testing.T) {
 	err = inv.Run()
 	require.NoError(t, err)
 
-	require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
+	// Compare content structure instead of raw bytes
+	expectedHash := sha256.New()
+	expectedHash.Write(expected)
+	gotHash := sha256.New()
+	gotHash.Write(buf.Bytes())
+	
+	// Verify content lengths first for easier debugging
+	require.Equal(t, len(expected), len(buf.Bytes()), "tar file sizes differ")
+	// Then verify content hashes
+	require.Equal(t, hex.EncodeToString(expectedHash.Sum(nil)), hex.EncodeToString(gotHash.Sum(nil)), "tar file content differs")
+	
+	// Close HTTP connections before proceeding to next request
+	// This prevents "connection refused" errors when the test server
+	// is closed while there are still pending requests
+	clitest.SetupConfig(t, templateAdmin, root)
+	templateAdmin.HTTPClient.CloseIdleConnections()
 }
 
 // Stdout tests that 'templates pull' pulls down the latest template
@@ -225,7 +289,22 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 	err = inv.Run()
 	require.NoError(t, err)
 
-	require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
+	// Compare content structure instead of raw bytes
+	expectedHash := sha256.New()
+	expectedHash.Write(expected)
+	gotHash := sha256.New()
+	gotHash.Write(buf.Bytes())
+	
+	// Verify content lengths first for easier debugging
+	require.Equal(t, len(expected), len(buf.Bytes()), "tar file sizes differ")
+	// Then verify content hashes
+	require.Equal(t, hex.EncodeToString(expectedHash.Sum(nil)), hex.EncodeToString(gotHash.Sum(nil)), "tar file content differs")
+	
+	// Close HTTP connections before proceeding to next request
+	// This prevents "connection refused" errors when the test server
+	// is closed while there are still pending requests
+	clitest.SetupConfig(t, templateAdmin, root)
+	templateAdmin.HTTPClient.CloseIdleConnections()
 }
 
 // ToDir tests that 'templates pull' pulls down the active template
