@@ -10,7 +10,7 @@ import (
 
 type NoopReconciler struct{}
 
-func (NoopReconciler) RunLoop(context.Context)            {}
+func (NoopReconciler) Run(context.Context)                {}
 func (NoopReconciler) Stop(context.Context, error)        {}
 func (NoopReconciler) ReconcileAll(context.Context) error { return nil }
 func (NoopReconciler) SnapshotState(context.Context, database.Store) (*GlobalSnapshot, error) {

@@ -14,10 +14,10 @@ var ErrNoClaimablePrebuiltWorkspaces = xerrors.New("no claimable prebuilt worksp
 type ReconciliationOrchestrator interface {
 	Reconciler
 
-	// RunLoop starts a continuous reconciliation loop that periodically calls ReconcileAll
+	// Run starts a continuous reconciliation loop that periodically calls ReconcileAll
 	// to ensure all prebuilds are in their desired states. The loop runs until the context
 	// is canceled or Stop is called.
-	RunLoop(ctx context.Context)
+	Run(ctx context.Context)
 
 	// Stop gracefully shuts down the orchestrator with the given cause.
 	// The cause is used for logging and error reporting.

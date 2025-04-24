@@ -874,7 +874,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 
 			api.AGPL.PrebuildsReconciler.Store(&reconciler)
-			go reconciler.RunLoop(context.Background())
+			go reconciler.Run(context.Background())
 
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}
