@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -697,7 +698,7 @@ func getAgentToken(fs afero.Fs) (string, error) {
 
 // mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
 // It assumes that the tool responds with a valid JSON object.
-func mcpFromSDK(sdkTool toolsdk.Tool[any, any], tb toolsdk.Deps) server.ServerTool {
+func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool {
 	// NOTE: some clients will silently refuse to use tools if there is an issue
 	// with the tool's schema or configuration.
 	if sdkTool.Schema.Properties == nil {
@@ -714,27 +715,17 @@ func mcpFromSDK(sdkTool toolsdk.Tool[any, any], tb toolsdk.Deps) server.ServerTo
 			},
 		},
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result, err := sdkTool.Handler(ctx, tb, request.Params.Arguments)
+			var buf bytes.Buffer
+			if err := json.NewEncoder(&buf).Encode(request.Params.Arguments); err != nil {
+				return nil, xerrors.Errorf("failed to encode request arguments: %w", err)
+			}
+			result, err := sdkTool.Handler(ctx, tb, buf.Bytes())
 			if err != nil {
 				return nil, err
 			}
-			var sb strings.Builder
-			if err := json.NewEncoder(&sb).Encode(result); err == nil {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						mcp.NewTextContent(sb.String()),
-					},
-				}, nil
-			}
-			// If the result is not JSON, return it as a string.
-			// This is a fallback for tools that return non-JSON data.
-			resultStr, ok := result.(string)
-			if !ok {
-				return nil, xerrors.Errorf("tool call result is neither valid JSON or a string, got: %T", result)
-			}
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.NewTextContent(resultStr),
+					mcp.NewTextContent(string(result)),
 				},
 			}, nil
 		},

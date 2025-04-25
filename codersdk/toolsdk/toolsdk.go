@@ -2,7 +2,9 @@ package toolsdk
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/google/uuid"
@@ -20,27 +22,48 @@ type Deps struct {
 	AppStatusSlug string
 }
 
-// HandlerFunc is a function that handles a tool call.
+// HandlerFunc is a typed function that handles a tool call.
 type HandlerFunc[Arg, Ret any] func(context.Context, Deps, Arg) (Ret, error)
 
+// Tool consists of an aisdk.Tool and a corresponding typed handler function.
 type Tool[Arg, Ret any] struct {
 	aisdk.Tool
 	Handler HandlerFunc[Arg, Ret]
 }
 
-// Generic returns a type-erased version of the Tool.
-func (t Tool[Arg, Ret]) Generic() Tool[any, any] {
-	return Tool[any, any]{
+// Generic returns a type-erased version of a TypedTool where the arguments and
+// return values are converted to/from json.RawMessage.
+// This allows the tool to be referenced without knowing the concrete arguments
+// or return values. The original TypedHandlerFunc is wrapped to handle type
+// conversion.
+func (t Tool[Arg, Ret]) Generic() GenericTool {
+	return GenericTool{
 		Tool: t.Tool,
-		Handler: func(ctx context.Context, tb Deps, args any) (any, error) {
-			typedArg, ok := args.(Arg)
-			if !ok {
-				return nil, xerrors.Errorf("developer error: invalid argument type for tool %s", t.Tool.Name)
+		Handler: wrap(func(ctx context.Context, tb Deps, args json.RawMessage) (json.RawMessage, error) {
+			var typedArgs Arg
+			if err := json.Unmarshal(args, &typedArgs); err != nil {
+				return nil, xerrors.Errorf("failed to unmarshal args: %w", err)
 			}
-			return t.Handler(ctx, tb, typedArg)
-		},
+			ret, err := t.Handler(ctx, tb, typedArgs)
+			var buf bytes.Buffer
+			if err := json.NewEncoder(&buf).Encode(ret); err != nil {
+				return json.RawMessage{}, err
+			}
+			return buf.Bytes(), err
+		}, WithCleanContext, WithRecover),
 	}
 }
+
+// GenericTool is a type-erased wrapper for GenericTool.
+// This allows referencing the tool without knowing the concrete argument or
+// return type. The Handler function allows calling the tool with known types.
+type GenericTool struct {
+	aisdk.Tool
+	Handler GenericHandlerFunc
+}
+
+// GenericHandlerFunc is a function that handles a tool call.
+type GenericHandlerFunc func(context.Context, Deps, json.RawMessage) (json.RawMessage, error)
 
 type NoArgs struct{}
 
@@ -114,8 +137,8 @@ type UploadTarFileArgs struct {
 }
 
 // WithRecover wraps a HandlerFunc to recover from panics and return an error.
-func WithRecover[Arg, Ret any](h HandlerFunc[Arg, Ret]) HandlerFunc[Arg, Ret] {
-	return func(ctx context.Context, tb Deps, args Arg) (ret Ret, err error) {
+func WithRecover(h GenericHandlerFunc) GenericHandlerFunc {
+	return func(ctx context.Context, tb Deps, args json.RawMessage) (ret json.RawMessage, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				err = xerrors.Errorf("tool handler panic: %v", r)
@@ -129,8 +152,8 @@ func WithRecover[Arg, Ret any](h HandlerFunc[Arg, Ret]) HandlerFunc[Arg, Ret] {
 // This ensures that no data is passed using context.Value.
 // If a deadline is set on the parent context, it will be passed to the child
 // context.
-func WithCleanContext[Arg, Ret any](h HandlerFunc[Arg, Ret]) HandlerFunc[Arg, Ret] {
-	return func(parent context.Context, tb Deps, args Arg) (ret Ret, err error) {
+func WithCleanContext(h GenericHandlerFunc) GenericHandlerFunc {
+	return func(parent context.Context, tb Deps, args json.RawMessage) (ret json.RawMessage, err error) {
 		child, childCancel := context.WithCancel(context.Background())
 		defer childCancel()
 		// Ensure that cancellation propagates from the parent context to the child context.
@@ -153,19 +176,18 @@ func WithCleanContext[Arg, Ret any](h HandlerFunc[Arg, Ret]) HandlerFunc[Arg, Re
 	}
 }
 
-// wrapAll wraps all provided tools with the given middleware function.
-func wrapAll(mw func(HandlerFunc[any, any]) HandlerFunc[any, any], tools ...Tool[any, any]) []Tool[any, any] {
-	for i, t := range tools {
-		t.Handler = mw(t.Handler)
-		tools[i] = t
+// wrap wraps the provided GenericHandlerFunc with the provided middleware functions.
+func wrap(hf GenericHandlerFunc, mw ...func(GenericHandlerFunc) GenericHandlerFunc) GenericHandlerFunc {
+	for _, m := range mw {
+		hf = m(hf)
 	}
-	return tools
+	return hf
 }
 
 var (
 	// All is a list of all tools that can be used in the Coder CLI.
 	// When you add a new tool, be sure to include it here!
-	All = wrapAll(WithCleanContext, wrapAll(WithRecover,
+	All = []GenericTool{
 		CreateTemplate.Generic(),
 		CreateTemplateVersion.Generic(),
 		CreateWorkspace.Generic(),
@@ -182,9 +204,9 @@ var (
 		ReportTask.Generic(),
 		UploadTarFile.Generic(),
 		UpdateTemplateActiveVersion.Generic(),
-	)...)
+	}
 
-	ReportTask = Tool[ReportTaskArgs, string]{
+	ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 		Tool: aisdk.Tool{
 			Name:        "coder_report_task",
 			Description: "Report progress on a user task in Coder.",
@@ -211,12 +233,12 @@ var (
 				Required: []string{"summary", "link", "state"},
 			},
 		},
-		Handler: func(ctx context.Context, tb Deps, args ReportTaskArgs) (string, error) {
+		Handler: func(ctx context.Context, tb Deps, args ReportTaskArgs) (codersdk.Response, error) {
 			if tb.AgentClient == nil {
-				return "", xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
+				return codersdk.Response{}, xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
 			}
 			if tb.AppStatusSlug == "" {
-				return "", xerrors.New("workspace app status slug not found in toolbox")
+				return codersdk.Response{}, xerrors.New("workspace app status slug not found in toolbox")
 			}
 			if err := tb.AgentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 				AppSlug: tb.AppStatusSlug,
@@ -224,9 +246,11 @@ var (
 				URI:     args.Link,
 				State:   codersdk.WorkspaceAppStatusState(args.State),
 			}); err != nil {
-				return "", err
+				return codersdk.Response{}, err
 			}
-			return "Thanks for reporting!", nil
+			return codersdk.Response{
+				Message: "Thanks for reporting!",
+			}, nil
 		},
 	}
 
@@ -934,9 +958,13 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			if err != nil {
 				return codersdk.TemplateVersion{}, xerrors.Errorf("file_id must be a valid UUID: %w", err)
 			}
-			templateID, err := uuid.Parse(args.TemplateID)
-			if err != nil {
-				return codersdk.TemplateVersion{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
+			var templateID uuid.UUID
+			if args.TemplateID != "" {
+				tid, err := uuid.Parse(args.TemplateID)
+				if err != nil {
+					return codersdk.TemplateVersion{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
+				}
+				templateID = tid
 			}
 			templateVersion, err := tb.CoderClient.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
 				Message:       "Created by AI",
@@ -1183,7 +1211,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 		},
 	}
 
-	DeleteTemplate = Tool[DeleteTemplateArgs, string]{
+	DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 		Tool: aisdk.Tool{
 			Name:        "coder_delete_template",
 			Description: "Delete a template. This is irreversible.",
@@ -1195,16 +1223,18 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				},
 			},
 		},
-		Handler: func(ctx context.Context, tb Deps, args DeleteTemplateArgs) (string, error) {
+		Handler: func(ctx context.Context, tb Deps, args DeleteTemplateArgs) (codersdk.Response, error) {
 			templateID, err := uuid.Parse(args.TemplateID)
 			if err != nil {
-				return "", xerrors.Errorf("template_id must be a valid UUID: %w", err)
+				return codersdk.Response{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 			}
 			err = tb.CoderClient.DeleteTemplate(ctx, templateID)
 			if err != nil {
-				return "", err
+				return codersdk.Response{}, err
 			}
-			return "Successfully deleted template!", nil
+			return codersdk.Response{
+				Message: "Template deleted successfully.",
+			}, nil
 		},
 	}
 )

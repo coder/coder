@@ -2,6 +2,7 @@ package toolsdk_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"sort"
 	"sync"
@@ -298,13 +299,22 @@ func TestTools(t *testing.T) {
 		tb := toolsdk.Deps{CoderClient: client}
 		// nolint:gocritic // This is in a test package and does not end up in the build
 		file := dbgen.File(t, store, database.File{})
-
-		tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
-			FileID:     file.ID.String(),
-			TemplateID: r.Template.ID.String(),
+		t.Run("WithoutTemplateID", func(t *testing.T) {
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				FileID: file.ID.String(),
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, tv)
 		})
-		require.NoError(t, err)
-		require.NotEmpty(t, tv)
+		t.Run("WithTemplateID", func(t *testing.T) {
+			tb := toolsdk.Deps{CoderClient: client}
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				FileID:     file.ID.String(),
+				TemplateID: r.Template.ID.String(),
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, tv)
+		})
 	})
 
 	t.Run("CreateTemplate", func(t *testing.T) {
@@ -347,66 +357,70 @@ func TestTools(t *testing.T) {
 var testedTools sync.Map
 
 // testTool is a helper function to test a tool and mark it as tested.
+// Note that we test the _generic_ version of the tool and not the typed one.
+// This is to mimic how we expect external callers to use the tool.
 func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Deps, args Arg) (Ret, error) {
 	t.Helper()
-	testedTools.Store(tool.Tool.Name, true)
-	result, err := tool.Handler(context.Background(), tb, args)
-	return result, err
+	defer func() { testedTools.Store(tool.Tool.Name, true) }()
+	toolArgs, err := json.Marshal(args)
+	require.NoError(t, err, "failed to marshal args")
+	result, err := tool.Generic().Handler(context.Background(), tb, toolArgs)
+	var ret Ret
+	require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
+	return ret, err
 }
 
 func TestWithRecovery(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		fakeTool := toolsdk.Tool[string, string]{
+		fakeTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
-				Name:        "fake_tool",
-				Description: "Returns a string for testing.",
+				Name:        "echo",
+				Description: "Echoes the input.",
 			},
-			Handler: func(ctx context.Context, tb toolsdk.Deps, args string) (string, error) {
-				require.Equal(t, "test", args)
-				return "ok", nil
+			Handler: func(ctx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				return args, nil
 			},
 		}
 
 		wrapped := toolsdk.WithRecover(fakeTool.Handler)
-		v, err := wrapped(context.Background(), toolsdk.Deps{}, "test")
+		v, err := wrapped(context.Background(), toolsdk.Deps{}, []byte(`{}`))
 		require.NoError(t, err)
-		require.Equal(t, "ok", v)
+		require.JSONEq(t, `{}`, string(v))
 	})
 
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		fakeTool := toolsdk.Tool[string, string]{
+		fakeTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
 				Name:        "fake_tool",
 				Description: "Returns an error for testing.",
 			},
-			Handler: func(ctx context.Context, tb toolsdk.Deps, args string) (string, error) {
-				require.Equal(t, "test", args)
-				return "", assert.AnError
+			Handler: func(ctx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				return nil, assert.AnError
 			},
 		}
 		wrapped := toolsdk.WithRecover(fakeTool.Handler)
-		v, err := wrapped(context.Background(), toolsdk.Deps{}, "test")
-		require.Empty(t, v)
+		v, err := wrapped(context.Background(), toolsdk.Deps{}, []byte(`{}`))
+		require.Nil(t, v)
 		require.ErrorIs(t, err, assert.AnError)
 	})
 
 	t.Run("Panic", func(t *testing.T) {
 		t.Parallel()
-		panicTool := toolsdk.Tool[string, string]{
+		panicTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
 				Name:        "panic_tool",
 				Description: "Panics for testing.",
 			},
-			Handler: func(ctx context.Context, tb toolsdk.Deps, args string) (string, error) {
+			Handler: func(ctx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
 				panic("you can't sweat this fever out")
 			},
 		}
 
 		wrapped := toolsdk.WithRecover(panicTool.Handler)
-		v, err := wrapped(context.Background(), toolsdk.Deps{}, "disco")
+		v, err := wrapped(context.Background(), toolsdk.Deps{}, []byte("disco"))
 		require.Empty(t, v)
 		require.ErrorContains(t, err, "you can't sweat this fever out")
 	})
@@ -422,36 +436,36 @@ func TestWithCleanContext(t *testing.T) {
 
 		// This test is to ensure that the context values are not set in the
 		// toolsdk package.
-		ctxTool := toolsdk.Tool[toolsdk.NoArgs, string]{
+		ctxTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
-			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args toolsdk.NoArgs) (string, error) {
+			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
 				v := toolCtx.Value(testContextKey{})
 				assert.Nil(t, v, "expected the context value to be nil")
-				return "", nil
+				return nil, nil
 			},
 		}
 
 		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
 		ctx := context.WithValue(context.Background(), testContextKey{}, "test")
-		_, _ = wrapped(ctx, toolsdk.Deps{}, toolsdk.NoArgs{})
+		_, _ = wrapped(ctx, toolsdk.Deps{}, []byte(`{}`))
 	})
 
 	t.Run("PropagateCancel", func(t *testing.T) {
 		t.Parallel()
 
 		// This test is to ensure that the context is canceled properly.
-		ctxTool := toolsdk.Tool[toolsdk.NoArgs, string]{
+		ctxTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
-			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args toolsdk.NoArgs) (string, error) {
+			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
 				// Wait for the context to be canceled
 				<-toolCtx.Done()
-				return "", toolCtx.Err()
+				return nil, toolCtx.Err()
 			},
 		}
 		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
@@ -460,7 +474,7 @@ func TestWithCleanContext(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		go func() {
-			_, err := wrapped(ctx, toolsdk.Deps{}, toolsdk.NoArgs{})
+			_, err := wrapped(ctx, toolsdk.Deps{}, []byte(`{}`))
 			errCh <- err
 		}()
 
@@ -479,23 +493,23 @@ func TestWithCleanContext(t *testing.T) {
 
 		// This test ensures that the context deadline is propagated to the child
 		// from the parent.
-		ctxTool := toolsdk.Tool[toolsdk.NoArgs, bool]{
+		ctxTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
 				Name:        "context_tool_deadline",
 				Description: "Checks if context has deadline.",
 			},
-			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args toolsdk.NoArgs) (bool, error) {
+			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
 				_, ok := toolCtx.Deadline()
-				return ok, nil
+				assert.True(t, ok, "expected deadline to be set on the child context")
+				return nil, nil
 			},
 		}
 
 		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
 		parent, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		ok, err := wrapped(parent, toolsdk.Deps{}, toolsdk.NoArgs{})
+		_, err := wrapped(parent, toolsdk.Deps{}, []byte(`{}`))
 		require.NoError(t, err)
-		assert.True(t, ok, "expected deadline to be set on the child context")
 	})
 }
 
@@ -503,34 +517,30 @@ func TestWithCleanContext(t *testing.T) {
 // been tested once.
 func TestMain(m *testing.M) {
 	// Initialize testedTools
-	/*
-		for _, tool := range toolsdk.All {
-			testedTools.Store(tool.Tool.Name, false)
-		}
-	*/
+	for _, tool := range toolsdk.All {
+		testedTools.Store(tool.Tool.Name, false)
+	}
 
 	code := m.Run()
 
 	// Ensure all tools have been tested
-	/*
-		var untested []string
-		for _, tool := range toolsdk.All {
-			if tested, ok := testedTools.Load(tool.Tool.Name); !ok || !tested.(bool) {
-				untested = append(untested, tool.Tool.Name)
-			}
+	var untested []string
+	for _, tool := range toolsdk.All {
+		if tested, ok := testedTools.Load(tool.Tool.Name); !ok || !tested.(bool) {
+			untested = append(untested, tool.Tool.Name)
 		}
+	}
 
-		if len(untested) > 0 && code == 0 {
-			println("The following tools were not tested:")
-			for _, tool := range untested {
-				println(" - " + tool)
-			}
-			println("Please ensure that all tools are tested using testTool().")
-			println("If you just added a new tool, please add a test for it.")
-			println("NOTE: if you just ran an individual test, this is expected.")
-			os.Exit(1)
+	if len(untested) > 0 && code == 0 {
+		println("The following tools were not tested:")
+		for _, tool := range untested {
+			println(" - " + tool)
 		}
-	*/
+		println("Please ensure that all tools are tested using testTool().")
+		println("If you just added a new tool, please add a test for it.")
+		println("NOTE: if you just ran an individual test, this is expected.")
+		os.Exit(1)
+	}
 
 	os.Exit(code)
 }
