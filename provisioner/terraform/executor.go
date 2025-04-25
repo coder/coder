@@ -258,7 +258,7 @@ func getStateFilePath(workdir string) string {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool) (*proto.PlanComplete, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, metadata *proto.Metadata) (*proto.PlanComplete, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -274,6 +274,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		"-refresh=true",
 		"-out=" + planfilePath,
 	}
+	destroy := metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY
 	if destroy {
 		args = append(args, "-destroy")
 	}
@@ -299,13 +300,27 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
 
-	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
+	state, plan, replacements, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
 		return nil, err
 	}
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
+
+	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
+	// the point of prebuilding if the expensive resource is replaced once claimed!
+	//
+	// Future enhancement: send a notification (probably just to the inbox) to inform both the claimant and the template
+	// admin that a replacement took place. The provisioner does not connect to the database, so it can't enqueue notifications.
+	isPrebuildClaimAttempt := !destroy && metadata.PrebuildClaimForUserId != ""
+	if count := len(replacements); count > 0 && isPrebuildClaimAttempt {
+		e.server.logger.Warn(ctx, "plan introduces resource changes", slog.F("count", count))
+		for n, p := range replacements {
+			// TODO: link to documentation for description and solution.
+			e.server.logger.Warn(ctx, "resource will be replaced, which may impact prebuilt workspace", slog.F("name", n), slog.F("replacement_paths", strings.Join(p, ",")))
+		}
+	}
 
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
@@ -335,18 +350,18 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, json.RawMessage, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, json.RawMessage, resourceReplacements, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("graph: %w", err)
+		return nil, nil, nil, xerrors.Errorf("graph: %w", err)
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
@@ -364,15 +379,15 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 
 	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return state, planJSON, nil
+	return state, planJSON, findResourceReplacements(plan), nil
 }
 
 // showPlan must only be called while the lock is held.

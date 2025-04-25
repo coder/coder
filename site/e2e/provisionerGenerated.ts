@@ -309,6 +309,7 @@ export interface Metadata {
   workspaceOwnerRbacRoles: Role[];
   isPrebuild: boolean;
   runningWorkspaceAgentToken: string;
+  prebuildClaimForUserId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1032,6 +1033,9 @@ export const Metadata = {
     }
     if (message.runningWorkspaceAgentToken !== "") {
       writer.uint32(170).string(message.runningWorkspaceAgentToken);
+    }
+    if (message.prebuildClaimForUserId !== "") {
+      writer.uint32(178).string(message.prebuildClaimForUserId);
     }
     return writer;
   },

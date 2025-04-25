@@ -295,6 +295,7 @@ message Metadata {
     repeated Role workspace_owner_rbac_roles = 19;
     bool is_prebuild = 20;
     string running_workspace_agent_token = 21;
+    string prebuild_claim_for_user_id = 22;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

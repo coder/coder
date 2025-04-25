@@ -617,6 +617,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		var prebuildClaimedForUserID string
+		if input.PrebuildClaimedByUser != uuid.Nil {
+			prebuildClaimedForUserID = input.PrebuildClaimedByUser.String()
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:      workspaceBuild.ID.String(),
@@ -646,6 +651,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					IsPrebuild:                    input.IsPrebuild,
+					PrebuildClaimForUserId:        prebuildClaimedForUserID,
 				},
 				LogLevel: input.LogLevel,
 			},

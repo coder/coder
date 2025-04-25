@@ -163,10 +163,7 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	resp, err := e.plan(
-		ctx, killCtx, env, vars, sess,
-		request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY,
-	)
+	resp, err := e.plan(ctx, killCtx, env, vars, sess, request.Metadata)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
