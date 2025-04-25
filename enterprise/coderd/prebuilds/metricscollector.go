@@ -79,9 +79,9 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
+	// nolint:gocritic // We need to set an authz context to read metrics from the db.
 	ctx, cancel := context.WithTimeout(dbauthz.AsPrebuildsOrchestrator(context.Background()), 10*time.Second)
 	defer cancel()
-	// nolint:gocritic // just until we get back to this
 	prebuildMetrics, err := mc.database.GetPrebuildMetrics(ctx)
 	if err != nil {
 		mc.logger.Error(ctx, "failed to get prebuild metrics", slog.Error(err))

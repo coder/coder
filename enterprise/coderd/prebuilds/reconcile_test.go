@@ -1012,6 +1012,7 @@ func setupTestDBWorkspace(
 	return workspace
 }
 
+// nolint:revive // It's a control flag, but this is a test.
 func setupTestDBWorkspaceAgent(t *testing.T, db database.Store, workspaceID uuid.UUID, eligible bool) database.WorkspaceAgent {
 	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(t.Context(), workspaceID)
 	require.NoError(t, err)
