@@ -713,8 +713,8 @@ func mcpFromSDK(sdkTool toolsdk.Tool[any, any], tb toolsdk.Deps) server.ServerTo
 				Required:   sdkTool.Schema.Required,
 			},
 		},
-		Handler: func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result, err := sdkTool.Handler(tb, request.Params.Arguments)
+		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			result, err := sdkTool.Handler(ctx, tb, request.Params.Arguments)
 			if err != nil {
 				return nil, err
 			}
