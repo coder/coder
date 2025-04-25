@@ -8,6 +8,8 @@ import (
 )
 
 func TestFindResourceReplacements(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		plan     *tfjson.Plan
@@ -17,8 +19,8 @@ func TestFindResourceReplacements(t *testing.T) {
 			name: "nil plan",
 		},
 		{
-			name:     "no resource changes",
-			plan:     &tfjson.Plan{},
+			name: "no resource changes",
+			plan: &tfjson.Plan{},
 		},
 		{
 			name: "resource change with nil change",
@@ -166,6 +168,8 @@ func TestFindResourceReplacements(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			require.EqualValues(t, tc.expected, findResourceReplacements(tc.plan))
 		})
 	}
