@@ -1324,10 +1324,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "created_at": "string",
-  "id": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "title": "string",
-  "updated_at": "string"
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -1339,6 +1339,75 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`         | string | false    |              |             |
 | `title`      | string | false    |              |             |
 | `updated_at` | string | false    |              |             |
+
+## codersdk.ChatMessage
+
+```json
+{
+  "annotations": [
+    null
+  ],
+  "content": "string",
+  "createdAt": [
+    0
+  ],
+  "experimental_attachments": [
+    {
+      "contentType": "string",
+      "name": "string",
+      "url": "string"
+    }
+  ],
+  "id": "string",
+  "parts": [
+    {
+      "data": "string",
+      "details": [
+        {
+          "data": "string",
+          "signature": "string",
+          "text": "string",
+          "type": "string"
+        }
+      ],
+      "mimeType": "string",
+      "reasoning": "string",
+      "source": {
+        "contentType": "string",
+        "data": "string",
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "uri": "string"
+      },
+      "text": "string",
+      "toolInvocation": {
+        "args": null,
+        "result": null,
+        "state": "call",
+        "step": 0,
+        "toolCallId": "string",
+        "toolName": "string"
+      },
+      "type": "text"
+    }
+  ],
+  "role": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type                                          | Required | Restrictions | Description |
+|----------------------------|-----------------------------------------------|----------|--------------|-------------|
+| `annotations`              | array of undefined                            | false    |              |             |
+| `content`                  | string                                        | false    |              |             |
+| `createdAt`                | array of integer                              | false    |              |             |
+| `experimental_attachments` | array of [aisdk.Attachment](#aisdkattachment) | false    |              |             |
+| `id`                       | string                                        | false    |              |             |
+| `parts`                    | array of [aisdk.Part](#aisdkpart)             | false    |              |             |
+| `role`                     | string                                        | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -1371,6 +1440,75 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
+
+## codersdk.CreateChatMessageRequest
+
+```json
+{
+  "message": {
+    "annotations": [
+      null
+    ],
+    "content": "string",
+    "createdAt": [
+      0
+    ],
+    "experimental_attachments": [
+      {
+        "contentType": "string",
+        "name": "string",
+        "url": "string"
+      }
+    ],
+    "id": "string",
+    "parts": [
+      {
+        "data": "string",
+        "details": [
+          {
+            "data": "string",
+            "signature": "string",
+            "text": "string",
+            "type": "string"
+          }
+        ],
+        "mimeType": "string",
+        "reasoning": "string",
+        "source": {
+          "contentType": "string",
+          "data": "string",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "uri": "string"
+        },
+        "text": "string",
+        "toolInvocation": {
+          "args": null,
+          "result": null,
+          "state": "call",
+          "step": 0,
+          "toolCallId": "string",
+          "toolName": "string"
+        },
+        "type": "text"
+      }
+    ],
+    "role": "string"
+  },
+  "model": "string",
+  "thinking": true
+}
+```
+
+### Properties
+
+| Name       | Type                                         | Required | Restrictions | Description |
+|------------|----------------------------------------------|----------|--------------|-------------|
+| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
+| `model`    | string                                       | false    |              |             |
+| `thinking` | boolean                                      | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -1636,12 +1774,52 @@ This is required on creation to enable a user-flow of validating a template work
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
-{}
+{
+  "action": "create",
+  "additional_fields": [
+    0
+  ],
+  "build_reason": "autostart",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "resource_type": "template",
+  "time": "2019-08-24T14:15:22Z"
+}
 ```
 
 ### Properties
 
-None
+| Name                | Type                                           | Required | Restrictions | Description |
+|---------------------|------------------------------------------------|----------|--------------|-------------|
+| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `additional_fields` | array of integer                               | false    |              |             |
+| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
+| `resource_id`       | string                                         | false    |              |             |
+| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
+| `time`              | string                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value              |
+|-----------------|--------------------|
+| `action`        | `create`           |
+| `action`        | `write`            |
+| `action`        | `delete`           |
+| `action`        | `start`            |
+| `action`        | `stop`             |
+| `build_reason`  | `autostart`        |
+| `build_reason`  | `autostop`         |
+| `build_reason`  | `initiator`        |
+| `resource_type` | `template`         |
+| `resource_type` | `template_version` |
+| `resource_type` | `user`             |
+| `resource_type` | `workspace`        |
+| `resource_type` | `workspace_build`  |
+| `resource_type` | `git_ssh_key`      |
+| `resource_type` | `auditable_group`  |
 
 ## codersdk.CreateTokenRequest
 

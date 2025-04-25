@@ -5,18 +5,18 @@ import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import { createChat } from "api/queries/chats";
+import type { Chat } from "api/typesGenerated";
 import { Margins } from "components/Margins/Margins";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { FC, FormEvent, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { LanguageModelSelector } from "./LanguageModelSelector";
-import { createChat } from "api/queries/chats";
-import { useMutation, useQueryClient } from "react-query";
-import { Chat } from "api/typesGenerated";
 
 export interface ChatLandingLocationState {
-	chat: Chat
-	message: string
+	chat: Chat;
+	message: string;
 }
 
 export const ChatLanding: FC = () => {
@@ -40,12 +40,13 @@ export const ChatLanding: FC = () => {
 		setInput(""); // Clear input after submit (optional)
 
 		createChatMutation.mutateAsync().then((chat) => {
-			navigate(`/chat/${chat.id}`, { state: {
-				chat,
-				message: input
-			} });
-		})
-
+			navigate(`/chat/${chat.id}`, {
+				state: {
+					chat,
+					message: input,
+				},
+			});
+		});
 	};
 
 	// Placeholder suggestion handler
@@ -75,8 +76,8 @@ export const ChatLanding: FC = () => {
 						alignItems: "center",
 						gap: theme.spacing(1),
 						padding: theme.spacing(1),
-						width: '100%',
-						maxWidth: '700px',
+						width: "100%",
+						maxWidth: "700px",
 						marginBottom: theme.spacing(4),
 					}}
 				>
@@ -108,32 +109,37 @@ export const ChatLanding: FC = () => {
 				</div>
 
 				{/* Input Form and Suggestions - Always Visible */}
-				<div css={{ width: '100%', maxWidth: '700px', marginTop: 'auto' }}>
-					<Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 2 }}>
-							<Button
-								variant="outlined"
-								onClick={() =>
-									handleSuggestionClick("Help me work on issue #...")
-								}
-							>
-								Work on Issue
-							</Button>
-							<Button
-								variant="outlined"
-								onClick={() =>
-									handleSuggestionClick("Help me build a template for...")
-								}
-							>
-								Build a Template
-							</Button>
-							<Button
-								variant="outlined"
-								onClick={() =>
-									handleSuggestionClick("Help me start a new project using...")
-								}
-							>
-								Start a Project
-							</Button>
+				<div css={{ width: "100%", maxWidth: "700px", marginTop: "auto" }}>
+					<Stack
+						direction="row"
+						spacing={2}
+						justifyContent="center"
+						sx={{ mb: 2 }}
+					>
+						<Button
+							variant="outlined"
+							onClick={() =>
+								handleSuggestionClick("Help me work on issue #...")
+							}
+						>
+							Work on Issue
+						</Button>
+						<Button
+							variant="outlined"
+							onClick={() =>
+								handleSuggestionClick("Help me build a template for...")
+							}
+						>
+							Build a Template
+						</Button>
+						<Button
+							variant="outlined"
+							onClick={() =>
+								handleSuggestionClick("Help me start a new project using...")
+							}
+						>
+							Start a Project
+						</Button>
 					</Stack>
 					<LanguageModelSelector />
 					<Paper
@@ -166,11 +172,7 @@ export const ChatLanding: FC = () => {
 							}}
 							autoFocus
 						/>
-						<IconButton
-							type="submit"
-							color="primary"
-							disabled={!input.trim()}
-						>
+						<IconButton type="submit" color="primary" disabled={!input.trim()}>
 							<SendIcon />
 						</IconButton>
 					</Paper>

@@ -22,7 +22,7 @@ import (
 // postChats creates a new chat.
 //
 // @Summary Create a chat
-// @ID post-chat
+// @ID create-a-chat
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Chat
@@ -69,6 +69,7 @@ func (api *API) listChats(w http.ResponseWriter, r *http.Request) {
 			Message: "Failed to list chats",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	httpapi.Write(ctx, w, http.StatusOK, db2sdk.Chats(chats))
@@ -77,13 +78,14 @@ func (api *API) listChats(w http.ResponseWriter, r *http.Request) {
 // chat returns a chat by ID.
 //
 // @Summary Get a chat
-// @ID get-chat
+// @ID get-a-chat
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Chat
+// @Param chat path string true "Chat ID"
 // @Success 200 {object} codersdk.Chat
 // @Router /chats/{chat} [get]
-func (api *API) chat(w http.ResponseWriter, r *http.Request) {
+func (*API) chat(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	httpapi.Write(ctx, w, http.StatusOK, db2sdk.Chat(chat))
@@ -96,6 +98,7 @@ func (api *API) chat(w http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Chat
+// @Param chat path string true "Chat ID"
 // @Success 200 {array} aisdk.Message
 // @Router /chats/{chat}/messages [get]
 func (api *API) chatMessages(w http.ResponseWriter, r *http.Request) {
@@ -107,6 +110,7 @@ func (api *API) chatMessages(w http.ResponseWriter, r *http.Request) {
 			Message: "Failed to get chat messages",
 			Detail:  err.Error(),
 		})
+		return
 	}
 	messages := make([]aisdk.Message, len(rawMessages))
 	for i, message := range rawMessages {
@@ -117,6 +121,7 @@ func (api *API) chatMessages(w http.ResponseWriter, r *http.Request) {
 				Message: "Failed to unmarshal chat message",
 				Detail:  err.Error(),
 			})
+			return
 		}
 		messages[i] = msg
 	}
@@ -124,6 +129,18 @@ func (api *API) chatMessages(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, w, http.StatusOK, messages)
 }
 
+// postChatMessages creates a new chat message and streams the response.
+//
+// @Summary Create a chat message
+// @ID create-a-chat-message
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param chat path string true "Chat ID"
+// @Param request body codersdk.CreateChatMessageRequest true "Request body"
+// @Success 200 {array} aisdk.DataStreamPart
+// @Router /chats/{chat}/messages [post]
 func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -134,6 +151,7 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			Message: "Failed to decode chat message",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	dbMessages, err := api.Database.GetChatMessagesByChatID(ctx, chat.ID)
@@ -195,6 +213,7 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 				Message: "Failed to create stream",
 				Detail:  err.Error(),
 			})
+			return
 		}
 		stream = stream.WithAccumulator(&acc)
 		err = stream.Pipe(io.Discard)
@@ -203,10 +222,12 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 				Message: "Failed to pipe stream",
 				Detail:  err.Error(),
 			})
+			return
 		}
 		err = api.Database.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-			ID:    chat.ID,
-			Title: acc.Messages()[0].Content,
+			ID:        chat.ID,
+			Title:     acc.Messages()[0].Content,
+			UpdatedAt: time.Now(),
 		})
 		if err != nil {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{

@@ -15,7 +15,11 @@ import (
 type chatContextKey struct{}
 
 func ChatParam(r *http.Request) database.Chat {
-	return r.Context().Value(chatContextKey{}).(database.Chat)
+	chat, ok := r.Context().Value(chatContextKey{}).(database.Chat)
+	if !ok {
+		panic("developer error: chat param middleware not provided")
+	}
+	return chat
 }
 
 func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
@@ -40,11 +44,6 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
-			}
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to get chat.",
-				})
 			}
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

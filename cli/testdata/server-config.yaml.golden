@@ -521,8 +521,7 @@ client:
 supportLinks: []
 # Configure AI providers.
 # (default: <unset>, type: struct[codersdk.AIConfig])
-ai:
-  providers: []
+ai: {}
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []

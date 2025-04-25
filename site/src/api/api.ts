@@ -2500,17 +2500,19 @@ class ApiMethods {
 	createChat = async () => {
 		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
 		return res.data;
-	}
+	};
 
 	getChats = async () => {
 		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
 		return res.data;
-	}
+	};
 
 	getChatMessages = async (chatId: string) => {
-		const res = await this.axios.get<TypesGen.ChatMessage[]>(`/api/v2/chats/${chatId}/messages`);
+		const res = await this.axios.get<TypesGen.ChatMessage[]>(
+			`/api/v2/chats/${chatId}/messages`,
+		);
 		return res.data;
-	}
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

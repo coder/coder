@@ -1,5 +1,5 @@
-import { QueryClient } from "react-query"
-import { API } from "api/api"
+import { API } from "api/api";
+import type { QueryClient } from "react-query";
 
 export const createChat = (queryClient: QueryClient) => {
 	return {

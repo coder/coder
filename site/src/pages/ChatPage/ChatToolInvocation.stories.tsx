@@ -1,5 +1,4 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { ChatToolInvocation } from "./ChatToolInvocation";
+import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
@@ -10,6 +9,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 } from "testHelpers/entities";
+import { ChatToolInvocation } from "./ChatToolInvocation";
 
 const meta: Meta<typeof ChatToolInvocation> = {
 	title: "pages/ChatPage/ChatToolInvocation",
@@ -208,7 +208,7 @@ export const UploadTarFile: Story = {
 			"coder_upload_tar_file",
 			{
 				mime_type: "application/x-tar",
-				files: { "main.tf": templateTerraform, "Dockerfile": templateDockerfile },
+				files: { "main.tf": templateTerraform, Dockerfile: templateDockerfile },
 			},
 			{
 				hash: "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
@@ -711,7 +711,7 @@ ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
 
 # Increase memory allocation to NodeJS
 ENV NODE_OPTIONS="--max-old-space-size=8192"
-`
+`;
 
 const templateTerraform = `terraform {
   required_providers {

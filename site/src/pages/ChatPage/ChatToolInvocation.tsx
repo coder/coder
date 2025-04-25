@@ -1,26 +1,27 @@
-import React, { FC, useMemo, useState, memo } from "react";
-import { useTheme } from "@emotion/react";
 import type { ToolCall, ToolResult } from "@ai-sdk/provider-utils";
-import * as TypesGen from "api/typesGenerated";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import CircularProgress from "@mui/material/CircularProgress";
-import ErrorIcon from "@mui/icons-material/Error";
-import CodeIcon from "@mui/icons-material/Code";
+import { useTheme } from "@emotion/react";
 import ArticleIcon from "@mui/icons-material/Article";
-import FileUploadIcon from "@mui/icons-material/FileUpload";
-import TerminalIcon from "@mui/icons-material/Terminal";
-import SettingsIcon from "@mui/icons-material/Settings";
-import DeleteIcon from "@mui/icons-material/Delete";
-import PersonIcon from "@mui/icons-material/Person";
-import ListIcon from "@mui/icons-material/List";
 import BuildIcon from "@mui/icons-material/Build";
-import Tooltip from "@mui/material/Tooltip";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import CodeIcon from "@mui/icons-material/Code";
+import DeleteIcon from "@mui/icons-material/Delete";
+import ErrorIcon from "@mui/icons-material/Error";
+import FileUploadIcon from "@mui/icons-material/FileUpload";
+import ListIcon from "@mui/icons-material/List";
+import PersonIcon from "@mui/icons-material/Person";
+import SettingsIcon from "@mui/icons-material/Settings";
+import TerminalIcon from "@mui/icons-material/Terminal";
 import Avatar from "@mui/material/Avatar";
+import CircularProgress from "@mui/material/CircularProgress";
+import Tooltip from "@mui/material/Tooltip";
+import type * as TypesGen from "api/typesGenerated";
 import { InfoIcon } from "lucide-react";
+import type React from "react";
+import { type FC, memo, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { Tabs, TabsList, TabLink } from "../../components/Tabs/Tabs";
+import { TabLink, Tabs, TabsList } from "../../components/Tabs/Tabs";
 
 interface ChatToolInvocationProps {
 	toolInvocation: ChatToolInvocation;
@@ -166,7 +167,6 @@ const ChatToolInvocationResultPreview: FC<{
 	) {
 		return null;
 	}
-
 
 	let content: React.ReactNode;
 	switch (toolInvocation.toolName) {
@@ -595,129 +595,127 @@ const ChatToolInvocationResultPreview: FC<{
 });
 
 // New component to preview files with tabs
-const FilePreview: FC<{ files: Record<string, string>; prefix?: string }> = memo(({
-	files,
-	prefix,
-}) => {
-	const theme = useTheme();
-	const [selectedTab, setSelectedTab] = useState(0);
-	const fileEntries = useMemo(() => Object.entries(files), [files]);
+const FilePreview: FC<{ files: Record<string, string>; prefix?: string }> =
+	memo(({ files, prefix }) => {
+		const theme = useTheme();
+		const [selectedTab, setSelectedTab] = useState(0);
+		const fileEntries = useMemo(() => Object.entries(files), [files]);
 
-	if (fileEntries.length === 0) {
-		return null;
-	}
-
-	const handleTabChange = (index: number) => {
-		setSelectedTab(index);
-	};
-
-	const getLanguage = (filename: string): string => {
-		if (filename.includes("Dockerfile")) {
-			return "dockerfile";
+		if (fileEntries.length === 0) {
+			return null;
 		}
-		const extension = filename.split(".").pop()?.toLowerCase();
-		switch (extension) {
-			case "tf":
-				return "hcl";
-			case "json":
-				return "json";
-			case "yaml":
-			case "yml":
-				return "yaml";
-			case "js":
-			case "jsx":
-				return "javascript";
-			case "ts":
-			case "tsx":
-				return "typescript";
-			case "py":
-				return "python";
-			case "go":
-				return "go";
-			case "rb":
-				return "ruby";
-			case "java":
-				return "java";
-			case "sh":
-				return "bash";
-			case "md":
-				return "markdown";
-			default:
-				return "plaintext";
-		}
-	};
 
-	// Get filename and content based on the selectedTab index
-	const [selectedFilename, selectedContent] = fileEntries[selectedTab] ?? [
-		"",
-		"",
-	];
+		const handleTabChange = (index: number) => {
+			setSelectedTab(index);
+		};
 
-	return (
-		<div
-			css={{
-				display: "flex",
-				flexDirection: "column",
-				gap: theme.spacing(1),
-				width: "100%",
-				maxWidth: 400,
-			}}
-		>
-			{prefix && (
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: theme.spacing(1),
-						fontSize: "0.875rem",
-						color: theme.palette.text.secondary,
-					}}
-				>
-					<FileUploadIcon fontSize="small" />
-					{prefix}
-				</div>
-			)}
-			{/* Use custom Tabs component with active prop */}
-			<Tabs active={selectedFilename} className="flex-shrink-0">
-				<TabsList>
-					{fileEntries.map(([filename], index) => (
-						<TabLink
-							key={filename}
-							value={filename} // This matches the 'active' prop on Tabs
-							to="" // Dummy link, not navigating
-							css={{ whiteSpace: "nowrap" }} // Prevent wrapping
-							onClick={(e) => {
-								e.preventDefault(); // Prevent any potential default link behavior
-								handleTabChange(index);
-							}}
-						>
-							{filename}
-						</TabLink>
-					))}
-				</TabsList>
-			</Tabs>
-			<SyntaxHighlighter
-				language={getLanguage(selectedFilename)}
-				style={vscDarkPlus}
-				customStyle={{
-					fontSize: "0.8rem",
-					padding: theme.spacing(1),
-					margin: 0,
-					maxHeight: 200,
-					overflowY: "auto",
-					scrollbarWidth: "thin",
-					scrollbarColor: "auto",
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: theme.shape.borderRadius,
+		const getLanguage = (filename: string): string => {
+			if (filename.includes("Dockerfile")) {
+				return "dockerfile";
+			}
+			const extension = filename.split(".").pop()?.toLowerCase();
+			switch (extension) {
+				case "tf":
+					return "hcl";
+				case "json":
+					return "json";
+				case "yaml":
+				case "yml":
+					return "yaml";
+				case "js":
+				case "jsx":
+					return "javascript";
+				case "ts":
+				case "tsx":
+					return "typescript";
+				case "py":
+					return "python";
+				case "go":
+					return "go";
+				case "rb":
+					return "ruby";
+				case "java":
+					return "java";
+				case "sh":
+					return "bash";
+				case "md":
+					return "markdown";
+				default:
+					return "plaintext";
+			}
+		};
+
+		// Get filename and content based on the selectedTab index
+		const [selectedFilename, selectedContent] = fileEntries[selectedTab] ?? [
+			"",
+			"",
+		];
+
+		return (
+			<div
+				css={{
+					display: "flex",
+					flexDirection: "column",
+					gap: theme.spacing(1),
+					width: "100%",
+					maxWidth: 400,
 				}}
-				showLineNumbers={false}
-				lineNumberStyle={{ display: "none" }}
 			>
-				{selectedContent}
-			</SyntaxHighlighter>
-		</div>
-	);
-});
+				{prefix && (
+					<div
+						css={{
+							display: "flex",
+							alignItems: "center",
+							gap: theme.spacing(1),
+							fontSize: "0.875rem",
+							color: theme.palette.text.secondary,
+						}}
+					>
+						<FileUploadIcon fontSize="small" />
+						{prefix}
+					</div>
+				)}
+				{/* Use custom Tabs component with active prop */}
+				<Tabs active={selectedFilename} className="flex-shrink-0">
+					<TabsList>
+						{fileEntries.map(([filename], index) => (
+							<TabLink
+								key={filename}
+								value={filename} // This matches the 'active' prop on Tabs
+								to="" // Dummy link, not navigating
+								css={{ whiteSpace: "nowrap" }} // Prevent wrapping
+								onClick={(e) => {
+									e.preventDefault(); // Prevent any potential default link behavior
+									handleTabChange(index);
+								}}
+							>
+								{filename}
+							</TabLink>
+						))}
+					</TabsList>
+				</Tabs>
+				<SyntaxHighlighter
+					language={getLanguage(selectedFilename)}
+					style={vscDarkPlus}
+					customStyle={{
+						fontSize: "0.8rem",
+						padding: theme.spacing(1),
+						margin: 0,
+						maxHeight: 200,
+						overflowY: "auto",
+						scrollbarWidth: "thin",
+						scrollbarColor: "auto",
+						border: `1px solid ${theme.palette.divider}`,
+						borderRadius: theme.shape.borderRadius,
+					}}
+					showLineNumbers={false}
+					lineNumberStyle={{ display: "none" }}
+				>
+					{selectedContent}
+				</SyntaxHighlighter>
+			</div>
+		);
+	});
 
 export type ChatToolInvocation =
 	| ToolInvocation<

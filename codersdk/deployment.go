@@ -3103,7 +3103,7 @@ type AIProviderConfig struct {
 }
 
 type AIConfig struct {
-	Providers []AIProviderConfig `json:"providers" yaml:"providers"`
+	Providers []AIProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
 }
 
 type SupportConfig struct {

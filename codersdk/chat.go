@@ -27,9 +27,9 @@ func (c *Client) CreateChat(ctx context.Context) (Chat, error) {
 }
 
 type Chat struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 	Title     string    `json:"title"`
 }
 
@@ -86,10 +86,14 @@ type CreateChatMessageRequest struct {
 // it will be overwritten.
 func (c *Client) CreateChatMessage(ctx context.Context, id uuid.UUID, req CreateChatMessageRequest) (<-chan aisdk.DataStreamPart, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/messages", id), req)
+	defer func() {
+		if res != nil && res.Body != nil {
+			_ = res.Body.Close()
+		}
+	}()
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}

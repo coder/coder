@@ -1,23 +1,30 @@
-import { Message, useChat } from "@ai-sdk/react";
-import { useTheme, Theme, keyframes } from "@emotion/react";
+import { type Message, useChat } from "@ai-sdk/react";
+import { type Theme, keyframes, useTheme } from "@emotion/react";
 import SendIcon from "@mui/icons-material/Send";
 import IconButton from "@mui/material/IconButton";
 import Paper, { PaperProps } from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import { getChatMessages, getChats } from "api/queries/chats";
-import { CreateChatMessageRequest, ChatMessage } from "api/typesGenerated";
-import { FC, memo, useEffect, useRef, KeyboardEvent, useCallback } from "react";
-import { useQuery, useQueryClient } from "react-query";
-import { useLocation, useParams } from "react-router-dom";
-import { ChatLandingLocationState } from "./ChatLanding";
-import { useChatContext } from "./ChatLayout";
-import { LanguageModelSelector } from "./LanguageModelSelector";
+import type { ChatMessage, CreateChatMessageRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import {
+	type FC,
+	type KeyboardEvent,
+	memo,
+	useCallback,
+	useEffect,
+	useRef,
+} from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useQuery, useQueryClient } from "react-query";
+import { useLocation, useParams } from "react-router-dom";
 import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
+import type { ChatLandingLocationState } from "./ChatLanding";
+import { useChatContext } from "./ChatLayout";
 import { ChatToolInvocation } from "./ChatToolInvocation";
+import { LanguageModelSelector } from "./LanguageModelSelector";
 
 const fadeIn = keyframes`
 	from {
@@ -165,7 +172,9 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 					padding: theme.spacing(1.25, 1.75),
 					fontSize: "0.925rem",
 					lineHeight: 1.5,
-					backgroundColor: isUser ? theme.palette.grey[900] : theme.palette.background.paper,
+					backgroundColor: isUser
+						? theme.palette.grey[900]
+						: theme.palette.background.paper,
 					borderColor: !isUser ? theme.palette.divider : undefined,
 					color: isUser ? theme.palette.grey[50] : theme.palette.text.primary,
 					borderRadius: "16px",
@@ -211,7 +220,9 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 						backgroundColor: isUser
 							? theme.palette.common.black
 							: theme.palette.grey[100],
-						color: isUser ? theme.palette.grey[100] : theme.palette.text.primary,
+						color: isUser
+							? theme.palette.grey[100]
+							: theme.palette.text.primary,
 						padding: theme.spacing(1.5),
 						borderRadius: "8px",
 						overflowX: "auto",
@@ -233,7 +244,9 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 						fontWeight: 500,
 						"&:hover": {
 							textDecoration: "none",
-							color: isUser ? theme.palette.grey[300] : theme.palette.primary.dark,
+							color: isUser
+								? theme.palette.grey[300]
+								: theme.palette.primary.dark,
 						},
 					},
 				}}
@@ -248,11 +261,11 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 											key={partIndex}
 											remarkPlugins={[remarkGfm]}
 											rehypePlugins={[rehypeRaw]}
-                                            css={{
-                                                "& pre": {
-                                                    backgroundColor: theme.palette.background.default,
-                                                },
-                                            }}
+											css={{
+												"& pre": {
+													backgroundColor: theme.palette.background.default,
+												},
+											}}
 										>
 											{part.text}
 										</ReactMarkdown>
@@ -260,7 +273,9 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 								case "tool-invocation":
 									return (
 										<div key={partIndex}>
-                                            <ChatToolInvocation toolInvocation={part.toolInvocation as any} />
+											<ChatToolInvocation
+												toolInvocation={part.toolInvocation as any}
+											/>
 										</div>
 									);
 								case "reasoning":
@@ -290,19 +305,21 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 interface ChatViewProps {
 	messages: Message[];
 	input: string;
-	handleInputChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	handleInputChange: React.ChangeEventHandler<
+		HTMLInputElement | HTMLTextAreaElement
+	>;
 	handleSubmit: (e?: React.FormEvent<HTMLFormElement>) => void;
 	isLoading: boolean;
 	chatID: string;
 }
 
-const ChatView: FC<ChatViewProps> = ({ 
-	messages, 
-	input, 
-	handleInputChange, 
-	handleSubmit, 
+const ChatView: FC<ChatViewProps> = ({
+	messages,
+	input,
+	handleInputChange,
+	handleSubmit,
 	isLoading,
-	chatID
+	chatID,
 }) => {
 	const theme = useTheme();
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -310,7 +327,10 @@ const ChatView: FC<ChatViewProps> = ({
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
-			messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+			messagesEndRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "end",
+			});
 		}, 50);
 		return () => clearTimeout(timer);
 	}, [messages, isLoading]);
@@ -320,7 +340,7 @@ const ChatView: FC<ChatViewProps> = ({
 	}, [chatID]);
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-		if (event.key === 'Enter' && !event.shiftKey) {
+		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault();
 			handleSubmit();
 		}
@@ -344,9 +364,9 @@ const ChatView: FC<ChatViewProps> = ({
 			>
 				<div
 					css={{
-						maxWidth: '900px',
-						width: '100%',
-						margin: '0 auto',
+						maxWidth: "900px",
+						width: "100%",
+						margin: "0 auto",
 						display: "flex",
 						flexDirection: "column",
 						gap: theme.spacing(3),
@@ -391,7 +411,7 @@ const ChatView: FC<ChatViewProps> = ({
 					<div
 						css={{
 							marginRight: theme.spacing(1),
-							alignSelf: 'flex-end',
+							alignSelf: "flex-end",
 							marginBottom: theme.spacing(0.5),
 						}}
 					>
@@ -409,7 +429,7 @@ const ChatView: FC<ChatViewProps> = ({
 						maxRows={5}
 						InputProps={{ disableUnderline: true }}
 						css={{
-							alignSelf: 'center',
+							alignSelf: "center",
 							padding: theme.spacing(0.75, 0),
 							fontSize: "0.9rem",
 						}}
@@ -420,7 +440,7 @@ const ChatView: FC<ChatViewProps> = ({
 						color="primary"
 						disabled={!input.trim() || isLoading}
 						css={{
-							alignSelf: 'flex-end',
+							alignSelf: "flex-end",
 							marginBottom: theme.spacing(0.5),
 							transition: "transform 0.2s ease, background-color 0.2s ease",
 							"&:not(:disabled):hover": {
@@ -442,12 +462,12 @@ export const ChatMessages: FC = () => {
 	if (!chatID) {
 		throw new Error("Chat ID is required in URL path /chat/:chatID");
 	}
-	
+
 	const { state } = useLocation();
 	const transferedState = state as ChatLandingLocationState | undefined;
 
 	const messagesQuery = useQuery<ChatMessage[], Error>(getChatMessages(chatID));
-	
+
 	const chatContext = useChatContext();
 
 	const {
@@ -484,14 +504,19 @@ export const ChatMessages: FC = () => {
 	}, [messagesQuery.data, messages.length, setMessages]);
 
 	// Wrap handlers in useCallback
-	const handleInputChange = useCallback(originalHandleInputChange, [originalHandleInputChange]);
+	const handleInputChange = useCallback(originalHandleInputChange, [
+		originalHandleInputChange,
+	]);
 
-	const handleSubmitCallback = useCallback((e?: React.FormEvent<HTMLFormElement>) => {
-		if (e) e.preventDefault();
-		if (!input.trim()) return;
-		originalHandleSubmit();
-		setInput(''); // Clear input after submit
-	}, [input, originalHandleSubmit, setInput]);
+	const handleSubmitCallback = useCallback(
+		(e?: React.FormEvent<HTMLFormElement>) => {
+			if (e) e.preventDefault();
+			if (!input.trim()) return;
+			originalHandleSubmit();
+			setInput(""); // Clear input after submit
+		},
+		[input, originalHandleSubmit, setInput],
+	);
 
 	// Clear input and potentially submit on initial load with message
 	useEffect(() => {
@@ -503,7 +528,13 @@ export const ChatMessages: FC = () => {
 			// Clear the state to prevent re-submission on subsequent renders/navigation
 			window.history.replaceState({}, document.title);
 		}
-	}, [transferedState?.message, input, handleSubmitCallback, messages.length, messagesQuery.data?.length]); // Use the correct callback name
+	}, [
+		transferedState?.message,
+		input,
+		handleSubmitCallback,
+		messages.length,
+		messagesQuery.data?.length,
+	]); // Use the correct callback name
 
 	useEffect(() => {
 		if (transferedState?.message) {
@@ -515,13 +546,13 @@ export const ChatMessages: FC = () => {
 		return <ErrorAlert error={messagesQuery.error} />;
 	}
 
-	if (messagesQuery.isLoading && messages.length === 0) { 
+	if (messagesQuery.isLoading && messages.length === 0) {
 		return <Loader fullscreen />;
 	}
 
 	return (
-		<ChatView 
-			key={chatID} 
+		<ChatView
+			key={chatID}
 			chatID={chatID}
 			messages={messages}
 			input={input}

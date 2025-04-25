@@ -1,26 +1,26 @@
+import { useTheme } from "@emotion/react";
+import AddIcon from "@mui/icons-material/Add";
+import Button from "@mui/material/Button";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
+import Paper from "@mui/material/Paper";
+import { createChat, getChats } from "api/queries/chats";
+import { deploymentLanguageModels } from "api/queries/deployment";
+import { Chat, type LanguageModelConfig } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
 import {
+	type FC,
+	type PropsWithChildren,
 	createContext,
-	FC,
-	PropsWithChildren,
 	useContext,
 	useEffect,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Outlet, useNavigate, useParams } from "react-router-dom";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
-import Paper from "@mui/material/Paper";
-import { useTheme } from "@emotion/react";
-import { createChat, getChats } from "api/queries/chats";
-import { deploymentLanguageModels } from "api/queries/deployment";
-import { Chat, LanguageModelConfig } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import Button from "@mui/material/Button";
-import AddIcon from '@mui/icons-material/Add';
 
 export interface ChatContext {
 	selectedModel: string;
@@ -98,15 +98,17 @@ export const ChatLayout: FC = () => {
 		navigate("/chat");
 	};
 
-	console.log(chats)
+	console.log(chats);
 
 	return (
 		// Outermost container: controls height and prevents page scroll
-		<div css={{
-			display: "flex",
-			height: "calc(100vh - 164px)", // Assuming header height is 64px
-			overflow: "hidden",
-		}}>
+		<div
+			css={{
+				display: "flex",
+				height: "calc(100vh - 164px)", // Assuming header height is 64px
+				overflow: "hidden",
+			}}
+		>
 			{/* Sidebar Container (using Paper for background/border) */}
 			<Paper
 				elevation={1}
@@ -133,11 +135,13 @@ export const ChatLayout: FC = () => {
 					}}
 				>
 					{/* Replaced Typography with div + styling */}
-					<div css={{ 
-						fontWeight: 600, 
-						fontSize: theme.typography.subtitle1.fontSize, 
-						lineHeight: theme.typography.subtitle1.lineHeight 
-					}}>
+					<div
+						css={{
+							fontWeight: 600,
+							fontSize: theme.typography.subtitle1.fontSize,
+							lineHeight: theme.typography.subtitle1.lineHeight,
+						}}
+					>
 						Chats
 					</div>
 					<Button
@@ -146,8 +150,8 @@ export const ChatLayout: FC = () => {
 						startIcon={<AddIcon fontSize="small" />}
 						onClick={handleNewChat}
 						disabled={createChatMutation.isLoading}
-						css={{ 
-							lineHeight: 1.5, 
+						css={{
+							lineHeight: 1.5,
 							padding: theme.spacing(0.5, 1.5),
 						}}
 					>
@@ -174,8 +178,8 @@ export const ChatLayout: FC = () => {
 											primary={chat.title || `Chat ${chat.id}`}
 											primaryTypographyProps={{
 												noWrap: true,
-												variant: 'body2',
-												style: { overflow: 'hidden', textOverflow: 'ellipsis' },
+												variant: "body2",
+												style: { overflow: "hidden", textOverflow: "ellipsis" },
 											}}
 										/>
 									</ListItemButton>
@@ -184,12 +188,14 @@ export const ChatLayout: FC = () => {
 						</List>
 					) : (
 						// Replaced Typography with div + styling
-						<div css={{ 
-							padding: theme.spacing(2), 
-							textAlign: 'center',
-							fontSize: theme.typography.body2.fontSize,
-							color: theme.palette.text.secondary
-						}}>
+						<div
+							css={{
+								padding: theme.spacing(2),
+								textAlign: "center",
+								fontSize: theme.typography.body2.fontSize,
+								color: theme.palette.text.secondary,
+							}}
+						>
 							No chats yet. Start a new one!
 						</div>
 					)}
@@ -202,9 +208,9 @@ export const ChatLayout: FC = () => {
 					flexGrow: 1, // Takes remaining width
 					height: "100%", // Takes full height of parent
 					overflow: "hidden", // Prevents this container from scrolling
-					display: 'flex',
-					flexDirection: 'column', // Stacks ChatProvider/Outlet
-					position: 'relative', // Context for potential absolute children
+					display: "flex",
+					flexDirection: "column", // Stacks ChatProvider/Outlet
+					position: "relative", // Context for potential absolute children
 					backgroundColor: theme.palette.background.default, // Ensure background consistency
 				}}
 			>

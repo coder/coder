@@ -70,7 +70,6 @@ func ModelsFromConfig(ctx context.Context, configs []codersdk.AIProviderConfig) 
 					config.Models[i] = model.ID
 				}
 			}
-			break
 		case "anthropic":
 			client := anthropic.NewClient(anthropicoption.WithAPIKey(config.APIKey))
 			streamFunc = func(ctx context.Context, options StreamOptions) (aisdk.DataStream, error) {
@@ -101,7 +100,6 @@ func ModelsFromConfig(ctx context.Context, configs []codersdk.AIProviderConfig) 
 					config.Models[i] = model.ID
 				}
 			}
-			break
 		case "google":
 			client, err := genai.NewClient(ctx, &genai.ClientConfig{
 				APIKey:  config.APIKey,
@@ -143,7 +141,6 @@ func ModelsFromConfig(ctx context.Context, configs []codersdk.AIProviderConfig) 
 					config.Models[i] = model.Name
 				}
 			}
-			break
 		default:
 			return nil, xerrors.Errorf("unsupported model type: %s", config.Type)
 		}

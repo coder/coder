@@ -8,7 +8,7 @@ export interface ACLAvailable {
 
 // From codersdk/deployment.go
 export interface AIConfig {
-	readonly providers: readonly AIProviderConfig[];
+	readonly providers?: readonly AIProviderConfig[];
 }
 
 // From codersdk/deployment.go

@@ -1,4 +1,6 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
+import { ChatLayout } from "pages/ChatPage/ChatLayout";
+import { ChatMessages } from "pages/ChatPage/ChatMessages";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Suspense, lazy } from "react";
 import {
@@ -23,8 +25,6 @@ import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
-import { ChatLayout } from "pages/ChatPage/ChatLayout";
-import { ChatMessages } from "pages/ChatPage/ChatMessages";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
