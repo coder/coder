@@ -575,7 +575,7 @@ func TestRunLoop(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock)
+	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -639,7 +639,7 @@ func TestRunLoop(t *testing.T) {
 	// we need to wait until ticker is initialized, and only then use clock.Advance()
 	// otherwise clock.Advance() will be ignored
 	trap := clock.Trap().NewTicker()
-	go controller.RunLoop(ctx)
+	go reconciler.Run(ctx)
 	// wait until ticker is initialized
 	trap.MustWait(ctx).Release()
 	// start 1st iteration of ReconciliationLoop
@@ -681,7 +681,7 @@ func TestRunLoop(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// gracefully stop the reconciliation loop
-	controller.Stop(ctx, nil)
+	reconciler.Stop(ctx, nil)
 }
 
 func TestFailedBuildBackoff(t *testing.T) {

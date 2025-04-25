@@ -38,6 +38,7 @@ type StoreReconciler struct {
 	clock  quartz.Clock
 
 	cancelFn context.CancelCauseFunc
+	running  atomic.Bool
 	stopped  atomic.Bool
 	done     chan struct{}
 }
@@ -61,7 +62,7 @@ func NewStoreReconciler(
 	}
 }
 
-func (c *StoreReconciler) RunLoop(ctx context.Context) {
+func (c *StoreReconciler) Run(ctx context.Context) {
 	reconciliationInterval := c.cfg.ReconciliationInterval.Value()
 	if reconciliationInterval <= 0 { // avoids a panic
 		reconciliationInterval = 5 * time.Minute
@@ -81,6 +82,11 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 	// nolint:gocritic // Reconciliation Loop needs Prebuilds Orchestrator permissions.
 	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 	c.cancelFn = cancel
+
+	// Everything is in place, reconciler can now be considered as running.
+	//
+	// NOTE: without this atomic bool, Stop might race with Run for the c.cancelFn above.
+	c.running.Store(true)
 
 	for {
 		select {
@@ -107,16 +113,26 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 }
 
 func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
+	defer c.running.Store(false)
+
 	if cause != nil {
 		c.logger.Error(context.Background(), "stopping reconciler due to an error", slog.Error(cause))
 	} else {
 		c.logger.Info(context.Background(), "gracefully stopping reconciler")
 	}
 
-	if c.isStopped() {
+	// If previously stopped (Swap returns previous value), then short-circuit.
+	//
+	// NOTE: we need to *prospectively* mark this as stopped to prevent Stop being called multiple times and causing problems.
+	if c.stopped.Swap(true) {
 		return
 	}
-	c.stopped.Store(true)
+
+	// If the reconciler is not running, there's nothing else to do.
+	if !c.running.Load() {
+		return
+	}
+
 	if c.cancelFn != nil {
 		c.cancelFn(cause)
 	}
@@ -136,10 +152,6 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	case <-c.done:
 		c.logger.Info(context.Background(), "reconciler stopped")
 	}
-}
-
-func (c *StoreReconciler) isStopped() bool {
-	return c.stopped.Load()
 }
 
 // ReconcileAll will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.

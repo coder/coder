@@ -688,3 +688,16 @@ notifications:
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
   fetchInterval: 15s
+# Configure how workspace prebuilds behave.
+workspace_prebuilds:
+  # How often to reconcile workspace prebuilds state.
+  # (default: 15s, type: duration)
+  reconciliation_interval: 15s
+  # Interval to increase reconciliation backoff by when prebuilds fail, after which
+  # a retry attempt is made.
+  # (default: 15s, type: duration)
+  reconciliation_backoff_interval: 15s
+  # Interval to look back to determine number of failed prebuilds, which influences
+  # backoff.
+  # (default: 1h0m0s, type: duration)
+  reconciliation_backoff_lookback_period: 1h0m0s
