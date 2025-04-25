@@ -18,6 +18,7 @@ type ClearInterval = (id: number | undefined) => void;
 type TimeSyncInitOptions = Readonly<
 	Partial<{
 		initialDatetime: Date;
+		createNewDateime: () => Date;
 		setInterval: SetInterval;
 		clearInterval: ClearInterval;
 	}>
@@ -25,6 +26,7 @@ type TimeSyncInitOptions = Readonly<
 
 const defaultOptions: Required<TimeSyncInitOptions> = {
 	initialDatetime: new Date(),
+	createNewDateime: () => new Date(),
 	setInterval: window.setInterval,
 	clearInterval: window.clearInterval,
 };
@@ -42,36 +44,67 @@ interface TimeSyncApi {
 }
 
 export class TimeSync implements TimeSyncApi {
-	#currentDatetime: Date;
-	#subscriptions: SubscriptionEntry[];
-	#latestIntervalId: number | undefined;
+	readonly #createNewDatetime: () => Date;
 	readonly #setInterval: SetInterval;
 	readonly #clearInterval: ClearInterval;
+
+	#latestSnapshot: Date;
+	#subscriptions: SubscriptionEntry[];
+	#latestIntervalId: number | undefined;
 
 	constructor(options: TimeSyncInitOptions) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
+			createNewDateime = defaultOptions.createNewDateime,
 			setInterval = defaultOptions.setInterval,
 			clearInterval = defaultOptions.clearInterval,
 		} = options;
 
-		this.#currentDatetime = initialDatetime;
+		this.#latestSnapshot = initialDatetime;
 		this.#subscriptions = [];
 		this.#latestIntervalId = undefined;
 		this.#setInterval = setInterval;
 		this.#clearInterval = clearInterval;
+		this.#createNewDatetime = createNewDateime;
 	}
 
 	#reconcileRefreshIntervals(): void {
-		this.#subscriptions.sort(
-			(e1, e2) => e1.maxRefreshIntervalMs - e2.maxRefreshIntervalMs,
-		);
-		this.#notifySubscriptions();
+		if (this.#subscriptions.length === 0) {
+			this.#clearInterval(this.#latestIntervalId);
+			return;
+		}
+
+		const prevFastestInterval =
+			this.#subscriptions[0]?.maxRefreshIntervalMs ?? Infinity;
+		if (this.#subscriptions.length > 1) {
+			this.#subscriptions.sort(
+				(e1, e2) => e1.maxRefreshIntervalMs - e2.maxRefreshIntervalMs,
+			);
+		}
+
+		const newFastestInterval =
+			this.#subscriptions[0]?.maxRefreshIntervalMs ?? Infinity;
+		if (prevFastestInterval === newFastestInterval) {
+			return;
+		}
+		if (newFastestInterval === Infinity) {
+			this.#clearInterval(this.#latestIntervalId);
+			return;
+		}
+
+		/**
+		 * @todo Figure out the conditions when the interval should be set up, and
+		 * when/how it should be updated
+		 */
+		this.#latestIntervalId = this.#setInterval(() => {
+			this.#latestSnapshot = this.#createNewDatetime();
+			this.#notifySubscriptions();
+		}, newFastestInterval);
 	}
 
 	#notifySubscriptions(): void {
 		for (const subEntry of this.#subscriptions) {
-			subEntry.onUpdate(this.#currentDatetime);
+			subEntry.onUpdate(this.#latestSnapshot);
 		}
 	}
 
@@ -79,7 +112,7 @@ export class TimeSync implements TimeSyncApi {
 	// arrow functions, so that they work properly with React
 
 	getLatestDatetimeSnapshot = (): Date => {
-		return this.#currentDatetime;
+		return this.#latestSnapshot;
 	};
 
 	unsubscribe = (id: string): void => {
@@ -93,6 +126,12 @@ export class TimeSync implements TimeSyncApi {
 	};
 
 	subscribe = (entry: SubscriptionEntry): (() => void) => {
+		if (entry.maxRefreshIntervalMs <= 0) {
+			throw new Error(
+				`Refresh interval ${entry.maxRefreshIntervalMs} must be a positive integer (or Infinity)`,
+			);
+		}
+
 		this.#subscriptions.push(entry);
 		this.#reconcileRefreshIntervals();
 		return () => this.unsubscribe(entry.id);
