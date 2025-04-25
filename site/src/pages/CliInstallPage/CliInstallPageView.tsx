@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Welcome } from "components/Welcome/Welcome";
+import { useTimeSync } from "hooks/useTimeSync";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -9,6 +10,11 @@ type CliInstallPageViewProps = {
 };
 
 export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
+	const year = useTimeSync({
+		maxRefreshIntervalMs: Infinity,
+		select: (newDatetime) => newDatetime.getFullYear(),
+	});
+
 	return (
 		<div css={styles.container}>
 			<Welcome>Install the Coder CLI</Welcome>
@@ -30,7 +36,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 				</RouterLink>
 			</div>
 			<div css={styles.copyright}>
-				{"\u00a9"} {new Date().getFullYear()} Coder Technologies, Inc.
+				{"\u00a9"} {year} Coder Technologies, Inc.
 			</div>
 		</div>
 	);

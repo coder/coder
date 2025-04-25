@@ -14,6 +14,7 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { router } from "./router";
+import { TimeSyncProvider } from "hooks/useTimeSync";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {
@@ -36,6 +37,8 @@ declare global {
 		toggleDevtools: () => void;
 	}
 }
+
+const initialDatetime = new Date();
 
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
@@ -64,15 +67,17 @@ export const AppProviders: FC<AppProvidersProps> = ({
 
 	return (
 		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<AuthProvider>
-					<ThemeProvider>
-						{children}
-						<GlobalSnackbar />
-					</ThemeProvider>
-				</AuthProvider>
-				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
-			</QueryClientProvider>
+			<TimeSyncProvider options={{ initialDatetime }}>
+				<QueryClientProvider client={queryClient}>
+					<AuthProvider>
+						<ThemeProvider>
+							{children}
+							<GlobalSnackbar />
+						</ThemeProvider>
+					</AuthProvider>
+					{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+				</QueryClientProvider>
+			</TimeSyncProvider>
 		</HelmetProvider>
 	);
 };
