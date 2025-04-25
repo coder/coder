@@ -17,7 +17,7 @@ var (
 	labels               = []string{"template_name", "preset_name", "organization_name"}
 	createdPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_created_total",
-		"Total number of prebuilt workspaces that have been created to meet the desired instance count of each " +
+		"Total number of prebuilt workspaces that have been created to meet the desired instance count of each "+
 			"template preset.",
 		labels,
 		nil,
@@ -50,7 +50,7 @@ var (
 	)
 	eligiblePrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_eligible",
-		"Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that " +
+		"Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that "+
 			"have completed their build process with their agent reporting 'ready' status.",
 		labels,
 		nil,
