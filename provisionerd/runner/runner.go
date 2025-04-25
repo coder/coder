@@ -1059,6 +1059,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				// called by `plan`. `apply` does not modify them, so we can use the
 				// modules from the plan response.
 				Modules: planComplete.Modules,
+				// Resource replacements are discovered at plan time, only.
+				ResourceReplacements: planComplete.ResourceReplacements,
 			},
 		},
 	}, nil

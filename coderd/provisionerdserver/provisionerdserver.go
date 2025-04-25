@@ -1728,6 +1728,10 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 		}
 
+		if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); len(resourceReplacements) > 0 {
+			s.notifyPrebuiltWorkspaceResourceReplacement(ctx, workspace, workspaceBuild, input.PrebuildClaimedByUser, resourceReplacements)
+		}
+
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,
 			WorkspaceID: workspace.ID,
@@ -1834,6 +1838,67 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 	); err != nil {
 		s.Logger.Warn(ctx, "failed to notify of workspace deletion", slog.Error(err))
 	}
+}
+
+func (s *server) notifyPrebuiltWorkspaceResourceReplacement(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacements) {
+	if claimantID == uuid.Nil {
+		// This is not a prebuild claim.
+		return
+	}
+
+	claimant, err := s.Database.GetUserByID(ctx, claimantID)
+	if err != nil {
+		s.Logger.Warn(ctx, "failed to find claimant by ID, cannot send prebuilt workspace resource replacement notification",
+			slog.F("claimant_id", claimantID.String()), slog.Error(err))
+		return
+	}
+
+	templateAdmins, err := findTemplateAdmins(ctx, s.Database)
+	if err != nil {
+		s.Logger.Warn(ctx, "failed to find template admins, cannot send prebuilt workspace resource replacement notification",
+			slog.F("claimant_id", claimantID.String()), slog.Error(err))
+		return
+	}
+
+	repls := make(map[string]string, len(replacements))
+	for _, repl := range replacements {
+		repls[repl.GetResource()] = strings.Join(repl.GetPaths(), ", ")
+	}
+
+	for _, templateAdmin := range templateAdmins {
+		if _, err := s.NotificationsEnqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
+			map[string]string{
+				"workspace":           workspace.Name,
+				"workspace_build_num": fmt.Sprintf("%d", build.BuildNumber),
+				"claimant":            claimant.Username,
+			},
+			map[string]any{
+				"replacements": repls,
+			}, "provisionerdserver",
+			// Associate this notification with all the related entities.
+			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+		); err != nil {
+			s.Logger.Warn(ctx, "failed to notify of prebuilt workspace resource replacement", slog.Error(err))
+			break
+		}
+	}
+}
+
+// findTemplateAdmins fetches all users with template admin permission, including owners.
+func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get template admins: %w", err)
+	}
+	return append(owners, templateAdmins...), nil
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

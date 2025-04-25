@@ -312,12 +312,21 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	// the point of prebuilding if the expensive resource is replaced once claimed!
 	var (
 		isPrebuildClaimAttempt = !destroy && metadata.PrebuildClaimForUserId != ""
+		reps                   []*proto.ResourceReplacements
 	)
 	if count := len(replacements); count > 0 && isPrebuildClaimAttempt {
 		// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
 		//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
 		//				 to diagnose this resource replacement issue, at least.
 		e.logDrift(ctx, killCtx, planfilePath, logr)
+
+		reps = make([]*proto.ResourceReplacements, 0, len(replacements))
+		for n, p := range replacements {
+			reps = append(reps, &proto.ResourceReplacements{
+				Resource: n,
+				Paths:    p,
+			})
+		}
 	}
 
 	return &proto.PlanComplete{
@@ -327,6 +336,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		Presets:               state.Presets,
 		Plan:                  plan,
+		ResourceReplacements:  reps,
 	}, nil
 }
 

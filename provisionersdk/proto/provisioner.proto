@@ -73,6 +73,11 @@ message PresetParameter {
     string value = 2;
 }
 
+message ResourceReplacements {
+    string resource = 1;
+    repeated string paths = 2;
+}
+
 // VariableValue holds the key/value mapping of a Terraform variable.
 message VariableValue {
     string name = 1;
@@ -337,6 +342,7 @@ message PlanComplete {
     repeated Module modules = 7;
     repeated Preset presets = 8;
     bytes plan = 9;
+    repeated ResourceReplacements resourceReplacements = 10;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
