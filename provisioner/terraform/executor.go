@@ -310,16 +310,14 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
 	// the point of prebuilding if the expensive resource is replaced once claimed!
-	//
-	// Future enhancement: send a notification (probably just to the inbox) to inform both the claimant and the template
-	// admin that a replacement took place. The provisioner does not connect to the database, so it can't enqueue notifications.
-	isPrebuildClaimAttempt := !destroy && metadata.PrebuildClaimForUserId != ""
+	var (
+		isPrebuildClaimAttempt = !destroy && metadata.PrebuildClaimForUserId != ""
+	)
 	if count := len(replacements); count > 0 && isPrebuildClaimAttempt {
-		e.server.logger.Warn(ctx, "plan introduces resource changes", slog.F("count", count))
-		for n, p := range replacements {
-			// TODO: link to documentation for description and solution.
-			e.server.logger.Warn(ctx, "resource will be replaced, which may impact prebuilt workspace", slog.F("name", n), slog.F("replacement_paths", strings.Join(p, ",")))
-		}
+		// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
+		//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
+		//				 to diagnose this resource replacement issue, at least.
+		e.logDrift(ctx, killCtx, planfilePath, logr)
 	}
 
 	return &proto.PlanComplete{
@@ -354,7 +352,7 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	plan, err := e.showPlan(ctx, killCtx, planfilePath)
+	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
@@ -390,8 +388,8 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 	return state, planJSON, findResourceReplacements(plan), nil
 }
 
-// showPlan must only be called while the lock is held.
-func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
+// parsePlan must only be called while the lock is held.
+func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -399,6 +397,33 @@ func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (
 	p := new(tfjson.Plan)
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), p)
 	return p, err
+}
+
+// logDrift must only be called while the lock is held.
+// It will log the output of `terraform show`, which will show which resources have drifted from the known state.
+func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
+	stdout, stdoutDone := logWriter(logr, proto.LogLevel_WARN)
+	stderr, stderrDone := logWriter(logr, proto.LogLevel_ERROR)
+	defer func() {
+		_ = stdout.Close()
+		_ = stderr.Close()
+		<-stdoutDone
+		<-stderrDone
+	}()
+
+	err := e.showPlan(ctx, killCtx, stdout, stderr, planfilePath)
+	if err != nil {
+		e.server.logger.Debug(ctx, "failed to log state drift", slog.Error(err))
+	}
+}
+
+// showPlan must only be called while the lock is held.
+func (e *executor) showPlan(ctx, killCtx context.Context, stdoutWriter, stderrWriter io.WriteCloser, planfilePath string) error {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	args := []string{"show", "-no-color", planfilePath}
+	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), stdoutWriter, stderrWriter)
 }
 
 // graph must only be called while the lock is held.
