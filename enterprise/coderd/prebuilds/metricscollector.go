@@ -17,37 +17,41 @@ var (
 	labels               = []string{"template_name", "preset_name", "organization_name"}
 	createdPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_created_total",
-		"The number of prebuilt workspaces that have been created to meet the desired count set by presets.",
+		"Total number of prebuilt workspaces that have been created to meet the desired instance count of each " +
+			"template preset.",
 		labels,
 		nil,
 	)
 	failedPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_failed_total",
-		"The number of prebuilt workspaces that failed to build.",
+		"Total number of prebuilt workspaces that failed to build.",
 		labels,
 		nil,
 	)
 	claimedPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_claimed_total",
-		"The number of prebuilt workspaces that were claimed by a user. Each count means that a user created a workspace using a preset and claimed a prebuilt workspace instead of a brand new workspace being created.",
+		"Total number of prebuilt workspaces which were claimed by users. Claiming refers to creating a workspace "+
+			"with a preset selected for which eligible prebuilt workspaces are available and one is reassigned to a user.",
 		labels,
 		nil,
 	)
 	desiredPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_desired",
-		"The number of prebuilt workspaces desired by each preset of each template.",
+		"Target number of prebuilt workspaces that should be available for each template preset.",
 		labels,
 		nil,
 	)
 	runningPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_running",
-		"The number of prebuilt workspaces that are currently running. Running prebuilt workspaces have successfully started, but includes both eligible and ineligible workspaces.",
+		"Current number of prebuilt workspaces that are in a running state. These workspaces have started "+
+			"successfully but may not yet be claimable by users (see coderd_prebuilt_workspaces_eligible).",
 		labels,
 		nil,
 	)
 	eligiblePrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_eligible",
-		"The number of eligible prebuilt workspaces. Eligible prebuilt workspaces are ones whose agent is marked 'ready', and can be claimed by a user.",
+		"Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that " +
+			"have completed their build process with their agent reporting 'ready' status.",
 		labels,
 		nil,
 	)
