@@ -341,7 +341,6 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 
 func TestWorkspaceAgentAppStatus(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
@@ -362,6 +361,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "vscode",
 			Message: "testing",
@@ -385,6 +385,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 
 	t.Run("FailUnknownApp", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "unknown",
 			Message: "testing",
@@ -399,6 +400,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 
 	t.Run("FailUnknownState", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "vscode",
 			Message: "testing",
@@ -413,6 +415,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 
 	t.Run("FailTooLong", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "vscode",
 			Message: strings.Repeat("a", 161),

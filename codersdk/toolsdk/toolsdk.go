@@ -156,6 +156,13 @@ func WithCleanContext(h GenericHandlerFunc) GenericHandlerFunc {
 	return func(parent context.Context, tb Deps, args json.RawMessage) (ret json.RawMessage, err error) {
 		child, childCancel := context.WithCancel(context.Background())
 		defer childCancel()
+		// Ensure that the child context has the same deadline as the parent
+		// context.
+		if deadline, ok := parent.Deadline(); ok {
+			deadlineCtx, deadlineCancel := context.WithDeadline(child, deadline)
+			defer deadlineCancel()
+			child = deadlineCtx
+		}
 		// Ensure that cancellation propagates from the parent context to the child context.
 		go func() {
 			select {
@@ -165,13 +172,6 @@ func WithCleanContext(h GenericHandlerFunc) GenericHandlerFunc {
 				childCancel()
 			}
 		}()
-		// Also ensure that the child context has the same deadline as the parent
-		// context.
-		if deadline, ok := parent.Deadline(); ok {
-			deadlineCtx, deadlineCancel := context.WithDeadline(child, deadline)
-			defer deadlineCancel()
-			child = deadlineCtx
-		}
 		return h(child, tb, args)
 	}
 }

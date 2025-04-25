@@ -33,10 +33,6 @@ func TestExpMcpServer(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		cmdDone := make(chan struct{})
 		cancelCtx, cancel := context.WithCancel(ctx)
-		t.Cleanup(func() {
-			cancel()
-			<-cmdDone
-		})
 
 		// Given: a running coder deployment
 		client := coderdtest.New(t, nil)
@@ -93,6 +89,8 @@ func TestExpMcpServer(t *testing.T) {
 		require.NoError(t, err, "should have received a valid JSON response from the tool")
 		// Ensure the tool returns the expected user
 		require.Contains(t, output, owner.UserID.String(), "should have received the expected user ID")
+		cancel()
+		<-cmdDone
 	})
 
 	t.Run("OK", func(t *testing.T) {
