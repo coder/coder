@@ -9,6 +9,7 @@ import {
 	type PropsWithChildren,
 } from "react";
 
+export const MAX_REFRESH_ONE_MINUTE = 60 * 1_000;
 export const MAX_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 
 type SetInterval = (fn: () => void, intervalMs: number) => number;
