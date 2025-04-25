@@ -35,6 +35,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -48,8 +51,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -1224,6 +1225,25 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels:       map[string]string{},
+			},
+		},
+		{
+			name: "TemplateWorkspaceResourceReplaced",
+			id:   notifications.TemplateWorkspaceResourceReplaced,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace":           "my-workspace",
+					"workspace_build_num": "2",
+					"claimant":            "prebuilds-claimer",
+				},
+				Data: map[string]any{
+					"replacements": map[string]string{
+						"docker_container[0]": "env, hostname",
+					},
+				},
 			},
 		},
 	}
