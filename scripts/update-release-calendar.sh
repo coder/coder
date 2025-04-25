@@ -8,16 +8,13 @@ set -euo pipefail
 
 DOCS_FILE="docs/install/releases/index.md"
 
-# Define unique markdown comments as anchors
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
-# Get current date
 current_date=$(date +"%Y-%m-%d")
 current_month=$(date +"%m")
 current_year=$(date +"%Y")
 
-# Function to get the first Tuesday of a given month and year
 get_first_tuesday() {
 	local year=$1
 	local month=$2
@@ -25,24 +22,20 @@ get_first_tuesday() {
 	local days_until_tuesday
 	local first_tuesday
 
-	# Find the first day of the month
 	first_day=$(date -d "$year-$month-01" +"%u")
 
-	# Calculate days until first Tuesday (if day 1 is Tuesday, first_day=2)
 	days_until_tuesday=$((first_day == 2 ? 0 : (9 - first_day) % 7))
 
-	# Get the date of the first Tuesday
 	first_tuesday=$(date -d "$year-$month-01 +$days_until_tuesday days" +"%Y-%m-%d")
 
 	echo "$first_tuesday"
 }
 
-# Function to format date as "Month DD, YYYY"
+# Format date as "Month DD, YYYY"
 format_date() {
 	date -d "$1" +"%B %d, %Y"
 }
 
-# Function to get the latest patch version for a minor release
 get_latest_patch() {
 	local version_major=$1
 	local version_minor=$2
@@ -52,16 +45,31 @@ get_latest_patch() {
 	# Get all tags for this minor version
 	tags=$(cd "$(git rev-parse --show-toplevel)" && git tag | grep "^v$version_major\\.$version_minor\\." | sort -V)
 
-	# Get the latest one
 	latest=$(echo "$tags" | tail -1)
 
 	if [ -z "$latest" ]; then
-		# If no tags found, return empty
 		echo ""
 	else
-		# Return without the v prefix
 		echo "${latest#v}"
 	fi
+}
+
+get_next_release_month() {
+	local current_month=$1
+	local next_month=$((current_month + 1))
+
+	# Handle December -> February transition (skip January)
+	if [[ $next_month -eq 13 ]]; then
+		next_month=2 # Skip to February
+		return $next_month
+	fi
+
+	# Skip January for all years starting 2025
+	if [[ $next_month -eq 1 ]]; then
+		next_month=2
+	fi
+
+	return $next_month
 }
 
 # Generate releases table showing:
@@ -84,15 +92,31 @@ generate_release_calendar() {
 	# Start with 3 unsupported releases back
 	start_minor=$((version_minor - 5))
 
-	# Initialize the calendar table with an additional column for latest release
 	result="| Release name | Release Date | Status | Latest Release |\n"
 	result+="|--------------|--------------|--------|----------------|\n"
+
+	# Find the latest release month and year
+	local current_release_minor=$((version_minor - 1)) # Current stable release
+	local tag_date
+	tag_date=$(cd "$(git rev-parse --show-toplevel)" && git log -1 --format=%ai "v$version_major.$current_release_minor.0" 2>/dev/null || echo "")
+
+	local current_release_month
+	local current_release_year
+
+	if [ -n "$tag_date" ]; then
+		# Extract month and year from tag date
+		current_release_month=$(date -d "$tag_date" +"%m")
+		current_release_year=$(date -d "$tag_date" +"%Y")
+	else
+		# Default to current month/year if tag not found
+		current_release_month=$current_month
+		current_release_year=$current_year
+	fi
 
 	# Generate rows for each release (7 total: 3 unsupported, 1 security, 1 stable, 1 mainline, 1 next)
 	for i in {0..6}; do
 		# Calculate release minor version
 		local rel_minor=$((start_minor + i))
-		# Format release name without the .x
 		local version_name="$version_major.$rel_minor"
 		local release_date
 		local formatted_date
@@ -101,22 +125,41 @@ generate_release_calendar() {
 		local status
 		local formatted_version_name
 
-		# Calculate release month and year based on release pattern
-		# This is a simplified calculation assuming monthly releases
-		local rel_month=$(((current_month - (5 - i) + 12) % 12))
-		[[ $rel_month -eq 0 ]] && rel_month=12
-		local rel_year=$current_year
-		if [[ $rel_month -gt $current_month ]]; then
-			rel_year=$((rel_year - 1))
-		fi
-		if [[ $rel_month -lt $current_month && $i -gt 5 ]]; then
-			rel_year=$((rel_year + 1))
-		fi
+		# Calculate the release month and year based on the current release's date
+		# For previous releases, go backward in the release_months array
+		# For future releases, go forward
+		local month_offset=$((i - 4)) # 4 is the index of the stable release (i=4)
 
-		# Skip January releases starting from 2025
-		if [[ $rel_month -eq 1 && $rel_year -ge 2025 ]]; then
-			rel_month=2
-			# No need to reassign rel_year to itself
+		# Start from the current stable release month
+		local rel_month=$current_release_month
+		local rel_year=$current_release_year
+
+		# Apply the offset to get the target release month
+		if [ $month_offset -lt 0 ]; then
+			# For previous releases, go backward
+			for ((j = 0; j > month_offset; j--)); do
+				rel_month=$((rel_month - 1))
+				if [ $rel_month -eq 0 ]; then
+					rel_month=12
+					rel_year=$((rel_year - 1))
+				elif [ $rel_month -eq 1 ]; then
+					# Skip January (go from February to December of previous year)
+					rel_month=12
+					rel_year=$((rel_year - 1))
+				fi
+			done
+		elif [ $month_offset -gt 0 ]; then
+			# For future releases, go forward
+			for ((j = 0; j < month_offset; j++)); do
+				rel_month=$((rel_month + 1))
+				if [ $rel_month -eq 13 ]; then
+					rel_month=2 # Skip from December to February
+					rel_year=$((rel_year + 1))
+				elif [ $rel_month -eq 1 ]; then
+					# Skip January
+					rel_month=2
+				fi
+			done
 		fi
 
 		# Get release date (first Tuesday of the month)
@@ -147,7 +190,6 @@ generate_release_calendar() {
 		fi
 
 		# Format version name and patch link based on release status
-		# No links for unreleased versions
 		if [[ "$status" == "Not Released" ]]; then
 			formatted_version_name="$version_name"
 			patch_link="N/A"
