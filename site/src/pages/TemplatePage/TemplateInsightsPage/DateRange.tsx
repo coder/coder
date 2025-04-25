@@ -19,6 +19,7 @@ import {
 } from "date-fns";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
+import { useTimeSync } from "hooks/useTimeSync";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
@@ -42,6 +43,7 @@ interface DateRangeProps {
 }
 
 export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
+	const currentTime = useTimeSync({ maxRefreshIntervalMs: 60_000 });
 	const selectionStatusRef = useRef<"idle" | "selecting">("idle");
 	const [ranges, setRanges] = useState<RangesState>([
 		{
@@ -91,7 +93,7 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 					moveRangeOnFirstSelection={false}
 					months={2}
 					ranges={ranges}
-					maxDate={new Date()}
+					maxDate={currentTime}
 					direction="horizontal"
 					staticRanges={createStaticRanges([
 						{

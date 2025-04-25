@@ -9,13 +9,7 @@ import {
 	type PropsWithChildren,
 } from "react";
 
-type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
-
-type SubscriptionEntry = Readonly<{
-	id: string;
-	maxRefreshIntervalMs: number;
-	onIntervalTick: (newDatetime: Date) => void;
-}>;
+export const MAX_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 
 type SetInterval = (fn: () => void, intervalMs: number) => number;
 type ClearInterval = (id: number | undefined) => void;
@@ -34,8 +28,14 @@ const defaultOptions: Required<TimeSyncInitOptions> = {
 	clearInterval: window.clearInterval,
 };
 
+type SubscriptionEntry = Readonly<{
+	id: string;
+	maxRefreshIntervalMs: number;
+	onUpdate: (newDatetime: Date) => void;
+}>;
+
 interface TimeSyncApi {
-	getCurrentDatetime: () => Date;
+	getLatestDatetimeSnapshot: () => Date;
 	subscribe: (entry: SubscriptionEntry) => () => void;
 	unsubscribe: (id: string) => void;
 }
@@ -70,14 +70,14 @@ export class TimeSync implements TimeSyncApi {
 
 	#notifySubscriptions(): void {
 		for (const subEntry of this.#subscriptions) {
-			subEntry.onIntervalTick(this.#currentDatetime);
+			subEntry.onUpdate(this.#currentDatetime);
 		}
 	}
 
 	// All functions that are part of the public interface must be defined as
 	// arrow functions, so that they work properly with React
 
-	getCurrentDatetime = (): Date => {
+	getLatestDatetimeSnapshot = (): Date => {
 		return this.#currentDatetime;
 	};
 
@@ -134,17 +134,15 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	);
 };
 
-function identity<T>(value: T): T {
-	return value;
-}
-
 type UseTimeSyncOptions<T = Date> = Readonly<{
 	maxRefreshIntervalMs: number;
 	select?: (newDate: Date) => T;
 }>;
 
+type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
+
 export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
-	const { select = identity, maxRefreshIntervalMs } = options;
+	const { select, maxRefreshIntervalMs } = options;
 
 	// Abusing useId a little bit here. It's mainly meant to be used for
 	// accessibility, but it also gives us a globally unique ID associated with
@@ -162,7 +160,7 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 		(notifyReact) => {
 			return timeSync.subscribe({
 				maxRefreshIntervalMs,
-				onIntervalTick: notifyReact,
+				onUpdate: notifyReact,
 				id: hookId,
 			});
 		},
@@ -170,8 +168,9 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	);
 
 	const currentTime = useSyncExternalStore(subscribe, () =>
-		timeSync.getCurrentDatetime(),
+		timeSync.getLatestDatetimeSnapshot(),
 	);
 
-	return select(currentTime as T & Date);
+	const recast = currentTime as T & Date;
+	return select?.(recast) ?? recast;
 }
