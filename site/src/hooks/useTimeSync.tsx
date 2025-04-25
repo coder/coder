@@ -13,7 +13,7 @@ type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 
 type SubscriptionEntry = Readonly<{
   id: string;
-  maximumRefreshIntervalMs: number;
+  maxRefreshIntervalMs: number;
   onIntervalTick: (newDatetime: Date) => void;
 }>;
 
@@ -63,7 +63,7 @@ export class TimeSync implements TimeSyncApi {
 
   #reconcileRefreshIntervals(): void {
     this.#subscriptions.sort(
-      (e1, e2) => e1.maximumRefreshIntervalMs - e2.maximumRefreshIntervalMs,
+      (e1, e2) => e1.maxRefreshIntervalMs - e2.maxRefreshIntervalMs,
     );
     this.#notifySubscriptions();
   }
@@ -139,12 +139,12 @@ function identity<T>(value: T): T {
 }
 
 type UseTimeSyncOptions<T = Date> = Readonly<{
-  maximumRefreshIntervalMs?: number;
+  maxRefreshIntervalMs?: number;
   select?: (newDate: Date) => T;
 }>;
 
 export function useTimeSync<T = Date>(options?: UseTimeSyncOptions<T>): T {
-  const { select = identity, maximumRefreshIntervalMs = Infinity } =
+  const { select = identity, maxRefreshIntervalMs = Infinity } =
     options ?? {};
 
   // Abusing useId a little bit here. It's mainly meant to be used for
@@ -162,12 +162,12 @@ export function useTimeSync<T = Date>(options?: UseTimeSyncOptions<T>): T {
   const subscribe = useCallback<ReactSubscriptionCallback>(
     (notifyReact) => {
       return timeSync.subscribe({
-        maximumRefreshIntervalMs,
+        maxRefreshIntervalMs,
         onIntervalTick: notifyReact,
         id: hookId,
       });
     },
-    [timeSync, hookId, maximumRefreshIntervalMs],
+    [timeSync, hookId, maxRefreshIntervalMs],
   );
 
   const currentTime = useSyncExternalStore(subscribe, () =>
