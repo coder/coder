@@ -402,7 +402,7 @@ func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) 
 // logDrift must only be called while the lock is held.
 // It will log the output of `terraform show`, which will show which resources have drifted from the known state.
 func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
-	stdout, stdoutDone := logWriter(logr, proto.LogLevel_WARN)
+	stdout, stdoutDone := resourceReplaceLogWriter(logr)
 	stderr, stderrDone := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = stdout.Close()
@@ -415,6 +415,34 @@ func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, l
 	if err != nil {
 		e.server.logger.Debug(ctx, "failed to log state drift", slog.Error(err))
 	}
+}
+
+// resourceReplaceLogWriter highlights log lines relating to resource replacement by elevating their log level.
+// This will help template admins to visually find problematic resources easier.
+//
+// The WriteCloser must be closed by the caller to end logging, after which the returned channel will be closed to
+// indicate that logging of the written data has finished.  Failure to close the WriteCloser will leak a goroutine.
+func resourceReplaceLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
+	r, w := io.Pipe()
+	done := make(chan any)
+
+	go func() {
+		defer close(done)
+
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			level := proto.LogLevel_INFO
+
+			// Terraform indicates that a resource will be deleted and recreated by showing the change along with this substring.
+			if bytes.Contains(line, []byte("# forces replacement")) {
+				level = proto.LogLevel_WARN
+			}
+
+			sink.ProvisionLog(level, string(line))
+		}
+	}()
+	return w, done
 }
 
 // showPlan must only be called while the lock is held.
