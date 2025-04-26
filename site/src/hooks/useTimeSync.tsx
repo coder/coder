@@ -53,23 +53,26 @@ interface TimeSyncApi {
  * TimeSync provides a centralized authority for working with time values in a
  * more structured, "pure function-ish" way, where all dependents for the time
  * values must stay in sync with each other. (e.g., in a React codebase, you
- * want multiple components that need time to update together, to avoid screen
- * tearing and stale data for only some parts of the screen).
+ * want multiple components that rely on time values to update together, to
+ * avoid screen tearing and stale data for only some parts of the screen).
  *
  * It lets any number of consumers subscribe to it, requiring that subscribers
- * define the slowest possible update interval they need for a time update
- * (positive Infinity indicates that it is fine if it doesn't update ever). The
- * class aggregates all the update intervals, and will dispatch updates to all
- * consumers based on the fastest refresh interval needed. (e.g., if subscriber
- * A needs no updates, but subscriber B needs updates every second, BOTH will
- * update every second until subscriber B unsubscribes. After that, subscriber A
- * will never update until subscription C gets added, and C has a non-Infinity
- * update interval).
+ * define the slowest possible update interval they need to receive new time
+ * values for. A value of positive Infinity indicates that a subscriber doesn't
+ * need updates; if all subscriptions have an update interval of Infinity, the
+ * class may not dispatch updates.
+ *
+ * The class aggregates all the update intervals, and will dispatch updates to
+ * all consumers based on the fastest refresh interval needed. (e.g., if
+ * subscriber A needs no updates, but subscriber B needs updates every second,
+ * BOTH will update every second until subscriber B unsubscribes. After that,
+ * TimeSync will stop dispatching updates until subscription C gets added, and C
+ * has a non-Infinite update interval).
  *
  * By design, there is no way to make one subscriber disable updates. That
  * defeats the goal of needing to keep everything in sync with each other. If
  * updates are happening too frequently in React, restructure how you're
- * composing your components.
+ * composing your components to minimize the costs of re-renders.
  */
 export class TimeSync implements TimeSyncApi {
 	readonly resyncOnNewSubscription: boolean;
@@ -230,7 +233,18 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 
 type UseTimeSyncOptions<T = Date> = Readonly<{
 	maxRefreshIntervalMs: number;
-	select?: (newDate: Date) => T;
+
+	/**
+	 * Allows you to transform any date values received from the TimeSync class.
+	 *
+	 * Note that select functions are not memoized and will run on every render
+	 * (similar to the ones in React Query and Redux Toolkit's default selectors).
+	 * Select functions should be kept cheap to recalculate.
+	 *
+	 * Select functions must not be async. The hook will error out at the type
+	 * level if you provide one by mistake.
+	 */
+	select?: (newDate: Date) => T extends Promise<unknown> ? never : T;
 }>;
 
 type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
