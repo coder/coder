@@ -19,20 +19,40 @@ type ClearInterval = (id: number | undefined) => void;
 
 type TimeSyncInitOptions = Readonly<{
 	/**
-	 * Indicates whether adding a new subscription will immediately create a new
-	 * time snapshot, and update all other subscribers with that snapshot.
+	 * Configures whether adding a new subscription will immediately create a new
+	 * time snapshot and use it to update all other subscriptions.
 	 */
 	resyncOnNewSubscription: boolean;
+
+	/**
+	 * The Date value to use when initializing a TimeSync instance.
+	 */
 	initialDatetime: Date;
-	createNewDateime: (prevDatetime: Date) => Date;
+
+	/**
+	 * The function to use when creating a new datetime snapshot when a TimeSync
+	 * needs to update on an interval.
+	 */
+	createNewDatetime: (prevDatetime: Date) => Date;
+
+	/**
+	 * The function to use when creating new intervals.
+	 */
 	setInterval: SetInterval;
+
+	/**
+	 * The function to use when clearing intervals.
+	 *
+	 * (i.e., Clearing a previous interval because the TimeSync needs to make a
+	 * new interval to increase/decrease its update speed.)
+	 */
 	clearInterval: ClearInterval;
 }>;
 
 const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
 	resyncOnNewSubscription: true,
-	createNewDateime: () => new Date(),
+	createNewDatetime: () => new Date(),
 	setInterval: window.setInterval,
 	clearInterval: window.clearInterval,
 };
@@ -88,7 +108,7 @@ export class TimeSync implements TimeSyncApi {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
 			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
-			createNewDateime = defaultOptions.createNewDateime,
+			createNewDatetime = defaultOptions.createNewDatetime,
 			setInterval = defaultOptions.setInterval,
 			clearInterval = defaultOptions.clearInterval,
 		} = options;
@@ -99,7 +119,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestIntervalId = undefined;
 		this.#setInterval = setInterval;
 		this.#clearInterval = clearInterval;
-		this.#createNewDatetime = createNewDateime;
+		this.#createNewDatetime = createNewDatetime;
 	}
 
 	#reconcileRefreshIntervals(): void {
