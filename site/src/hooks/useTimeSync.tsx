@@ -15,16 +15,14 @@ export const MAX_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 type SetInterval = (fn: () => void, intervalMs: number) => number;
 type ClearInterval = (id: number | undefined) => void;
 
-type TimeSyncInitOptions = Readonly<
-	Partial<{
-		initialDatetime: Date;
-		createNewDateime: () => Date;
-		setInterval: SetInterval;
-		clearInterval: ClearInterval;
-	}>
->;
+type TimeSyncInitOptions = Readonly<{
+	initialDatetime: Date;
+	createNewDateime: (prevDatetime: Date) => Date;
+	setInterval: SetInterval;
+	clearInterval: ClearInterval;
+}>;
 
-const defaultOptions: Required<TimeSyncInitOptions> = {
+const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
 	createNewDateime: () => new Date(),
 	setInterval: window.setInterval,
@@ -44,7 +42,7 @@ interface TimeSyncApi {
 }
 
 export class TimeSync implements TimeSyncApi {
-	readonly #createNewDatetime: () => Date;
+	readonly #createNewDatetime: (prev: Date) => Date;
 	readonly #setInterval: SetInterval;
 	readonly #clearInterval: ClearInterval;
 
@@ -52,7 +50,7 @@ export class TimeSync implements TimeSyncApi {
 	#subscriptions: SubscriptionEntry[];
 	#latestIntervalId: number | undefined;
 
-	constructor(options: TimeSyncInitOptions) {
+	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
 			createNewDateime = defaultOptions.createNewDateime,
@@ -97,7 +95,7 @@ export class TimeSync implements TimeSyncApi {
 		 * when/how it should be updated
 		 */
 		this.#latestIntervalId = this.#setInterval(() => {
-			this.#latestSnapshot = this.#createNewDatetime();
+			this.#latestSnapshot = this.#createNewDatetime(this.#latestSnapshot);
 			this.#notifySubscriptions();
 		}, newFastestInterval);
 	}
@@ -132,9 +130,24 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		this.#subscriptions.push(entry);
-		this.#reconcileRefreshIntervals();
-		return () => this.unsubscribe(entry.id);
+		const unsub = () => this.unsubscribe(entry.id);
+		const subIndex = this.#subscriptions.findIndex((s) => s.id === entry.id);
+		if (subIndex === -1) {
+			this.#subscriptions.push(entry);
+			this.#reconcileRefreshIntervals();
+			return unsub;
+		}
+
+		const prev = this.#subscriptions[subIndex];
+		if (prev === undefined) {
+			throw new Error("Went out of bounds");
+		}
+
+		this.#subscriptions[subIndex] = entry;
+		if (prev.maxRefreshIntervalMs !== entry.maxRefreshIntervalMs) {
+			this.#reconcileRefreshIntervals();
+		}
+		return unsub;
 	};
 }
 
