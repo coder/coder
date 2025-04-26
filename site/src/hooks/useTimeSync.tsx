@@ -9,13 +9,20 @@ import {
 	type PropsWithChildren,
 } from "react";
 
+export const MAX_REFRESH_ONE_SECOND = 1_000;
 export const MAX_REFRESH_ONE_MINUTE = 60 * 1_000;
+export const MAX_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
 export const MAX_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 
 type SetInterval = (fn: () => void, intervalMs: number) => number;
 type ClearInterval = (id: number | undefined) => void;
 
 type TimeSyncInitOptions = Readonly<{
+	/**
+	 * Indicates whether adding a new subscription will immediately create a new
+	 * time snapshot, and update all other subscribers with that snapshot.
+	 */
+	resyncOnNewSubscription: boolean;
 	initialDatetime: Date;
 	createNewDateime: (prevDatetime: Date) => Date;
 	setInterval: SetInterval;
@@ -24,6 +31,7 @@ type TimeSyncInitOptions = Readonly<{
 
 const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
+	resyncOnNewSubscription: true,
 	createNewDateime: () => new Date(),
 	setInterval: window.setInterval,
 	clearInterval: window.clearInterval,
@@ -41,7 +49,30 @@ interface TimeSyncApi {
 	unsubscribe: (id: string) => void;
 }
 
+/**
+ * TimeSync provides a centralized authority for working with time values in a
+ * more structured, "pure function-ish" way, where all dependents for the time
+ * values must stay in sync with each other. (e.g., in a React codebase, you
+ * want multiple components that need time to update together, to avoid screen
+ * tearing and stale data for only some parts of the screen).
+ *
+ * It lets any number of consumers subscribe to it, requiring that subscribers
+ * define the slowest possible update interval they need for a time update
+ * (positive Infinity indicates that it is fine if it doesn't update ever). The
+ * class aggregates all the update intervals, and will dispatch updates to all
+ * consumers based on the fastest refresh interval needed. (e.g., if subscriber
+ * A needs no updates, but subscriber B needs updates every second, BOTH will
+ * update every second until subscriber B unsubscribes. After that, subscriber A
+ * will never update until subscription C gets added, and C has a non-Infinity
+ * update interval).
+ *
+ * By design, there is no way to make one subscriber disable updates. That
+ * defeats the goal of needing to keep everything in sync with each other. If
+ * updates are happening too frequently in React, restructure how you're
+ * composing your components.
+ */
 export class TimeSync implements TimeSyncApi {
+	readonly resyncOnNewSubscription: boolean;
 	readonly #createNewDatetime: (prev: Date) => Date;
 	readonly #setInterval: SetInterval;
 	readonly #clearInterval: ClearInterval;
@@ -53,12 +84,14 @@ export class TimeSync implements TimeSyncApi {
 	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
+			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
 			createNewDateime = defaultOptions.createNewDateime,
 			setInterval = defaultOptions.setInterval,
 			clearInterval = defaultOptions.clearInterval,
 		} = options;
 
 		this.#latestSnapshot = initialDatetime;
+		this.resyncOnNewSubscription = resyncOnNewSubscription;
 		this.#subscriptions = [];
 		this.#latestIntervalId = undefined;
 		this.#setInterval = setInterval;
@@ -168,6 +201,14 @@ type TimeSyncProviderProps = Readonly<
 	}>
 >;
 
+/**
+ * TimeSyncProvider provides an easy way to dependency-inject a TimeSync
+ * instance throughout a React application.
+ *
+ * Note that whatever options are provided on the first render will be locked in
+ * for the lifetime of the provider. There is no way to reconfigure options on
+ * re-renders.
+ */
 export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	children,
 	options,
@@ -194,6 +235,21 @@ type UseTimeSyncOptions<T = Date> = Readonly<{
 
 type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 
+/**
+ * useTimeSync provides React bindings for the TimeSync class, letting a React
+ * component bind its update lifecycles to interval updates from TimeSync. This
+ * hook should be used anytime you would want to use a Date instance directly in
+ * a component render path.
+ *
+ * By default, it returns the raw Date value from the most recent update, but
+ * by providing a `select` callback in the options, you can get a transformed
+ * version of the time value, using 100% pure functions.
+ *
+ * By specifying a value of positive Infinity, that indicates that the hook will
+ * not update by itself. But if another component is mounted with a more
+ * frequent update interval, both component instances will update on that
+ * interval.
+ */
 export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const { select, maxRefreshIntervalMs } = options;
 
