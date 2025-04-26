@@ -1,3 +1,9 @@
+/**
+ * @todo Things that still need to be done before this can be called done:
+ * 1. Finish up the interval reconciliation method
+ * 2. Update the class to respect the resyncOnNewSubscription option
+ * 3. Add tests
+ */
 import {
 	createContext,
 	useCallback,
