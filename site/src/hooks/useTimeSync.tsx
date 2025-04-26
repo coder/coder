@@ -101,7 +101,7 @@ interface TimeSyncApi {
  * composing your components to minimize the costs of re-renders.
  */
 export class TimeSync implements TimeSyncApi {
-	readonly resyncOnNewSubscription: boolean;
+	readonly #resyncOnNewSubscription: boolean;
 	readonly #createNewDatetime: (prev: Date) => Date;
 	readonly #setInterval: SetInterval;
 	readonly #clearInterval: ClearInterval;
@@ -119,13 +119,14 @@ export class TimeSync implements TimeSyncApi {
 			clearInterval = defaultOptions.clearInterval,
 		} = options;
 
-		this.#latestSnapshot = initialDatetime;
-		this.resyncOnNewSubscription = resyncOnNewSubscription;
-		this.#subscriptions = [];
-		this.#latestIntervalId = undefined;
 		this.#setInterval = setInterval;
 		this.#clearInterval = clearInterval;
 		this.#createNewDatetime = createNewDatetime;
+		this.#resyncOnNewSubscription = resyncOnNewSubscription;
+
+		this.#latestSnapshot = initialDatetime;
+		this.#subscriptions = [];
+		this.#latestIntervalId = undefined;
 	}
 
 	#reconcileRefreshIntervals(): void {
