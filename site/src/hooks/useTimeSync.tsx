@@ -164,7 +164,7 @@ function useTimeSyncContext(): TimeSync {
 
 type TimeSyncProviderProps = Readonly<
 	PropsWithChildren<{
-		options?: TimeSyncInitOptions;
+		options?: Partial<TimeSyncInitOptions>;
 	}>
 >;
 
