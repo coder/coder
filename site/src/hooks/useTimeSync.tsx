@@ -271,7 +271,7 @@ type UseTimeSyncOptions<T = Date> = Readonly<{
 	 * Select functions must not be async. The hook will error out at the type
 	 * level if you provide one by mistake.
 	 */
-	select?: (newDate: Date) => T extends Promise<unknown> ? never : T;
+	select?: (latestDatetime: Date) => T extends Promise<unknown> ? never : T;
 }>;
 
 type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;

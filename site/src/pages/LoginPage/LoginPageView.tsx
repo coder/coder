@@ -30,7 +30,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 }) => {
 	const year = useTimeSync({
 		maxRefreshIntervalMs: Infinity,
-		select: (newDatetime) => newDatetime.getFullYear(),
+		select: (date) => date.getFullYear(),
 	});
 	const location = useLocation();
 	// This allows messages to be displayed at the top of the sign in form.

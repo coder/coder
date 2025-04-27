@@ -5,7 +5,7 @@ import type { FC, PropsWithChildren } from "react";
 export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
 	const year = useTimeSync({
 		maxRefreshIntervalMs: Infinity,
-		select: (newDatetime) => newDatetime.getFullYear(),
+		select: (date) => date.getFullYear(),
 	});
 
 	return (

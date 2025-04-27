@@ -13,9 +13,9 @@ interface LastUsedProps {
 export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 	const [circle, message] = useTimeSync({
 		maxRefreshIntervalMs: 1_000,
-		select: (newDatetime) => {
+		select: (date) => {
 			const t = dayjs(lastUsedAt);
-			const now = dayjs(newDatetime);
+			const now = dayjs(date);
 			let message = t.fromNow();
 			let circle = <StatusIndicatorDot variant="inactive" />;
 
@@ -34,8 +34,8 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 				message = "Never";
 			}
 
-			return [circle, message];
-		}
+			return [circle, message] as const;
+		},
 	});
 
 	return (
