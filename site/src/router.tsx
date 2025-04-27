@@ -273,8 +273,8 @@ const ProvisionersPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"
 		),
 );
-const TemplateEmbedPage = lazy(
-	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
+const TemplateEmbedExperimentRouter = lazy(
+	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedExperimentRouter"),
 );
 const TemplateInsightsPage = lazy(
 	() =>
@@ -346,7 +346,7 @@ const templateRouter = () => {
 					<Route path="files" element={<TemplateFilesPage />} />
 					<Route path="resources" element={<TemplateResourcesPage />} />
 					<Route path="versions" element={<TemplateVersionsPage />} />
-					<Route path="embed" element={<TemplateEmbedPage />} />
+					<Route path="embed" element={<TemplateEmbedExperimentRouter />} />
 					<Route path="insights" element={<TemplateInsightsPage />} />
 				</Route>
 
