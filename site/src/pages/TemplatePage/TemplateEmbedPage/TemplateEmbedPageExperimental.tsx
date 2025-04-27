@@ -6,11 +6,11 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import { DetailedError } from "api/errors";
-import type { 
-  DynamicParametersRequest, 
-  DynamicParametersResponse, 
-  PreviewParameter, 
-  Template 
+import type {
+  DynamicParametersRequest,
+  DynamicParametersResponse,
+  PreviewParameter,
+  Template
 } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
@@ -18,18 +18,22 @@ import { useClipboard } from "hooks/useClipboard";
 import { DynamicParameter } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import React from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { getAutofillParameters } from "utils/richParameters";
+import { getAutofillParameters, type AutofillBuildParameter as ImportedAutofillBuildParameter } from "utils/richParameters";
 
 type ButtonValues = Record<string, string>;
+
+// Use the imported type instead of redefining it
+type AutofillBuildParameter = ImportedAutofillBuildParameter;
 
 const TemplateEmbedPageExperimental: FC = () => {
   const { template } = useTemplateLayoutContext();
   const [searchParams] = useSearchParams();
-  
+
   return (
     <>
       <Helmet>
@@ -45,7 +49,7 @@ interface TemplateEmbedPageViewProps {
   searchParams: URLSearchParams;
 }
 
-const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({ 
+const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   template,
   searchParams
 }) => {
@@ -54,7 +58,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   const ws = useRef<WebSocket | null>(null);
   const [wsError, setWsError] = useState<Error | null>(null);
   const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
-  
+
   // Get the current user
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -136,45 +140,45 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
       const initValues: ButtonValues = {
         mode,
       };
-      
+
       // Filter only parameters used for workspace creation
       const workspaceParams = currentResponse.parameters.filter(param => !param.ephemeral);
-      
+
       // Apply autofill parameters from URL if available
       for (const parameter of workspaceParams) {
         const autofillParam = autofillParameters.find(p => p.name === parameter.name);
-        
+
         if (autofillParam) {
           // Use the value from URL parameters
           initValues[`param.${parameter.name}`] = autofillParam.value;
         } else {
           // Use the default or current value from the parameter
-          const paramValue = parameter.value.valid 
-            ? parameter.value.value 
+          const paramValue = parameter.value.valid
+            ? parameter.value.value
             : (parameter.default_value.valid ? parameter.default_value.value : "");
-          
+
           initValues[`param.${parameter.name}`] = paramValue;
         }
       }
-      
+
       setButtonValues(initValues);
-      
+
       // Send initial message to get updated parameters based on autofill values
       if (workspaceParams.length > 0) {
         const paramInputs: Record<string, string> = {};
-        
+
         for (const param of workspaceParams) {
           const autofillParam = autofillParameters.find(p => p.name === param.name);
-          
+
           if (autofillParam) {
             paramInputs[param.name] = autofillParam.value;
           } else {
-            paramInputs[param.name] = param.value.valid 
-              ? param.value.value 
+            paramInputs[param.name] = param.value.valid
+              ? param.value.value
               : (param.default_value.valid ? param.default_value.value : "");
           }
         }
-        
+
         sendMessage(paramInputs);
       }
     }
@@ -240,7 +244,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
               </FormSection>
 
               {currentResponse?.parameters && (
-                <ParametersList 
+                <ParametersList
                   parameters={currentResponse.parameters}
                   buttonValues={buttonValues || {}}
                   setButtonValues={setButtonValues}
@@ -251,7 +255,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
             </VerticalForm>
           </div>
 
-          <ButtonPreview 
+          <ButtonPreview
             template={template}
             buttonValues={buttonValues}
           />
@@ -262,9 +266,9 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 };
 
 interface ParametersListProps {
-  parameters: PreviewParameter[];
+  parameters: readonly PreviewParameter[];
   buttonValues: ButtonValues;
-  setButtonValues: (values: ButtonValues | ((prev: ButtonValues) => ButtonValues)) => void;
+  setButtonValues: React.Dispatch<React.SetStateAction<ButtonValues | undefined>>;
   sendMessage: (values: Record<string, string>) => void;
   autofillParameters: AutofillBuildParameter[];
 }
@@ -278,7 +282,7 @@ const ParametersList: FC<ParametersListProps> = ({
 }) => {
   // Filter parameters to only include those used for workspace creation
   const workspaceParameters = parameters.filter(param => !param.ephemeral);
-  
+
   if (workspaceParameters.length === 0) {
     return null;
   }
@@ -287,10 +291,10 @@ const ParametersList: FC<ParametersListProps> = ({
   const handleParameterChange = (paramName: string, value: string) => {
     // Update button values
     setButtonValues((prev) => ({
-      ...prev,
+      ...prev || {},
       [`param.${paramName}`]: value,
     }));
-    
+
     // Send updated parameters to the server
     const paramValues: Record<string, string> = {};
     for (const param of workspaceParameters) {
@@ -309,7 +313,7 @@ const ParametersList: FC<ParametersListProps> = ({
       {workspaceParameters.map((parameter) => {
         const autofillParam = autofillParameters.find(p => p.name === parameter.name);
         const isAutofilled = !!autofillParam;
-        
+
         return (
           <DynamicParameter
             key={parameter.name}
