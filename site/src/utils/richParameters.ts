@@ -12,6 +12,19 @@ export type AutofillBuildParameter = {
 	source: AutofillSource;
 } & WorkspaceBuildParameter;
 
+// Gets autofill parameters from URL search params
+export const getAutofillParameters = (
+	urlSearchParams: URLSearchParams,
+): AutofillBuildParameter[] => {
+	return Array.from(urlSearchParams.keys())
+		.filter((key) => key.startsWith("param."))
+		.map((key) => {
+			const name = key.replace("param.", "");
+			const value = urlSearchParams.get(key) ?? "";
+			return { name, value, source: "url" };
+		});
+};
+
 export const getInitialRichParameterValues = (
 	templateParams: TemplateVersionParameter[],
 	autofillParams?: AutofillBuildParameter[],
