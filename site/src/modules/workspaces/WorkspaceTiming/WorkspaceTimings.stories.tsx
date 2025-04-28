@@ -152,3 +152,79 @@ export const LongTimeRange = {
 		],
 	},
 };
+
+// We want to gracefully handle the case when the action is added in the BE but
+// not in the FE. This is a temporary fix until we can have strongly provisioner
+// timing action types in the BE.
+export const MissedAction: Story = {
+	args: {
+		agentConnectionTimings: [
+			{
+				ended_at: "2025-03-12T18:15:13.651163Z",
+				stage: "connect",
+				started_at: "2025-03-12T18:15:10.249068Z",
+				workspace_agent_id: "41ab4fd4-44f8-4f3a-bb69-262ae85fba0b",
+				workspace_agent_name: "Interface",
+			},
+		],
+		agentScriptTimings: [
+			{
+				display_name: "Startup Script",
+				ended_at: "2025-03-12T18:16:44.771508Z",
+				exit_code: 0,
+				stage: "start",
+				started_at: "2025-03-12T18:15:13.847336Z",
+				status: "ok",
+				workspace_agent_id: "41ab4fd4-44f8-4f3a-bb69-262ae85fba0b",
+				workspace_agent_name: "Interface",
+			},
+		],
+		provisionerTimings: [
+			{
+				action: "create",
+				ended_at: "2025-03-12T18:08:07.402358Z",
+				job_id: "a7c4a05d-1c36-4264-8275-8107c93c5fc8",
+				resource: "coder_agent.Interface",
+				source: "coder",
+				stage: "apply",
+				started_at: "2025-03-12T18:08:07.194957Z",
+			},
+			{
+				action: "create",
+				ended_at: "2025-03-12T18:08:08.029908Z",
+				job_id: "a7c4a05d-1c36-4264-8275-8107c93c5fc8",
+				resource: "null_resource.validate_url",
+				source: "null",
+				stage: "apply",
+				started_at: "2025-03-12T18:08:07.399387Z",
+			},
+			{
+				action: "create",
+				ended_at: "2025-03-12T18:08:07.440785Z",
+				job_id: "a7c4a05d-1c36-4264-8275-8107c93c5fc8",
+				resource: "module.emu_host.random_id.emulator_host_id",
+				source: "random",
+				stage: "apply",
+				started_at: "2025-03-12T18:08:07.403171Z",
+			},
+			{
+				action: "missed action",
+				ended_at: "2025-03-12T18:08:08.029752Z",
+				job_id: "a7c4a05d-1c36-4264-8275-8107c93c5fc8",
+				resource: "null_resource.validate_url",
+				source: "null",
+				stage: "apply",
+				started_at: "2025-03-12T18:08:07.410219Z",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const applyButton = canvas.getByRole("button", {
+			name: "View apply details",
+		});
+		await user.click(applyButton);
+		await canvas.findByText("missed action");
+	},
+};
