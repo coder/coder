@@ -654,7 +654,7 @@ func createWorkspace(
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil &&
 				!errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) &&
-				!errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuilds) {
+				!errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces) {
 				return xerrors.Errorf("failed to claim prebuilt workspace: %w", err)
 			}
 		}

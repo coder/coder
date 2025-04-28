@@ -114,7 +114,7 @@ func TestClaimPrebuild(t *testing.T) {
 		"AGPL does not support prebuilds error is returned": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: true,
-			claimingErr:            agplprebuilds.ErrAGPLDoesNotSupportPrebuilds,
+			claimingErr:            agplprebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces,
 		},
 		"unexpected claiming error is returned": {
 			expectPrebuildClaimed:  false,
@@ -230,7 +230,7 @@ func TestClaimPrebuild(t *testing.T) {
 			})
 
 			isNoPrebuiltWorkspaces := errors.Is(tc.claimingErr, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces)
-			isUnsupported := errors.Is(tc.claimingErr, agplprebuilds.ErrAGPLDoesNotSupportPrebuilds)
+			isUnsupported := errors.Is(tc.claimingErr, agplprebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces)
 
 			switch {
 			case tc.claimingErr != nil && (isNoPrebuiltWorkspaces || isUnsupported):

@@ -27,7 +27,7 @@ type NoopClaimer struct{}
 
 func (NoopClaimer) Claim(context.Context, uuid.UUID, string, uuid.UUID) (*uuid.UUID, error) {
 	// Not entitled to claim prebuilds in AGPL version.
-	return nil, ErrAGPLDoesNotSupportPrebuilds
+	return nil, ErrAGPLDoesNotSupportPrebuiltWorkspaces
 }
 
 func (NoopClaimer) Initiator() uuid.UUID {

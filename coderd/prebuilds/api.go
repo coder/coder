@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrNoClaimablePrebuiltWorkspaces = xerrors.New("no claimable prebuilt workspaces found")
-	ErrAGPLDoesNotSupportPrebuilds   = xerrors.New("prebuild-related functionality is not supported under the AGPL license")
+	ErrNoClaimablePrebuiltWorkspaces        = xerrors.New("no claimable prebuilt workspaces found")
+	ErrAGPLDoesNotSupportPrebuiltWorkspaces = xerrors.New("prebuilt workspaces functionality is not supported under the AGPL license")
 )
 
 // ReconciliationOrchestrator manages the lifecycle of prebuild reconciliation.
