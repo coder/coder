@@ -225,8 +225,6 @@ export const MissedAction: Story = {
 			name: "View apply details",
 		});
 		await user.click(applyButton);
-		await canvas.findByText(
-			WorkspaceTimingsResponse.provisioner_timings[0].resource,
-		);
+		await canvas.findByText("missed action");
 	},
 };
