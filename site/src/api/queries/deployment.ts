@@ -36,10 +36,3 @@ export const deploymentIdpSyncFieldValues = (field: string) => {
 		queryFn: () => API.getDeploymentIdpSyncFieldValues(field),
 	};
 };
-
-export const deploymentLanguageModels = () => {
-	return {
-		queryKey: ["deployment", "llms"],
-		queryFn: API.getDeploymentLLMs,
-	};
-};
