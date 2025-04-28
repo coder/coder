@@ -396,7 +396,17 @@ export class MissingBuildParameters extends Error {
 }
 
 export type GetProvisionerJobsParams = {
-	status?: TypesGen.ProvisionerJobStatus;
+	status?: string;
+	limit?: number;
+	// IDs separated by comma
+	ids?: string;
+};
+
+export type GetProvisionerDaemonsParams = {
+	// IDs separated by comma
+	ids?: string;
+	// Stringified JSON Object
+	tags?: string;
 	limit?: number;
 };
 
@@ -711,22 +721,13 @@ class ApiMethods {
 		return response.data;
 	};
 
-	/**
-	 * @param organization Can be the organization's ID or name
-	 * @param tags to filter provisioner daemons by.
-	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
-		tags?: Record<string, string>,
+		params?: GetProvisionerDaemonsParams,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
-		const params = new URLSearchParams();
-
-		if (tags) {
-			params.append("tags", JSON.stringify(tags));
-		}
-
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons?${params}`,
+			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			{ params },
 		);
 		return response.data;
 	};

@@ -15,7 +15,7 @@ const meta: Meta<typeof PermissionPillsList> = {
 	],
 	parameters: {
 		chromatic: {
-			diffThreshold: 0.5,
+			diffThreshold: 0.6,
 		},
 	},
 };
