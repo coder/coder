@@ -25,7 +25,7 @@ func TestEventually(t *testing.T) {
 			}()
 			return state > 2
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
 		defer cancel()
 		testutil.Eventually(ctx, t, condition, testutil.IntervalFast)
 	})
@@ -36,7 +36,7 @@ func TestEventually(t *testing.T) {
 		panicky := func() {
 			mockT := new(testing.T)
 			condition := func(_ context.Context) bool { return true }
-			testutil.Eventually(context.Background(), mockT, condition, testutil.IntervalFast)
+			testutil.Eventually(t.Context(), mockT, condition, testutil.IntervalFast)
 		}
 		assert.Panics(t, panicky)
 	})

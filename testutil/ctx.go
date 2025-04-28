@@ -7,7 +7,7 @@ import (
 )
 
 func Context(t *testing.T, dur time.Duration) context.Context {
-	ctx, cancel := context.WithTimeout(context.Background(), dur)
+	ctx, cancel := context.WithTimeout(t.Context(), dur)
 	t.Cleanup(cancel)
 	return ctx
 }

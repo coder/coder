@@ -10,16 +10,16 @@ import (
 // the channel is closed, the zero value of the channel type will be returned.
 //
 // Safety: Must only be called from the Go routine that created `t`.
-func TryReceive[A any](ctx context.Context, t testing.TB, c <-chan A) A {
+func TryReceive[A any](ctx context.Context, t testing.TB, c <-chan A) (a A) {
 	t.Helper()
 	select {
+	case <-t.Context().Done():
+		t.Fatal("test timeout")
 	case <-ctx.Done():
-		t.Fatal("timeout")
-		var a A
-		return a
-	case a := <-c:
-		return a
+		t.Fatal("context timeout")
+	case a = <-c:
 	}
+	return a
 }
 
 // RequireReceive will receive a value from the chan and return it. If the
@@ -27,19 +27,20 @@ func TryReceive[A any](ctx context.Context, t testing.TB, c <-chan A) A {
 // it will fail the test.
 //
 // Safety: Must only be called from the Go routine that created `t`.
-func RequireReceive[A any](ctx context.Context, t testing.TB, c <-chan A) A {
+func RequireReceive[A any](ctx context.Context, t testing.TB, c <-chan A) (a A) {
 	t.Helper()
+	var ok bool
 	select {
+	case <-t.Context().Done():
+		t.Fatal("test timeout")
 	case <-ctx.Done():
-		t.Fatal("timeout")
-		var a A
-		return a
-	case a, ok := <-c:
+		t.Fatal("context timeout")
+	case a, ok = <-c:
 		if !ok {
 			t.Fatal("channel closed")
 		}
-		return a
 	}
+	return a
 }
 
 // RequireSend will send the given value over the chan and then return. If
@@ -49,8 +50,10 @@ func RequireReceive[A any](ctx context.Context, t testing.TB, c <-chan A) A {
 func RequireSend[A any](ctx context.Context, t testing.TB, c chan<- A, a A) {
 	t.Helper()
 	select {
+	case <-t.Context().Done():
+		t.Fatal("test timeout")
 	case <-ctx.Done():
-		t.Fatal("timeout")
+		t.Fatal("context timeout")
 	case c <- a:
 		// OK!
 	}
