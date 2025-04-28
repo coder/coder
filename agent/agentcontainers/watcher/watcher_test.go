@@ -44,11 +44,46 @@ func TestFSNotifyWatcher(t *testing.T) {
 		require.NoError(t, err, "next event failed")
 
 		require.NotNil(t, event, "want non-nil event")
-		if event.Has(fsnotify.Chmod) && !event.Has(fsnotify.Write) {
-			// Ignore plain chmod events.
+		if !event.Has(fsnotify.Write) {
+			t.Logf("Ignoring event: %s", event)
 			continue
 		}
 		require.Truef(t, event.Has(fsnotify.Write), "want write event: %s", event.String())
+		require.Equal(t, event.Name, testFile, "want event for test file")
+		break
+	}
+
+	// Rename the test file to trigger a rename event.
+	err = os.Rename(testFile, testFile+".bak")
+	require.NoError(t, err, "rename test file failed")
+
+	// Verify that we receive the event we want.
+	for {
+		event, err := wut.Next(ctx)
+		require.NoError(t, err, "next event failed")
+		require.NotNil(t, event, "want non-nil event")
+		if !event.Has(fsnotify.Rename) {
+			t.Logf("Ignoring event: %s", event)
+			continue
+		}
+		require.Truef(t, event.Has(fsnotify.Rename), "want rename event: %s", event.String())
+		require.Equal(t, event.Name, testFile, "want event for test file")
+		break
+	}
+
+	err = os.WriteFile(testFile, []byte(`{"test": "new"}`), 0o600)
+	require.NoError(t, err, "write new test file failed")
+
+	// Verify that we receive the event we want.
+	for {
+		event, err := wut.Next(ctx)
+		require.NoError(t, err, "next event failed")
+		require.NotNil(t, event, "want non-nil event")
+		if !event.Has(fsnotify.Create) {
+			t.Logf("Ignoring event: %s", event)
+			continue
+		}
+		require.Truef(t, event.Has(fsnotify.Create), "want create event: %s", event.String())
 		require.Equal(t, event.Name, testFile, "want event for test file")
 		break
 	}
