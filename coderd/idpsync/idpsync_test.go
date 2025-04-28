@@ -136,6 +136,17 @@ func TestParseStringSliceClaim(t *testing.T) {
 	}
 }
 
+func TestParseStringSliceClaimReference(t *testing.T) {
+	t.Parallel()
+
+	var val any = []string{"a", "b", "c"}
+	parsed, err := idpsync.ParseStringSliceClaim(val)
+	require.NoError(t, err)
+
+	parsed[0] = ""
+	require.Equal(t, "a", val.([]string)[0], "should not modify original value")
+}
+
 func TestIsHTTPError(t *testing.T) {
 	t.Parallel()
 
