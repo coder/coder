@@ -324,7 +324,7 @@ func newSSHServer(addr string) *sshServer {
 		server: &gliderssh.Server{
 			Addr: addr,
 			Handler: func(s gliderssh.Session) {
-				_, _ = io.WriteString(s, "Connected!")
+				_, _ = io.WriteString(s.Stderr(), "Connected!")
 			},
 		},
 	}
