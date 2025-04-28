@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+//nolint:paralleltest, tparallel
 func TestRoleSyncTable(t *testing.T) {
 	t.Parallel()
 

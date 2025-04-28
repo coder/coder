@@ -65,6 +65,7 @@ func TestParseGroupClaims(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest, tparallel
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
 
