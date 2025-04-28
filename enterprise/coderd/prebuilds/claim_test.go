@@ -37,6 +37,7 @@ type storeSpy struct {
 	claimParams      *atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]
 	claimedWorkspace *atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]
 
+	// if claimingErr is not nil - error will be returned when ClaimPrebuiltWorkspace is called
 	claimingErr error
 }
 
@@ -93,7 +94,8 @@ func TestClaimPrebuild(t *testing.T) {
 	cases := map[string]struct {
 		expectPrebuildClaimed  bool
 		markPrebuildsClaimable bool
-		storeError             error // should be set only for errorStoreType
+		// if claimingErr is not nil - error will be returned when ClaimPrebuiltWorkspace is called
+		claimingErr error
 	}{
 		"no eligible prebuilds to claim": {
 			expectPrebuildClaimed:  false,
@@ -107,12 +109,12 @@ func TestClaimPrebuild(t *testing.T) {
 		"no claimable prebuilt workspaces error is returned": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: true,
-			storeError:             agplprebuilds.ErrNoClaimablePrebuiltWorkspaces,
+			claimingErr:            agplprebuilds.ErrNoClaimablePrebuiltWorkspaces,
 		},
 		"unexpected claiming error is returned": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: true,
-			storeError:             unexpectedClaimingError,
+			claimingErr:            unexpectedClaimingError,
 		},
 	}
 
@@ -126,7 +128,7 @@ func TestClaimPrebuild(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			db, pubsub := dbtestutil.NewDB(t)
 
-			spy := newStoreSpy(db, tc.storeError)
+			spy := newStoreSpy(db, tc.claimingErr)
 			expectedPrebuildsCount := desiredInstances * presetCount
 
 			logger := testutil.Logger(t)
@@ -223,7 +225,7 @@ func TestClaimPrebuild(t *testing.T) {
 			})
 
 			switch {
-			case tc.storeError != nil && errors.Is(tc.storeError, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces):
+			case tc.claimingErr != nil && errors.Is(tc.claimingErr, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces):
 				require.NoError(t, err)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
@@ -233,7 +235,7 @@ func TestClaimPrebuild(t *testing.T) {
 				require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
 				return
 
-			case tc.storeError != nil && errors.Is(tc.storeError, unexpectedClaimingError):
+			case tc.claimingErr != nil && errors.Is(tc.claimingErr, unexpectedClaimingError):
 				// Then: unexpected error happened and was propagated all the way to the caller
 				require.Error(t, err)
 				require.ErrorContains(t, err, unexpectedClaimingError.Error())
@@ -245,12 +247,12 @@ func TestClaimPrebuild(t *testing.T) {
 				return
 
 			default:
-				// tc.storeType == spyStoreType scenario
+				// tc.claimingErr is nil scenario
 				require.NoError(t, err)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 			}
 
-			// at this point we know that wrappedStore has *storeSpy type
+			// at this point we know that tc.claimingErr is nil
 
 			// Then: a prebuild should have been claimed.
 			require.EqualValues(t, spy.claims.Load(), 1)
