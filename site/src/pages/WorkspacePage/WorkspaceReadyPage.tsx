@@ -166,13 +166,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		// Sometimes, the timings can be fetched before the agent script timings are
 		// done or saved in the database so we need to conditionally refetch the
 		// timings. To refetch the timings, I found the best way was to compare the
-		// expected amount of script timings with the current amount of script
-		// timings returned in the response.
+		// expected amount of script timings that run on start, with the current
+		// amount of script timings returned in the response.
 		refetchInterval: (data) => {
 			const expectedScriptTimingsCount = workspace.latest_build.resources
 				.flatMap((r) => r.agents)
-				.flatMap((a) => a?.scripts ?? []).length;
+				.flatMap((a) => a?.scripts ?? [])
+				.filter((script) => script.run_on_start).length;
 			const currentScriptTimingsCount = data?.agent_script_timings?.length ?? 0;
+
 			return expectedScriptTimingsCount === currentScriptTimingsCount
 				? false
 				: 1_000;
