@@ -45,12 +45,12 @@ type API struct {
 
 	// lockCh protects the below fields. We use a channel instead of a
 	// mutex so we can handle cancellation properly.
-	lockCh              chan struct{}
-	containers          codersdk.WorkspaceAgentListContainersResponse
-	mtime               time.Time
-	devcontainerNames   map[string]struct{}                   // Track devcontainer names to avoid duplicates.
-	knownDevcontainers  []codersdk.WorkspaceAgentDevcontainer // Track predefined and runtime-detected devcontainers.
-	configModifiedTimes map[string]time.Time                  // Track when config files were last modified.
+	lockCh                  chan struct{}
+	containers              codersdk.WorkspaceAgentListContainersResponse
+	mtime                   time.Time
+	devcontainerNames       map[string]struct{}                   // Track devcontainer names to avoid duplicates.
+	knownDevcontainers      []codersdk.WorkspaceAgentDevcontainer // Track predefined and runtime-detected devcontainers.
+	configFileModifiedTimes map[string]time.Time                  // Track when config files were last modified.
 }
 
 // Option is a functional option for API.
@@ -108,16 +108,16 @@ func WithWatcher(w watcher.Watcher) Option {
 func NewAPI(logger slog.Logger, options ...Option) *API {
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
-		ctx:                 ctx,
-		cancel:              cancel,
-		done:                make(chan struct{}),
-		logger:              logger,
-		clock:               quartz.NewReal(),
-		cacheDuration:       defaultGetContainersCacheDuration,
-		lockCh:              make(chan struct{}, 1),
-		devcontainerNames:   make(map[string]struct{}),
-		knownDevcontainers:  []codersdk.WorkspaceAgentDevcontainer{},
-		configModifiedTimes: make(map[string]time.Time),
+		ctx:                     ctx,
+		cancel:                  cancel,
+		done:                    make(chan struct{}),
+		logger:                  logger,
+		clock:                   quartz.NewReal(),
+		cacheDuration:           defaultGetContainersCacheDuration,
+		lockCh:                  make(chan struct{}, 1),
+		devcontainerNames:       make(map[string]struct{}),
+		knownDevcontainers:      []codersdk.WorkspaceAgentDevcontainer{},
+		configFileModifiedTimes: make(map[string]time.Time),
 	}
 	for _, opt := range options {
 		opt(api)
@@ -281,7 +281,7 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 			// Check if this container was created after the config
 			// file was modified.
 			if configFile != "" && api.knownDevcontainers[knownIndex].Dirty {
-				lastModified, hasModTime := api.configModifiedTimes[configFile]
+				lastModified, hasModTime := api.configFileModifiedTimes[configFile]
 				if hasModTime && container.CreatedAt.After(lastModified) {
 					api.logger.Info(ctx, "clearing dirty flag for container created after config modification",
 						slog.F("container", container.ID),
@@ -316,7 +316,7 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 
 		dirty := dirtyStates[workspaceFolder]
 		if dirty {
-			lastModified, hasModTime := api.configModifiedTimes[configFile]
+			lastModified, hasModTime := api.configFileModifiedTimes[configFile]
 			if hasModTime && container.CreatedAt.After(lastModified) {
 				api.logger.Info(ctx, "new container created after config modification, not marking as dirty",
 					slog.F("container", container.ID),
@@ -473,7 +473,7 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 	}
 
 	// Record the timestamp of when this configuration file was modified.
-	api.configModifiedTimes[configPath] = modifiedAt
+	api.configFileModifiedTimes[configPath] = modifiedAt
 
 	for i := range api.knownDevcontainers {
 		if api.knownDevcontainers[i].ConfigPath == configPath {

@@ -1482,6 +1482,9 @@ func (a *agent) createTailnet(
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
 		apiHandler, closeAPIHAndler := a.apiHandler()
+		defer func() {
+			_ = closeAPIHAndler()
+		}()
 		server := &http.Server{
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,
