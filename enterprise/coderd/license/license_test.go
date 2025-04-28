@@ -3,13 +3,13 @@ package license_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
@@ -856,7 +856,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			generatedLicenses := make([]database.License, 0, len(tc.Licenses))
 			for i, lo := range tc.Licenses {
 				generatedLicenses = append(generatedLicenses, database.License{
-					ID:         int32(i),
+					ID:         int32(i), // nolint:gosec
 					UploadedAt: time.Now().Add(time.Hour * -1),
 					JWT:        lo.Generate(t),
 					Exp:        lo.GraceAt,

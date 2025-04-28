@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/websocket"
 
 	"cdr.dev/slog"
 )
@@ -75,6 +76,10 @@ const (
 	// command that was invoked to produce the request. It is for internal use
 	// only.
 	CLITelemetryHeader = "Coder-CLI-Telemetry"
+
+	// CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
+	// fields, including device ID, OS, and Desktop version.
+	CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry"
 
 	// ProvisionerDaemonPSK contains the authentication pre-shared key for an external provisioner daemon
 	ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK"
@@ -332,6 +337,38 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
+func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOptions) (*websocket.Conn, error) {
+	u, err := c.URL.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenHeader := c.SessionTokenHeader
+	if tokenHeader == "" {
+		tokenHeader = SessionTokenHeader
+	}
+
+	if opts == nil {
+		opts = &websocket.DialOptions{}
+	}
+	if opts.HTTPHeader == nil {
+		opts.HTTPHeader = http.Header{}
+	}
+	if opts.HTTPHeader.Get("tokenHeader") == "" {
+		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
+	}
+
+	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
+	if resp.Body != nil {
+		resp.Body.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
 // ExpectJSONMime is a helper function that will assert the content type
 // of the response is application/json.
 func ExpectJSONMime(res *http.Response) error {
@@ -522,6 +559,28 @@ func (e ValidationError) Error() string {
 }
 
 var _ error = (*ValidationError)(nil)
+
+// CoderDesktopTelemetry represents the telemetry data sent from Coder Desktop clients.
+// @typescript-ignore CoderDesktopTelemetry
+type CoderDesktopTelemetry struct {
+	DeviceID            string `json:"device_id"`
+	DeviceOS            string `json:"device_os"`
+	CoderDesktopVersion string `json:"coder_desktop_version"`
+}
+
+// FromHeader parses the desktop telemetry from the provided header value.
+// Returns nil if the header is empty or if parsing fails.
+func (t *CoderDesktopTelemetry) FromHeader(headerValue string) error {
+	if headerValue == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(headerValue), t)
+}
+
+// IsEmpty returns true if all fields in the telemetry data are empty.
+func (t *CoderDesktopTelemetry) IsEmpty() bool {
+	return t.DeviceID == "" && t.DeviceOS == "" && t.CoderDesktopVersion == ""
+}
 
 // IsConnectionError is a convenience function for checking if the source of an
 // error is due to a 'connection refused', 'no such host', etc.

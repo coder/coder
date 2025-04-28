@@ -1,0 +1,27 @@
+name: "Setup ImDisk"
+if: runner.os == 'Windows'
+description: |
+  Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+runs:
+  using: "composite"
+  steps:
+    - name: Download ImDisk
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        mkdir imdisk
+        cd imdisk
+        curl -L -o files.cab https://github.com/coder/imdisk-artifacts/raw/92a17839ebc0ee3e69be019f66b3e9b5d2de4482/files.cab
+        curl -L -o install.bat https://github.com/coder/imdisk-artifacts/raw/92a17839ebc0ee3e69be019f66b3e9b5d2de4482/install.bat
+        cd ..
+
+    - name: Install ImDisk
+      shell: cmd
+      run: |
+        cd imdisk
+        install.bat /silent
+
+    - name: Create RAM Disk
+      shell: cmd
+      run: |
+        imdisk -a -s 4096M -m R: -p "/fs:ntfs /q /y"

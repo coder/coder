@@ -10,7 +10,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/Popover/Popover";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d

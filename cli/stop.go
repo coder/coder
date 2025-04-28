@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -36,6 +37,21 @@ func (r *RootCmd) stop() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobPending {
+				// cliutil.WarnMatchedProvisioners also checks if the job is pending
+				// but we still want to avoid users spamming multiple builds that will
+				// not be picked up.
+				cliui.Warn(inv.Stderr, "The workspace is already stopping!")
+				cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+				if _, err := cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Enqueue another stop?",
+					IsConfirm: true,
+					Default:   cliui.ConfirmNo,
+				}); err != nil {
+					return err
+				}
+			}
+
 			wbr := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			}
@@ -46,6 +62,7 @@ func (r *RootCmd) stop() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			cliutil.WarnMatchedProvisioners(inv.Stderr, build.MatchedProvisioners, build.Job)
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
 			if err != nil {

@@ -1,17 +1,19 @@
 import type { AlertColor } from "components/Alert/Alert";
 import type { FC } from "react";
-import { ProvisionerAlert } from "./ProvisionerAlert";
+import { AlertVariant, ProvisionerAlert } from "./ProvisionerAlert";
 
 interface ProvisionerStatusAlertProps {
 	matchingProvisioners: number | undefined;
 	availableProvisioners: number | undefined;
 	tags: Record<string, string>;
+	variant?: AlertVariant;
 }
 
 export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
 	matchingProvisioners,
 	availableProvisioners,
 	tags,
+	variant = AlertVariant.Standalone,
 }) => {
 	let title: string;
 	let detail: string;
@@ -42,6 +44,7 @@ export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
 			detail={detail}
 			severity={severity}
 			tags={tags}
+			variant={variant}
 		/>
 	);
 };

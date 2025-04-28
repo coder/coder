@@ -2,9 +2,9 @@
 
 The `main.go` is a program that lists all releases and which migrations are contained with each upgrade.
 
-# Usage
+## Usage
 
-```bash
+```shell
 releasemigrations [--patches] [--minors] [--majors]
   -after-v2
         Only include releases after v2.0.0
@@ -22,13 +22,13 @@ releasemigrations [--patches] [--minors] [--majors]
         Comma separated list of versions to use. This skips uses git tag to find tags.
 ```
 
-# Examples
+## Examples
 
-## Find all migrations between 2 versions
+### Find all migrations between 2 versions
 
 Going from 2.3.0 to 2.4.0
 
-```bash
+```shell
 $ go run scripts/releasemigrations/main.go --list --versions=v2.3.0,v2.4.0                                                                                                       11:47:00 AM
 2023/11/21 11:47:09 [minor] 4 migrations added between v2.3.0 and v2.4.0
 2023/11/21 11:47:09     coderd/database/migrations/000165_prevent_autostart_days.up.sql
@@ -42,7 +42,7 @@ $ go run scripts/releasemigrations/main.go --list --versions=v2.3.0,v2.4.0      
 
 ## Looking at all patch releases after v2
 
-```bash
+```shell
 $ go run scripts/releasemigrations/main.go --patches --after-v2                                                                                                                  11:47:09 AM
 2023/11/21 11:48:00 [patch] No migrations added between v2.0.0 and v2.0.1
 2023/11/21 11:48:00 [patch] 2 migrations added between v2.0.1 and v2.0.2
@@ -63,7 +63,7 @@ $ go run scripts/releasemigrations/main.go --patches --after-v2                 
 
 This shows when every migration was introduced.
 
-```bash
+```shell
 $ go run scripts/releasemigrations/main.go --patches --minors --majors --list
 # ...
 2023/11/21 11:48:31 [minor] 5 migrations added between v2.2.1 and v2.3.0

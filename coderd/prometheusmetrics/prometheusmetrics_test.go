@@ -216,11 +216,9 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 		Total    int
 		Status   map[codersdk.ProvisionerJobStatus]int
 	}{{
-		Name: "None",
-		Database: func() database.Store {
-			return dbmem.New()
-		},
-		Total: 0,
+		Name:     "None",
+		Database: dbmem.New,
+		Total:    0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
@@ -289,10 +287,8 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 		ExpectedWorkspaces int
 		ExpectedStatuses   map[codersdk.ProvisionerJobStatus]int
 	}{{
-		Name: "None",
-		Database: func() database.Store {
-			return dbmem.New()
-		},
+		Name:               "None",
+		Database:           dbmem.New,
 		ExpectedWorkspaces: 0,
 	}, {
 		Name: "Multiple",
@@ -616,7 +612,7 @@ func TestAgentStats(t *testing.T) {
 func TestExperimentsMetric(t *testing.T) {
 	t.Parallel()
 
-	if len(codersdk.ExperimentsAll) == 0 {
+	if len(codersdk.ExperimentsSafe) == 0 {
 		t.Skip("No experiments are currently defined; skipping test.")
 	}
 
@@ -628,17 +624,17 @@ func TestExperimentsMetric(t *testing.T) {
 		{
 			name: "Enabled experiment is exported in metrics",
 			experiments: codersdk.Experiments{
-				codersdk.ExperimentsAll[0],
+				codersdk.ExperimentsSafe[0],
 			},
 			expected: map[codersdk.Experiment]float64{
-				codersdk.ExperimentsAll[0]: 1,
+				codersdk.ExperimentsSafe[0]: 1,
 			},
 		},
 		{
 			name:        "Disabled experiment is exported in metrics",
 			experiments: codersdk.Experiments{},
 			expected: map[codersdk.Experiment]float64{
-				codersdk.ExperimentsAll[0]: 0,
+				codersdk.ExperimentsSafe[0]: 0,
 			},
 		},
 		{

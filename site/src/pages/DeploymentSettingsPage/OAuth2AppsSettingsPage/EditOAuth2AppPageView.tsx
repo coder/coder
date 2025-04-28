@@ -1,8 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -13,16 +11,22 @@ import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { ChevronLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
@@ -75,16 +79,18 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Edit OAuth2 application"
-					description="Configure an application to use Coder as an OAuth2 provider."
-				/>
-				<Button
-					component={Link}
-					startIcon={<KeyboardArrowLeft />}
-					to="/deployment/oauth2-provider/apps"
-				>
-					All OAuth2 Applications
+				<SettingsHeader>
+					<SettingsHeaderTitle>Edit OAuth2 application</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Configure an application to use Coder as an OAuth2 provider.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<Button variant="outline" asChild>
+					<RouterLink to="/deployment/oauth2-provider/apps">
+						<ChevronLeftIcon />
+						All OAuth2 Applications
+					</RouterLink>
 				</Button>
 			</Stack>
 
@@ -171,9 +177,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							error={error}
 							actions={
 								<Button
-									variant="outlined"
-									type="button"
-									color="error"
+									variant="destructive"
 									onClick={() => setShowDelete(true)}
 								>
 									Delete&hellip;
@@ -303,12 +307,7 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 						</>
 					}
 				/>
-				<Button
-					variant="outlined"
-					type="button"
-					color="error"
-					onClick={() => setShowDelete(true)}
-				>
+				<Button variant="destructive" onClick={() => setShowDelete(true)}>
 					Delete&hellip;
 				</Button>
 			</TableCell>

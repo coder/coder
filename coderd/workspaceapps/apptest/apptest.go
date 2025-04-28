@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +28,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
@@ -430,7 +431,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
 			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
 
-			object, err := jose.ParseSigned(appTokenCookie.Value)
+			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 			require.NoError(t, err)
 			require.Len(t, object.Signatures, 1)
 
@@ -1106,7 +1107,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 		// Parse the JWT without verifying it (since we can't access the key
 		// from this test).
-		object, err := jose.ParseSigned(appTokenCookie.Value)
+		object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 		require.NoError(t, err)
 		require.Len(t, object.Signatures, 1)
 
@@ -1586,7 +1587,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NotNil(t, appTokenCookie, "no signed token cookie in response")
 			require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
-			object, err := jose.ParseSigned(appTokenCookie.Value)
+			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 			require.NoError(t, err)
 			require.Len(t, object.Signatures, 1)
 
@@ -2076,6 +2077,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.True(t, ok)
 
 		appDetails := setupProxyTest(t, &DeploymentOptions{
+			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 			port: uint16(tcpAddr.Port),
 		})
 

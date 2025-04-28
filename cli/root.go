@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/trace"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -25,11 +26,12 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -38,7 +40,6 @@ import (
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/serpent"
 )
 
 var (
@@ -49,6 +50,10 @@ var (
 	workspaceCommand = map[string]string{
 		"workspaces": "",
 	}
+
+	// ErrSilent is a sentinel error that tells the command handler to just exit with a non-zero error, but not print
+	// anything.
+	ErrSilent = xerrors.New("silent error")
 )
 
 const (
@@ -122,6 +127,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.whoami(),
 
 		// Hidden
+		r.connectCmd(),
 		r.expCmd(),
 		r.gitssh(),
 		r.support(),
@@ -132,7 +138,11 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 }
 
 func (r *RootCmd) AGPL() []*serpent.Command {
-	all := append(r.CoreSubcommands(), r.Server( /* Do not import coderd here. */ nil))
+	all := append(
+		r.CoreSubcommands(),
+		r.Server( /* Do not import coderd here. */ nil),
+		r.Provisioners(),
+	)
 	return all
 }
 
@@ -167,15 +177,19 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			code = exitErr.code
 			err = exitErr.err
 		}
-		if errors.Is(err, cliui.Canceled) {
-			//nolint:revive
+		if errors.Is(err, cliui.ErrCanceled) {
+			//nolint:revive,gocritic
+			os.Exit(code)
+		}
+		if errors.Is(err, ErrSilent) {
+			//nolint:revive,gocritic
 			os.Exit(code)
 		}
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
 		}
-		//nolint:revive
+		//nolint:revive,gocritic
 		os.Exit(code)
 	}
 }
@@ -429,7 +443,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
-			Hidden:      true,
+			Hidden:      false,
 			Description: "Force the use of a TTY.",
 			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
@@ -887,7 +901,7 @@ func DumpHandler(ctx context.Context, name string) {
 
 	done:
 		if sigStr == "SIGQUIT" {
-			//nolint:revive
+			//nolint:revive,gocritic
 			os.Exit(1)
 		}
 	}
@@ -1041,7 +1055,7 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
-			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+			prefix += strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
 		// Now looks like
@@ -1209,9 +1223,14 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 				return
 			}
 			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
-			serverInfo, err := getBuildInfo(inv.Context())
-			if err == nil && serverInfo.UpgradeMessage != "" {
-				upgradeMessage = serverInfo.UpgradeMessage
+			if serverInfo, err := getBuildInfo(inv.Context()); err == nil {
+				switch {
+				case serverInfo.UpgradeMessage != "":
+					upgradeMessage = serverInfo.UpgradeMessage
+				// The site-local `install.sh` was introduced in v2.19.0
+				case serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
+					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
+				}
 			}
 			fmtWarningText := "version mismatch: client %s, server %s\n%s"
 			fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)

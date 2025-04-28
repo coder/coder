@@ -416,7 +416,9 @@ test("form should be enabled when both auto stop and auto start features are dis
 		/>,
 	);
 
-	const submitButton = await screen.findByRole("button", { name: "Submit" });
+	const submitButton = await screen.findByRole("button", {
+		name: /save/i,
+	});
 	expect(submitButton).toBeEnabled();
 });
 
@@ -432,6 +434,8 @@ test("form should be disabled when both auto stop and auto start features are di
 	jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 	render(<WorkspaceScheduleForm {...props} />);
 
-	const submitButton = await screen.findByRole("button", { name: "Submit" });
+	const submitButton = await screen.findByRole("button", {
+		name: /save/i,
+	});
 	expect(submitButton).toBeDisabled();
 });

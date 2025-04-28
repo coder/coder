@@ -4,7 +4,7 @@
   <span style="vertical-align:middle;">Author: </span>
   <a href="https://github.com/BrunoQuaresma" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
     <span style="vertical-align:middle;">Bruno Quaresma</span>
-    <img src="https://avatars.githubusercontent.com/u/3165839?v=4" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://avatars.githubusercontent.com/u/3165839?v=4" alt="Bruno Quaresma" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 August 06, 2024
@@ -39,9 +39,9 @@ module "git-clone" {
 }
 ```
 
-> You can edit the template using an IDE or terminal of your preference, or by
-> going into the
-> [template editor UI](../admin/templates/creating-templates.md#web-ui).
+You can edit the template using an IDE or terminal of your preference, or by
+going into the
+[template editor UI](../admin/templates/creating-templates.md#web-ui).
 
 You can also use
 [template parameters](../admin/templates/extending-templates/parameters.md) to
@@ -63,9 +63,9 @@ module "git-clone" {
 }
 ```
 
-> If you need more customization, you can read the
-> [Git Clone module](https://registry.coder.com/modules/git-clone) documentation
-> to learn more about the module.
+If you need more customization, you can read the
+[Git Clone module](https://registry.coder.com/modules/git-clone) documentation
+to learn more about the module.
 
 Don't forget to build and publish the template changes before creating a new
 workspace. You can check if the repository is cloned by accessing the workspace

@@ -7,6 +7,11 @@ import TableRow from "@mui/material/TableRow";
 import type { Region } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -34,6 +39,14 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 }) => {
 	return (
 		<Stack>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Workspace proxies improve terminal and web app connections to
+					workspaces.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
 			{Boolean(getWorkspaceProxiesError) && (
 				<ErrorAlert error={getWorkspaceProxiesError} />
 			)}
@@ -42,9 +55,10 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 				<Table>
 					<TableHead>
 						<TableRow>
-							<TableCell width="40%">Proxy</TableCell>
-							<TableCell width="30%">URL</TableCell>
-							<TableCell width="10%">Status</TableCell>
+							<TableCell width="70%">Proxy</TableCell>
+							<TableCell width="10%" css={{ textAlign: "right" }}>
+								Status
+							</TableCell>
 							<TableCell width="20%" css={{ textAlign: "right" }}>
 								Latency
 							</TableCell>

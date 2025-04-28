@@ -23,7 +23,7 @@ This guide targets the following personas. It assumes a basic understanding of
 cloud/on-premise computing, containerization, and the Coder platform.
 
 | Role                      | Description                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------ |
+|---------------------------|--------------------------------------------------------------------------------|
 | Platform Engineers        | Responsible for deploying, operating the Coder deployment and infrastructure   |
 | Enterprise Architects     | Responsible for architecting Coder deployments to meet enterprise requirements |
 | Managed Service Providers | Entities that deploy and run Coder software as a service for customers         |
@@ -31,14 +31,13 @@ cloud/on-premise computing, containerization, and the Coder platform.
 ## CVA Guidance
 
 | CVA provides:                                  | CVA does not provide:                                                                    |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+|------------------------------------------------|------------------------------------------------------------------------------------------|
 | Single and multi-region K8s deployment options | Prescribing OS, or cloud vs. on-premise                                                  |
 | Reference architectures for up to 3,000 users  | An approval of your architecture; the CVA solely provides recommendations and guidelines |
 | Best practices for building a Coder deployment | Recommendations for every possible deployment scenario                                   |
 
-> For higher level design principles and architectural best practices, see
-> Coder's
-> [Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
+For higher level design principles and architectural best practices, see Coder's
+[Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
 
 ## General concepts
 
@@ -221,6 +220,20 @@ For sizing recommendations, see the below reference architectures:
 
 - [Up to 3,000 users](3k-users.md)
 
+### AWS Instance Types
+
+For production AWS deployments, we recommend using non-burstable instance types,
+such as `m5` or `c5`, instead of burstable instances, such as `t3`.
+Burstable instances can experience significant performance degradation once
+CPU credits are exhausted, leading to poor user experience under sustained load.
+
+| Component         | Recommended Instance Type | Reason                                                   |
+|-------------------|---------------------------|----------------------------------------------------------|
+| coderd nodes      | `m5`                      | Balanced compute and memory for API and UI serving.      |
+| Provisioner nodes | `c5`                      | Compute-optimized performance for faster builds.         |
+| Workspace nodes   | `m5`                      | Balanced performance for general development workloads.  |
+| Database nodes    | `db.m5`                   | Consistent database performance for reliable operations. |
+
 ### Networking
 
 It is likely your enterprise deploys Kubernetes clusters with various networking
@@ -343,7 +356,7 @@ could affect workspace users experience once the platform is live.
    versions into Coder from git. For example, on GitHub, you can use the
    [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
 1. Evaluate enabling
-   [automatic template updates](../../templates/managing-templates/index.md#template-update-policies-enterprise-premium)
+   [automatic template updates](../../templates/managing-templates/index.md#template-update-policies)
    upon workspace startup.
 
 ### Observability

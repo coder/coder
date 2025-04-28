@@ -5,18 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -148,14 +150,13 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 			Username:  user.Username,
 			AvatarURL: user.AvatarURL,
 		},
-		Email:           user.Email,
-		Name:            user.Name,
-		CreatedAt:       user.CreatedAt,
-		UpdatedAt:       user.UpdatedAt,
-		LastSeenAt:      user.LastSeenAt,
-		Status:          codersdk.UserStatus(user.Status),
-		LoginType:       codersdk.LoginType(user.LoginType),
-		ThemePreference: user.ThemePreference,
+		Email:      user.Email,
+		Name:       user.Name,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		LastSeenAt: user.LastSeenAt,
+		Status:     codersdk.UserStatus(user.Status),
+		LoginType:  codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -174,7 +175,6 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		Deleted:            member.UserDeleted,
 		LastSeenAt:         member.UserLastSeenAt,
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
-		ThemePreference:    member.UserThemePreference,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
 	}
@@ -487,7 +487,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
 			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
@@ -498,8 +498,14 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 		return dbApps[i].Slug < dbApps[j].Slug
 	})
 
+	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
+	for _, status := range statuses {
+		statusesByAppID[status.AppID] = append(statusesByAppID[status.AppID], status)
+	}
+
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
+		statuses := statusesByAppID[dbApp.ID]
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,
@@ -516,11 +522,30 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 				Interval:  dbApp.HealthcheckInterval,
 				Threshold: dbApp.HealthcheckThreshold,
 			},
-			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
-			Hidden: dbApp.Hidden,
+			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Hidden:   dbApp.Hidden,
+			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}
 	return apps
+}
+
+func WorkspaceAppStatuses(statuses []database.WorkspaceAppStatus) []codersdk.WorkspaceAppStatus {
+	return List(statuses, WorkspaceAppStatus)
+}
+
+func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAppStatus {
+	return codersdk.WorkspaceAppStatus{
+		ID:          status.ID,
+		CreatedAt:   status.CreatedAt,
+		WorkspaceID: status.WorkspaceID,
+		AgentID:     status.AgentID,
+		AppID:       status.AppID,
+		URI:         status.Uri.String,
+		Message:     status.Message,
+		State:       codersdk.WorkspaceAppStatusState(status.State),
+	}
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
@@ -671,5 +696,58 @@ func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
 		StartsAt:  key.StartsAt,
 		DeletesAt: key.DeletesAt.Time,
 		Secret:    key.Secret.String,
+	}
+}
+
+func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now time.Time, staleInterval time.Duration) codersdk.MatchedProvisioners {
+	minLastSeenAt := now.Add(-staleInterval)
+	mostRecentlySeen := codersdk.NullTime{}
+	var matched codersdk.MatchedProvisioners
+	for _, provisioner := range provisionerDaemons {
+		if !provisioner.LastSeenAt.Valid {
+			continue
+		}
+		matched.Count++
+		if provisioner.LastSeenAt.Time.After(minLastSeenAt) {
+			matched.Available++
+		}
+		if provisioner.LastSeenAt.Time.After(mostRecentlySeen.Time) {
+			matched.MostRecentlySeen.Valid = true
+			matched.MostRecentlySeen.Time = provisioner.LastSeenAt.Time
+		}
+	}
+	return matched
+}
+
+func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return []policy.Action{policy.WildcardSymbol}
+	case codersdk.TemplateRoleUse:
+		return []policy.Action{policy.ActionRead, policy.ActionUse}
+	}
+	return []policy.Action{}
+}
+
+func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
+	switch action {
+	case agentproto.Connection_CONNECT:
+		return database.AuditActionConnect, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.AuditActionDisconnect, nil
+	default:
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
+	}
+}
+
+func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
+	switch action {
+	case database.AuditActionConnect:
+		return agentproto.Connection_CONNECT, nil
+	case database.AuditActionDisconnect:
+		return agentproto.Connection_DISCONNECT, nil
+	default:
+		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
 	}
 }

@@ -1,15 +1,4 @@
-# Get started with Coder
-
-<div style="padding: 0px; margin: 0px;">
-  <span style="vertical-align:middle;">Author: </span>
-  <a href="https://github.com/EdwardAngert" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
-    <span style="vertical-align:middle;">Edward Angert</span>
-    <img src="https://avatars.githubusercontent.com/u/17991901?v=4" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
-  </a>
-</div>
-October 23, 2024
-
----
+# Quickstart
 
 Follow the steps in this guide to install Coder locally or on a cloud-hosting
 provider, set up a workspace, and connect to it from VS Code.
@@ -68,8 +57,8 @@ persistent environment from your main device, a tablet, or your phone.
 
 ## Windows
 
-> **Important:** If you plan to use the built-in PostgreSQL database, ensure
-> that the
+> [!IMPORTANT]
+> If you plan to use the built-in PostgreSQL database, ensure that the
 > [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 > is installed.
 
@@ -93,18 +82,22 @@ persistent environment from your main device, a tablet, or your phone.
 
 ## Configure Coder with a new Workspace
 
-1. If you're running Coder locally, go to <http://0.0.0.0:3001/setup>.
+1. Coder will attempt to open the setup page in your browser. If it doesn't open
+   automatically, go to <http://localhost:3000>.
 
    - If you get a browser warning similar to `Secure Site Not Available`, you
      can ignore the warning and continue to the setup page.
 
-   If your Coder server is on a network or cloud device, locate the message in
-   your terminal that reads,
-   `View the Web UI: https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. The server
-   begins to stream logs immediately and you might have to scroll up to find it.
+   If your Coder server is on a network or cloud device, or you are having
+   trouble viewing the page, locate the web UI URL in Coder logs in your
+   terminal. It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
+   It's one of the first lines of output, so you might have to scroll up to find
+   it.
 
-1. On the **Welcome to Coder** page, enter the information to create an admin
-   user, then select **Create account**.
+1. On the **Welcome to Coder** page, to use your GitHub account to log in,
+   select **Continue with GitHub**.
+   You can also enter an email and password to create a new admin account on
+   the Coder deployment:
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)_Welcome
    to Coder - Create admin user_

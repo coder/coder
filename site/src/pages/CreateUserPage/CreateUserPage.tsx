@@ -1,8 +1,8 @@
 import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
-import { useDebouncedFunction } from "hooks/debounce";
-import { type FC, useState } from "react";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +18,7 @@ export const CreateUserPage: FC = () => {
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));
 	const authMethodsQuery = useQuery(authMethods());
+	const { showOrganizations } = useDashboard();
 
 	return (
 		<Margins>
@@ -27,16 +28,25 @@ export const CreateUserPage: FC = () => {
 
 			<CreateUserForm
 				error={createUserMutation.error}
-				authMethods={authMethodsQuery.data}
+				isLoading={createUserMutation.isLoading}
 				onSubmit={async (user) => {
-					await createUserMutation.mutateAsync(user);
+					await createUserMutation.mutateAsync({
+						username: user.username,
+						name: user.name,
+						email: user.email,
+						organization_ids: [user.organization],
+						login_type: user.login_type,
+						password: user.password,
+						user_status: null,
+					});
 					displaySuccess("Successfully created user.");
 					navigate("..", { relative: "path" });
 				}}
 				onCancel={() => {
 					navigate("..", { relative: "path" });
 				}}
-				isLoading={createUserMutation.isLoading}
+				authMethods={authMethodsQuery.data}
+				showOrganizations={showOrganizations}
 			/>
 		</Margins>
 	);

@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as apiModule from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
-import EventSourceMock from "eventsourcemock";
+import MockServerSocket from "jest-websocket-mock";
 import {
 	DashboardContext,
 	type DashboardProvider,
@@ -84,23 +84,11 @@ const testButton = async (
 
 	const user = userEvent.setup();
 	await user.click(button);
-	expect(actionMock).toBeCalled();
+	expect(actionMock).toHaveBeenCalled();
 };
 
-let originalEventSource: typeof window.EventSource;
-
-beforeAll(() => {
-	originalEventSource = window.EventSource;
-	// mocking out EventSource for SSE
-	window.EventSource = EventSourceMock;
-});
-
-beforeEach(() => {
-	jest.resetAllMocks();
-});
-
-afterAll(() => {
-	window.EventSource = originalEventSource;
+afterEach(() => {
+	MockServerSocket.clean();
 });
 
 describe("WorkspacePage", () => {
@@ -312,7 +300,9 @@ describe("WorkspacePage", () => {
 		);
 		await user.clear(secondParameterInput);
 		await user.type(secondParameterInput, "2");
-		await user.click(within(dialog).getByRole("button", { name: "Update" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: /update parameters/i }),
+		);
 
 		// Check if the update was called using the values from the form
 		await waitFor(() => {
@@ -563,6 +553,7 @@ describe("WorkspacePage", () => {
 						experiments: [],
 						organizations: [MockOrganization],
 						showOrganizations: true,
+						canViewOrganizationSettings: true,
 					}}
 				>
 					{children}

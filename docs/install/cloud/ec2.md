@@ -13,7 +13,7 @@ This guide assumes your AWS account has `AmazonEC2FullAccess` permissions.
 
 We publish an Ubuntu 22.04 AMI with Coder and Docker pre-installed. Search for
 `Coder` in the EC2 "Launch an Instance" screen or
-[launch directly from the marketplace](https://aws.amazon.com/marketplace/pp/prodview-5gxjyur2vc7rg).
+[launch directly from the marketplace](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc).
 
 ![Coder on AWS Marketplace](../../images/platforms/aws/marketplace.png)
 

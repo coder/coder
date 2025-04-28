@@ -12,9 +12,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -50,26 +51,33 @@ type Builder struct {
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 
-	richParameterValues []codersdk.WorkspaceBuildParameter
-	initiator           uuid.UUID
-	reason              database.BuildReason
+	richParameterValues      []codersdk.WorkspaceBuildParameter
+	dynamicParametersEnabled bool
+	initiator                uuid.UUID
+	reason                   database.BuildReason
+	templateVersionPresetID  uuid.UUID
 
 	// used during build, makes function arguments less verbose
 	ctx   context.Context
 	store database.Store
 
 	// cache of objects, so we only fetch once
-	template                     *database.Template
-	templateVersion              *database.TemplateVersion
-	templateVersionJob           *database.ProvisionerJob
-	templateVersionParameters    *[]database.TemplateVersionParameter
-	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
-	lastBuild                    *database.WorkspaceBuild
-	lastBuildErr                 *error
-	lastBuildParameters          *[]database.WorkspaceBuildParameter
-	lastBuildJob                 *database.ProvisionerJob
-	parameterNames               *[]string
-	parameterValues              *[]string
+	template                             *database.Template
+	templateVersion                      *database.TemplateVersion
+	templateVersionJob                   *database.ProvisionerJob
+	templateVersionParameters            *[]database.TemplateVersionParameter
+	templateVersionVariables             *[]database.TemplateVersionVariable
+	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
+	lastBuild                            *database.WorkspaceBuild
+	lastBuildErr                         *error
+	lastBuildParameters                  *[]database.WorkspaceBuildParameter
+	lastBuildJob                         *database.ProvisionerJob
+	parameterNames                       *[]string
+	parameterValues                      *[]string
+	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
+
+	prebuild          bool
+	prebuildClaimedBy uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -166,6 +174,23 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 	return b
 }
 
+func (b Builder) MarkPrebuild() Builder {
+	// nolint: revive
+	b.prebuild = true
+	return b
+}
+
+func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
+	// nolint: revive
+	b.prebuildClaimedBy = userID
+	return b
+}
+
+func (b Builder) UsingDynamicParameters() Builder {
+	b.dynamicParametersEnabled = true
+	return b
+}
+
 // SetLastWorkspaceBuildInTx prepopulates the Builder's cache with the last workspace build.  This allows us
 // to avoid a repeated database query when the Builder's caller also needs the workspace build, e.g. auto-start &
 // auto-stop.
@@ -187,6 +212,12 @@ func (b Builder) SetLastWorkspaceBuildInTx(build *database.WorkspaceBuild) Build
 func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Builder {
 	// nolint: revive
 	b.lastBuildJob = job
+	return b
+}
+
+func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.templateVersionPresetID = id
 	return b
 }
 
@@ -213,12 +244,12 @@ func (b *Builder) Build(
 	authFunc func(action policy.Action, object rbac.Objecter) bool,
 	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	var err error
 	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create audit baggage: %w", err)
+		return nil, nil, nil, xerrors.Errorf("create audit baggage: %w", err)
 	}
 
 	// Run the build in a transaction with RepeatableRead isolation, and retries.
@@ -227,16 +258,17 @@ func (b *Builder) Build(
 	// later reads are consistent with earlier ones.
 	var workspaceBuild *database.WorkspaceBuild
 	var provisionerJob *database.ProvisionerJob
+	var provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
 		var err error
 		b.store = tx
-		workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
+		workspaceBuild, provisionerJob, provisionerDaemons, err = b.buildTx(authFunc)
 		return err
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("build tx: %w", err)
+		return nil, nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
-	return workspaceBuild, provisionerJob, nil
+	return workspaceBuild, provisionerJob, provisionerDaemons, nil
 }
 
 // buildTx contains the business logic of computing a new build.  Attributes of the new database objects are computed
@@ -246,35 +278,35 @@ func (b *Builder) Build(
 //
 // In order to utilize this cache, the functions that compute build attributes use a pointer receiver type.
 func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Objecter) bool) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	if authFunc != nil {
 		err := b.authorize(authFunc)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 	err := b.checkTemplateVersionMatchesTemplate()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	err = b.checkTemplateJobStatus()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	err = b.checkRunningBuild()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	template, err := b.getTemplate()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
 	}
 
 	templateVersionJob, err := b.getTemplateVersionJob()
 	if err != nil {
-		return nil, nil, BuildError{
+		return nil, nil, nil, BuildError{
 			http.StatusInternalServerError, "failed to fetch template version job", err,
 		}
 	}
@@ -290,11 +322,13 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-		LogLevel:         b.logLevel,
+		WorkspaceBuildID:      workspaceBuildID,
+		LogLevel:              b.logLevel,
+		IsPrebuild:            b.prebuild,
+		PrebuildClaimedByUser: b.prebuildClaimedBy,
 	})
 	if err != nil {
-		return nil, nil, BuildError{
+		return nil, nil, nil, BuildError{
 			http.StatusInternalServerError,
 			"marshal provision job",
 			err,
@@ -302,12 +336,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	}
 	traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(b.ctx))
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
 
 	tags, err := b.getProvisionerTags()
 	if err != nil {
-		return nil, nil, err // already wrapped BuildError
+		return nil, nil, nil, err // already wrapped BuildError
 	}
 
 	now := dbtime.Now()
@@ -329,20 +363,32 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		},
 	})
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}
+	}
+
+	// nolint:gocritic // The user performing this request may not have permission
+	// to read all provisioner daemons. We need to retrieve the eligible
+	// provisioner daemons for this job to show in the UI if there is no
+	// matching provisioner daemon.
+	provisionerDaemons, err := b.store.GetEligibleProvisionerDaemonsByProvisionerJobIDs(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), []uuid.UUID{provisionerJob.ID})
+	if err != nil {
+		// NOTE: we do **not** want to fail a workspace build if we fail to
+		// retrieve provisioner daemons. This is just to show in the UI if there
+		// is no matching provisioner daemon for the job.
+		provisionerDaemons = []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}
 	}
 
 	templateVersionID, err := b.getTemplateVersionID()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "compute template version ID", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute template version ID", err}
 	}
 	buildNum, err := b.getBuildNumber()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "compute build number", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build number", err}
 	}
 	state, err := b.getState()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "compute build state", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build state", err}
 	}
 
 	var workspaceBuild database.WorkspaceBuild
@@ -361,11 +407,19 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			Reason:            b.reason,
 			Deadline:          time.Time{}, // set by provisioner upon completion
 			MaxDeadline:       time.Time{}, // set by provisioner upon completion
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  b.templateVersionPresetID,
+				Valid: b.templateVersionPresetID != uuid.Nil,
+			},
 		})
 		if err != nil {
 			code := http.StatusInternalServerError
 			if rbac.IsUnauthorizedError(err) {
 				code = http.StatusForbidden
+			} else if database.IsUniqueViolation(err) {
+				// Concurrent builds may result in duplicate
+				// workspace_builds_workspace_id_build_number_key.
+				code = http.StatusConflict
 			}
 			return BuildError{code, "insert workspace build", err}
 		}
@@ -393,10 +447,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return &workspaceBuild, &provisionerJob, nil
+	return &workspaceBuild, &provisionerJob, provisionerDaemons, nil
 }
 
 func (b *Builder) getTemplate() (*database.Template, error) {
@@ -526,10 +580,19 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last build parameters", err}
 	}
+	if b.templateVersionPresetID != uuid.Nil {
+		// Fetch and cache these, since we'll need them to override requested values if a preset was chosen
+		presetParameters, err := b.store.GetPresetParametersByPresetID(b.ctx, b.templateVersionPresetID)
+		if err != nil {
+			return nil, nil, BuildError{http.StatusInternalServerError, "failed to get preset parameters", err}
+		}
+		b.templateVersionPresetParameterValues = presetParameters
+	}
 	err = b.verifyNoLegacyParameters()
 	if err != nil {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
+
 	resolver := codersdk.ParameterResolver{
 		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
 	}
@@ -538,16 +601,24 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
-		value, err := resolver.ValidateResolve(
-			tvp,
-			b.findNewBuildParameterValue(templateVersionParameter.Name),
-		)
-		if err != nil {
-			// At this point, we've queried all the data we need from the database,
-			// so the only errors are problems with the request (missing data, failed
-			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+
+		var value string
+		if !b.dynamicParametersEnabled {
+			var err error
+			value, err = resolver.ValidateResolve(
+				tvp,
+				b.findNewBuildParameterValue(templateVersionParameter.Name),
+			)
+			if err != nil {
+				// At this point, we've queried all the data we need from the database,
+				// so the only errors are problems with the request (missing data, failed
+				// validation, immutable parameters, etc.)
+				return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+			}
+		} else {
+			value = resolver.Resolve(tvp, b.findNewBuildParameterValue(templateVersionParameter.Name))
 		}
+
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
 	}
@@ -558,6 +629,15 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 }
 
 func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBuildParameter {
+	for _, v := range b.templateVersionPresetParameterValues {
+		if v.Name == name {
+			return &codersdk.WorkspaceBuildParameter{
+				Name:  v.Name,
+				Value: v.Value,
+			}
+		}
+	}
+
 	for _, v := range b.richParameterValues {
 		if v.Name == name {
 			return &v
@@ -601,6 +681,22 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 	}
 	b.templateVersionParameters = &tvp
 	return tvp, nil
+}
+
+func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVariable, error) {
+	if b.templateVersionVariables != nil {
+		return *b.templateVersionVariables, nil
+	}
+	tvID, err := b.getTemplateVersionID()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version ID to get variables: %w", err)
+	}
+	tvs, err := b.store.GetTemplateVersionVariables(b.ctx, tvID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get template version %s variables: %w", tvID, err)
+	}
+	b.templateVersionVariables = &tvs
+	return tvs, nil
 }
 
 // verifyNoLegacyParameters verifies that initiator can't start the workspace build
@@ -664,17 +760,40 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		tags[name] = value
 	}
 
-	// Step 2: Mutate workspace tags
+	// Step 2: Mutate workspace tags:
+	// - Get workspace tags from the template version job
+	// - Get template version variables from the template version as they can be
+	//   referenced in workspace tags
+	// - Get parameters from the workspace build as they can also be referenced
+	//   in workspace tags
+	// - Evaluate workspace tags given the above inputs
 	workspaceTags, err := b.getTemplateVersionWorkspaceTags()
 	if err != nil {
 		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version workspace tags", err}
+	}
+	tvs, err := b.getTemplateVersionVariables()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version variables", err}
+	}
+	varsM := make(map[string]string)
+	for _, tv := range tvs {
+		// FIXME: do this in Terraform? This is a bit of a hack.
+		if tv.Value == "" {
+			varsM[tv.Name] = tv.DefaultValue
+		} else {
+			varsM[tv.Name] = tv.Value
+		}
 	}
 	parameterNames, parameterValues, err := b.getParameters()
 	if err != nil {
 		return nil, err // already wrapped BuildError
 	}
+	paramsM := make(map[string]string)
+	for i, name := range parameterNames {
+		paramsM[name] = parameterValues[i]
+	}
 
-	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
+	evalCtx := tfparse.BuildEvalContext(varsM, paramsM)
 	for _, workspaceTag := range workspaceTags {
 		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "expression.hcl", hcl.InitialPos)
 		if diags.HasErrors() {
@@ -687,51 +806,13 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		}
 
 		// Do not use "val.AsString()" as it can panic
-		str, err := ctyValueString(val)
+		str, err := tfparse.CtyValueString(val)
 		if err != nil {
 			return nil, BuildError{http.StatusBadRequest, "failed to marshal cty.Value as string", err}
 		}
 		tags[workspaceTag.Key] = str
 	}
 	return tags, nil
-}
-
-func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
-	m := map[string]cty.Value{}
-	for i, name := range names {
-		m[name] = cty.MapVal(map[string]cty.Value{
-			"value": cty.StringVal(values[i]),
-		})
-	}
-
-	if len(m) == 0 {
-		return nil // otherwise, panic: must not call MapVal with empty map
-	}
-
-	return &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"data": cty.MapVal(map[string]cty.Value{
-				"coder_parameter": cty.MapVal(m),
-			}),
-		},
-	}
-}
-
-func ctyValueString(val cty.Value) (string, error) {
-	switch val.Type() {
-	case cty.Bool:
-		if val.True() {
-			return "true", nil
-		} else {
-			return "false", nil
-		}
-	case cty.Number:
-		return val.AsBigFloat().String(), nil
-	case cty.String:
-		return val.AsString(), nil
-	default:
-		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
-	}
 }
 
 func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionWorkspaceTag, error) {
@@ -769,6 +850,15 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
 	if !authFunc(action, b.workspace) {
+		if authFunc(policy.ActionRead, b.workspace) {
+			// If the user can read the workspace, but not delete/create/update. Show
+			// a more helpful error. They are allowed to know the workspace exists.
+			return BuildError{
+				Status:  http.StatusForbidden,
+				Message: fmt.Sprintf("You do not have permission to %s this workspace.", action),
+				Wrapped: xerrors.New(httpapi.ResourceForbiddenResponse.Detail),
+			}
+		}
 		// We use the same wording as the httpapi to avoid leaking the existence of the workspace
 		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New(httpapi.ResourceNotFoundResponse.Message)}
 	}

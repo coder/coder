@@ -12,7 +12,12 @@ import type {
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
 import { type FC, useState } from "react";
-import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
+import {
+	type TimeRange,
+	calcDuration,
+	formatTime,
+	mergeTimeRanges,
+} from "./Chart/utils";
 import { ResourcesChart, isCoderResource } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
@@ -58,15 +63,25 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	].sort((a, b) => {
 		return new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
 	});
-	const [isOpen, setIsOpen] = useState(defaultIsOpen);
-	const isLoading = timings.length === 0;
 
-	// All stages
+	const [isOpen, setIsOpen] = useState(defaultIsOpen);
+
+	// If any of the timings are empty, we are still loading the data. They can be
+	// filled in different moments.
+	const isLoading = [
+		provisionerTimings,
+		agentScriptTimings,
+		agentConnectionTimings,
+	].some((t) => t.length === 0);
+
+	// Each agent connection timing is a stage in the timeline to make it easier
+	// to users to see the timing for connection and the other scripts.
 	const agentStageLabels = Array.from(
 		new Set(
 			agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
 		),
 	);
+
 	const stages = [
 		...provisioningStages,
 		...agentStageLabels.flatMap((a) => agentStages(a)),
@@ -75,7 +90,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	const displayProvisioningTime = () => {
 		const totalRange = mergeTimeRanges(timings.map(toTimeRange));
 		const totalDuration = calcDuration(totalRange);
-		return humanizeDuration(totalDuration);
+		return formatTime(totalDuration);
 	};
 
 	return (
@@ -120,7 +135,8 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 											: mergeTimeRanges(stageTimings.map(toTimeRange));
 
 									// Prevent users from inspecting internal coder resources in
-									// provisioner timings.
+									// provisioner timings because they were not useful to the
+									// user and would add noise.
 									const visibleResources = stageTimings.filter((t) => {
 										const isProvisionerTiming = "resource" in t;
 										return isProvisionerTiming

@@ -5,11 +5,11 @@ import {
 } from "@testing-library/react";
 import { AppProviders } from "App";
 import type { ProxyProvider } from "contexts/ProxyContext";
-import { ThemeProvider } from "contexts/ThemeProvider";
+import { ThemeOverride } from "contexts/ThemeProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import ManagementSettingsLayout from "modules/management/ManagementSettingsLayout";
+import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import type { ReactNode } from "react";
@@ -19,6 +19,7 @@ import {
 	RouterProvider,
 	createMemoryRouter,
 } from "react-router-dom";
+import themes, { DEFAULT_THEME } from "theme";
 import { MockUser } from "./entities";
 
 export function createTestQueryClient() {
@@ -195,7 +196,7 @@ export function renderWithWorkspaceSettingsLayout(
 	};
 }
 
-export function renderWithManagementSettingsLayout(
+export function renderWithOrganizationSettingsLayout(
 	element: JSX.Element,
 	{
 		path = "/",
@@ -212,7 +213,7 @@ export function renderWithManagementSettingsLayout(
 					element: <DashboardLayout />,
 					children: [
 						{
-							element: <ManagementSettingsLayout />,
+							element: <OrganizationSettingsLayout />,
 							children: [{ element, path }, ...extraRoutes],
 						},
 					],
@@ -245,6 +246,8 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 
 export const renderComponent = (component: React.ReactElement) => {
 	return testingLibraryRender(component, {
-		wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
+		wrapper: ({ children }) => (
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+		),
 	});
 };

@@ -4,12 +4,15 @@ import TextField from "@mui/material/TextField";
 import { hasApiFieldErrors, isApiError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { FormFooter } from "components/FormFooter/FormFooter";
+import { Button } from "components/Button/Button";
+import { FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PasswordField } from "components/PasswordField/PasswordField";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
-import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect } from "react";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -17,18 +20,7 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-
-export const Language = {
-	emailLabel: "Email",
-	passwordLabel: "Password",
-	usernameLabel: "Username",
-	nameLabel: "Full name",
-	emailInvalid: "Please enter a valid email address.",
-	emailRequired: "Please enter an email address.",
-	passwordRequired: "Please enter a password.",
-	createUser: "Create",
-	cancel: "Cancel",
-};
+import { Language } from "./Language";
 
 export const authMethodLanguage = {
 	password: {
@@ -51,7 +43,7 @@ export const authMethodLanguage = {
 				<Link
 					target="_blank"
 					rel="noopener"
-					href="https://coder.com/docs/admin/auth#disable-built-in-authentication"
+					href="https://coder.com/docs/admin/users/headless-auth"
 				>
 					documentation
 				</Link>{" "}
@@ -60,14 +52,6 @@ export const authMethodLanguage = {
 		),
 	},
 };
-
-export interface CreateUserFormProps {
-	onSubmit: (user: TypesGen.CreateUserRequestWithOrgs) => void;
-	onCancel: () => void;
-	error?: unknown;
-	isLoading: boolean;
-	authMethods?: TypesGen.AuthMethods;
-}
 
 const validationSchema = Yup.object({
 	email: Yup.string()
@@ -84,26 +68,51 @@ const validationSchema = Yup.object({
 	login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
 });
 
+type CreateUserFormData = {
+	readonly username: string;
+	readonly name: string;
+	readonly email: string;
+	readonly organization: string;
+	readonly login_type: TypesGen.LoginType;
+	readonly password: string;
+};
+
+export interface CreateUserFormProps {
+	error?: unknown;
+	isLoading: boolean;
+	onSubmit: (user: CreateUserFormData) => void;
+	onCancel: () => void;
+	authMethods?: TypesGen.AuthMethods;
+	showOrganizations: boolean;
+}
+
 export const CreateUserForm: FC<
 	React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, error, isLoading, authMethods }) => {
-	const form: FormikContextType<TypesGen.CreateUserRequestWithOrgs> =
-		useFormik<TypesGen.CreateUserRequestWithOrgs>({
-			initialValues: {
-				email: "",
-				password: "",
-				username: "",
-				name: "",
-				organization_ids: ["00000000-0000-0000-0000-000000000000"],
-				login_type: "",
-			},
-			validationSchema,
-			onSubmit,
-		});
-	const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequestWithOrgs>(
-		form,
-		error,
-	);
+> = ({
+	error,
+	isLoading,
+	onSubmit,
+	onCancel,
+	showOrganizations,
+	authMethods,
+}) => {
+	const form = useFormik<CreateUserFormData>({
+		initialValues: {
+			email: "",
+			password: "",
+			username: "",
+			name: "",
+			// If organizations aren't enabled, use the fallback ID to add the user to
+			// the default organization.
+			organization: showOrganizations
+				? ""
+				: "00000000-0000-0000-0000-000000000000",
+			login_type: "",
+		},
+		validationSchema,
+		onSubmit,
+	});
+	const getFieldHelpers = getFormHelpers(form, error);
 
 	const methods = [
 		authMethods?.password.enabled && "password",
@@ -140,6 +149,20 @@ export const CreateUserForm: FC<
 						fullWidth
 						label={Language.emailLabel}
 					/>
+					{showOrganizations && (
+						<OrganizationAutocomplete
+							{...getFieldHelpers("organization")}
+							required
+							label="Organization"
+							onChange={(newValue) => {
+								void form.setFieldValue("organization", newValue?.id ?? "");
+							}}
+							check={{
+								object: { resource_type: "organization_member" },
+								action: "create",
+							}}
+						/>
+					)}
 					<TextField
 						{...getFieldHelpers("login_type", {
 							helperText: "Authentication method for this user",
@@ -201,11 +224,16 @@ export const CreateUserForm: FC<
 						label={Language.passwordLabel}
 					/>
 				</Stack>
-				<FormFooter
-					submitLabel="Create user"
-					onCancel={onCancel}
-					isLoading={isLoading}
-				/>
+
+				<FormFooter className="mt-8">
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isLoading}>
+						<Spinner loading={isLoading} />
+						Save
+					</Button>
+				</FormFooter>
 			</form>
 		</FullPageForm>
 	);

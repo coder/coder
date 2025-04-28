@@ -1,15 +1,19 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import MenuIcon from "@mui/icons-material/Menu";
-import Drawer from "@mui/material/Drawer";
-import IconButton from "@mui/material/IconButton";
+import { API } from "api/api";
+import { experiments } from "api/queries/experiments";
 import type * as TypesGen from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { type FC, useState } from "react";
+import { useWebpushNotifications } from "contexts/useWebpushNotifications";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router-dom";
-import { navHeight } from "theme/constants";
+import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
+import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -21,47 +25,15 @@ export interface NavbarViewProps {
 	onSignOut: () => void;
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
-	canViewAllUsers: boolean;
 	canViewAuditLog: boolean;
 	canViewHealth: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
-export const Language = {
-	workspaces: "Workspaces",
-	templates: "Templates",
-	users: "Users",
-	audit: "Audit Logs",
-	deployment: "Settings",
-};
-
-interface NavItemsProps {
-	className?: string;
-}
-
-const NavItems: FC<NavItemsProps> = ({ className }) => {
-	const location = useLocation();
-	const theme = useTheme();
-
-	return (
-		<nav className={className}>
-			<NavLink
-				css={[
-					styles.link,
-					location.pathname.startsWith("/@") && {
-						color: theme.palette.text.primary,
-						fontWeight: 500,
-					},
-				]}
-				to="/workspaces"
-			>
-				{Language.workspaces}
-			</NavLink>
-			<NavLink css={styles.link} to="/templates">
-				{Language.templates}
-			</NavLink>
-		</nav>
-	);
+const linkStyles = {
+	default:
+		"text-sm font-medium text-content-secondary no-underline block h-full px-2 flex items-center hover:text-content-primary transition-colors",
+	active: "text-content-primary",
 };
 
 export const NavbarView: FC<NavbarViewProps> = ({
@@ -72,168 +44,119 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	canViewDeployment,
 	canViewOrganizations,
-	canViewAllUsers,
 	canViewHealth,
 	canViewAuditLog,
 	proxyContextValue,
 }) => {
-	const theme = useTheme();
-	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+	const { subscribed, enabled, loading, subscribe, unsubscribe } =
+		useWebpushNotifications();
 
 	return (
-		<nav
-			css={{
-				height: navHeight,
-				backgroundColor: theme.palette.background.paper,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-			}}
-		>
-			<div css={styles.wrapper}>
-				<IconButton
-					aria-label="Open menu"
-					css={styles.mobileMenuButton}
-					onClick={() => {
-						setIsDrawerOpen(true);
-					}}
-					size="large"
-				>
-					<MenuIcon />
-				</IconButton>
+		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
+			<NavLink to="/workspaces">
+				{logo_url ? (
+					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />
+				) : (
+					<CoderIcon className="h-7 w-7 fill-content-primary" />
+				)}
+			</NavLink>
 
-				<Drawer
-					anchor="left"
-					open={isDrawerOpen}
-					onClose={() => setIsDrawerOpen(false)}
-				>
-					<div css={{ width: 250 }}>
-						<div css={styles.drawerHeader}>
-							<div css={[styles.logo, styles.drawerLogo]}>
-								{logo_url ? (
-									<ExternalImage src={logo_url} alt="Custom Logo" />
-								) : (
-									<CoderIcon />
-								)}
-							</div>
-						</div>
-						<NavItems />
-					</div>
-				</Drawer>
+			<NavItems className="ml-4" />
 
-				<NavLink css={styles.logo} to="/workspaces">
-					{logo_url ? (
-						<ExternalImage src={logo_url} alt="Custom Logo" />
-					) : (
-						<CoderIcon fill="white" opacity={1} width={125} />
-					)}
-				</NavLink>
-
-				<NavItems css={styles.desktopNavItems} />
-
-				<div css={styles.navMenus}>
-					{proxyContextValue && (
+			<div className="flex items-center gap-3 ml-auto">
+				{proxyContextValue && (
+					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
-					)}
+					</div>
+				)}
 
+				<div className="hidden md:block">
 					<DeploymentDropdown
 						canViewAuditLog={canViewAuditLog}
 						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
-						canViewAllUsers={canViewAllUsers}
 						canViewHealth={canViewHealth}
 					/>
+				</div>
 
-					{user && (
+				{enabled ? (
+					subscribed ? (
+						<Button variant="outline" disabled={loading} onClick={unsubscribe}>
+							Disable WebPush
+						</Button>
+					) : (
+						<Button variant="outline" disabled={loading} onClick={subscribe}>
+							Enable WebPush
+						</Button>
+					)
+				) : null}
+
+				<NotificationsInbox
+					fetchNotifications={API.getInboxNotifications}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
+					markNotificationAsRead={(notificationId) =>
+						API.updateInboxNotificationReadStatus(notificationId, {
+							is_read: true,
+						})
+					}
+				/>
+
+				{user && (
+					<div className="hidden md:block">
 						<UserDropdown
 							user={user}
 							buildInfo={buildInfo}
 							supportLinks={supportLinks}
 							onSignOut={onSignOut}
 						/>
-					)}
+					</div>
+				)}
+
+				<div className="md:hidden">
+					<MobileMenu
+						proxyContextValue={proxyContextValue}
+						user={user}
+						supportLinks={supportLinks}
+						onSignOut={onSignOut}
+						canViewAuditLog={canViewAuditLog}
+						canViewOrganizations={canViewOrganizations}
+						canViewDeployment={canViewDeployment}
+						canViewHealth={canViewHealth}
+					/>
 				</div>
 			</div>
-		</nav>
+		</div>
 	);
 };
 
-const styles = {
-	desktopNavItems: (theme) => css`
-    display: none;
+interface NavItemsProps {
+	className?: string;
+}
 
-    ${theme.breakpoints.up("md")} {
-      display: flex;
-    }
-  `,
-	mobileMenuButton: (theme) => css`
-    ${theme.breakpoints.up("md")} {
-      display: none;
-    }
-  `,
-	navMenus: (theme) => ({
-		display: "flex",
-		gap: 16,
-		alignItems: "center",
-		paddingRight: 16,
+const NavItems: FC<NavItemsProps> = ({ className }) => {
+	const location = useLocation();
 
-		[theme.breakpoints.up("md")]: {
-			marginLeft: "auto",
-		},
-	}),
-	wrapper: (theme) => css`
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    ${theme.breakpoints.up("md")} {
-      justify-content: flex-start;
-    }
-  `,
-	drawerHeader: {
-		padding: 16,
-		paddingTop: 32,
-		paddingBottom: 32,
-	},
-	logo: (theme) => css`
-    align-items: center;
-    display: flex;
-    height: ${navHeight}px;
-    color: ${theme.palette.text.primary};
-    padding: 16px;
-
-    // svg is for the Coder logo, img is for custom images
-    & svg,
-    & img {
-      height: 100%;
-      object-fit: contain;
-    }
-  `,
-	drawerLogo: {
-		padding: 0,
-		maxHeight: 40,
-	},
-	link: (theme) => css`
-    align-items: center;
-    color: ${theme.palette.text.secondary};
-    display: flex;
-    flex: 1;
-    font-size: 16px;
-    padding: 12px 16px;
-    text-decoration: none;
-    transition: background-color 0.15s ease-in-out;
-
-    &.active {
-      color: ${theme.palette.text.primary};
-      font-weight: 500;
-    }
-
-    &:hover {
-      background-color: ${theme.experimental.l2.hover.background};
-    }
-
-    ${theme.breakpoints.up("md")} {
-      height: ${navHeight}px;
-      padding: 0 24px;
-    }
-  `,
-} satisfies Record<string, Interpolation<Theme>>;
+	return (
+		<nav className={cn("flex items-center gap-4 h-full", className)}>
+			<NavLink
+				className={({ isActive }) => {
+					if (location.pathname.startsWith("/@")) {
+						isActive = true;
+					}
+					return cn(linkStyles.default, isActive ? linkStyles.active : "");
+				}}
+				to="/workspaces"
+			>
+				Workspaces
+			</NavLink>
+			<NavLink
+				className={({ isActive }) => {
+					return cn(linkStyles.default, isActive ? linkStyles.active : "");
+				}}
+				to="/templates"
+			>
+				Templates
+			</NavLink>
+		</nav>
+	);
+};

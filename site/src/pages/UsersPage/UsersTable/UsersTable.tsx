@@ -1,14 +1,15 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import type { FC } from "react";
-import { TableColumnHelpTooltip } from "../../ManagementSettingsPage/UserTable/TableColumnHelpTooltip";
+import { TableColumnHelpTooltip } from "../../OrganizationSettingsPage/UserTable/TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 
 export const Language = {
@@ -65,57 +66,50 @@ export const UsersTable: FC<UsersTableProps> = ({
 	groupsByUserId,
 }) => {
 	return (
-		<TableContainer>
-			<Table data-testid="users-table">
-				<TableHead>
-					<TableRow>
-						<TableCell width="32%">{Language.usernameLabel}</TableCell>
+		<Table data-testid="users-table">
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-2/6">{Language.usernameLabel}</TableHead>
+					<TableHead className="w-2/6">
+						<Stack direction="row" spacing={1} alignItems="center">
+							<span>{Language.rolesLabel}</span>
+							<TableColumnHelpTooltip variant="roles" />
+						</Stack>
+					</TableHead>
+					<TableHead className="w-1/6">
+						<Stack direction="row" spacing={1} alignItems="center">
+							<span>{Language.groupsLabel}</span>
+							<TableColumnHelpTooltip variant="groups" />
+						</Stack>
+					</TableHead>
+					<TableHead className="w-1/6">{Language.loginTypeLabel}</TableHead>
+					<TableHead className="w-1/6">{Language.statusLabel}</TableHead>
+					{canEditUsers && <TableHead className="w-auto" />}
+				</TableRow>
+			</TableHeader>
 
-						<TableCell width="29%">
-							<Stack direction="row" spacing={1} alignItems="center">
-								<span>{Language.rolesLabel}</span>
-								<TableColumnHelpTooltip variant="roles" />
-							</Stack>
-						</TableCell>
-
-						<TableCell width="13%">
-							<Stack direction="row" spacing={1} alignItems="center">
-								<span>{Language.groupsLabel}</span>
-								<TableColumnHelpTooltip variant="groups" />
-							</Stack>
-						</TableCell>
-
-						<TableCell width="13%">{Language.loginTypeLabel}</TableCell>
-						<TableCell width="13%">{Language.statusLabel}</TableCell>
-
-						{/* 1% is a trick to make the table cell width fit the content */}
-						{canEditUsers && <TableCell width="1%" />}
-					</TableRow>
-				</TableHead>
-
-				<TableBody>
-					<UsersTableBody
-						users={users}
-						roles={roles}
-						groupsByUserId={groupsByUserId}
-						isLoading={isLoading}
-						canEditUsers={canEditUsers}
-						canViewActivity={canViewActivity}
-						isUpdatingUserRoles={isUpdatingUserRoles}
-						onActivateUser={onActivateUser}
-						onDeleteUser={onDeleteUser}
-						onListWorkspaces={onListWorkspaces}
-						onViewActivity={onViewActivity}
-						onResetUserPassword={onResetUserPassword}
-						onSuspendUser={onSuspendUser}
-						onUpdateUserRoles={onUpdateUserRoles}
-						isNonInitialPage={isNonInitialPage}
-						actorID={actorID}
-						oidcRoleSyncEnabled={oidcRoleSyncEnabled}
-						authMethods={authMethods}
-					/>
-				</TableBody>
-			</Table>
-		</TableContainer>
+			<TableBody>
+				<UsersTableBody
+					users={users}
+					roles={roles}
+					groupsByUserId={groupsByUserId}
+					isLoading={isLoading}
+					canEditUsers={canEditUsers}
+					canViewActivity={canViewActivity}
+					isUpdatingUserRoles={isUpdatingUserRoles}
+					onActivateUser={onActivateUser}
+					onDeleteUser={onDeleteUser}
+					onListWorkspaces={onListWorkspaces}
+					onViewActivity={onViewActivity}
+					onResetUserPassword={onResetUserPassword}
+					onSuspendUser={onSuspendUser}
+					onUpdateUserRoles={onUpdateUserRoles}
+					isNonInitialPage={isNonInitialPage}
+					actorID={actorID}
+					oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+					authMethods={authMethods}
+				/>
+			</TableBody>
+		</Table>
 	);
 };

@@ -8,10 +8,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os/user"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -20,15 +22,17 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestNewServer_ServeClient(t *testing.T) {
@@ -36,9 +40,11 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 	ctx := context.Background()
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -77,7 +83,7 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 
 	ctx := context.Background()
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = s.Close()
@@ -86,7 +92,7 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
 		cmd, err := s.CreateCommand(ctx, `#!/bin/bash
-		echo test`, nil)
+		echo test`, nil, nil)
 		require.NoError(t, err)
 		output, err := cmd.AsExec().CombinedOutput()
 		require.NoError(t, err)
@@ -95,60 +101,153 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 	t.Run("Args", func(t *testing.T) {
 		t.Parallel()
 		cmd, err := s.CreateCommand(ctx, `#!/usr/bin/env bash
-		echo test`, nil)
+		echo test`, nil, nil)
 		require.NoError(t, err)
 		output, err := cmd.AsExec().CombinedOutput()
 		require.NoError(t, err)
 		require.Equal(t, "test\n", string(output))
 	})
+	t.Run("CustomEnvInfoer", func(t *testing.T) {
+		t.Parallel()
+		ei := &fakeEnvInfoer{
+			CurrentUserFn: func() (u *user.User, err error) {
+				return nil, assert.AnError
+			},
+		}
+		_, err := s.CreateCommand(ctx, `whatever`, nil, ei)
+		require.ErrorIs(t, err, assert.AnError)
+	})
+}
+
+type fakeEnvInfoer struct {
+	CurrentUserFn func() (*user.User, error)
+	EnvironFn     func() []string
+	UserHomeDirFn func() (string, error)
+	UserShellFn   func(string) (string, error)
+}
+
+func (f *fakeEnvInfoer) User() (u *user.User, err error) {
+	return f.CurrentUserFn()
+}
+
+func (f *fakeEnvInfoer) Environ() []string {
+	return f.EnvironFn()
+}
+
+func (f *fakeEnvInfoer) HomeDir() (string, error) {
+	return f.UserHomeDirFn()
+}
+
+func (f *fakeEnvInfoer) Shell(u string) (string, error) {
+	return f.UserShellFn(u)
+}
+
+func (*fakeEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+	return cmd, args
 }
 
 func TestNewServer_CloseActiveConnections(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
-	require.NoError(t, err)
-	defer s.Close()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		err := s.Serve(ln)
-		assert.Error(t, err) // Server is closed.
-	}()
-
-	pty := ptytest.New(t)
-
-	doClose := make(chan struct{})
-	go func() {
-		defer wg.Done()
-		c := sshClient(t, ln.Addr().String())
-		sess, err := c.NewSession()
-		assert.NoError(t, err)
-		sess.Stdin = pty.Input()
-		sess.Stdout = pty.Output()
-		sess.Stderr = pty.Output()
-
-		assert.NoError(t, err)
-		err = sess.Start("")
+	prepare := func(ctx context.Context, t *testing.T) (*agentssh.Server, func()) {
+		t.Helper()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = s.Close()
+		})
+		err = s.UpdateHostSigner(42)
 		assert.NoError(t, err)
 
-		close(doClose)
-		err = sess.Wait()
-		assert.Error(t, err)
-	}()
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
 
-	<-doClose
-	err = s.Close()
-	require.NoError(t, err)
+		waitConns := make([]chan struct{}, 4)
 
-	wg.Wait()
+		var wg sync.WaitGroup
+		wg.Add(1 + len(waitConns))
+
+		go func() {
+			defer wg.Done()
+			err := s.Serve(ln)
+			assert.Error(t, err) // Server is closed.
+		}()
+
+		for i := 0; i < len(waitConns); i++ {
+			waitConns[i] = make(chan struct{})
+			go func(ch chan struct{}) {
+				defer wg.Done()
+				c := sshClient(t, ln.Addr().String())
+				sess, err := c.NewSession()
+				assert.NoError(t, err)
+				pty := ptytest.New(t)
+				sess.Stdin = pty.Input()
+				sess.Stdout = pty.Output()
+				sess.Stderr = pty.Output()
+
+				// Every other session will request a PTY.
+				if i%2 == 0 {
+					err = sess.RequestPty("xterm", 80, 80, nil)
+					assert.NoError(t, err)
+				}
+				// The 60 seconds here is intended to be longer than the
+				// test. The shutdown should propagate.
+				if runtime.GOOS == "windows" {
+					// Best effort to at least partially test this in Windows.
+					err = sess.Start("echo start\"ed\" && sleep 60")
+				} else {
+					err = sess.Start("/bin/bash -c 'trap \"sleep 60\" SIGTERM; echo start\"ed\"; sleep 60'")
+				}
+				assert.NoError(t, err)
+
+				// Allow the session to settle (i.e. reach echo).
+				pty.ExpectMatchContext(ctx, "started")
+				// Sleep a bit to ensure the sleep has started.
+				time.Sleep(testutil.IntervalMedium)
+
+				close(ch)
+
+				err = sess.Wait()
+				assert.Error(t, err)
+			}(waitConns[i])
+		}
+
+		for _, ch := range waitConns {
+			<-ch
+		}
+
+		return s, wg.Wait
+	}
+
+	t.Run("Close", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		s, wait := prepare(ctx, t)
+		err := s.Close()
+		require.NoError(t, err)
+		wait()
+	})
+
+	t.Run("Shutdown", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		s, wait := prepare(ctx, t)
+		err := s.Shutdown(ctx)
+		require.NoError(t, err)
+		wait()
+	})
+
+	t.Run("Shutdown Early", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		s, wait := prepare(ctx, t)
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+		err := s.Shutdown(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		wait()
+	})
 }
 
 func TestNewServer_Signal(t *testing.T) {
@@ -159,9 +258,11 @@ func TestNewServer_Signal(t *testing.T) {
 
 		ctx := context.Background()
 		logger := testutil.Logger(t)
-		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
+		err = s.UpdateHostSigner(42)
+		assert.NoError(t, err)
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
@@ -224,9 +325,11 @@ func TestNewServer_Signal(t *testing.T) {
 
 		ctx := context.Background()
 		logger := testutil.Logger(t)
-		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
+		err = s.UpdateHostSigner(42)
+		assert.NoError(t, err)
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)

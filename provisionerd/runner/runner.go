@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -86,7 +87,8 @@ type Metrics struct {
 	// JobTimings also counts the total amount of jobs.
 	JobTimings *prometheus.HistogramVec
 	// WorkspaceBuilds counts workspace build successes and failures.
-	WorkspaceBuilds *prometheus.CounterVec
+	WorkspaceBuilds       *prometheus.CounterVec
+	WorkspaceBuildTimings *prometheus.HistogramVec
 }
 
 type JobUpdater interface {
@@ -189,6 +191,12 @@ func (r *Runner) Run() {
 				build.Metadata.WorkspaceTransition.String(),
 				status,
 			).Inc()
+			r.metrics.WorkspaceBuildTimings.WithLabelValues(
+				build.Metadata.TemplateName,
+				build.Metadata.TemplateVersion,
+				build.Metadata.WorkspaceTransition.String(),
+				status,
+			).Observe(time.Since(start).Seconds())
 		}
 		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
@@ -572,6 +580,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		externalAuthProviderNames = append(externalAuthProviderNames, it.Id)
 	}
 
+	// fmt.Println("completed job: template import: graph:", startProvision.Graph)
+
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
@@ -583,6 +593,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
 				StartModules:               startProvision.Modules,
 				StopModules:                stopProvision.Modules,
+				Presets:                    startProvision.Presets,
+				Plan:                       startProvision.Plan,
 			},
 		},
 	}, nil
@@ -606,7 +618,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "parse job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -643,6 +655,8 @@ type templateImportProvision struct {
 	Parameters            []*sdkproto.RichParameter
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Modules               []*sdkproto.Module
+	Presets               []*sdkproto.Preset
+	Plan                  json.RawMessage
 }
 
 // Performs a dry-run provision when importing a template.
@@ -704,7 +718,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "template import provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "template import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -735,6 +749,8 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Parameters:            c.Parameters,
 				ExternalAuthProviders: c.ExternalAuthProviders,
 				Modules:               c.Modules,
+				Presets:               c.Presets,
+				Plan:                  c.Plan,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -869,7 +885,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	const stage = "Commit quota"
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		JobId:     r.job.JobId,
+		JobId: r.job.JobId,
+		// #nosec G115 - Safe conversion as cost is expected to be within int32 range for provisioning costs
 		DailyCost: int32(cost),
 	})
 	if err != nil {

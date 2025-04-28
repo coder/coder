@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -37,7 +38,7 @@ func main() {
 	flag.Parse()
 
 	// This is just a way to run tests outside go test
-	testing.Main(func(pat, str string) (bool, error) {
+	testing.Main(func(_, _ string) (bool, error) {
 		return true, nil
 	}, []testing.InternalTest{
 		{
@@ -88,6 +89,7 @@ func RunIDP() func(t *testing.T) {
 				// This is a static set of auth fields. Might be beneficial to make flags
 				// to allow different values here. This is only required for using the
 				// testIDP as primary auth. External auth does not ever fetch these fields.
+				"sub":                uuid.MustParse("26c6a19c-b9b8-493b-a991-88a4c3310314"),
 				"email":              "oidc_member@coder.com",
 				"preferred_username": "oidc_member",
 				"email_verified":     true,

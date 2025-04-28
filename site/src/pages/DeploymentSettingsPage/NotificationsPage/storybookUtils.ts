@@ -13,7 +13,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withGlobalSnackbar,
-	withManagementSettingsProvider,
+	withOrganizationSettingsProvider,
 } from "testHelpers/storybook";
 import type { NotificationsPage } from "./NotificationsPage";
 
@@ -194,7 +194,7 @@ export const baseMeta = {
 			},
 		],
 		user: MockUser,
-		permissions: { viewDeploymentValues: true },
+		permissions: { viewDeploymentConfig: true },
 		deploymentOptions: mockNotificationsDeploymentOptions,
 		deploymentValues: {
 			notifications: {
@@ -213,6 +213,6 @@ export const baseMeta = {
 		withGlobalSnackbar,
 		withAuthProvider,
 		withDashboardProvider,
-		withManagementSettingsProvider,
+		withOrganizationSettingsProvider,
 	],
 } satisfies Meta<typeof NotificationsPage>;

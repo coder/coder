@@ -9,16 +9,17 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
-)
+	"kernel.org/pub/linux/libs/security/libcap/cap"
 
-// unset is set to an invalid value for nice and oom scores.
-const unset = -2000
+	"github.com/coder/coder/v2/agent/usershell"
+)
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
@@ -51,6 +52,14 @@ func CLI() error {
 		return xerrors.Errorf("no exec command provided %+v", os.Args)
 	}
 
+	if *oom == unset {
+		// If an explicit oom score isn't set, we use the default.
+		*oom, err = defaultOOMScore()
+		if err != nil {
+			return xerrors.Errorf("get default oom score: %w", err)
+		}
+	}
+
 	if *nice == unset {
 		// If an explicit nice score isn't set, we use the default.
 		*nice, err = defaultNiceScore()
@@ -59,12 +68,37 @@ func CLI() error {
 		}
 	}
 
-	if *oom == unset {
-		// If an explicit oom score isn't set, we use the default.
-		*oom, err = defaultOOMScore()
-		if err != nil {
-			return xerrors.Errorf("get default oom score: %w", err)
-		}
+	// We drop effective caps prior to setting dumpable so that we limit the
+	// impact of someone attempting to hijack the process (i.e. with a debugger)
+	// to take advantage of the capabilities of the agent process. We encourage
+	// users to set cap_net_admin on the agent binary for improved networking
+	// performance and doing so results in the process having its SET_DUMPABLE
+	// attribute disabled (meaning we cannot adjust the oom score).
+	err = dropEffectiveCaps()
+	if err != nil {
+		printfStdErr("failed to drop effective caps: %v", err)
+	}
+
+	// Set dumpable to 1 so that we can adjust the oom score. If the process
+	// doesn't have capabilities or has an suid/sgid bit set, this is already
+	// set.
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to set dumpable: %v", err)
+	}
+
+	err = writeOOMScoreAdj(*oom)
+	if err != nil {
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for oom_score_adj.
+		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, execArgs(os.Args), err)
+	}
+
+	// Set dumpable back to 0 just to be safe. It's not inherited for execve anyways.
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to unset dumpable: %v", err)
 	}
 
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
@@ -75,20 +109,22 @@ func CLI() error {
 		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
 	}
 
-	err = writeOOMScoreAdj(*oom)
-	if err != nil {
-		// We alert the user instead of failing the command since it can be difficult to debug
-		// for a template admin otherwise. It's quite possible (and easy) to set an
-		// inappriopriate value for oom_score_adj.
-		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, args, err)
-	}
-
 	path, err := exec.LookPath(args[0])
 	if err != nil {
 		return xerrors.Errorf("look path: %w", err)
 	}
 
-	return syscall.Exec(path, args, os.Environ())
+	// Remove environment variables specific to the agentexec command. This is
+	// especially important for environments that are attempting to develop Coder in Coder.
+	ei := usershell.SystemEnvInfo{}
+	env := ei.Environ()
+	env = slices.DeleteFunc(env, func(e string) bool {
+		return strings.HasPrefix(e, EnvProcPrioMgmt) ||
+			strings.HasPrefix(e, EnvProcOOMScore) ||
+			strings.HasPrefix(e, EnvProcNiceScore)
+	})
+
+	return syscall.Exec(path, args, env)
 }
 
 func defaultNiceScore() (int, error) {
@@ -153,4 +189,17 @@ func execArgs(args []string) []string {
 
 func printfStdErr(format string, a ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, "coder-agent: %s\n", fmt.Sprintf(format, a...))
+}
+
+func dropEffectiveCaps() error {
+	proc := cap.GetProc()
+	err := proc.ClearFlag(cap.Effective)
+	if err != nil {
+		return xerrors.Errorf("clear effective caps: %w", err)
+	}
+	err = proc.SetProc()
+	if err != nil {
+		return xerrors.Errorf("set proc: %w", err)
+	}
+	return nil
 }

@@ -1,6 +1,8 @@
+import GitHubIcon from "@mui/icons-material/GitHub";
 import LoadingButton from "@mui/lab/LoadingButton";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
+import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -15,8 +17,7 @@ import { PasswordField } from "components/PasswordField/PasswordField";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
-import { useEffect } from "react";
+import type { ChangeEvent, FC } from "react";
 import { docs } from "utils/docs";
 import {
 	getFormHelpers,
@@ -33,7 +34,8 @@ export const Language = {
 	emailInvalid: "Please enter a valid email address.",
 	emailRequired: "Please enter an email address.",
 	passwordRequired: "Please enter a password.",
-	create: "Create account",
+	create: "Continue with email",
+	githubCreate: "Continue with GitHub",
 	welcomeMessage: <>Welcome to Coder</>,
 	firstNameLabel: "First name",
 	lastNameLabel: "Last name",
@@ -50,13 +52,29 @@ export const Language = {
 	developersRequired: "Please select the number of developers in your company.",
 };
 
+const usernameValidator = nameValidator(Language.usernameLabel);
+const usernameFromEmail = (email: string): string => {
+	try {
+		const emailPrefix = email.split("@")[0];
+		const username = emailPrefix.toLowerCase().replace(/[^a-z0-9]/g, "-");
+		usernameValidator.validateSync(username);
+		return username;
+	} catch (error) {
+		console.warn(
+			"failed to automatically generate username, defaulting to 'admin'",
+			error,
+		);
+		return "admin";
+	}
+};
+
 const validationSchema = Yup.object({
 	email: Yup.string()
 		.trim()
 		.email(Language.emailInvalid)
 		.required(Language.emailRequired),
 	password: Yup.string().required(Language.passwordRequired),
-	username: nameValidator(Language.usernameLabel),
+	username: usernameValidator,
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
 		is: true,
@@ -81,16 +99,23 @@ const numberOfDevelopersOptions = [
 	"2500+",
 ];
 
+const iconStyles = {
+	width: 16,
+	height: 16,
+};
+
 export interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	error?: unknown;
 	isLoading?: boolean;
+	authMethods: TypesGen.AuthMethods | undefined;
 }
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,
 	error,
 	isLoading,
+	authMethods,
 }) => {
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
@@ -112,6 +137,10 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			},
 			validationSchema,
 			onSubmit,
+			// With validate on blur set to true, the form lights up red whenever
+			// you click out of it. This is a bit jarring. We instead validate
+			// on submit and change.
+			validateOnBlur: false,
 		});
 	const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(
 		form,
@@ -121,12 +150,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	return (
 		<SignInLayout>
 			<header css={{ textAlign: "center", marginBottom: 32 }}>
-				<CoderIcon
-					css={(theme) => ({
-						color: theme.palette.text.primary,
-						fontSize: 64,
-					})}
-				/>
+				<CoderIcon className="w-12 h-12" />
 				<h1
 					css={{
 						fontWeight: 400,
@@ -147,23 +171,36 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			</header>
 			<VerticalForm onSubmit={form.handleSubmit}>
 				<FormFields>
-					<TextField
-						autoFocus
-						{...getFieldHelpers("username")}
-						onChange={onChangeTrimmed(form)}
-						autoComplete="username"
-						fullWidth
-						label={Language.usernameLabel}
-					/>
-					<TextField
-						{...getFieldHelpers("name")}
-						autoComplete="name"
-						fullWidth
-						label={Language.nameLabel}
-					/>
+					{authMethods?.github.enabled && (
+						<>
+							<Button
+								fullWidth
+								component="a"
+								href="/api/v2/users/oauth2/github/callback"
+								variant="contained"
+								startIcon={<GitHubIcon css={iconStyles} />}
+								type="submit"
+								size="xlarge"
+							>
+								{Language.githubCreate}
+							</Button>
+							<div className="flex items-center gap-4">
+								<div className="h-[1px] w-full bg-border" />
+								<div className="shrink-0 text-xs uppercase text-content-secondary tracking-wider">
+									or
+								</div>
+								<div className="h-[1px] w-full bg-border" />
+							</div>
+						</>
+					)}
 					<TextField
 						{...getFieldHelpers("email")}
-						onChange={onChangeTrimmed(form)}
+						onChange={(event) => {
+							const email = event.target.value;
+							const username = usernameFromEmail(email);
+							form.setFieldValue("username", username);
+							onChangeTrimmed(form)(event as ChangeEvent<HTMLInputElement>);
+						}}
 						autoComplete="email"
 						fullWidth
 						label={Language.emailLabel}
@@ -345,9 +382,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						loading={isLoading}
 						type="submit"
 						data-testid="create"
-						size="large"
-						variant="contained"
-						color="primary"
+						size="xlarge"
 					>
 						{Language.create}
 					</LoadingButton>

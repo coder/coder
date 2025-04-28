@@ -5,18 +5,22 @@ import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
-import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
+import {
+	determineGroupDiff,
+	determineIdPSyncMappingDiff,
+} from "./AuditLogDiff/auditUtils";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors
@@ -59,6 +63,14 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		auditDiff = determineGroupDiff(auditLog.diff);
 	}
 
+	if (
+		auditLog.resource_type === "idp_sync_settings_organization" ||
+		auditLog.resource_type === "idp_sync_settings_group" ||
+		auditLog.resource_type === "idp_sync_settings_role"
+	) {
+		auditDiff = determineIdPSyncMappingDiff(auditLog.diff);
+	}
+
 	const toggle = () => {
 		if (shouldDisplayDiff) {
 			setIsDiffOpen((v) => !v);
@@ -90,10 +102,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						css={styles.auditLogHeaderInfo}
 					>
 						<Stack direction="row" alignItems="center" css={styles.fullWidth}>
-							<UserAvatar
-								username={auditLog.user?.username ?? "?"}
-								avatarURL={auditLog.user?.avatar_url}
-							/>
+							{/*
+							 * Session logs don't have an associated user to the log,
+							 * so when it happens we display a default icon to represent non user actions
+							 */}
+							{auditLog.user ? (
+								<Avatar
+									fallback={auditLog.user.username}
+									src={auditLog.user.avatar_url}
+								/>
+							) : (
+								<Avatar>
+									<NetworkIcon className="h-full w-full p-1" />
+								</Avatar>
+							)}
 
 							<Stack
 								alignItems="baseline"
@@ -117,6 +139,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 								</Stack>
 
 								<Stack direction="row" alignItems="center">
+									<StatusPill code={auditLog.status_code} />
+
 									{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 									{showOrgDetails ? (
@@ -158,6 +182,12 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
+													{auditLog.additional_fields?.reason && (
+														<div>
+															<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
+															<div>{auditLog.additional_fields?.reason}</div>
+														</div>
+													)}
 												</div>
 											}
 										>
@@ -192,13 +222,6 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 											)}
 										</Stack>
 									)}
-
-									<Pill
-										css={styles.httpStatusPill}
-										type={httpStatusColor(auditLog.status_code)}
-									>
-										{auditLog.status_code.toString()}
-									</Pill>
 								</Stack>
 							</Stack>
 						</Stack>
@@ -207,7 +230,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 					{shouldDisplayDiff ? (
 						<div> {<DropdownArrow close={isDiffOpen} />}</div>
 					) : (
-						<div css={styles.columnWithoutDiff}></div>
+						<div css={styles.columnWithoutDiff} />
 					)}
 				</Stack>
 
@@ -220,6 +243,19 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		</TimelineEntry>
 	);
 };
+
+function StatusPill({ code }: { code: number }) {
+	const isHttp = code >= 100;
+
+	return (
+		<Pill
+			css={styles.statusCodePill}
+			type={isHttp ? httpStatusColor(code) : code === 0 ? "success" : "error"}
+		>
+			{code.toString()}
+		</Pill>
+	);
+}
 
 const styles = {
 	auditLogCell: {
@@ -276,7 +312,7 @@ const styles = {
 		width: "100%",
 	},
 
-	httpStatusPill: {
+	statusCodePill: {
 		fontSize: 10,
 		height: 20,
 		paddingLeft: 10,

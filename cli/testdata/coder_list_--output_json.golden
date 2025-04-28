@@ -1,62 +1,81 @@
 [
   {
-    "id": "[workspace ID]",
-    "created_at": "[timestamp]",
-    "updated_at": "[timestamp]",
-    "owner_id": "[first user ID]",
+    "id": "===========[workspace ID]===========",
+    "created_at": "====[timestamp]=====",
+    "updated_at": "====[timestamp]=====",
+    "owner_id": "==========[first user ID]===========",
     "owner_name": "testuser",
     "owner_avatar_url": "",
-    "organization_id": "[first org ID]",
+    "organization_id": "===========[first org ID]===========",
     "organization_name": "coder",
-    "template_id": "[template ID]",
+    "template_id": "===========[template ID]============",
     "template_name": "test-template",
     "template_display_name": "",
     "template_icon": "",
     "template_allow_user_cancel_workspace_jobs": false,
-    "template_active_version_id": "[version ID]",
+    "template_active_version_id": "============[version ID]============",
     "template_require_active_version": false,
     "latest_build": {
-      "id": "[workspace build ID]",
-      "created_at": "[timestamp]",
-      "updated_at": "[timestamp]",
-      "workspace_id": "[workspace ID]",
+      "id": "========[workspace build ID]========",
+      "created_at": "====[timestamp]=====",
+      "updated_at": "====[timestamp]=====",
+      "workspace_id": "===========[workspace ID]===========",
       "workspace_name": "test-workspace",
-      "workspace_owner_id": "[first user ID]",
+      "workspace_owner_id": "==========[first user ID]===========",
       "workspace_owner_name": "testuser",
       "workspace_owner_avatar_url": "",
-      "template_version_id": "[version ID]",
-      "template_version_name": "[version name]",
+      "template_version_id": "============[version ID]============",
+      "template_version_name": "===========[version name]===========",
       "build_number": 1,
       "transition": "start",
-      "initiator_id": "[first user ID]",
+      "initiator_id": "==========[first user ID]===========",
       "initiator_name": "testuser",
       "job": {
-        "id": "[workspace build job ID]",
-        "created_at": "[timestamp]",
-        "started_at": "[timestamp]",
-        "completed_at": "[timestamp]",
+        "id": "======[workspace build job ID]======",
+        "created_at": "====[timestamp]=====",
+        "started_at": "====[timestamp]=====",
+        "completed_at": "====[timestamp]=====",
         "status": "succeeded",
-        "worker_id": "[workspace build worker ID]",
-        "file_id": "[workspace build file ID]",
+        "worker_id": "====[workspace build worker ID]=====",
+        "file_id": "=====[workspace build file ID]======",
         "tags": {
           "owner": "",
           "scope": "organization"
         },
         "queue_position": 0,
-        "queue_size": 0
+        "queue_size": 0,
+        "organization_id": "===========[first org ID]===========",
+        "input": {
+          "workspace_build_id": "========[workspace build ID]========"
+        },
+        "type": "workspace_build",
+        "metadata": {
+          "template_version_name": "",
+          "template_id": "00000000-0000-0000-0000-000000000000",
+          "template_name": "",
+          "template_display_name": "",
+          "template_icon": ""
+        }
       },
       "reason": "initiator",
       "resources": [],
-      "deadline": "[timestamp]",
+      "deadline": "====[timestamp]=====",
       "max_deadline": null,
       "status": "running",
-      "daily_cost": 0
+      "daily_cost": 0,
+      "matched_provisioners": {
+        "count": 0,
+        "available": 0,
+        "most_recently_seen": null
+      },
+      "template_version_preset_id": null
     },
+    "latest_app_status": null,
     "outdated": false,
     "name": "test-workspace",
     "autostart_schedule": "CRON_TZ=US/Central 30 9 * * 1-5",
     "ttl_ms": 28800000,
-    "last_used_at": "[timestamp]",
+    "last_used_at": "====[timestamp]=====",
     "deleting_at": null,
     "dormant_at": null,
     "health": {
@@ -65,6 +84,7 @@
     },
     "automatic_updates": "never",
     "allow_renames": false,
-    "favorite": false
+    "favorite": false,
+    "next_start_at": "====[timestamp]====="
   }
 ]

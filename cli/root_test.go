@@ -10,12 +10,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,22 @@ func TestCommandHelp(t *testing.T) {
 		clitest.CommandHelpCase{
 			Name: "coder users list",
 			Cmd:  []string{"users", "list"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner list",
+			Cmd:  []string{"provisioner", "list"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner list --output json",
+			Cmd:  []string{"provisioner", "list", "--output", "json"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner jobs list",
+			Cmd:  []string{"provisioner", "jobs", "list"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner jobs list --output json",
+			Cmd:  []string{"provisioner", "jobs", "list", "--output", "json"},
 		},
 	))
 }

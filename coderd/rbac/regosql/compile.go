@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
@@ -78,6 +78,7 @@ func convertQuery(cfg ConvertConfig, q ast.Body) (sqltypes.BooleanNode, error) {
 
 func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, error) {
 	if e.IsCall() {
+		//nolint:forcetypeassert
 		n, err := convertCall(cfg, e.Terms.([]*ast.Term))
 		if err != nil {
 			return nil, xerrors.Errorf("call: %w", err)

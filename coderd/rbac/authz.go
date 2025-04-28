@@ -6,13 +6,14 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ammario/tlru"
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
@@ -57,6 +58,23 @@ func hashAuthorizeCall(actor Subject, action policy.Action, object Object) [32]b
 	return hashOut
 }
 
+// SubjectType represents the type of subject in the RBAC system.
+type SubjectType string
+
+const (
+	SubjectTypeUser                         SubjectType = "user"
+	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
+	SubjectTypeAutostart                    SubjectType = "autostart"
+	SubjectTypeHangDetector                 SubjectType = "hang_detector"
+	SubjectTypeResourceMonitor              SubjectType = "resource_monitor"
+	SubjectTypeCryptoKeyRotator             SubjectType = "crypto_key_rotator"
+	SubjectTypeCryptoKeyReader              SubjectType = "crypto_key_reader"
+	SubjectTypePrebuildsOrchestrator        SubjectType = "prebuilds_orchestrator"
+	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
+	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
+	SubjectTypeNotifier                     SubjectType = "notifier"
+)
+
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
@@ -65,6 +83,14 @@ type Subject struct {
 	// It is usually the "username" of the user, but it can be the name of the
 	// external workspace proxy or other service type actor.
 	FriendlyName string
+
+	// Email is entirely optional and is used for logging and debugging
+	// It is not used in any functional way.
+	Email string
+
+	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
+	// It is not used in any functional way, only for logging.
+	Type SubjectType
 
 	ID     string
 	Roles  ExpandableRoles
@@ -362,11 +388,11 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 	defer span.End()
 
 	err := a.authorize(ctx, subject, action, object)
-
-	span.SetAttributes(attribute.Bool("authorized", err == nil))
+	authorized := err == nil
+	span.SetAttributes(attribute.Bool("authorized", authorized))
 
 	dur := time.Since(start)
-	if err != nil {
+	if !authorized {
 		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
 		return err
 	}
@@ -740,4 +766,113 @@ func rbacTraceAttributes(actor Subject, action policy.Action, objectType string,
 			attribute.String("action", string(action)),
 			attribute.String("object_type", objectType),
 		)...)
+}
+
+type authRecorder struct {
+	authz Authorizer
+}
+
+// Recorder returns an Authorizer that records any authorization checks made
+// on the Context provided for the authorization check.
+//
+// Requires using the RecordAuthzChecks middleware.
+func Recorder(authz Authorizer) Authorizer {
+	return &authRecorder{authz: authz}
+}
+
+func (c *authRecorder) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
+	err := c.authz.Authorize(ctx, subject, action, object)
+	authorized := err == nil
+	recordAuthzCheck(ctx, action, object, authorized)
+	return err
+}
+
+func (c *authRecorder) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
+	return c.authz.Prepare(ctx, subject, action, objectType)
+}
+
+type authzCheckRecorderKey struct{}
+
+type AuthzCheckRecorder struct {
+	// lock guards checks
+	lock sync.Mutex
+	// checks is a list preformatted authz check IDs and their result
+	checks []recordedCheck
+}
+
+type recordedCheck struct {
+	name string
+	// true => authorized, false => not authorized
+	result bool
+}
+
+func WithAuthzCheckRecorder(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authzCheckRecorderKey{}, &AuthzCheckRecorder{})
+}
+
+func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, authorized bool) {
+	r, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return
+	}
+
+	// We serialize the check using the following syntax
+	var b strings.Builder
+	if object.OrgID != "" {
+		_, err := fmt.Fprintf(&b, "organization:%v::", object.OrgID)
+		if err != nil {
+			return
+		}
+	}
+	if object.AnyOrgOwner {
+		_, err := fmt.Fprint(&b, "organization:any::")
+		if err != nil {
+			return
+		}
+	}
+	if object.Owner != "" {
+		_, err := fmt.Fprintf(&b, "owner:%v::", object.Owner)
+		if err != nil {
+			return
+		}
+	}
+	if object.ID != "" {
+		_, err := fmt.Fprintf(&b, "id:%v::", object.ID)
+		if err != nil {
+			return
+		}
+	}
+	_, err := fmt.Fprintf(&b, "%v.%v", object.RBACObject().Type, action)
+	if err != nil {
+		return
+	}
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.checks = append(r.checks, recordedCheck{name: b.String(), result: authorized})
+}
+
+func GetAuthzCheckRecorder(ctx context.Context) (*AuthzCheckRecorder, bool) {
+	checks, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return nil, false
+	}
+
+	return checks, true
+}
+
+// String serializes all of the checks recorded, using the following syntax:
+func (r *AuthzCheckRecorder) String() string {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if len(r.checks) == 0 {
+		return "nil"
+	}
+
+	checks := make([]string, 0, len(r.checks))
+	for _, check := range r.checks {
+		checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
+	}
+	return strings.Join(checks, "; ")
 }

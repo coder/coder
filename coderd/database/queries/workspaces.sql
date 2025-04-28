@@ -368,6 +368,7 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- deleting_at
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
+		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- organization_name
@@ -414,13 +415,11 @@ WHERE
 ORDER BY created_at DESC;
 
 -- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
-SELECT
-	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
-FROM
-	workspaces
-WHERE
-	template_id = ANY(@template_ids :: uuid[]) AND deleted = false
-GROUP BY template_id;
+SELECT templates.id AS template_id, COUNT(DISTINCT workspaces.owner_id) AS unique_owners_sum
+FROM templates
+LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.deleted = false
+WHERE templates.id = ANY(@template_ids :: uuid[])
+GROUP BY templates.id;
 
 -- name: InsertWorkspace :one
 INSERT INTO
@@ -435,10 +434,11 @@ INSERT INTO
 		autostart_schedule,
 		ttl,
 		last_used_at,
-		automatic_updates
+		automatic_updates,
+		next_start_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
@@ -462,9 +462,34 @@ RETURNING *;
 UPDATE
 	workspaces
 SET
-	autostart_schedule = $2
+	autostart_schedule = $2,
+	next_start_at = $3
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceNextStartAt :exec
+UPDATE
+	workspaces
+SET
+	next_start_at = $2
+WHERE
+	id = $1;
+
+-- name: BatchUpdateWorkspaceNextStartAt :exec
+UPDATE
+	workspaces
+SET
+	next_start_at = CASE
+		WHEN batch.next_start_at = '0001-01-01 00:00:00+00'::timestamptz THEN NULL
+		ELSE batch.next_start_at
+	END
+FROM (
+	SELECT
+		unnest(sqlc.arg(ids)::uuid[]) AS id,
+		unnest(sqlc.arg(next_start_ats)::timestamptz[]) AS next_start_at
+) AS batch
+WHERE
+	workspaces.id = batch.id;
 
 -- name: UpdateWorkspaceTTL :exec
 UPDATE
@@ -473,6 +498,14 @@ SET
 	ttl = $2
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspacesTTLByTemplateID :exec
+UPDATE
+		workspaces
+SET
+		ttl = $2
+WHERE
+		template_id = $1;
 
 -- name: UpdateWorkspaceLastUsedAt :exec
 UPDATE
@@ -600,12 +633,25 @@ WHERE
 		--   * The workspace's owner is active.
 		--   * The provisioner job did not fail.
 		--   * The workspace build was a stop transition.
+		--   * The workspace is not dormant
 		--   * The workspace has an autostart schedule.
+		--   * It is after the workspace's next start time.
 		(
 			users.status = 'active'::user_status AND
 			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
 			workspace_builds.transition = 'stop'::workspace_transition AND
-			workspaces.autostart_schedule IS NOT NULL
+			workspaces.dormant_at IS NULL AND
+			workspaces.autostart_schedule IS NOT NULL AND
+			(
+				-- next_start_at might be null in these two scenarios:
+				--   * A coder instance was updated and we haven't updated next_start_at yet.
+				--   * A database trigger made it null because of an update to a related column.
+				--
+				-- When this occurs, we return the workspace so the Coder server can
+				-- compute a valid next start at and update it.
+				workspaces.next_start_at IS NULL OR
+				workspaces.next_start_at <= @now :: timestamptz
+			)
 		) OR
 
 		-- A workspace may be eligible for dormant stop if the following are true:
@@ -761,3 +807,6 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;
+
+-- name: GetWorkspacesByTemplateID :many
+SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;

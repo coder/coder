@@ -171,11 +171,13 @@ func Untar(directory string, r io.Reader) error {
 				}
 			}
 		case tar.TypeReg:
+			// #nosec G115 - Safe conversion as tar header mode fits within uint32
 			err := os.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100)
 			if err != nil {
 				return err
 			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			// #nosec G115 - Safe conversion as tar header mode fits within uint32
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}

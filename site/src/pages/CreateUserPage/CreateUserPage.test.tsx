@@ -4,12 +4,14 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { Language as FormLanguage } from "./CreateUserForm";
 import { CreateUserPage } from "./CreateUserPage";
+import { Language as FormLanguage } from "./Language";
 
 const renderCreateUserPage = async () => {
 	renderWithAuth(<CreateUserPage />, {
-		extraRoutes: [{ path: "/users", element: <div>Users Page</div> }],
+		extraRoutes: [
+			{ path: "/deployment/users", element: <div>Users Page</div> },
+		],
 	});
 	await waitForLoaderToBeRemoved();
 };
@@ -35,7 +37,7 @@ const fillForm = async ({
 	await userEvent.type(loginTypeField, "password");
 	await userEvent.type(passwordField as HTMLElement, password);
 	const submitButton = screen.getByRole("button", {
-		name: "Create user",
+		name: /save/i,
 	});
 	fireEvent.click(submitButton);
 };

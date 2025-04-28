@@ -4,25 +4,25 @@
   <span style="vertical-align:middle;">Author: </span>
   <a href="https://github.com/Emyrk" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
     <span style="vertical-align:middle;">Steven Masley</span>
-    <img src="https://avatars.githubusercontent.com/u/5446298?v=4" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://avatars.githubusercontent.com/u/5446298?v=4" alt="Steven Masley" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 December 13, 2023
 
 ---
 
-> Okta is an identity provider that can be used for OpenID Connect (OIDC) Single
-> Sign On (SSO) on Coder.
+Okta is an identity provider that can be used for OpenID Connect (OIDC) Single
+Sign On (SSO) on Coder.
 
 To configure custom claims in Okta to support syncing roles and groups with
 Coder, you must first have setup an Okta application with
-[OIDC working with Coder](https://coder.com/docs/admin/auth#openid-connect).
+[OIDC working with Coder](../admin/users/oidc-auth.md).
 From here, we will add additional claims for Coder to use for syncing groups and
 roles.
 
 You may use a hybrid of the following approaches.
 
-# (Easiest) Sync using Okta Groups
+## (Easiest) Sync using Okta Groups
 
 If the Coder roles & Coder groups can be inferred from
 [Okta groups](https://help.okta.com/en-us/content/topics/users-groups-profiles/usgp-about-groups.htm),
@@ -37,10 +37,10 @@ In the “OpenID Connect ID Token” section, turn on “Groups Claim Type” an
 the “Claim name” to `groups`. Optionally configure a filter for which groups to
 be sent.
 
-> !! If the user does not belong to any groups, the claim will not be sent. Make
-> sure the user authenticating for testing is in at least 1 group. Defer to
-> [troubleshooting](https://coder.com/docs/admin/auth#troubleshooting) with
-> issues
+> [!IMPORTANT]
+> If the user does not belong to any groups, the claim will not be sent. Make
+> sure the user authenticating for testing is in at least one group. Defer to
+> [troubleshooting](../admin/users/index.md) with issues.
 
 ![Okta OpenID Connect ID Token](../images/guides/okta/oidc_id_token.png)
 
@@ -67,7 +67,7 @@ CODER_OIDC_USER_ROLE_FIELD=groups
 CODER_OIDC_USER_ROLE_MAPPING='{"admin-group":["template-admin","user-admin"]}'
 ```
 
-# (Easy) Mapping Okta profile attributes
+## (Easy) Mapping Okta profile attributes
 
 If roles or groups cannot be completely inferred from Okta group memberships,
 another option is to source them from a user’s attributes. The user attribute
@@ -105,7 +105,7 @@ CODER_OIDC_USER_ROLE_MAPPING='{"admin-group":["template-admin","user-admin"]}'
 # CODER_OIDC_GROUP_FIELD=...
 ```
 
-# (Advanced) Custom scopes to retrieve custom claims
+## (Advanced) Custom scopes to retrieve custom claims
 
 Okta does not support setting custom scopes and claims in the default
 authorization server used by your application. If you require this

@@ -1,5 +1,5 @@
-import Button from "@mui/material/Button";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import type { FC } from "react";
 
 export interface WorkspaceDeletedBannerProps {
@@ -10,7 +10,7 @@ export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
 	handleClick,
 }) => {
 	const NewWorkspaceButton = (
-		<Button onClick={handleClick} size="small" variant="text">
+		<Button onClick={handleClick} size="sm" variant="subtle">
 			Create new workspace
 		</Button>
 	);

@@ -64,7 +64,7 @@ $task = @{
 	Action = (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-sta -ExecutionPolicy Unrestricted -Command "C:\AzureData\CoderAgent.ps1 *>>  C:\AzureData\CoderAgent.log"')
 	Trigger = (New-ScheduledTaskTrigger -AtStartup), (New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15))
 	Settings = (New-ScheduledTaskSettingsSet -DontStopOnIdleEnd -ExecutionTimeLimit ([TimeSpan]::FromDays(3650)) -Compatibility Win8)
-	Principal = (New-ScheduledTaskPrincipal -UserId 'vm\coder' -RunLevel Highest -LogonType S4U)
+	Principal = (New-ScheduledTaskPrincipal -UserId "$env:COMPUTERNAME\$env:USERNAME" -RunLevel Highest -LogonType S4U)
 }
 Register-ScheduledTask @task -Force
 

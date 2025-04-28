@@ -3,84 +3,96 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
-## Enable experiment
-
-In order to activate the notifications feature on Coder v2.15.X, you'll need to
-enable the `notifications` experiment. Notifications are enabled by default
-starting in v2.16.0.
-
-```bash
-# Using the CLI flag
-$ coder server --experiments=notifications
-
-# Alternatively, using the `CODER_EXPERIMENTS` environment variable
-$ CODER_EXPERIMENTS=notifications coder server
-```
-
-More information on experiments can be found
-[here](https://coder.com/docs/contributing/feature-stages#experimental-features).
+Available events may differ between versions.
+For a list of all events, visit your Coder deployment's
+`https://coder.example.com/deployment/notifications`.
 
 ## Event Types
 
 Notifications are sent in response to internal events, to alert the affected
-user(s) of this event. Currently we support the following list of events:
+user(s) of the event.
 
-### Workspace Events
-
-_These notifications are sent to the workspace owner._
-
-- Workspace Deleted
-- Workspace Manual Build Failure
-- Workspace Automatic Build Failure
-- Workspace Automatically Updated
-- Workspace Dormant
-- Workspace Marked For Deletion
-
-### User Events
-
-_These notifications are sent to users with **owner** and **user admin** roles._
-
-- User Account Created
-- User Account Deleted
-- User Account Suspended
-- User Account Activated
-- _(coming soon) User Password Reset_
-- _(coming soon) User Email Verification_
-
-_These notifications are sent to the user themselves._
-
-- User Account Suspended
-- User Account Activated
+Coder supports the following list of events:
 
 ### Template Events
 
-_These notifications are sent to users with **template admin** roles._
+These notifications are sent to users with **template admin** roles:
 
-- Template Deleted
+- Report: Workspace builds failed for template
+  - This notification is delivered as part of a weekly cron job and summarizes
+    the failed builds for a given template.
+- Template deleted
+- Template deprecated
 
-## Configuration
+### User Events
 
-You can modify the notification delivery behavior using the following server
-flags.
+These notifications are sent to users with **owner** and **user admin** roles:
 
-| Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
-| :------: | ----------------------------------- | --------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
-|    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
-|    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
-|    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+- User account activated
+- User account created
+- User account deleted
+- User account suspended
+
+These notifications are sent to users themselves:
+
+- User account suspended
+- User account activated
+- User password reset (One-time passcode)
+
+### Workspace Events
+
+These notifications are sent to the workspace owner:
+
+- Workspace automatic build failure
+- Workspace created
+- Workspace deleted
+- Workspace manual build failure
+- Workspace manually updated
+- Workspace marked as dormant
+- Workspace marked for deletion
+- Out of memory (OOM) / Out of disk (OOD)
+  - Template admins can [configure OOM/OOD](#configure-oomood-notifications) notifications in the template `main.tf`.
+- Workspace automatically updated
 
 ## Delivery Methods
 
-Notifications can currently be delivered by either SMTP or webhook. Each message
-can only be delivered to one method, and this method is configured globally with
+Notifications can be delivered through the Coder dashboard Inbox and by SMTP or webhook.
+OOM/OOD notifications can be delivered to users in VS Code.
+
+You can configure:
+
+- SMTP or webhooks globally with
 [`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
-(default: `smtp`). When there are no delivery methods configured, notifications
-will be disabled.
+(default: `smtp`).
+- Coder dashboard Inbox with
+[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server.md#--notifications-inbox-enabled)
+(default: `true`).
 
 Premium customers can configure which method to use for each of the supported
-[Events](#workspace-events); see the
-[Preferences](#delivery-preferences-enterprise-premium) section below for more
-details.
+[Events](#workspace-events).
+See the [Preferences](#delivery-preferences) section for more details.
+
+## Configuration
+
+You can modify the notification delivery behavior in your Coder deployment's
+`https://coder.example.com/settings/notifications`, or with the following server flags:
+
+| Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
+|:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
+|    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
+|    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
+|    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+|    -️    | `--notifications-inbox-enabled`     | `CODER_NOTIFICATIONS_INBOX_ENABLED`     | `bool`     | Enable or disable inbox notifications in the Coder dashboard.                                                         | true    |
+
+### Configure OOM/OOD notifications
+
+You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
+when they overutilize memory and disk.
+
+This can help prevent agent disconnects due to OOM/OOD issues.
+
+To enable OOM/OOD notifications on a template, follow the steps in the
+[resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
 
 ## SMTP (Email)
 
@@ -90,16 +102,16 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                 | Env                     | Type     | Description                               | Default   |
-| :------: | ------------------- | ----------------------- | -------- | ----------------------------------------- | --------- |
-|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |
-|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server. | localhost |
+| Required | CLI                 | Env                     | Type     | Description                                               | Default   |
+|:--------:|---------------------|-------------------------|----------|-----------------------------------------------------------|-----------|
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.                              |           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`) |           |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                 | localhost |
 
 **Authentication Settings:**
 
 | Required | CLI                          | Env                              | Type     | Description                                                               |
-| :------: | ---------------------------- | -------------------------------- | -------- | ------------------------------------------------------------------------- |
+|:--------:|------------------------------|----------------------------------|----------|---------------------------------------------------------------------------|
 |    -     | `--email-auth-username`      | `CODER_EMAIL_AUTH_USERNAME`      | `string` | Username to use with PLAIN/LOGIN authentication.                          |
 |    -     | `--email-auth-password`      | `CODER_EMAIL_AUTH_PASSWORD`      | `string` | Password to use with PLAIN/LOGIN authentication.                          |
 |    -     | `--email-auth-password-file` | `CODER_EMAIL_AUTH_PASSWORD_FILE` | `string` | File from which to load password for use with PLAIN/LOGIN authentication. |
@@ -107,14 +119,14 @@ existing one.
 
 **TLS Settings:**
 
-| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                      | Default |
-| :------: | --------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See https://datatracker.ietf.org/doc/html/rfc8314#section-3.3. | false   |
-|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                         | false   |
-|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                             | false   |
-|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                            |         |
-|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                         |         |
-|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                     |         |
+| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                        | Default |
+|:--------:|-----------------------------|-------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See <https://datatracker.ietf.org/doc/html/rfc8314#section-3.3>. | false   |
+|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_EMAIL_FORCE_TLS` is set.                                                         | false   |
+|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                               | false   |
+|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                              |         |
+|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                           |         |
+|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                       |         |
 
 **NOTE:** you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS
 on a port other than `465`.
@@ -124,9 +136,11 @@ on a port other than `465`.
 After setting the required fields above:
 
 1. Create an [App Password](https://myaccount.google.com/apppasswords) using the
-   account you wish to send from
-2. Set the following configuration options:
-   ```
+   account you wish to send from.
+
+1. Set the following configuration options:
+
+   ```text
    CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
    CODER_EMAIL_AUTH_PASSWORD="<app password created above>"
@@ -140,9 +154,10 @@ for more options.
 
 After setting the required fields above:
 
-1. Setup an account on Microsoft 365 or outlook.com
-2. Set the following configuration options:
-   ```
+1. Set up an account on Microsoft 365 or outlook.com
+1. Set the following configuration options:
+
+   ```text
    CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
    CODER_EMAIL_TLS_STARTTLS=true
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
@@ -162,40 +177,40 @@ systems.
 **Settings**:
 
 | Required | CLI                                | Env                                    | Type  | Description                             |
-| :------: | ---------------------------------- | -------------------------------------- | ----- | --------------------------------------- |
+|:--------:|------------------------------------|----------------------------------------|-------|-----------------------------------------|
 |    ✔️    | `--notifications-webhook-endpoint` | `CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT` | `url` | The endpoint to which to send webhooks. |
 
 Here is an example payload for Coder's webhook notification:
 
 ```json
 {
-	"_version": "1.0",
-	"msg_id": "88750cad-77d4-4663-8bc0-f46855f5019b",
-	"payload": {
-		"_version": "1.0",
-		"notification_name": "Workspace Deleted",
-		"user_id": "4ac34fcb-8155-44d5-8301-e3cd46e88b35",
-		"user_email": "danny@coder.com",
-		"user_name": "danny",
-		"user_username": "danny",
-		"actions": [
-			{
-				"label": "View workspaces",
-				"url": "https://et23ntkhpueak.pit-1.try.coder.app/workspaces"
-			},
-			{
-				"label": "View templates",
-				"url": "https://et23ntkhpueak.pit-1.try.coder.app/templates"
-			}
-		],
-		"labels": {
-			"initiator": "danny",
-			"name": "my-workspace",
-			"reason": "initiated by user"
-		}
-	},
-	"title": "Workspace \"my-workspace\" deleted",
-	"body": "Hi danny\n\nYour workspace my-workspace was deleted.\nThe specified reason was \"initiated by user (danny)\"."
+    "_version": "1.0",
+    "msg_id": "88750cad-77d4-4663-8bc0-f46855f5019b",
+    "payload": {
+        "_version": "1.0",
+        "notification_name": "Workspace Deleted",
+        "user_id": "4ac34fcb-8155-44d5-8301-e3cd46e88b35",
+        "user_email": "danny@coder.com",
+        "user_name": "danny",
+        "user_username": "danny",
+        "actions": [
+            {
+                "label": "View workspaces",
+                "url": "https://et23ntkhpueak.pit-1.try.coder.app/workspaces"
+            },
+            {
+                "label": "View templates",
+                "url": "https://et23ntkhpueak.pit-1.try.coder.app/templates"
+            }
+        ],
+        "labels": {
+            "initiator": "danny",
+            "name": "my-workspace",
+            "reason": "initiated by user"
+        }
+    },
+    "title": "Workspace \"my-workspace\" deleted",
+    "body": "Hi danny\n\nYour workspace my-workspace was deleted.\nThe specified reason was \"initiated by user (danny)\"."
 }
 ```
 
@@ -232,7 +247,11 @@ notification is indicated on the right hand side of this table.
 
 ![User Notification Preferences](../../../images/admin/monitoring/notifications/user-notification-preferences.png)
 
-## Delivery Preferences (enterprise) (premium)
+## Delivery Preferences
+
+> [!NOTE]
+> Delivery preferences is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Administrators can configure which delivery methods are used for each different
 [event type](#event-types).
@@ -258,12 +277,17 @@ To resume sending notifications, execute
 If notifications are not being delivered, use the following methods to
 troubleshoot:
 
-1. Ensure notifications are being added to the `notification_messages` table
-2. Review any error messages in the `status_reason` column, should an error have
-   occurred
-3. Review the logs (search for the term `notifications`) for diagnostic
-   information<br> _If you do not see any relevant logs, set
-   `CODER_VERBOSE=true` or `--verbose` to output debug logs_
+1. Ensure notifications are being added to the `notification_messages` table.
+1. Review any available error messages in the `status_reason` column
+1. Review the logs. Search for the term `notifications` for diagnostic information.
+
+   - If you do not see any relevant logs, set
+    `CODER_VERBOSE=true` or `--verbose` to output debug logs.
+1. If you are on version 2.15.x, notifications must be enabled using the
+    `notifications`
+    [experiment](../../../install/releases/feature-stages.md#early-access-features).
+
+    Notifications are enabled by default in Coder v2.16.0 and later.
 
 ## Internals
 
@@ -274,7 +298,7 @@ concurrency.
 
 All messages are stored in the `notification_messages` table.
 
-Messages older than 7 days are deleted.
+Messages older than seven days are deleted.
 
 ### Message States
 

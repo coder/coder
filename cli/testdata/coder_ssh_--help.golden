@@ -23,12 +23,23 @@ OPTIONS:
           locally and will not be started for you. If a GPG agent is already
           running in the workspace, it will be attempted to be killed.
 
+      --hostname-suffix string, $CODER_SSH_HOSTNAME_SUFFIX
+          Strip this suffix from the provided hostname to determine the
+          workspace name. This is useful when used as part of an OpenSSH proxy
+          command. The suffix must be specified without a leading . character.
+
       --identity-agent string, $CODER_SSH_IDENTITY_AGENT
           Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),
           forward agent must also be enabled.
 
   -l, --log-dir string, $CODER_SSH_LOG_DIR
           Specify the directory containing SSH diagnostic log files.
+
+      --network-info-dir string
+          Specifies a directory to write network information periodically.
+
+      --network-info-interval duration (default: 5s)
+          Specifies the interval to update network information.
 
       --no-wait bool, $CODER_SSH_NO_WAIT
           Enter workspace immediately after the agent has connected. This is the
@@ -38,6 +49,11 @@ OPTIONS:
 
   -R, --remote-forward string-array, $CODER_SSH_REMOTE_FORWARD
           Enable remote port forwarding (remote_port:local_address:local_port).
+
+      --ssh-host-prefix string, $CODER_SSH_SSH_HOST_PREFIX
+          Strip this prefix from the provided hostname to determine the
+          workspace name. This is useful when used as part of an OpenSSH proxy
+          command.
 
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.

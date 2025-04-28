@@ -10,8 +10,7 @@ full list of the options, run `coder server --help` or see our
 external URL that users and workspaces use to connect to Coder (e.g.
 <https://coder.example.com>). This should not be localhost.
 
-> Access URL should be an external IP address or domain with DNS records
-> pointing to Coder.
+Access URL should be an external IP address or domain with DNS records pointing to Coder.
 
 ### Tunnel
 
@@ -44,10 +43,16 @@ coder server
 or running [coder_apps](../templates/index.md) on an absolute path. Set this to
 a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
+> [!NOTE]
+> We do not recommend using a top-level-domain for Coder wildcard access
+> (for example `*.workspaces`), even on private networks with split-DNS. Some
+> browsers consider these "public" domains and will refuse Coder's cookies,
+> which are vital to the proper operation of this feature.
+
 If you are providing TLS certificates directly to the Coder server, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
-2. Configure multiple certificates and keys via
+1. Configure multiple certificates and keys via
    [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
    in the Helm Chart, or
    [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
@@ -73,29 +78,27 @@ working directory prior to step 1.
 
 1. Create the TLS secret in your Kubernetes cluster
 
-```shell
-kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
-```
+   ```shell
+   kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
+   ```
 
-> You can use a single certificate for the both the access URL and wildcard
-> access URL. The certificate CN must match the wildcard domain, such as
-> `*.example.coder.com`.
+   You can use a single certificate for the both the access URL and wildcard access URL. The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
 
 1. Reference the TLS secret in your Coder Helm chart values
 
-```yaml
-coder:
-  tls:
-    secretName:
-      - coder-tls
+   ```yaml
+   coder:
+     tls:
+         secretName:
+         - coder-tls
 
-  # Alternatively, if you use an Ingress controller to terminate TLS,
-  # set the following values:
-  ingress:
-    enable: true
-    secretName: coder-tls
-    wildcardSecretName: coder-tls
-```
+     # Alternatively, if you use an Ingress controller to terminate TLS,
+     # set the following values:
+     ingress:
+         enable: true
+         secretName: coder-tls
+         wildcardSecretName: coder-tls
+   ```
 
 ## PostgreSQL Database
 
@@ -104,6 +107,7 @@ deployment information. Use `CODER_PG_CONNECTION_URL` to set the database that
 Coder connects to. If unset, PostgreSQL binaries will be downloaded from Maven
 (<https://repo1.maven.org/maven2>) and store all data in the config root.
 
+> [!NOTE]
 > Postgres 13 is the minimum supported version.
 
 If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
@@ -111,7 +115,7 @@ the PostgreSQL interactive terminal), output the connection URL with the
 following command:
 
 ```console
-coder server postgres-builtin-url
+$ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
@@ -121,13 +125,13 @@ To migrate from the built-in database to an external database, follow these
 steps:
 
 1. Stop your Coder deployment.
-2. Run `coder server postgres-builtin-serve` in a background terminal.
-3. Run `coder server postgres-builtin-url` and copy its output command.
-4. Run `pg_dump <built-in-connection-string> > coder.sql` to dump the internal
+1. Run `coder server postgres-builtin-serve` in a background terminal.
+1. Run `coder server postgres-builtin-url` and copy its output command.
+1. Run `pg_dump <built-in-connection-string> > coder.sql` to dump the internal
    database to a file.
-5. Restore that content to an external database with
+1. Restore that content to an external database with
    `psql <external-connection-string> < coder.sql`.
-6. Start your Coder deployment with
+1. Start your Coder deployment with
    `CODER_PG_CONNECTION_URL=<external-connection-string>`.
 
 ## Configuring Coder behind a proxy
@@ -139,7 +143,7 @@ To configure Coder behind a corporate proxy, set the environment variables
 ## External Authentication
 
 Coder supports external authentication via OAuth2.0. This allows enabling
-integrations with git providers, such as GitHub, GitLab, and Bitbucket etc.
+integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
 
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
@@ -149,5 +153,5 @@ more information.
 
 ## Up Next
 
-- [Learn how to setup and manage templates](../templates/index.md)
-- [Setup external provisioners](../provisioners.md)
+- [Setup and manage templates](../templates/index.md)
+- [Setup external provisioners](../provisioners/index.md)

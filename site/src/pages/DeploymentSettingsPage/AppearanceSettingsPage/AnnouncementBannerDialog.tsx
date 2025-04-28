@@ -2,12 +2,13 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import type { BannerConfig } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { AnnouncementBannerView } from "modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
-import type { FC } from "react";
-import { BlockPicker } from "react-color";
+import { type FC, useState } from "react";
+import { SliderPicker, TwitterPicker } from "react-color";
 import { getFormHelpers } from "utils/formUtils";
 
 interface AnnouncementBannerDialogProps {
@@ -29,11 +30,13 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	}>({
 		initialValues: {
 			message: banner.message ?? "",
-			background_color: banner.background_color ?? "#004852",
+			background_color: banner.background_color ?? "#ABB8C3",
 		},
 		onSubmit: (banner) => onUpdate(banner),
 	});
 	const bannerFieldHelpers = getFormHelpers(bannerForm);
+
+	const [showHuePicker, setShowHuePicker] = useState(false);
 
 	return (
 		<Dialog css={styles.dialogWrapper} open onClose={onCancel}>
@@ -55,6 +58,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 								helperText: "Markdown bold, italics, and links are supported.",
 							})}
 							fullWidth
+							multiline
 							inputProps={{
 								"aria-label": "Message",
 								placeholder: "Enter a message for the banner",
@@ -63,29 +67,67 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 					</div>
 					<div>
 						<h4 css={styles.settingName}>Background color</h4>
-						<BlockPicker
-							color={bannerForm.values.background_color}
-							onChange={async (color) => {
-								await bannerForm.setFieldValue("background_color", color.hex);
-							}}
-							triangle="hide"
-							colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
-							styles={{
-								default: {
-									input: {
-										color: "white",
-										backgroundColor: theme.palette.background.default,
-									},
-									body: {
-										backgroundColor: "black",
-										color: "white",
-									},
-									card: {
-										backgroundColor: "black",
-									},
-								},
-							}}
-						/>
+						<Stack spacing={2}>
+							{showHuePicker ? (
+								<SliderPicker
+									color={bannerForm.values.background_color}
+									onChange={async (color) => {
+										await bannerForm.setFieldValue(
+											"background_color",
+											color.hex,
+										);
+									}}
+								/>
+							) : (
+								<TwitterPicker
+									color={bannerForm.values.background_color}
+									onChange={async (color) => {
+										await bannerForm.setFieldValue(
+											"background_color",
+											color.hex,
+										);
+									}}
+									triangle="hide"
+									colors={[
+										"#8b5cf6",
+										"#d94a5d",
+										"#f78da7",
+										"#d65d0f",
+										"#ff6900",
+										"#fcb900",
+										"#0693e3",
+
+										"#8ed1fc",
+										"#4cd473",
+										"#abb8c3",
+									]}
+									styles={{
+										default: {
+											input: {
+												color: "white",
+												backgroundColor: theme.palette.background.default,
+											},
+											body: {
+												backgroundColor: "transparent",
+												color: "white",
+												padding: 0,
+											},
+											card: {
+												backgroundColor: "transparent",
+											},
+										},
+									}}
+								/>
+							)}
+							<div>
+								<Button
+									variant="outline"
+									onClick={() => setShowHuePicker((it) => !it)}
+								>
+									Show {showHuePicker ? "palette" : "slider"}
+								</Button>
+							</div>
+						</Stack>
 					</div>
 				</Stack>
 			</div>

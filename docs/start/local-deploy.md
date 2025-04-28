@@ -1,4 +1,4 @@
-## Setting up a Coder deployment
+# Setting up a Coder deployment
 
 For day-zero Coder users, we recommend following this guide to set up a local
 Coder deployment from our
@@ -11,12 +11,11 @@ slim deployment to experiment with [workspaces](../user-guides/index.md) and
 Docker is not necessary for every Coder deployment and is only used here for
 simplicity.
 
-### Install Coder daemon
+## Install Coder daemon
 
 First, install [Docker](https://docs.docker.com/engine/install/) locally.
 
-> If you already have the Coder binary installed, restart it after installing
-> Docker.
+If you already have the Coder binary installed, restart it after installing Docker.
 
 <div class="tabs">
 
@@ -30,7 +29,8 @@ curl -L https://coder.com/install.sh | sh
 
 ## Windows
 
-> **Important:** If you plan to use the built-in PostgreSQL database, you will
+> [!IMPORTANT]
+> If you plan to use the built-in PostgreSQL database, you will
 > need to ensure that the
 > [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 > is installed.
@@ -45,7 +45,7 @@ winget install Coder.Coder
 
 </div>
 
-### Start the server
+## Start the server
 
 To start or restart the Coder deployment, use the following command:
 
@@ -61,6 +61,6 @@ administrator account.
 Once you've signed in, you'll be brought to an empty workspaces page, which
 we'll soon populate with your first development environments.
 
-### Next steps
+## Next steps
 
 TODO: Add link to next page.

@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/entitlements"
@@ -89,7 +90,8 @@ func TestOrganizationSync(t *testing.T) {
 			Name: "SingleOrgDeployment",
 			Case: func(t *testing.T, db database.Store) OrganizationSyncTestCase {
 				def, _ := db.GetDefaultOrganization(context.Background())
-				other := dbgen.Organization(t, db, database.Organization{})
+				other := dbfake.Organization(t, db).Do()
+				deleted := dbfake.Organization(t, db).Deleted(true).Do()
 				return OrganizationSyncTestCase{
 					Entitlements: entitled,
 					Settings: idpsync.DeploymentSyncSettings{
@@ -123,11 +125,19 @@ func TestOrganizationSync(t *testing.T) {
 								})
 								dbgen.OrganizationMember(t, db, database.OrganizationMember{
 									UserID:         user.ID,
-									OrganizationID: other.ID,
+									OrganizationID: other.Org.ID,
+								})
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: deleted.Org.ID,
 								})
 							},
 							Sync: ExpectedUser{
-								Organizations: []uuid.UUID{def.ID, other.ID},
+								Organizations: []uuid.UUID{
+									def.ID, other.Org.ID,
+									// The user remains in the deleted org because no idp sync happens.
+									deleted.Org.ID,
+								},
 							},
 						},
 					},
@@ -138,17 +148,19 @@ func TestOrganizationSync(t *testing.T) {
 			Name: "MultiOrgWithDefault",
 			Case: func(t *testing.T, db database.Store) OrganizationSyncTestCase {
 				def, _ := db.GetDefaultOrganization(context.Background())
-				one := dbgen.Organization(t, db, database.Organization{})
-				two := dbgen.Organization(t, db, database.Organization{})
-				three := dbgen.Organization(t, db, database.Organization{})
+				one := dbfake.Organization(t, db).Do()
+				two := dbfake.Organization(t, db).Do()
+				three := dbfake.Organization(t, db).Do()
+				deleted := dbfake.Organization(t, db).Deleted(true).Do()
 				return OrganizationSyncTestCase{
 					Entitlements: entitled,
 					Settings: idpsync.DeploymentSyncSettings{
 						OrganizationField: "organizations",
 						OrganizationMapping: map[string][]uuid.UUID{
-							"first":  {one.ID},
-							"second": {two.ID},
-							"third":  {three.ID},
+							"first":   {one.Org.ID},
+							"second":  {two.Org.ID},
+							"third":   {three.Org.ID},
+							"deleted": {deleted.Org.ID},
 						},
 						OrganizationAssignDefault: true,
 					},
@@ -167,7 +179,7 @@ func TestOrganizationSync(t *testing.T) {
 						{
 							Name: "AlreadyInOrgs",
 							Claims: jwt.MapClaims{
-								"organizations": []string{"second", "extra"},
+								"organizations": []string{"second", "extra", "deleted"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
 								SyncEntitled: true,
@@ -180,18 +192,18 @@ func TestOrganizationSync(t *testing.T) {
 								})
 								dbgen.OrganizationMember(t, db, database.OrganizationMember{
 									UserID:         user.ID,
-									OrganizationID: one.ID,
+									OrganizationID: one.Org.ID,
 								})
 							},
 							Sync: ExpectedUser{
-								Organizations: []uuid.UUID{def.ID, two.ID},
+								Organizations: []uuid.UUID{def.ID, two.Org.ID},
 							},
 						},
 						{
 							Name: "ManyClaims",
 							Claims: jwt.MapClaims{
 								// Add some repeats
-								"organizations": []string{"second", "extra", "first", "third", "second", "second"},
+								"organizations": []string{"second", "extra", "first", "third", "second", "second", "deleted"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
 								SyncEntitled: true,
@@ -204,11 +216,11 @@ func TestOrganizationSync(t *testing.T) {
 								})
 								dbgen.OrganizationMember(t, db, database.OrganizationMember{
 									UserID:         user.ID,
-									OrganizationID: one.ID,
+									OrganizationID: one.Org.ID,
 								})
 							},
 							Sync: ExpectedUser{
-								Organizations: []uuid.UUID{def.ID, one.ID, two.ID, three.ID},
+								Organizations: []uuid.UUID{def.ID, one.Org.ID, two.Org.ID, three.Org.ID},
 							},
 						},
 					},
@@ -300,7 +312,7 @@ func TestOrganizationSync(t *testing.T) {
 			// Create a new sync object
 			sync := enidpsync.NewSync(logger, runtimeconfig.NewManager(), caseData.Entitlements, caseData.Settings)
 			if caseData.RuntimeSettings != nil {
-				err := sync.UpdateOrganizationSettings(ctx, rdb, *caseData.RuntimeSettings)
+				err := sync.UpdateOrganizationSyncSettings(ctx, rdb, *caseData.RuntimeSettings)
 				require.NoError(t, err)
 			}
 

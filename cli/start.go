@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -16,6 +17,8 @@ func (r *RootCmd) start() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
 		bflags         buildFlags
+
+		noWait bool
 	)
 
 	client := new(codersdk.Client)
@@ -27,7 +30,15 @@ func (r *RootCmd) start() *serpent.Command {
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: serpent.OptionSet{cliui.SkipPromptOption()},
+		Options: serpent.OptionSet{
+			{
+				Flag:        "no-wait",
+				Description: "Return immediately after starting the workspace.",
+				Value:       serpent.BoolOf(&noWait),
+				Hidden:      false,
+			},
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -35,6 +46,23 @@ func (r *RootCmd) start() *serpent.Command {
 			}
 			var build codersdk.WorkspaceBuild
 			switch workspace.LatestBuild.Status {
+			case codersdk.WorkspaceStatusPending:
+				// The above check is technically duplicated in cliutil.WarnmatchedProvisioners
+				// but we still want to avoid users spamming multiple builds that will
+				// not be picked up.
+				_, _ = fmt.Fprintf(
+					inv.Stdout,
+					"\nThe %s workspace is waiting to start!\n",
+					cliui.Keyword(workspace.Name),
+				)
+				cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+				if _, err := cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Enqueue another start?",
+					IsConfirm: true,
+					Default:   cliui.ConfirmNo,
+				}); err != nil {
+					return err
+				}
 			case codersdk.WorkspaceStatusRunning:
 				_, _ = fmt.Fprintf(
 					inv.Stdout, "\nThe %s workspace is already running!\n",
@@ -60,6 +88,11 @@ func (r *RootCmd) start() *serpent.Command {
 				} else if err != nil {
 					return err
 				}
+			}
+
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout, "The %s workspace has been started in no-wait mode. Workspace is building in the background.\n", cliui.Keyword(workspace.Name))
+				return nil
 			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
@@ -159,6 +192,7 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
 	}
+	cliutil.WarnMatchedProvisioners(inv.Stderr, build.MatchedProvisioners, build.Job)
 
 	return build, nil
 }

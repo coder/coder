@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionsToCheck } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import { http, HttpResponse } from "msw";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
@@ -64,11 +64,11 @@ export const handlers = [
 			M.MockOrganizationAuditorRole,
 		]);
 	}),
-	http.get("/api/v2/organizations/:organizationId/members", () => {
-		return HttpResponse.json([
-			M.MockOrganizationMember,
-			M.MockOrganizationMember2,
-		]);
+	http.get("/api/v2/organizations/:organizationId/paginated-members", () => {
+		return HttpResponse.json({
+			members: [M.MockOrganizationMember, M.MockOrganizationMember2],
+			count: 2,
+		});
 	}),
 	http.delete(
 		"/api/v2/organizations/:organizationId/members/:userId",
@@ -162,6 +162,9 @@ export const handlers = [
 	http.get("/api/v2/users/me", () => {
 		return HttpResponse.json(M.MockUser);
 	}),
+	http.get("/api/v2/users/me/appearance", () => {
+		return HttpResponse.json(M.MockUserAppearanceSettings);
+	}),
 	http.get("/api/v2/users/me/keys", () => {
 		return HttpResponse.json(M.MockAPIKey);
 	}),
@@ -173,7 +176,7 @@ export const handlers = [
 	}),
 	http.post("/api/v2/authcheck", () => {
 		const permissions = [
-			...Object.keys(permissionsToCheck),
+			...Object.keys(permissionChecks),
 			"canUpdateTemplate",
 			"updateWorkspace",
 		];
@@ -370,9 +373,5 @@ export const handlers = [
 
 	http.get("/api/v2/workspaceagents/:agent/listening-ports", () => {
 		return HttpResponse.json(M.MockListeningPortsResponse);
-	}),
-
-	http.get("/api/v2/integrations/jfrog/xray-scan", () => {
-		return new HttpResponse(null, { status: 404 });
 	}),
 ];

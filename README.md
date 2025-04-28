@@ -1,9 +1,10 @@
+<!-- markdownlint-disable MD041 -->
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
-    <img src="./docs/images/logo-black.png" style="width: 128px">
+    <img src="./docs/images/logo-black.png" alt="Coder Logo Light" style="width: 128px">
   </a>
   <a href="https://coder.com#gh-dark-mode-only">
-    <img src="./docs/images/logo-white.png" style="width: 128px">
+    <img src="./docs/images/logo-white.png" alt="Coder Logo Dark" style="width: 128px">
   </a>
 
   <h1>
@@ -11,10 +12,10 @@
   </h1>
 
   <a href="https://coder.com#gh-light-mode-only">
-    <img src="./docs/images/banner-black.png" style="width: 650px">
+    <img src="./docs/images/banner-black.png" alt="Coder Banner Light" style="width: 650px">
   </a>
   <a href="https://coder.com#gh-dark-mode-only">
-    <img src="./docs/images/banner-white.png" style="width: 650px">
+    <img src="./docs/images/banner-white.png" alt="Coder Banner Dark" style="width: 650px">
   </a>
 
   <br>
@@ -40,14 +41,14 @@
 - Onboard developers in seconds instead of days
 
 <p align="center">
-  <img src="./docs/images/hero-image.png">
+  <img src="./docs/images/hero-image.png" alt="Coder Hero Image">
 </p>
 
 ## Quickstart
 
 The most convenient way to try Coder is to install it on your local machine and experiment with provisioning cloud development environments using Docker (works on Linux, macOS, and Windows).
 
-```
+```shell
 # First, install Coder
 curl -L https://coder.com/install.sh | sh
 
@@ -65,7 +66,7 @@ The easiest way to install Coder is to use our
 and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
 Releases.
 
-```bash
+```shell
 curl -L https://coder.com/install.sh | sh
 ```
 

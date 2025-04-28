@@ -143,10 +143,12 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		// get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
 		if isFailedRefresh(existingToken, err) {
-			dbExecErr := db.RemoveRefreshToken(ctx, database.RemoveRefreshTokenParams{
-				UpdatedAt:  dbtime.Now(),
-				ProviderID: externalAuthLink.ProviderID,
-				UserID:     externalAuthLink.UserID,
+			dbExecErr := db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
+				OAuthRefreshToken:      "", // It is better to clear the refresh token than to keep retrying.
+				OAuthRefreshTokenKeyID: externalAuthLink.OAuthRefreshTokenKeyID.String,
+				UpdatedAt:              dbtime.Now(),
+				ProviderID:             externalAuthLink.ProviderID,
+				UserID:                 externalAuthLink.UserID,
 			})
 			if dbExecErr != nil {
 				// This error should be rare.
@@ -662,7 +664,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.Regex == "" {
 		config.Regex = defaults.Regex
 	}
-	if config.Scopes == nil || len(config.Scopes) == 0 {
+	if len(config.Scopes) == 0 {
 		config.Scopes = defaults.Scopes
 	}
 	if config.DeviceCodeURL == "" {
@@ -674,7 +676,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.DisplayIcon == "" {
 		config.DisplayIcon = defaults.DisplayIcon
 	}
-	if config.ExtraTokenKeys == nil || len(config.ExtraTokenKeys) == 0 {
+	if len(config.ExtraTokenKeys) == 0 {
 		config.ExtraTokenKeys = defaults.ExtraTokenKeys
 	}
 

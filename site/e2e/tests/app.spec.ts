@@ -4,17 +4,20 @@ import { test } from "@playwright/test";
 import {
 	createTemplate,
 	createWorkspace,
+	login,
 	startAgent,
 	stopAgent,
 	stopWorkspace,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { AppOpenIn } from "../provisionerGenerated";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("app", async ({ context, page }) => {
-	test.setTimeout(75_000);
-
 	const appContent = "Hello World";
 	const token = randomUUID();
 	const srv = http
@@ -42,6 +45,7 @@ test("app", async ({ context, page }) => {
 											url: `http://localhost:${addr.port}`,
 											displayName: appName,
 											order: 0,
+											openIn: AppOpenIn.SLIM_WINDOW,
 										},
 									],
 									order: 0,
@@ -58,7 +62,7 @@ test("app", async ({ context, page }) => {
 
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
-	await page.getByText(appName).click({ timeout: 60_000 });
+	await page.getByText(appName).click({ timeout: 10_000 });
 	const app = await pagePromise;
 	await app.waitForLoadState("domcontentloaded");
 	await app.getByText(appContent).isVisible();

@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
@@ -7,13 +6,18 @@ import {
 	EnterpriseBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
@@ -54,10 +58,12 @@ export const AppearanceSettingsPageView: FC<
 
 	return (
 		<>
-			<SettingsHeader
-				title="Appearance"
-				description="Customize the look and feel of your Coder deployment."
-			/>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Customize the look and feel of your Coder deployment.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<Badges>
 				<Popover mode="hover">

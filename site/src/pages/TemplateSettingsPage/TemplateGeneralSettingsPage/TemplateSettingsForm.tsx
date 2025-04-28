@@ -9,6 +9,7 @@ import {
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
 import { PremiumBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -16,6 +17,7 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	StackLabel,
@@ -290,7 +292,16 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 				</FormFields>
 			</FormSection>
 
-			<FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+			<FormFooter>
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button type="submit" disabled={isSubmitting}>
+					<Spinner loading={isSubmitting} />
+					Save
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

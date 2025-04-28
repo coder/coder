@@ -11,7 +11,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/apiversion"
 )
 
 type SpeakerRole string
@@ -226,7 +225,7 @@ func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
 	defer s.mu.Unlock()
 	msgID := s.nextMsgID
 	s.nextMsgID++
-	c := make(chan R, 1)
+	c := make(chan R)
 	s.responseChans[msgID] = c
 	return msgID, c
 }
@@ -258,7 +257,7 @@ func handshake(
 	// read and write simultaneously to avoid deadlocking if the conn is not buffered
 	errCh := make(chan error, 2)
 	go func() {
-		ours := headerString(CurrentVersion, me)
+		ours := headerString(me, CurrentSupportedVersions)
 		_, err := conn.Write([]byte(ours))
 		logger.Debug(ctx, "wrote out header")
 		if err != nil {
@@ -316,34 +315,43 @@ func handshake(
 		}
 	}
 	logger.Debug(ctx, "handshake read/write complete", slog.F("their_header", theirHeader))
-	err := validateHeader(theirHeader, them)
+	gotVersion, err := validateHeader(theirHeader, them, CurrentSupportedVersions)
 	if err != nil {
 		return xerrors.Errorf("validate header (%s): %w", theirHeader, err)
 	}
+	logger.Debug(ctx, "handshake validated", slog.F("common_version", gotVersion))
+	// TODO: actually use the common version to perform different behavior once
+	// we have multiple versions
 	return nil
 }
 
 const headerPreamble = "codervpn"
 
-func headerString(version *apiversion.APIVersion, role SpeakerRole) string {
-	return fmt.Sprintf("%s %s %s\n", headerPreamble, version.String(), role)
+func headerString(role SpeakerRole, versions RPCVersionList) string {
+	return fmt.Sprintf("%s %s %s\n", headerPreamble, role, versions.String())
 }
 
-func validateHeader(header string, expectedRole SpeakerRole) error {
+func validateHeader(header string, expectedRole SpeakerRole, supportedVersions RPCVersionList) (RPCVersion, error) {
 	parts := strings.Split(header, " ")
 	if len(parts) != 3 {
-		return xerrors.New("wrong number of parts")
+		return RPCVersion{}, xerrors.New("wrong number of parts")
 	}
 	if parts[0] != headerPreamble {
-		return xerrors.New("invalid preamble")
+		return RPCVersion{}, xerrors.New("invalid preamble")
 	}
-	if err := CurrentVersion.Validate(parts[1]); err != nil {
-		return xerrors.Errorf("version: %w", err)
+	if parts[1] != string(expectedRole) {
+		return RPCVersion{}, xerrors.New("unexpected role")
 	}
-	if parts[2] != string(expectedRole) {
-		return xerrors.New("unexpected role")
+	otherVersions, err := ParseRPCVersionList(parts[2])
+	if err != nil {
+		return RPCVersion{}, xerrors.Errorf("parse version list %q: %w", parts[2], err)
 	}
-	return nil
+	compatibleVersion, ok := supportedVersions.IsCompatibleWith(otherVersions)
+	if !ok {
+		return RPCVersion{},
+			xerrors.Errorf("current supported versions %q is not compatible with peer versions %q", supportedVersions.String(), otherVersions.String())
+	}
+	return compatibleVersion, nil
 }
 
 type request[S rpcMessage, R rpcMessage] struct {

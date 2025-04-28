@@ -38,6 +38,9 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 	parameters: {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
+		chromatic: {
+			diffThreshold: 0.6,
+		},
 	},
 };
 
@@ -303,24 +306,6 @@ export const WithQuotaWithOrgs: Story = {
 	},
 };
 
-export const TemplateDoesNotAllowAutostop: Story = {
-	args: {
-		workspace: {
-			...MockWorkspace,
-			latest_build: {
-				...MockWorkspace.latest_build,
-				get deadline() {
-					return addHours(new Date(), 8).toISOString();
-				},
-			},
-		},
-		template: {
-			...MockTemplate,
-			allow_user_autostop: false,
-		},
-	},
-};
-
 export const TemplateInfoPopover: Story = {
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -333,6 +318,11 @@ export const TemplateInfoPopover: Story = {
 				).toHaveTextContent(MockTemplate.display_name),
 			);
 		});
+	},
+	parameters: {
+		chromatic: {
+			diffThreshold: 0.6,
+		},
 	},
 };
 

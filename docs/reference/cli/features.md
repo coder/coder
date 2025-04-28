@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # features
 
 List Enterprise features
 
 Aliases:
 
-- feature
+* feature
 
 ## Usage
 
@@ -17,5 +16,5 @@ coder features
 ## Subcommands
 
 | Name                                    | Purpose |
-| --------------------------------------- | ------- |
+|-----------------------------------------|---------|
 | [<code>list</code>](./features_list.md) |         |

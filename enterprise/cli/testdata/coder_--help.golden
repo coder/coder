@@ -17,7 +17,7 @@ SUBCOMMANDS:
     features           List Enterprise features
     groups             Manage groups
     licenses           Add, delete, and list licenses
-    provisioner        Manage provisioner daemons
+    provisioner        View and manage provisioner daemons and jobs
     server             Start a Coder server
 
 GLOBAL OPTIONS: 
@@ -36,6 +36,9 @@ variables or flags.
           server. If telemetry is also enabled on the server, it may be sent to
           Coder. Network telemetry is used to measure network quality and detect
           regressions.
+
+      --force-tty bool, $CODER_FORCE_TTY
+          Force the use of a TTY.
 
       --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.

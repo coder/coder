@@ -4,6 +4,7 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -11,6 +12,7 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
@@ -154,12 +156,19 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 					</FormSection>
 				)}
 
-				<FormFooter
-					onCancel={onCancel}
-					isLoading={isSubmitting}
-					submitLabel="Submit and restart"
-					submitDisabled={disabled || !form.dirty}
-				/>
+				<FormFooter>
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+
+					<Button
+						type="submit"
+						disabled={isSubmitting || disabled || !form.dirty}
+					>
+						<Spinner loading={isSubmitting} />
+						Submit and restart
+					</Button>
+				</FormFooter>
 			</HorizontalForm>
 		</>
 	);

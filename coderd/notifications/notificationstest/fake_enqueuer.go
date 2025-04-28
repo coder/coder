@@ -59,15 +59,15 @@ func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
 	}
 }
 
-func (f *FakeEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	return f.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
 }
 
-func (f *FakeEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	return f.enqueueWithDataLock(ctx, userID, templateID, labels, data, createdBy, targets...)
 }
 
-func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.assertRBACNoLock(ctx)
@@ -82,7 +82,7 @@ func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, template
 	})
 
 	id := uuid.New()
-	return &id, nil
+	return []uuid.UUID{id}, nil
 }
 
 func (f *FakeEnqueuer) Clear() {
@@ -92,8 +92,31 @@ func (f *FakeEnqueuer) Clear() {
 	f.sent = nil
 }
 
-func (f *FakeEnqueuer) Sent() []*FakeNotification {
+func (f *FakeEnqueuer) Sent(matchers ...func(*FakeNotification) bool) []*FakeNotification {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]*FakeNotification{}, f.sent...)
+
+	sent := []*FakeNotification{}
+	for _, notif := range f.sent {
+		// Check this notification matches all given matchers
+		matches := true
+		for _, matcher := range matchers {
+			if !matcher(notif) {
+				matches = false
+				break
+			}
+		}
+
+		if matches {
+			sent = append(sent, notif)
+		}
+	}
+
+	return sent
+}
+
+func WithTemplateID(id uuid.UUID) func(*FakeNotification) bool {
+	return func(n *FakeNotification) bool {
+		return n.TemplateID == id
+	}
 }

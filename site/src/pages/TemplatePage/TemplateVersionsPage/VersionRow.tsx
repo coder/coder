@@ -2,11 +2,11 @@ import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TableCell from "@mui/material/TableCell";
 import type { TemplateVersion } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,7 +33,6 @@ export const VersionRow: FC<VersionRowProps> = ({
 	});
 
 	const jobStatus = version.job.status;
-	const showActions = onPromoteClick || onArchiveClick;
 
 	return (
 		<TimelineEntry
@@ -49,9 +48,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 					justifyContent="space-between"
 				>
 					<Stack direction="row" alignItems="center">
-						<UserAvatar
-							username={version.created_by.username}
-							avatarURL={version.created_by.avatar_url}
+						<Avatar
+							fallback={version.created_by.username}
+							src={version.created_by.avatar_url}
 						/>
 						<Stack
 							css={styles.versionSummary}
@@ -106,7 +105,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 							</Pill>
 						)}
 
-						{showActions && jobStatus === "failed" ? (
+						{jobStatus === "failed" && onArchiveClick && (
 							<Button
 								css={styles.promoteButton}
 								disabled={isActive || version.archived}
@@ -118,7 +117,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 							>
 								Archive&hellip;
 							</Button>
-						) : (
+						)}
+
+						{jobStatus === "succeeded" && onPromoteClick && (
 							<Button
 								css={styles.promoteButton}
 								disabled={isActive || jobStatus !== "succeeded"}

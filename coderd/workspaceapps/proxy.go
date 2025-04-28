@@ -17,10 +17,8 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -34,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -47,7 +46,7 @@ const (
 	// login page.
 	// It is important that this URL can never match a valid app hostname.
 	//
-	// DEPRECATED: we no longer use this, but we still redirect from it to the
+	// Deprecated: we no longer use this, but we still redirect from it to the
 	// main login page.
 	appLogoutHostname = "coder-logout"
 )
@@ -112,8 +111,8 @@ type Server struct {
 	//
 	// Subdomain apps are safer with their cookies scoped to the subdomain, and XSS
 	// calls to the dashboard are not possible due to CORs.
-	DisablePathApps  bool
-	SecureAuthCookie bool
+	DisablePathApps bool
+	Cookies         codersdk.HTTPCookieConfig
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
@@ -232,16 +231,14 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	// We use different cookie names for path apps and for subdomain apps to
 	// avoid both being set and sent to the server at the same time and the
 	// server using the wrong value.
-	http.SetCookie(rw, &http.Cookie{
+	http.SetCookie(rw, s.Cookies.Apply(&http.Cookie{
 		Name:     AppConnectSessionTokenCookieName(accessMethod),
 		Value:    payload.APIKey,
 		Domain:   domain,
 		Path:     "/",
 		MaxAge:   0,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   s.SecureAuthCookie,
-	})
+	}))
 
 	// Strip the query parameter.
 	path := r.URL.Path
@@ -302,6 +299,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 	// permissions to connect to a workspace.
 	token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
+		CookieCfg:           s.Cookies,
 		SignedTokenProvider: s.SignedTokenProvider,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
@@ -397,13 +395,14 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
+			// Cookie smuggling needs to happen before CORs behavior is determined.
 			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
 				return
 			}
 
-			// Generate a signed token for the request.
 			token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 				Logger:              s.Logger,
+				CookieCfg:           s.Cookies,
 				SignedTokenProvider: s.SignedTokenProvider,
 				DashboardURL:        s.DashboardURL,
 				PathAppBaseURL:      s.AccessURL,
@@ -424,42 +423,12 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			// Proxy the request (possibly with the CORS middleware).
+			// Use the passed in app middlewares before checking authentication and
+			// passing to the proxy app.
 			mws := chi.Middlewares(append(middlewares, s.determineCORSBehavior(token, app)))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 			})).ServeHTTP(rw, r.WithContext(ctx))
-		})
-	}
-}
-
-// determineCORSBehavior examines the given token and conditionally applies
-// CORS middleware if the token specifies that behavior.
-func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		// Create the CORS middleware handler upfront.
-		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
-
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			var behavior codersdk.AppCORSBehavior
-			if token != nil {
-				behavior = token.CORSBehavior
-			}
-
-			// Add behavior to context regardless of which handler we use,
-			// since we will use this later on to determine if we should strip
-			// CORS headers in the response.
-			r = r.WithContext(cors.WithBehavior(r.Context(), behavior))
-
-			switch behavior {
-			case codersdk.AppCORSBehaviorPassthru:
-				// Bypass the CORS middleware.
-				next.ServeHTTP(rw, r)
-				return
-			default:
-				// Apply the CORS middleware.
-				corsHandler.ServeHTTP(rw, r)
-			}
 		})
 	}
 }
@@ -669,6 +638,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	appToken, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
+		CookieCfg:           s.Cookies,
 		SignedTokenProvider: s.SignedTokenProvider,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
@@ -692,6 +662,9 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect := parser.RequiredNotEmpty("reconnect").UUID(values, uuid.New(), "reconnect")
 	height := parser.UInt(values, 80, "height")
 	width := parser.UInt(values, 80, "width")
+	container := parser.String(values, "", "container")
+	containerUser := parser.String(values, "", "container_user")
+	backendType := parser.String(values, "", "backend_type")
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid query parameters.",
@@ -729,7 +702,12 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer release()
 	log.Debug(ctx, "dialed workspace agent")
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
+	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
+	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
+		arp.Container = container
+		arp.ContainerUser = containerUser
+		arp.BackendType = backendType
+	})
 	if err != nil {
 		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
@@ -793,5 +771,36 @@ func WebsocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 	return ctx, &wsNetConn{
 		cancel: cancel,
 		Conn:   nc,
+	}
+}
+
+// determineCORSBehavior examines the given token and conditionally applies
+// CORS middleware if the token specifies that behavior.
+func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		// Create the CORS middleware handler upfront.
+		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
+
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			var behavior codersdk.AppCORSBehavior
+			if token != nil {
+				behavior = token.CORSBehavior
+			}
+
+			// Add behavior to context regardless of which handler we use,
+			// since we will use this later on to determine if we should strip
+			// CORS headers in the response.
+			r = r.WithContext(cors.WithBehavior(r.Context(), behavior))
+
+			switch behavior {
+			case codersdk.AppCORSBehaviorPassthru:
+				// Bypass the CORS middleware.
+				next.ServeHTTP(rw, r)
+				return
+			default:
+				// Apply the CORS middleware.
+				corsHandler.ServeHTTP(rw, r)
+			}
+		})
 	}
 }

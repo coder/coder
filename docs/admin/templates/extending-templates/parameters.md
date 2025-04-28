@@ -79,7 +79,8 @@ data "coder_parameter" "security_groups" {
 }
 ```
 
-> [!NOTE] Overriding a `list(string)` on the CLI is tricky because:
+> [!NOTE]
+> Overriding a `list(string)` on the CLI is tricky because:
 >
 > - `--parameter "parameter_name=parameter_value"` is parsed as CSV.
 > - `parameter_value` is parsed as JSON.
@@ -90,7 +91,7 @@ data "coder_parameter" "security_groups" {
 > For the above example, to override the default values of the `security_groups`
 > parameter, you will need to pass the following argument to `coder create`:
 >
-> ```
+> ```shell
 > --parameter "\"security_groups=[\"\"DevOps Security Group\"\",\"\"Backend Security Group\"\"]\""
 > ```
 >
@@ -292,10 +293,11 @@ data "coder_parameter" "instances" {
 }
 ```
 
-**NOTE:** as of
-[`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
-`options` can be specified in `number` parameters; this also works with
-validations such as `monotonic`.
+> [!NOTE]
+> As of
+> [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
+> `options` can be specified in `number` parameters; this also works with
+> validations such as `monotonic`.
 
 ### String
 
@@ -313,10 +315,75 @@ data "coder_parameter" "project_id" {
 }
 ```
 
+## Workspace presets (beta)
+
+Workspace presets allow you to configure commonly used combinations of parameters
+into a single option, which makes it easier for developers to pick one that fits
+their needs.
+
+![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
+
+Use `coder_workspace_preset` to define the preset parameters.
+After you save the template file, the presets will be available for all new
+workspace deployments.
+
+<details><summary>Expand for an example</summary>
+
+```tf
+data "coder_workspace_preset" "goland-gpu" {
+  name        = "GoLand with GPU"
+  parameters = {
+    "machine_type"  = "n1-standard-1"
+    "attach_gpu"    = "true"
+    "gcp_region"    = "europe-west4-c"
+    "jetbrains_ide" = "GO"
+  }
+}
+
+data "coder_parameter" "machine_type" {
+  name          = "machine_type"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
+}
+
+data "coder_parameter" "attach_gpu" {
+  name          = "attach_gpu"
+  display_name  = "Attach GPU?"
+  type          = "bool"
+  default       = "false"
+}
+
+data "coder_parameter" "gcp_region" {
+  name          = "gcp_region"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
+}
+
+data "coder_parameter" "jetbrains_ide" {
+  name          = "jetbrains_ide"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
+}
+```
+
+</details>
+
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
 parameters.
+
+You need to enable `auto-fill-parameters` first:
+
+```shell
+coder server --experiments=auto-fill-parameters
+```
+
+Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
+With the feature enabled:
 
 1. Coder will look for URL query parameters with form `param.<name>=<value>`.
    This feature enables platform teams to create pre-filled template creation

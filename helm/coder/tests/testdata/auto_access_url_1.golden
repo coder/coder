@@ -12,12 +12,14 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-0.1.0
   name: coder
+  namespace: default
 ---
 # Source: coder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: coder-workspace-perms
+  namespace: default
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -60,6 +62,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "coder"
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: "coder"
@@ -73,6 +76,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: coder
+  namespace: default
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
@@ -90,7 +94,7 @@ spec:
       port: 80
       targetPort: "http"
       protocol: TCP
-      
+      nodePort: 
   externalTrafficPolicy: "Cluster"
   selector:
     app.kubernetes.io/name: coder
@@ -109,6 +113,7 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-0.1.0
   name: coder
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -176,7 +181,13 @@ spec:
             path: /healthz
             port: http
             scheme: HTTP
-        resources: {}
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 4096Mi
+          requests:
+            cpu: 2000m
+            memory: 4096Mi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: null

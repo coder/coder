@@ -15,18 +15,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -35,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/websocket"
 )
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
@@ -48,50 +47,6 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rw, r)
 	})
-}
-
-// @Summary Get provisioner daemons
-// @ID get-provisioner-daemons
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
-// @Success 200 {array} codersdk.ProvisionerDaemon
-// @Router /organizations/{organization}/provisionerdaemons [get]
-func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx      = r.Context()
-		org      = httpmw.OrganizationParam(r)
-		tagParam = r.URL.Query().Get("tags")
-		tags     = database.StringMap{}
-		err      = tags.Scan([]byte(tagParam))
-	)
-
-	if tagParam != "" && err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid tags query parameter",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
-		ctx,
-		database.GetProvisionerDaemonsByOrganizationParams{
-			OrganizationID: org.ID,
-			WantTags:       tags,
-		},
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner daemons.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
 type provisiionerDaemonAuthResponse struct {
@@ -221,11 +176,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	id, _ := uuid.Parse(r.URL.Query().Get("id"))
-	if id == uuid.Nil {
-		id = uuid.New()
-	}
-
 	provisionersMap := map[codersdk.ProvisionerType]struct{}{}
 	for _, provisioner := range r.URL.Query()["provisioner"] {
 		switch provisioner {
@@ -341,7 +291,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	api.AGPL.WebsocketWaitMutex.Unlock()
 	defer api.AGPL.WebsocketWaitGroup.Done()
 
-	tep := telemetry.ConvertExternalProvisioner(id, tags, provisioners)
+	tep := telemetry.ConvertExternalProvisioner(daemon.ID, tags, provisioners)
 	api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
 	defer func() {
 		tep.ShutdownAt = ptr.Ref(time.Now())
@@ -427,6 +377,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
+
+	// Log the request immediately instead of after it completes.
+	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+
 	err = server.Serve(ctx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))

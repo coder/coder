@@ -6,12 +6,17 @@ import {
 } from "components/Badges/Badges";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
@@ -30,13 +35,24 @@ export const ObservabilitySettingsPageView: FC<
 		<>
 			<Stack direction="column" spacing={6}>
 				<div>
-					<SettingsHeader title="Observability" />
+					<SettingsHeader>
+						<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
+					</SettingsHeader>
+
 					<SettingsHeader
-						title="Audit Logging"
-						secondary
-						description="Allow auditors to monitor user operations in your deployment."
-						docsHref={docs("/admin/security/audit-logs")}
-					/>
+						actions={
+							<SettingsHeaderDocsLink
+								href={docs("/admin/security/audit-logs")}
+							/>
+						}
+					>
+						<SettingsHeaderTitle hierarchy="secondary" level="h2">
+							Audit Logging
+						</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Allow auditors to monitor user operations in your deployment.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
 
 					<Badges>
 						<Popover mode="hover">
@@ -62,11 +78,14 @@ export const ObservabilitySettingsPageView: FC<
 				</div>
 
 				<div>
-					<SettingsHeader
-						title="Monitoring"
-						secondary
-						description="Monitoring your Coder application with logs and metrics."
-					/>
+					<SettingsHeader>
+						<SettingsHeaderTitle hierarchy="secondary" level="h2">
+							Monitoring
+						</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Monitoring your Coder application with logs and metrics.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
 
 					<OptionsTable
 						options={options.filter((o) =>

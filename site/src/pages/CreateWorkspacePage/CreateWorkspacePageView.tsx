@@ -1,11 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
 	FormFooter,
@@ -20,11 +22,20 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -36,12 +47,13 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
+import { ExperimentalFormContext } from "./CreateWorkspaceExperimentRouter";
 import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
-import type { CreateWSPermissions } from "./permissions";
+import type { CreateWorkspacePermissions } from "./permissions";
 
 export const Language = {
 	duplicationWarning:
@@ -63,7 +75,8 @@ export interface CreateWorkspacePageViewProps {
 	hasAllRequiredExternalAuth: boolean;
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
-	permissions: CreateWSPermissions;
+	presets: TypesGen.Preset[];
+	permissions: CreateWorkspacePermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
 	onSubmit: (
@@ -87,15 +100,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	hasAllRequiredExternalAuth,
 	parameters,
 	autofillParameters,
+	presets = [],
 	permissions,
 	creatingWorkspace,
 	onSubmit,
 	onCancel,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
+	const [showPresetParameters, setShowPresetParameters] = useState(false);
 
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
@@ -144,15 +160,89 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		[autofillParameters],
 	);
 
+	const [presetOptions, setPresetOptions] = useState([
+		{ label: "None", value: "" },
+	]);
+	useEffect(() => {
+		setPresetOptions([
+			{ label: "None", value: "" },
+			...presets.map((preset) => ({
+				label: preset.Name,
+				value: preset.ID,
+			})),
+		]);
+	}, [presets]);
+
+	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
+		[],
+	);
+
+	useEffect(() => {
+		const selectedPresetOption = presetOptions[selectedPresetIndex];
+		let selectedPreset: TypesGen.Preset | undefined;
+		for (const preset of presets) {
+			if (preset.ID === selectedPresetOption.value) {
+				selectedPreset = preset;
+				break;
+			}
+		}
+
+		if (!selectedPreset || !selectedPreset.Parameters) {
+			setPresetParameterNames([]);
+			return;
+		}
+
+		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
+
+		for (const presetParameter of selectedPreset.Parameters) {
+			const parameterIndex = parameters.findIndex(
+				(p) => p.name === presetParameter.Name,
+			);
+			if (parameterIndex === -1) continue;
+
+			const parameterField = `rich_parameter_values.${parameterIndex}`;
+
+			form.setFieldValue(parameterField, {
+				name: presetParameter.Name,
+				value: presetParameter.Value,
+			});
+		}
+	}, [
+		presetOptions,
+		selectedPresetIndex,
+		presets,
+		parameters,
+		form.setFieldValue,
+	]);
+
 	return (
 		<Margins size="medium">
-			<PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
-				<Stack direction="row" spacing={3} alignItems="center">
-					{template.icon !== "" ? (
-						<Avatar size="xl" src={template.icon} variant="square" fitImage />
-					) : (
-						<Avatar size="xl">{template.name}</Avatar>
-					)}
+			<PageHeader
+				actions={
+					<>
+						{experimentalFormContext && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={experimentalFormContext.toggleOptedOut}
+							>
+								Try out the new workspace creation flow ✨
+							</Button>
+						)}
+						<Button size="sm" variant="outline" onClick={onCancel}>
+							Cancel
+						</Button>
+					</>
+				}
+			>
+				<Stack direction="row">
+					<Avatar
+						variant="icon"
+						size="lg"
+						src={template.icon}
+						fallback={template.name}
+					/>
 
 					<div>
 						<PageHeaderTitle>
@@ -185,8 +275,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<FormSection
 					title="General"
 					description={
-						permissions.createWorkspaceForUser
-							? "The name of the workspace and its owner. Only admins can create workspace for other users."
+						permissions.createWorkspaceForAny
+							? "The name of the workspace and its owner. Only admins can create workspaces for other users."
 							: "The name of your new workspace."
 					}
 				>
@@ -217,7 +307,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							<FormHelperText data-chromatic="ignore">
 								Need a suggestion?{" "}
 								<Button
-									variant="text"
+									variant="subtle"
+									size="sm"
 									css={styles.nameSuggestion}
 									onClick={async () => {
 										await form.setFieldValue("name", suggestedName);
@@ -229,7 +320,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							</FormHelperText>
 						</div>
 
-						{permissions.createWorkspaceForUser && (
+						{permissions.createWorkspaceForAny && (
 							<UserAutocomplete
 								value={owner}
 								onChange={(user) => {
@@ -277,40 +368,111 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 hence they require additional vertical spacing for better readability and
                 user experience. */}
 						<FormFields css={{ gap: 36 }}>
+							{presets.length > 0 && (
+								<Stack direction="column" spacing={2}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<span css={styles.description}>
+											Select a preset to get started
+										</span>
+										<FeatureStageBadge contentType={"beta"} size="md" />
+									</Stack>
+									<Stack direction="column" spacing={2}>
+										<Stack direction="row" spacing={2}>
+											<SelectFilter
+												label="Preset"
+												options={presetOptions}
+												onSelect={(option) => {
+													const index = presetOptions.findIndex(
+														(preset) => preset.value === option?.value,
+													);
+													if (index === -1) {
+														return;
+													}
+													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														option?.value,
+													);
+												}}
+												placeholder="Select a preset"
+												selectedOption={presetOptions[selectedPresetIndex]}
+											/>
+										</Stack>
+										<div
+											css={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+											}}
+										>
+											<Switch
+												id="show-preset-parameters"
+												checked={showPresetParameters}
+												onCheckedChange={setShowPresetParameters}
+											/>
+											<label
+												htmlFor="show-preset-parameters"
+												css={styles.description}
+											>
+												Show preset parameters
+											</label>
+										</div>
+									</Stack>
+								</Stack>
+							)}
+
 							{parameters.map((parameter, index) => {
 								const parameterField = `rich_parameter_values.${index}`;
 								const parameterInputName = `${parameterField}.value`;
+								const isPresetParameter = presetParameterNames.includes(
+									parameter.name,
+								);
 								const isDisabled =
 									disabledParams?.includes(
 										parameter.name.toLowerCase().replace(/ /g, "_"),
-									) || creatingWorkspace;
+									) ||
+									creatingWorkspace ||
+									isPresetParameter;
+
+								// Hide preset parameters if showPresetParameters is false
+								if (!showPresetParameters && isPresetParameter) {
+									return null;
+								}
 
 								return (
-									<RichParameterInput
-										{...getFieldHelpers(parameterInputName)}
-										onChange={async (value) => {
-											await form.setFieldValue(parameterField, {
-												name: parameter.name,
-												value,
-											});
-										}}
-										key={parameter.name}
-										parameter={parameter}
-										parameterAutofill={autofillByName[parameter.name]}
-										disabled={isDisabled}
-									/>
+									<div key={parameter.name}>
+										<RichParameterInput
+											{...getFieldHelpers(parameterInputName)}
+											onChange={async (value) => {
+												await form.setFieldValue(parameterField, {
+													name: parameter.name,
+													value,
+												});
+											}}
+											parameter={parameter}
+											parameterAutofill={autofillByName[parameter.name]}
+											disabled={isDisabled}
+											isPreset={isPresetParameter}
+										/>
+									</div>
 								);
 							})}
 						</FormFields>
 					</FormSection>
 				)}
 
-				<FormFooter
-					onCancel={onCancel}
-					isLoading={creatingWorkspace}
-					submitDisabled={!hasAllRequiredExternalAuth}
-					submitLabel="Create Workspace"
-				/>
+				<FormFooter>
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+					<Button
+						type="submit"
+						disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
+					>
+						<Spinner loading={creatingWorkspace} />
+						Create workspace
+					</Button>
+				</FormFooter>
 			</HorizontalForm>
 		</Margins>
 	);

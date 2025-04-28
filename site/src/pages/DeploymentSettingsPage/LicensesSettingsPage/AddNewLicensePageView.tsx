@@ -1,11 +1,15 @@
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Fieldset } from "../Fieldset";
@@ -50,16 +54,18 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Add a license"
-					description="Get access to high availability, RBAC, quotas, and more."
-				/>
-				<Button
-					component={RouterLink}
-					startIcon={<KeyboardArrowLeft />}
-					to="/deployment/licenses"
-				>
-					All Licenses
+				<SettingsHeader>
+					<SettingsHeaderTitle>Add a license</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Get access to high availability, RBAC, quotas, and more.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<Button asChild variant="outline">
+					<RouterLink to="/deployment/licenses">
+						<ChevronLeftIcon />
+						All Licenses
+					</RouterLink>
 				</Button>
 			</Stack>
 

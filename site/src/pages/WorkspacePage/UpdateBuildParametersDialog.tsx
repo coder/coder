@@ -100,14 +100,8 @@ export const UpdateBuildParametersDialog: FC<
 				<Button fullWidth type="button" onClick={dialogProps.onClose}>
 					Cancel
 				</Button>
-				<Button
-					color="primary"
-					fullWidth
-					type="submit"
-					form="updateParameters"
-					data-testid="form-submit"
-				>
-					Update
+				<Button color="primary" fullWidth type="submit" form="updateParameters">
+					Update parameters
 				</Button>
 			</DialogActions>
 		</Dialog>

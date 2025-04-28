@@ -51,27 +51,29 @@ const (
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID                      uuid.UUID           `json:"id" format:"uuid"`
-	CreatedAt               time.Time           `json:"created_at" format:"date-time"`
-	UpdatedAt               time.Time           `json:"updated_at" format:"date-time"`
-	WorkspaceID             uuid.UUID           `json:"workspace_id" format:"uuid"`
-	WorkspaceName           string              `json:"workspace_name"`
-	WorkspaceOwnerID        uuid.UUID           `json:"workspace_owner_id" format:"uuid"`
-	WorkspaceOwnerName      string              `json:"workspace_owner_name"`
-	WorkspaceOwnerAvatarURL string              `json:"workspace_owner_avatar_url"`
-	TemplateVersionID       uuid.UUID           `json:"template_version_id" format:"uuid"`
-	TemplateVersionName     string              `json:"template_version_name"`
-	BuildNumber             int32               `json:"build_number"`
-	Transition              WorkspaceTransition `json:"transition" enums:"start,stop,delete"`
-	InitiatorID             uuid.UUID           `json:"initiator_id" format:"uuid"`
-	InitiatorUsername       string              `json:"initiator_name"`
-	Job                     ProvisionerJob      `json:"job"`
-	Reason                  BuildReason         `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
-	Resources               []WorkspaceResource `json:"resources"`
-	Deadline                NullTime            `json:"deadline,omitempty" format:"date-time"`
-	MaxDeadline             NullTime            `json:"max_deadline,omitempty" format:"date-time"`
-	Status                  WorkspaceStatus     `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
-	DailyCost               int32               `json:"daily_cost"`
+	ID                      uuid.UUID            `json:"id" format:"uuid"`
+	CreatedAt               time.Time            `json:"created_at" format:"date-time"`
+	UpdatedAt               time.Time            `json:"updated_at" format:"date-time"`
+	WorkspaceID             uuid.UUID            `json:"workspace_id" format:"uuid"`
+	WorkspaceName           string               `json:"workspace_name"`
+	WorkspaceOwnerID        uuid.UUID            `json:"workspace_owner_id" format:"uuid"`
+	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
+	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url"`
+	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
+	TemplateVersionName     string               `json:"template_version_name"`
+	BuildNumber             int32                `json:"build_number"`
+	Transition              WorkspaceTransition  `json:"transition" enums:"start,stop,delete"`
+	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid"`
+	InitiatorUsername       string               `json:"initiator_name"`
+	Job                     ProvisionerJob       `json:"job"`
+	Reason                  BuildReason          `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
+	Resources               []WorkspaceResource  `json:"resources"`
+	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time"`
+	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time"`
+	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	DailyCost               int32                `json:"daily_cost"`
+	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
+	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:

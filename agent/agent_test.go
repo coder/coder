@@ -19,14 +19,21 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
+
 	"github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,19 +41,17 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -58,41 +63,99 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
+
+var sshPorts = []uint16{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort}
+
+// TestAgent_CloseWhileStarting is a regression test for https://github.com/coder/coder/issues/17328
+func TestAgent_ImmediateClose(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	logger := slogtest.Make(t, &slogtest.Options{
+		// Agent can drop errors when shutting down, and some, like the
+		// fasthttplistener connection closed error, are unexported.
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	fs := afero.NewMemMapFs()
+	client := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(client.Close)
+
+	options := agent.Options{
+		Client:                 client,
+		Filesystem:             fs,
+		Logger:                 logger.Named("agent"),
+		ReconnectingPTYTimeout: 0,
+		EnvironmentVariables:   map[string]string{},
+	}
+
+	agentUnderTest := agent.New(options)
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// wait until the agent has connected and is starting to find races in the startup code
+	_ = testutil.TryReceive(ctx, t, client.GetStartup())
+	t.Log("Closing Agent")
+	err := agentUnderTest.Close()
+	require.NoError(t, err)
 }
 
 // NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
 
-	//nolint:dogsled
-	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	for _, port := range sshPorts {
+		port := port
+		t.Run(fmt.Sprintf("(:%d)", port), func(t *testing.T) {
+			t.Parallel()
 
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	defer sshClient.Close()
-	session, err := sshClient.NewSession()
-	require.NoError(t, err)
-	defer session.Close()
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	err = session.Shell()
-	require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-	var s *proto.Stats
-	require.Eventuallyf(t, func() bool {
-		var ok bool
-		s, ok = <-stats
-		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw stats: %+v", s,
-	)
-	_ = stdin.Close()
-	err = session.Wait()
-	require.NoError(t, err)
+			//nolint:dogsled
+			conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+
+			sshClient, err := conn.SSHClientOnPort(ctx, port)
+			require.NoError(t, err)
+			defer sshClient.Close()
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+			stdin, err := session.StdinPipe()
+			require.NoError(t, err)
+			err = session.Shell()
+			require.NoError(t, err)
+
+			var s *proto.Stats
+			require.Eventuallyf(t, func() bool {
+				var ok bool
+				s, ok = <-stats
+				return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats: %+v", s,
+			)
+			_ = stdin.Close()
+			err = session.Wait()
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
@@ -138,7 +201,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, agentssh.MagicSessionTypeVSCode)
+		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
 		defer session.Close()
 
 		command := "sh -c 'echo $" + agentssh.MagicSessionTypeEnvironmentVariable + "'"
@@ -159,13 +222,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		//nolint:dogsled
-		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, agentssh.MagicSessionTypeVSCode)
+		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
 		defer session.Close()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
@@ -175,7 +238,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			s, ok := <-stats
 			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountVSCode=%d, ConnectionMedianLatencyMS=%f",
 				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountVscode, s.ConnectionMedianLatencyMs)
-			return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 &&
+			return ok &&
 				// Ensure that the connection didn't count as a "normal" SSH session.
 				// This was a special one, so it should be labeled specially in the stats!
 				s.SessionCountVscode == 1 &&
@@ -189,6 +252,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		_ = stdin.Close()
 		err = session.Wait()
 		require.NoError(t, err)
+
+		assertConnectionReport(t, agentClient, proto.Connection_VSCODE, 0, "")
 	})
 
 	t.Run("TracksJetBrains", func(t *testing.T) {
@@ -225,7 +290,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		remotePort := sc.Text()
 
 		//nolint:dogsled
-		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 
@@ -241,8 +306,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			s, ok := <-stats
 			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
 				ok, s.ConnectionCount, s.SessionCountJetbrains)
-			return ok && s.ConnectionCount > 0 &&
-				s.SessionCountJetbrains == 1
+			return ok && s.SessionCountJetbrains == 1
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats with conn open",
 		)
@@ -261,20 +325,30 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats after conn closes",
 		)
+
+		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "")
 	})
 }
 
 func TestAgent_SessionExec(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 
-	command := "echo test"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo test"
+	for _, port := range sshPorts {
+		port := port
+		t.Run(fmt.Sprintf("(:%d)", port), func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
+
+			command := "echo test"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo test"
+			}
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.Equal(t, "test", strings.TrimSpace(string(output)))
+		})
 	}
-	output, err := session.Output(command)
-	require.NoError(t, err)
-	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
 //nolint:tparallel // Sub tests need to run sequentially.
@@ -384,25 +458,33 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
-	command := "sh"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
+
+	for _, port := range sshPorts {
+		port := port
+		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
+			command := "sh"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe"
+			}
+			err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+			require.NoError(t, err)
+			ptty := ptytest.New(t)
+			session.Stdout = ptty.Output()
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
+			err = session.Start(command)
+			require.NoError(t, err)
+			_ = ptty.Peek(ctx, 1) // wait for the prompt
+			ptty.WriteLine("echo test")
+			ptty.ExpectMatch("test")
+			ptty.WriteLine("exit")
+			err = session.Wait()
+			require.NoError(t, err)
+		})
 	}
-	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-	require.NoError(t, err)
-	ptty := ptytest.New(t)
-	session.Stdout = ptty.Output()
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
-	err = session.Start(command)
-	require.NoError(t, err)
-	_ = ptty.Peek(ctx, 1) // wait for the prompt
-	ptty.WriteLine("echo test")
-	ptty.ExpectMatch("test")
-	ptty.WriteLine("exit")
-	err = session.Wait()
-	require.NoError(t, err)
 }
 
 func TestAgent_SessionTTYExitCode(t *testing.T) {
@@ -596,37 +678,41 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	//nolint:dogsled // Allow the blank identifiers.
 	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
 
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = sshClient.Close()
-	})
-
 	//nolint:paralleltest // These tests need to swap the banner func.
-	for i, test := range tests {
-		test := test
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			// Set new banner func and wait for the agent to call it to update the
-			// banner.
-			ready := make(chan struct{}, 2)
-			client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
-				select {
-				case ready <- struct{}{}:
-				default:
-				}
-				return []codersdk.BannerConfig{test.banner}, nil
-			})
-			<-ready
-			<-ready // Wait for two updates to ensure the value has propagated.
+	for _, port := range sshPorts {
+		port := port
 
-			session, err := sshClient.NewSession()
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = session.Close()
-			})
-
-			testSessionOutput(t, session, test.expected, test.unexpected, nil)
+		sshClient, err := conn.SSHClientOnPort(ctx, port)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sshClient.Close()
 		})
+
+		for i, test := range tests {
+			test := test
+			t.Run(fmt.Sprintf("(:%d)/%d", port, i), func(t *testing.T) {
+				// Set new banner func and wait for the agent to call it to update the
+				// banner.
+				ready := make(chan struct{}, 2)
+				client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
+					select {
+					case ready <- struct{}{}:
+					default:
+					}
+					return []codersdk.BannerConfig{test.banner}, nil
+				})
+				<-ready
+				<-ready // Wait for two updates to ensure the value has propagated.
+
+				session, err := sshClient.NewSession()
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = session.Close()
+				})
+
+				testSessionOutput(t, session, test.expected, test.unexpected, nil)
+			})
+		}
 	}
 }
 
@@ -918,7 +1004,7 @@ func TestAgent_SFTP(t *testing.T) {
 		home = "/" + strings.ReplaceAll(home, "\\", "/")
 	}
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -941,6 +1027,10 @@ func TestAgent_SFTP(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(tempFile)
 	require.NoError(t, err)
+
+	// Close the client to trigger disconnect event.
+	_ = client.Close()
+	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
 }
 
 func TestAgent_SCP(t *testing.T) {
@@ -950,7 +1040,7 @@ func TestAgent_SCP(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -963,6 +1053,10 @@ func TestAgent_SCP(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(tempFile)
 	require.NoError(t, err)
+
+	// Close the client to trigger disconnect event.
+	scpClient.Close()
+	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -977,7 +1071,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
 			strings.Contains(errorMessage, "EOF") ||
 			strings.Contains(errorMessage, "Process exited with status 65")
-		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+		require.True(t, isErr, "Message: "+errorMessage)
 	}
 
 	t.Run("SFTP", func(t *testing.T) {
@@ -987,7 +1081,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		defer cancel()
 
 		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
@@ -996,6 +1090,8 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		_, err = sftp.NewClient(sshClient)
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
+
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1005,7 +1101,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		defer cancel()
 
 		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
@@ -1018,6 +1114,8 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		err = scpClient.CopyFile(context.Background(), strings.NewReader("hello world"), tempFile, "0755")
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
+
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1031,7 +1129,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				defer cancel()
 
 				//nolint:dogsled
-				conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+				conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 					o.BlockFileTransfer = true
 				})
 				sshClient, err := conn.SSHClient(ctx)
@@ -1053,6 +1151,8 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				msg, err := io.ReadAll(stdout)
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
+
+				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
 			})
 		}
 	})
@@ -1137,6 +1237,53 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 			output, err := session.Output(command)
 			require.NoError(t, err)
 			require.NotEmpty(t, strings.TrimSpace(string(output)))
+		})
+	}
+}
+
+func TestAgent_SSHConnectionLoginVars(t *testing.T) {
+	t.Parallel()
+
+	envInfo := usershell.SystemEnvInfo{}
+	u, err := envInfo.User()
+	require.NoError(t, err, "get current user")
+	shell, err := envInfo.Shell(u.Username)
+	require.NoError(t, err, "get current shell")
+
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{
+			key:  "USER",
+			want: u.Username,
+		},
+		{
+			key:  "LOGNAME",
+			want: u.Username,
+		},
+		{
+			key:  "HOME",
+			want: u.HomeDir,
+		},
+		{
+			key:  "SHELL",
+			want: shell,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+			command := "sh -c 'echo $" + tt.key + "'"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo %" + tt.key + "%"
+			}
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, strings.TrimSpace(string(output)))
 		})
 	}
 }
@@ -1503,8 +1650,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		expected := "this-is-shutdown"
 		derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+		statsCh := make(chan *proto.Stats, 50)
 
 		client := agenttest.NewClient(t,
 			logger,
@@ -1523,7 +1672,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 					RunOnStop: true,
 				}},
 			},
-			make(chan *proto.Stats, 50),
+			statsCh,
 			tailnet.NewCoordinator(logger),
 		)
 		defer client.Close()
@@ -1547,6 +1696,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 			}
 			return len(content) > 0 // something is in the startup log file
 		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		// In order to avoid shutting down the agent before it is fully started and triggering
+		// errors, we'll wait until the agent is fully up. It's a bit hokey, but among the last things the agent starts
+		// is the stats reporting, so getting a stats report is a good indication the agent is fully up.
+		_ = testutil.TryReceive(ctx, t, statsCh)
 
 		err := agent.Close()
 		require.NoError(t, err, "agent should be closed successfully")
@@ -1576,7 +1730,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "",
 		}, 0)
-		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		require.Equal(t, "", startup.GetExpandedDirectory())
 	})
 
@@ -1587,7 +1741,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "~",
 		}, 0)
-		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, homeDir, startup.GetExpandedDirectory())
@@ -1600,7 +1754,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "coder/coder",
 		}, 0)
-		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(homeDir, "coder/coder"), startup.GetExpandedDirectory())
@@ -1613,7 +1767,7 @@ func TestAgent_Startup(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "$HOME",
 		}, 0)
-		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+		startup := testutil.TryReceive(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, homeDir, startup.GetExpandedDirectory())
@@ -1661,8 +1815,16 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			defer cancel()
 
 			//nolint:dogsled
-			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
+
+			// Test that the connection is reported. This must be tested in the
+			// first connection because we care about verifying all of these.
+			netConn0, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
+			require.NoError(t, err)
+			_ = netConn0.Close()
+			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
+
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
 			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
@@ -1759,6 +1921,202 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.Contains(t, string(bytes), "❯")
 		})
 	}
+}
+
+// This tests end-to-end functionality of connecting to a running container
+// and executing a command. It creates a real Docker container and runs a
+// command. As such, it does not run by default in CI.
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_ReconnectingPTYContainer
+func TestAgent_ReconnectingPTYContainer(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infnity"},
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	})
+	require.NoError(t, err, "Could not start container")
+	t.Cleanup(func() {
+		err := pool.Purge(ct)
+		require.NoError(t, err, "Could not stop container")
+	})
+	// Wait for container to start
+	require.Eventually(t, func() bool {
+		ct, ok := pool.ContainerByName(ct.Container.Name)
+		return ok && ct.Container.State.Running
+	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+
+	// nolint: dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalDevcontainersEnabled = true
+	})
+	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "/bin/sh", func(arp *workspacesdk.AgentReconnectingPTYInit) {
+		arp.Container = ct.Container.ID
+	})
+	require.NoError(t, err, "failed to create ReconnectingPTY")
+	defer ac.Close()
+	tr := testutil.NewTerminalReader(t, ac)
+
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, "#") || strings.Contains(line, "$")
+	}), "find prompt")
+
+	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
+		Data: "hostname\r",
+	}), "write hostname")
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, "hostname")
+	}), "find hostname command")
+
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, ct.Container.Config.Hostname)
+	}), "find hostname output")
+	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
+		Data: "exit\r",
+	}), "write exit command")
+
+	// Wait for the connection to close.
+	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
+}
+
+// This tests end-to-end functionality of auto-starting a devcontainer.
+// It runs "devcontainer up" which creates a real Docker container. As
+// such, it does not run by default in CI.
+//
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerAutostart
+func TestAgent_DevcontainerAutostart(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Connect to Docker
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+
+	// Prepare temporary devcontainer for test (mywork).
+	devcontainerID := uuid.New()
+	tempWorkspaceFolder := t.TempDir()
+	tempWorkspaceFolder = filepath.Join(tempWorkspaceFolder, "mywork")
+	t.Logf("Workspace folder: %s", tempWorkspaceFolder)
+	devcontainerPath := filepath.Join(tempWorkspaceFolder, ".devcontainer")
+	err = os.MkdirAll(devcontainerPath, 0o755)
+	require.NoError(t, err, "create devcontainer directory")
+	devcontainerFile := filepath.Join(devcontainerPath, "devcontainer.json")
+	err = os.WriteFile(devcontainerFile, []byte(`{
+        "name": "mywork",
+        "image": "busybox:latest",
+        "cmd": ["sleep", "infinity"]
+    }`), 0o600)
+	require.NoError(t, err, "write devcontainer.json")
+
+	manifest := agentsdk.Manifest{
+		// Set up pre-conditions for auto-starting a devcontainer, the script
+		// is expected to be prepared by the provisioner normally.
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{
+				ID:              devcontainerID,
+				Name:            "test",
+				WorkspaceFolder: tempWorkspaceFolder,
+			},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{
+				ID:          devcontainerID,
+				LogSourceID: agentsdk.ExternalLogSourceID,
+				RunOnStart:  true,
+				Script:      "echo this-will-be-replaced",
+				DisplayName: "Dev Container (test)",
+			},
+		},
+	}
+	// nolint: dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalDevcontainersEnabled = true
+	})
+
+	t.Logf("Waiting for container with label: devcontainer.local_folder=%s", tempWorkspaceFolder)
+
+	var container docker.APIContainers
+	require.Eventually(t, func() bool {
+		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+			return false
+		}
+
+		for _, c := range containers {
+			t.Logf("Found container: %s with labels: %v", c.ID[:12], c.Labels)
+			if labelValue, ok := c.Labels["devcontainer.local_folder"]; ok {
+				if labelValue == tempWorkspaceFolder {
+					t.Logf("Found matching container: %s", c.ID[:12])
+					container = c
+					return true
+				}
+			}
+		}
+
+		return false
+	}, testutil.WaitSuperLong, testutil.IntervalMedium, "no container with workspace folder label found")
+
+	t.Cleanup(func() {
+		// We can't rely on pool here because the container is not
+		// managed by it (it is managed by @devcontainer/cli).
+		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            container.ID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
+		assert.NoError(t, err, "remove container")
+	})
+
+	containerInfo, err := pool.Client.InspectContainer(container.ID)
+	require.NoError(t, err, "inspect container")
+	t.Logf("Container state: status: %v", containerInfo.State.Status)
+	require.True(t, containerInfo.State.Running, "container should be running")
+
+	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "", func(opts *workspacesdk.AgentReconnectingPTYInit) {
+		opts.Container = container.ID
+	})
+	require.NoError(t, err, "failed to create ReconnectingPTY")
+	defer ac.Close()
+
+	// Use terminal reader so we can see output in case somethin goes wrong.
+	tr := testutil.NewTerminalReader(t, ac)
+
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, "#") || strings.Contains(line, "$")
+	}), "find prompt")
+
+	wantFileName := "file-from-devcontainer"
+	wantFile := filepath.Join(tempWorkspaceFolder, wantFileName)
+
+	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
+		// NOTE(mafredri): We must use absolute path here for some reason.
+		Data: fmt.Sprintf("touch /workspaces/mywork/%s; exit\r", wantFileName),
+	}), "create file inside devcontainer")
+
+	// Wait for the connection to close to ensure the touch was executed.
+	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
+
+	_, err = os.Stat(wantFile)
+	require.NoError(t, err, "file should exist outside devcontainer")
 }
 
 func TestAgent_Dial(t *testing.T) {
@@ -1962,7 +2320,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	// Push a new DERP map to the agent.
 	err := client.PushDERPMapUpdate(newDerpMap)
 	require.NoError(t, err)
-	t.Logf("pushed DERPMap update to agent")
+	t.Log("pushed DERPMap update to agent")
 
 	require.Eventually(t, func() bool {
 		conn := uut.TailnetConn()
@@ -1974,7 +2332,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		t.Logf("agent Conn DERPMap with regionIDs %v, PreferredDERP %d", regionIDs, preferredDERP)
 		return len(regionIDs) == 1 && regionIDs[0] == 2 && preferredDERP == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
-	t.Logf("agent got the new DERPMap")
+	t.Log("agent got the new DERPMap")
 
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap, "client2")
@@ -2274,7 +2632,7 @@ done
 
 	n := 1
 	for n <= 5 {
-		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		logs := testutil.TryReceive(ctx, t, logsCh)
 		require.NotNil(t, logs)
 		for _, l := range logs.GetLogs() {
 			require.Equal(t, fmt.Sprintf("start %d", n), l.GetOutput())
@@ -2287,7 +2645,7 @@ done
 
 	n = 1
 	for n <= 3000 {
-		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		logs := testutil.TryReceive(ctx, t, logsCh)
 		require.NotNil(t, logs)
 		for _, l := range logs.GetLogs() {
 			require.Equal(t, fmt.Sprintf("stop %d", n), l.GetOutput())
@@ -2314,6 +2672,17 @@ func setupSSHSession(
 	prepareFS func(fs afero.Fs),
 	opts ...func(*agenttest.Client, *agent.Options),
 ) *ssh.Session {
+	return setupSSHSessionOnPort(t, manifest, banner, prepareFS, workspacesdk.AgentSSHPort, opts...)
+}
+
+func setupSSHSessionOnPort(
+	t *testing.T,
+	manifest agentsdk.Manifest,
+	banner codersdk.BannerConfig,
+	prepareFS func(fs afero.Fs),
+	port uint16,
+	opts ...func(*agenttest.Client, *agent.Options),
+) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
@@ -2326,7 +2695,7 @@ func setupSSHSession(
 	if prepareFS != nil {
 		prepareFS(fs)
 	}
-	sshClient, err := conn.SSHClient(ctx)
+	sshClient, err := conn.SSHClientOnPort(ctx, port)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sshClient.Close()
@@ -2690,4 +3059,36 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+}
+
+func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connectionType proto.Connection_Type, status int, reason string) {
+	t.Helper()
+
+	var reports []*proto.ReportConnectionRequest
+	if !assert.Eventually(t, func() bool {
+		reports = agentClient.GetConnectionReports()
+		return len(reports) >= 2
+	}, testutil.WaitMedium, testutil.IntervalFast, "waiting for 2 connection reports or more; got %d", len(reports)) {
+		return
+	}
+
+	assert.Len(t, reports, 2, "want 2 connection reports")
+
+	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
+	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
+	assert.Equal(t, connectionType, reports[0].GetConnection().GetType(), "connect type should be %s", connectionType)
+	assert.Equal(t, connectionType, reports[1].GetConnection().GetType(), "disconnect type should be %s", connectionType)
+	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
+	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
+	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
+	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
+	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
+	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
+	assert.Equal(t, status, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", status)
+	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
+	if reason != "" {
+		assert.Contains(t, reports[1].GetConnection().GetReason(), reason, "disconnect reason should contain %s", reason)
+	} else {
+		t.Logf("connection report disconnect reason: %s", reports[1].GetConnection().GetReason())
+	}
 }

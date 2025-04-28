@@ -10,6 +10,7 @@ import {
 	getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import type { ComponentProps } from "react";
@@ -17,9 +18,12 @@ import {
 	MockBuildInfo,
 	MockOrganization,
 	MockPendingProvisionerJob,
+	MockProxyLatencies,
+	MockStoppedWorkspace,
 	MockTemplate,
 	MockUser,
 	MockWorkspace,
+	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
@@ -45,8 +49,8 @@ const createWorkspace = (
 					: MockWorkspace.latest_build.job,
 		},
 		last_used_at: lastUsedAt,
-		dormant_at: dormantAt,
-		deleting_at: deletingAt,
+		dormant_at: dormantAt || null,
+		deleting_at: deletingAt || null,
 	};
 };
 
@@ -141,7 +145,31 @@ const meta: Meta<typeof WorkspacesPageView> = {
 			},
 		],
 	},
-	decorators: [withDashboardProvider],
+	decorators: [
+		withDashboardProvider,
+		(Story) => (
+			<ProxyContext.Provider
+				value={{
+					proxyLatencies: MockProxyLatencies,
+					proxy: getPreferredProxy([], undefined),
+					proxies: [],
+					isLoading: false,
+					isFetched: true,
+					clearProxy: () => {
+						return;
+					},
+					setProxy: () => {
+						return;
+					},
+					refetchProxyLatencies: (): Date => {
+						return new Date();
+					},
+				}}
+			>
+				<Story />
+			</ProxyContext.Provider>
+		),
+	],
 };
 
 export default meta;
@@ -295,5 +323,64 @@ export const ShowOrganizations: Story = {
 		});
 
 		expect(accessibleTableCell).toBeDefined();
+	},
+};
+
+export const WithLatestAppStatus: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					message:
+						"This is a long message that will wrap around the component. It should wrap many times because this is very very very very very long.",
+				},
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: null,
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "working",
+					message: "Fixing the competitors page...",
+				},
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "failure",
+					message: "I couldn't figure it out...",
+				},
+			},
+			{
+				...{
+					...MockStoppedWorkspace,
+					latest_build: {
+						...MockStoppedWorkspace.latest_build,
+						resources: [],
+					},
+				},
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "failure",
+					message: "I couldn't figure it out...",
+					uri: "",
+				},
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "working",
+					message: "Updating the README...",
+					uri: "file:///home/coder/projects/coder/coder/README.md",
+				},
+			},
+		],
 	},
 };

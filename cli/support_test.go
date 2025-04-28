@@ -45,12 +45,13 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
+
 		var dc codersdk.DeploymentConfig
 		secretValue := uuid.NewString()
 		seedSecretDeploymentOptions(t, &dc, secretValue)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: dc.Values,
+			DeploymentValues:   dc.Values,
+			HealthcheckTimeout: testutil.WaitSuperLong,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -61,6 +62,8 @@ func TestSupportBundle(t *testing.T) {
 			agents[0].Env["SECRET_VALUE"] = secretValue
 			return agents
 		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		tempDir := t.TempDir()
@@ -71,6 +74,8 @@ func TestSupportBundle(t *testing.T) {
 		})
 		defer agt.Close()
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+
+		ctx = testutil.Context(t, testutil.WaitShort) // Reset timeout after waiting for agent.
 
 		// Insert a provisioner job log
 		_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
@@ -109,7 +114,8 @@ func TestSupportBundle(t *testing.T) {
 		secretValue := uuid.NewString()
 		seedSecretDeploymentOptions(t, &dc, secretValue)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues: dc.Values,
+			DeploymentValues:   dc.Values,
+			HealthcheckTimeout: testutil.WaitSuperLong,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -129,7 +135,8 @@ func TestSupportBundle(t *testing.T) {
 		secretValue := uuid.NewString()
 		seedSecretDeploymentOptions(t, &dc, secretValue)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: dc.Values,
+			DeploymentValues:   dc.Values,
+			HealthcheckTimeout: testutil.WaitSuperLong,
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{

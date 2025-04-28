@@ -15,7 +15,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		RawArgs: true,
 		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
-			agplcli.SlimUnsupported(inv.Stderr, "provisionerd start")
+			agplcli.SlimUnsupported(inv.Stderr, "provisioner start")
 			return nil
 		},
 	}

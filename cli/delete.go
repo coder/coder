@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -20,6 +21,12 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
+		Long: FormatExamples(
+			Example{
+				Description: "Delete a workspace for another user (if you have permission)",
+				Command:     "coder delete <username>/<workspace_name>",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
@@ -55,6 +62,7 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			cliutil.WarnMatchedProvisioners(inv.Stdout, build.MatchedProvisioners, build.Job)
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
 			if err != nil {

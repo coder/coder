@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -8,13 +6,15 @@ import Skeleton from "@mui/material/Skeleton";
 import { visuallyHidden } from "@mui/utils";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BUTTON_SM_HEIGHT } from "theme/constants";
+import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
 	proxyContextValue: ProxyContextValue;
@@ -62,7 +62,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 		return (
 			<Skeleton
 				width="110px"
-				height={BUTTON_SM_HEIGHT}
+				height={40}
 				css={{ borderRadius: 6, transform: "none" }}
 			/>
 		);
@@ -71,13 +71,10 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 	return (
 		<>
 			<Button
+				variant="outline"
 				ref={buttonRef}
 				onClick={() => setIsOpen(true)}
-				size="small"
-				endIcon={<KeyboardArrowDownOutlined />}
-				css={{
-					"& .MuiSvgIcon-root": { fontSize: 14 },
-				}}
+				size="lg"
 			>
 				<span css={{ ...visuallyHidden }}>
 					Latency for {selectedProxy?.display_name ?? "your region"}
@@ -102,11 +99,14 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						<Latency
 							latency={latencies?.[selectedProxy.id]?.latencyMS}
 							isLoading={proxyLatencyLoading(selectedProxy)}
+							size={24}
 						/>
 					</div>
 				) : (
 					"Select Proxy"
 				)}
+
+				<ChevronDownIcon className="text-content-primary !size-icon-xs" />
 			</Button>
 
 			<Menu
@@ -169,15 +169,8 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 					]}
 
 				{proxyContextValue.proxies &&
-					[...proxyContextValue.proxies]
-						.sort((a, b) => {
-							const latencyA =
-								latencies?.[a.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
-							const latencyB =
-								latencies?.[b.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
-							return latencyA - latencyB;
-						})
-						.map((proxy) => (
+					sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
+						(proxy) => (
 							<MenuItem
 								key={proxy.id}
 								selected={proxy.id === selectedProxy?.id}
@@ -221,7 +214,8 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									/>
 								</div>
 							</MenuItem>
-						))}
+						),
+					)}
 
 				<Divider />
 

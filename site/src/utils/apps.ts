@@ -29,9 +29,8 @@ export const createAppLinkHref = (
 	}
 
 	if (appsHost && app.subdomain && app.subdomain_name) {
-		const baseUrl = `${protocol}//${appsHost}`;
+		const baseUrl = `${protocol}//${appsHost.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
-		url.hostname = appsHost.replace("*", app.subdomain_name);
 		url.pathname = "/";
 
 		href = url.toString();

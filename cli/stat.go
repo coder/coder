@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clistat"
+	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 )
@@ -67,7 +67,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			}()
 			go func() {
 				defer close(containerErr)
-				if ok, _ := clistat.IsContainerized(fs); !ok {
+				if ok, _ := st.IsContainerized(); !ok {
 					// don't error if we're not in a container
 					return
 				}
@@ -104,7 +104,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			sr.Disk = ds
 
 			// Container-only stats.
-			if ok, err := clistat.IsContainerized(fs); err == nil && ok {
+			if ok, err := st.IsContainerized(); err == nil && ok {
 				cs, err := st.ContainerCPU()
 				if err != nil {
 					return err
@@ -150,7 +150,7 @@ func (*RootCmd) statCPU(fs afero.Fs) *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			var cs *clistat.Result
 			var err error
-			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
+			if ok, _ := st.IsContainerized(); ok && !hostArg {
 				cs, err = st.ContainerCPU()
 			} else {
 				cs, err = st.HostCPU()
@@ -204,7 +204,7 @@ func (*RootCmd) statMem(fs afero.Fs) *serpent.Command {
 			pfx := clistat.ParsePrefix(prefixArg)
 			var ms *clistat.Result
 			var err error
-			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
+			if ok, _ := st.IsContainerized(); ok && !hostArg {
 				ms, err = st.ContainerMemory(pfx)
 			} else {
 				ms, err = st.HostMemory(pfx)

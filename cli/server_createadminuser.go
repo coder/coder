@@ -54,7 +54,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 			if newUserDBURL == "" {
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
-				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
+				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "")
 				if err != nil {
 					return err
 				}
@@ -72,7 +72,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL)
+			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL, nil)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}

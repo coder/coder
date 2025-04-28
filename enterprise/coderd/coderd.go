@@ -12,12 +12,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
@@ -43,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
@@ -71,6 +75,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 	if options.ReplicaErrorGracePeriod == 0 {
 		// This will prevent the error from being shown for a minute
@@ -295,8 +302,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Route("/organization", func(r chi.Router) {
 					r.Get("/", api.organizationIDPSyncSettings)
 					r.Patch("/", api.patchOrganizationIDPSyncSettings)
+					r.Patch("/config", api.patchOrganizationIDPSyncConfig)
+					r.Patch("/mapping", api.patchOrganizationIDPSyncMapping)
 				})
+
 				r.Get("/available-fields", api.deploymentIDPSyncClaimFields)
+				r.Get("/field-values", api.deploymentIDPSyncClaimFieldValues)
 			})
 		})
 
@@ -306,11 +317,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
-				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
 				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
 				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
+				r.Patch("/idpsync/groups/config", api.patchGroupIDPSyncConfig)
+				r.Patch("/idpsync/groups/mapping", api.patchGroupIDPSyncMapping)
+
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
 				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
+				r.Patch("/idpsync/roles/config", api.patchRoleIDPSyncConfig)
+				r.Patch("/idpsync/roles/mapping", api.patchRoleIDPSyncMapping)
+
+				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
+				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
 			})
 		})
 
@@ -377,7 +395,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		//
 		// We may in future decide to scope provisioner daemons to organizations, so we'll keep the API
 		// route as is.
-		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
+		r.Route("/organizations/{organization}/provisionerdaemons/serve", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
@@ -391,8 +409,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
-			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
+			r.Get("/", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
@@ -457,16 +474,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
-		r.Route("/integrations", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				api.jfrogEnabledMW,
-			)
-
-			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
-			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
-		})
-
 		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
 		// Additionally, because we have a static route for /notifications/templates/system which conflicts
 		// with the below route, we need to register this route without any mounts or groups to make both work.
@@ -488,6 +495,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Post("/", api.scimPostUser)
 				r.Get("/{id}", api.scimGetUser)
 				r.Patch("/{id}", api.scimPatchUser)
+				r.Put("/{id}", api.scimPutUser)
 			})
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 				u := r.URL.String()
@@ -518,8 +526,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
-		ID:             api.AGPL.ID,
-		RelayAddress:   options.DERPServerRelayAddress,
+		ID:           api.AGPL.ID,
+		RelayAddress: options.DERPServerRelayAddress,
+		// #nosec G115 - DERP region IDs are small and fit in int32
 		RegionID:       int32(options.DERPServerRegionID),
 		TLSConfig:      meshTLSConfig,
 		UpdateInterval: options.ReplicaSyncUpdateInterval,
@@ -653,6 +662,7 @@ func (api *API) Close() error {
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
+
 	return api.AGPL.Close()
 }
 
@@ -738,7 +748,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 			if enabled {
-				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"))
+				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"), api.Clock)
 				templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 				api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 
@@ -853,6 +863,20 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				ps = portsharing.NewEnterprisePortSharer()
 			}
 			api.AGPL.PortSharer.Store(&ps)
+		}
+
+		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
+			reconciler, claimer := api.setupPrebuilds(enabled)
+			if current := api.AGPL.PrebuildsReconciler.Load(); current != nil {
+				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
+				defer giveUp()
+				(*current).Stop(stopCtx, xerrors.New("entitlements change"))
+			}
+
+			api.AGPL.PrebuildsReconciler.Store(&reconciler)
+			go reconciler.Run(context.Background())
+
+			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}
 
 		// External token encryption is soft-enforced
@@ -1122,4 +1146,25 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 
 func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
+}
+
+// nolint:revive // featureEnabled is a legit control flag.
+func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
+	experimentEnabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
+	if !experimentEnabled || !featureEnabled {
+		levelFn := api.Logger.Debug
+		// If the experiment is enabled but the license does not entitle the feature, operators should be warned.
+		if !featureEnabled {
+			levelFn = api.Logger.Warn
+		}
+
+		levelFn(context.Background(), "prebuilds not enabled; ensure you have a premium license and the 'workspace-prebuilds' experiment set",
+			slog.F("experiment_enabled", experimentEnabled), slog.F("feature_enabled", featureEnabled))
+
+		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
+	}
+
+	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry)
+	return reconciler, prebuilds.EnterpriseClaimer{}
 }

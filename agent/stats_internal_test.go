@@ -34,14 +34,14 @@ func TestStatsReporter(t *testing.T) {
 	}()
 
 	// initial request to get duration
-	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	require.Nil(t, req.Stats)
 	interval := time.Second * 34
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
 
 	// call to source to set the callback and interval
-	gotInterval := testutil.RequireRecvCtx(ctx, t, fSource.period)
+	gotInterval := testutil.TryReceive(ctx, t, fSource.period)
 	require.Equal(t, interval, gotInterval)
 
 	// callback returning netstats
@@ -60,11 +60,11 @@ func TestStatsReporter(t *testing.T) {
 	fSource.callback(time.Now(), time.Now(), netStats, nil)
 
 	// collector called to complete the stats
-	gotNetStats := testutil.RequireRecvCtx(ctx, t, fCollector.calls)
+	gotNetStats := testutil.TryReceive(ctx, t, fCollector.calls)
 	require.Equal(t, netStats, gotNetStats)
 
 	// while we are collecting the stats, send in two new netStats to simulate
-	// what happens if we don't keep up.  Only the latest should be kept.
+	// what happens if we don't keep up.  The stats should be accumulated.
 	netStats0 := map[netlogtype.Connection]netlogtype.Counts{
 		{
 			Proto: ipproto.TCP,
@@ -94,31 +94,43 @@ func TestStatsReporter(t *testing.T) {
 
 	// complete first collection
 	stats := &proto.Stats{SessionCountJetbrains: 55}
-	testutil.RequireSendCtx(ctx, t, fCollector.stats, stats)
+	testutil.RequireSend(ctx, t, fCollector.stats, stats)
 
 	// destination called to report the first stats
-	update := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	update := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, update)
 	require.Equal(t, stats, update.Stats)
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
 
-	// second update -- only netStats1 is reported
-	gotNetStats = testutil.RequireRecvCtx(ctx, t, fCollector.calls)
-	require.Equal(t, netStats1, gotNetStats)
+	// second update -- netStat0 and netStats1 are accumulated and reported
+	wantNetStats := map[netlogtype.Connection]netlogtype.Counts{
+		{
+			Proto: ipproto.TCP,
+			Src:   netip.MustParseAddrPort("192.168.1.33:4887"),
+			Dst:   netip.MustParseAddrPort("192.168.2.99:9999"),
+		}: {
+			TxPackets: 21,
+			TxBytes:   21,
+			RxPackets: 21,
+			RxBytes:   21,
+		},
+	}
+	gotNetStats = testutil.TryReceive(ctx, t, fCollector.calls)
+	require.Equal(t, wantNetStats, gotNetStats)
 	stats = &proto.Stats{SessionCountJetbrains: 66}
-	testutil.RequireSendCtx(ctx, t, fCollector.stats, stats)
-	update = testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	testutil.RequireSend(ctx, t, fCollector.stats, stats)
+	update = testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, update)
 	require.Equal(t, stats, update.Stats)
 	interval2 := 27 * time.Second
-	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval2)})
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval2)})
 
 	// set the new interval
-	gotInterval = testutil.RequireRecvCtx(ctx, t, fSource.period)
+	gotInterval = testutil.TryReceive(ctx, t, fSource.period)
 	require.Equal(t, interval2, gotInterval)
 
 	loopCancel()
-	err := testutil.RequireRecvCtx(ctx, t, loopErr)
+	err := testutil.TryReceive(ctx, t, loopErr)
 	require.NoError(t, err)
 }
 

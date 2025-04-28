@@ -17,10 +17,13 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -29,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
@@ -42,8 +46,10 @@ type API struct {
 	*LifecycleAPI
 	*AppsAPI
 	*MetadataAPI
+	*ResourcesMonitoringAPI
 	*LogsAPI
 	*ScriptsAPI
+	*AuditAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -58,8 +64,11 @@ type Options struct {
 
 	Ctx                               context.Context
 	Log                               slog.Logger
+	Clock                             quartz.Clock
 	Database                          database.Store
+	NotificationsEnqueuer             notifications.Enqueuer
 	Pubsub                            pubsub.Pubsub
+	Auditor                           *atomic.Pointer[audit.Auditor]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
@@ -81,6 +90,10 @@ type Options struct {
 }
 
 func New(opts Options) *API {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
+
 	api := &API{
 		opts: opts,
 		mu:   sync.Mutex{},
@@ -100,6 +113,25 @@ func New(opts Options) *API {
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
+	}
+
+	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
+		AgentID:               opts.AgentID,
+		WorkspaceID:           opts.WorkspaceID,
+		Clock:                 opts.Clock,
+		Database:              opts.Database,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+		Debounce:              30 * time.Minute,
+
+		Config: resourcesmonitor.Config{
+			NumDatapoints:      20,
+			CollectionInterval: 10 * time.Second,
+
+			Alert: resourcesmonitor.AlertConfig{
+				MinimumNOKsPercent:     20,
+				ConsecutiveNOKsPercent: 50,
+			},
+		},
 	}
 
 	api.StatsAPI = &StatsAPI{
@@ -143,6 +175,13 @@ func New(opts Options) *API {
 
 	api.ScriptsAPI = &ScriptsAPI{
 		Database: opts.Database,
+	}
+
+	api.AuditAPI = &AuditAPI{
+		AgentFn:  api.agent,
+		Auditor:  opts.Auditor,
+		Database: opts.Database,
+		Log:      opts.Log,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

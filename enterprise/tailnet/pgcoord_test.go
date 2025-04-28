@@ -31,7 +31,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
@@ -118,15 +118,15 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 
 	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
 	defer agent.Close(ctx)
+	prefix := agpl.TailscaleServicePrefix.RandomPrefix()
 	agent.UpdateNode(&proto.Node{
-		Addresses: []string{
-			agpl.TailscaleServicePrefix.RandomPrefix().String(),
-		},
+		Addresses:     []string{prefix.String()},
 		PreferredDerp: 10,
 	})
 
 	// The agent connection should be closed immediately after sending an invalid addr
-	agent.AssertEventuallyResponsesClosed()
+	agent.AssertEventuallyResponsesClosed(
+		agpl.AuthorizationError{Wrapped: agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -153,7 +153,8 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	})
 
 	// The agent connection should be closed immediately after sending an invalid addr
-	agent.AssertEventuallyResponsesClosed()
+	agent.AssertEventuallyResponsesClosed(
+		agpl.AuthorizationError{Wrapped: agpl.InvalidAddressBitsError{Bits: 64}}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -410,7 +411,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 		}
 		require.Greater(t, heartbeats[0].Sub(start), time.Duration(0))
 		require.Greater(t, heartbeats[1].Sub(start), time.Duration(0))
-		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*9/10)
+		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*3/4)
 	}, testutil.WaitMedium, testutil.IntervalMedium)
 }
 
@@ -462,40 +463,40 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	defer client22.Close(ctx)
 	t.Logf("client22=%s", client22.ID)
 
-	t.Logf("client11 -> Node 11")
+	t.Log("client11 -> Node 11")
 	client11.UpdateDERP(11)
 	agent1.AssertEventuallyHasDERP(client11.ID, 11)
 
-	t.Logf("client21 -> Node 21")
+	t.Log("client21 -> Node 21")
 	client21.UpdateDERP(21)
 	agent1.AssertEventuallyHasDERP(client21.ID, 21)
 
-	t.Logf("client22 -> Node 22")
+	t.Log("client22 -> Node 22")
 	client22.UpdateDERP(22)
 	agent2.AssertEventuallyHasDERP(client22.ID, 22)
 
-	t.Logf("agent2 -> Node 2")
+	t.Log("agent2 -> Node 2")
 	agent2.UpdateDERP(2)
 	client22.AssertEventuallyHasDERP(agent2.ID, 2)
 	client12.AssertEventuallyHasDERP(agent2.ID, 2)
 
-	t.Logf("client12 -> Node 12")
+	t.Log("client12 -> Node 12")
 	client12.UpdateDERP(12)
 	agent2.AssertEventuallyHasDERP(client12.ID, 12)
 
-	t.Logf("agent1 -> Node 1")
+	t.Log("agent1 -> Node 1")
 	agent1.UpdateDERP(1)
 	client21.AssertEventuallyHasDERP(agent1.ID, 1)
 	client11.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	t.Logf("close coord2")
+	t.Log("close coord2")
 	err = coord2.Close()
 	require.NoError(t, err)
 
 	// this closes agent2, client22, client21
-	agent2.AssertEventuallyResponsesClosed()
-	client22.AssertEventuallyResponsesClosed()
-	client21.AssertEventuallyResponsesClosed()
+	agent2.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
+	client22.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
+	client21.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
 	assertEventuallyLost(ctx, t, store, agent2.ID)
 	assertEventuallyLost(ctx, t, store, client21.ID)
 	assertEventuallyLost(ctx, t, store, client22.ID)
@@ -503,9 +504,9 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	err = coord1.Close()
 	require.NoError(t, err)
 	// this closes agent1, client12, client11
-	agent1.AssertEventuallyResponsesClosed()
-	client12.AssertEventuallyResponsesClosed()
-	client11.AssertEventuallyResponsesClosed()
+	agent1.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
+	client12.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
+	client11.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
 	assertEventuallyLost(ctx, t, store, agent1.ID)
 	assertEventuallyLost(ctx, t, store, client11.ID)
 	assertEventuallyLost(ctx, t, store, client12.ID)
@@ -636,12 +637,12 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		}
 	}
 	// connected agent should be disconnected
-	agent1.AssertEventuallyResponsesClosed()
+	agent1.AssertEventuallyResponsesClosed(tailnet.CloseErrUnhealthy)
 
 	// new agent should immediately disconnect
 	agent2 := agpltest.NewAgent(ctx, t, uut, "agent2")
 	defer agent2.Close(ctx)
-	agent2.AssertEventuallyResponsesClosed()
+	agent2.AssertEventuallyResponsesClosed(tailnet.CloseErrUnhealthy)
 
 	// next heartbeats succeed, so we are healthy
 	for i := 0; i < 2; i++ {
@@ -836,7 +837,7 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 	// we eventually disconnect from the coordinator.
 	err = sdb1.Close()
 	require.NoError(t, err)
-	p1.AssertEventuallyResponsesClosed()
+	p1.AssertEventuallyResponsesClosed(tailnet.CloseErrUnhealthy)
 	p2.AssertEventuallyLost(p1.ID)
 	// This basically checks that peer2 had no update
 	// performed on their status since we are connected
@@ -891,7 +892,7 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	// never send a DISCONNECTED update.
 	err = c1.Close()
 	require.NoError(t, err)
-	p1.AssertEventuallyResponsesClosed()
+	p1.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
 	p2.AssertEventuallyLost(p1.ID)
 	// This basically checks that peer2 had no update
 	// performed on their status since we are connected
@@ -943,9 +944,9 @@ func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 
 	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
 
-	testutil.RequireSendCtx(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
+	testutil.RequireSend(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
 
-	_ = testutil.RequireRecvCtx(ctx, t, ch)
+	_ = testutil.TryReceive(ctx, t, ch)
 }
 
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {

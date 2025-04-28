@@ -1,11 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import isEqual from "lodash/isEqual";
 import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
@@ -90,11 +91,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 				},
 
 				table: ({ children }) => {
-					return (
-						<TableContainer>
-							<Table>{children}</Table>
-						</TableContainer>
-					);
+					return <Table>{children}</Table>;
 				},
 
 				tr: ({ children }) => {
@@ -102,7 +99,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 				},
 
 				thead: ({ children }) => {
-					return <TableHead>{children}</TableHead>;
+					return <TableHeader>{children}</TableHeader>;
 				},
 
 				tbody: ({ children }) => {

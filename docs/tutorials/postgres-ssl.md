@@ -3,7 +3,7 @@
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Eric Paulsen</span>
-    <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/ericpaulsen.png" alt="ericpaulsen" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 February 24, 2024
@@ -72,6 +72,5 @@ coder:
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert="/home/coder/.postgresql/postgres-root.crt"
 ```
 
-> More information on connecting to PostgreSQL databases using certificates can
-> be found
-> [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
+More information on connecting to PostgreSQL databases using certificates can
+be found in the [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).

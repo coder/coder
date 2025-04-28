@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
@@ -34,12 +33,13 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 type ClientNumber int
@@ -200,7 +200,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			})
 		},
 		tracing.StatusWriterMiddleware,
-		httpmw.Logger(logger),
+		loggermw.Logger(logger),
 	)
 
 	r.Route("/derp", func(r chi.Router) {
@@ -592,7 +592,7 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 		select {
 		case err := <-waitErr:
 			if err != nil {
-				t.Logf("subprocess exited: " + err.Error())
+				t.Log("subprocess exited: " + err.Error())
 			}
 			return
 		default:

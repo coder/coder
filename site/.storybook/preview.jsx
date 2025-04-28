@@ -22,12 +22,13 @@ import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
+	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
-import React, { StrictMode } from "react";
+import { StrictMode } from "react";
 import { HelmetProvider } from "react-helmet-async";
-import { parseQueryArgs, QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import themes from "../src/theme";
@@ -62,6 +63,14 @@ export const parameters = {
 					width: "768px",
 				},
 				type: "tablet",
+			},
+			iphone12: {
+				name: "iPhone 12",
+				styles: {
+					height: "844px",
+					width: "390px",
+				},
+				type: "mobile",
 			},
 			terminal: {
 				name: "Terminal",

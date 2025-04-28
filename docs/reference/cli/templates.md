@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # templates
 
 Manage templates
 
 Aliases:
 
-- template
+* template
 
 ## Usage
 
@@ -27,7 +26,7 @@ workspaces:
 ## Subcommands
 
 | Name                                             | Purpose                                                                          |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+|--------------------------------------------------|----------------------------------------------------------------------------------|
 | [<code>create</code>](./templates_create.md)     | DEPRECATED: Create a template from the current directory or as specified by flag |
 | [<code>edit</code>](./templates_edit.md)         | Edit the metadata of a template by name.                                         |
 | [<code>init</code>](./templates_init.md)         | Get started with a templated template.                                           |

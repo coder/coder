@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
@@ -137,8 +137,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				UserVariableValues: userVariableValues,
 			}
 
+			// This ensures the version name is set in the request arguments regardless of whether you're creating a new template or updating an existing one.
+			args.Name = versionName
 			if !createTemplate {
-				args.Name = versionName
 				args.Template = &template
 				args.ReuseParameters = !alwaysPrompt
 			}
@@ -416,30 +417,7 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	if err != nil {
 		return nil, err
 	}
-	var tagsJSON strings.Builder
-	if err := json.NewEncoder(&tagsJSON).Encode(version.Job.Tags); err != nil {
-		// Fall back to the less-pretty string representation.
-		tagsJSON.Reset()
-		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", version.Job.Tags))
-	}
-	if version.MatchedProvisioners.Count == 0 {
-		cliui.Warnf(inv.Stderr, `No provisioners are available to handle the job!
-Please contact your deployment administrator for assistance.
-Details:
-	Provisioner job ID : %s
-	Requested tags     : %s
-`, version.Job.ID, tagsJSON.String())
-	} else if version.MatchedProvisioners.Available == 0 {
-		cliui.Warnf(inv.Stderr, `All available provisioner daemons have been silent for a while.
-Your build will proceed once they become available.
-If this persists, please contact your deployment administrator for assistance.
-Details:
-	Provisioner job ID : %s
-	Requested tags     : %s
-	Most recently seen : %s
-`, version.Job.ID, strings.TrimSpace(tagsJSON.String()), version.MatchedProvisioners.MostRecentlySeen.Time)
-	}
-
+	cliutil.WarnMatchedProvisioners(inv.Stderr, version.MatchedProvisioners, version.Job)
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			version, err := client.TemplateVersion(inv.Context(), version.ID)

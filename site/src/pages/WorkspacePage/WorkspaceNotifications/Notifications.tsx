@@ -7,7 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 	usePopover,
-} from "components/Popover/Popover";
+} from "components/deprecated/Popover/Popover";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 
@@ -100,7 +100,10 @@ export const NotificationActionButton: FC<ButtonProps> = (props) => {
 			variant="text"
 			css={{
 				textDecoration: "underline",
-				padding: 0,
+				paddingLeft: 0,
+				paddingRight: 8,
+				paddingTop: 0,
+				paddingBottom: 0,
 				height: "auto",
 				minWidth: "auto",
 				"&:hover": { background: "none", textDecoration: "underline" },

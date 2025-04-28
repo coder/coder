@@ -142,6 +142,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Deprecated use /organizations/{organization}/paginated-members [get]
 // @Summary List organization members
 // @ID list-organization-members
 // @Security CoderSessionToken
@@ -159,6 +160,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: organization.ID,
 		UserID:         uuid.Nil,
+		IncludeSystem:  false,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -175,6 +177,68 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Paginated organization members
+// @ID paginated-organization-members
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param limit query int false "Page limit, if 0 returns all members"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} []codersdk.PaginatedMembersResponse
+// @Router /organizations/{organization}/paginated-members [get]
+func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx                  = r.Context()
+		organization         = httpmw.OrganizationParam(r)
+		paginationParams, ok = parsePagination(rw, r)
+	)
+	if !ok {
+		return
+	}
+
+	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
+		OrganizationID: organization.ID,
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	memberRows := make([]database.OrganizationMembersRow, 0)
+	for _, pRow := range paginatedMemberRows {
+		row := database.OrganizationMembersRow{
+			OrganizationMember: pRow.OrganizationMember,
+			Username:           pRow.Username,
+			AvatarURL:          pRow.AvatarURL,
+			Name:               pRow.Name,
+			Email:              pRow.Email,
+			GlobalRoles:        pRow.GlobalRoles,
+		}
+
+		memberRows = append(memberRows, row)
+	}
+
+	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+	}
+
+	resp := codersdk.PaginatedMembersResponse{
+		Members: members,
+		Count:   int(paginatedMemberRows[0].Count),
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
@@ -323,7 +387,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	customRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles:     roleLookup,
 		ExcludeOrgRoles: false,
-		OrganizationID:  uuid.UUID{},
+		OrganizationID:  uuid.Nil,
 	})
 	if err != nil {
 		// We are missing the display names, but that is not absolutely required. So just

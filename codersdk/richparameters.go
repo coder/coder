@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func ValidateNewWorkspaceParameters(richParameters []TemplateVersionParameter, buildParameters []WorkspaceBuildParameter) error {
@@ -102,17 +102,17 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		return nil
 	}
 
-	var min, max int
+	var minVal, maxVal int
 	if richParameter.ValidationMin != nil {
-		min = int(*richParameter.ValidationMin)
+		minVal = int(*richParameter.ValidationMin)
 	}
 	if richParameter.ValidationMax != nil {
-		max = int(*richParameter.ValidationMax)
+		maxVal = int(*richParameter.ValidationMax)
 	}
 
 	validation := &provider.Validation{
-		Min:         min,
-		Max:         max,
+		Min:         minVal,
+		Max:         maxVal,
 		MinDisabled: richParameter.ValidationMin == nil,
 		MaxDisabled: richParameter.ValidationMax == nil,
 		Regex:       richParameter.ValidationRegex,
@@ -188,6 +188,26 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 		return "", err
 	}
 	return resolvedValue.Value, nil
+}
+
+// Resolve returns the value of the parameter. It does not do any validation,
+// and is meant for use with the new dynamic parameters code path.
+func (r *ParameterResolver) Resolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) string {
+	prevV := r.findLastValue(p)
+	// First, the provided value
+	resolvedValue := v
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
+		resolvedValue = prevV
+	}
+	// Last, default value
+	if resolvedValue == nil {
+		resolvedValue = &WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.DefaultValue,
+		}
+	}
+	return resolvedValue.Value
 }
 
 // findLastValue finds the value from the previous build and returns it, or nil if the parameter had no value in the

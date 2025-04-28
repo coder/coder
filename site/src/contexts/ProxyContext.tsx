@@ -15,6 +15,8 @@ import {
 import { useQuery } from "react-query";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
+export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
+export type ProxyLatencies = Record<string, ProxyLatencyReport>;
 export interface ProxyContextValue {
 	// proxy is **always** the workspace proxy that should be used.
 	// The 'proxy.selectedProxy' field is the proxy being used and comes from either:
@@ -43,7 +45,7 @@ export interface ProxyContextValue {
 	// WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
 	//  more information about the proxy and the status. More information includes the error message if
 	//  the proxy is unhealthy.
-	proxies?: readonly Region[] | readonly WorkspaceProxy[];
+	proxies?: Proxies;
 	// isFetched is true when the 'proxies' api call is complete.
 	isFetched: boolean;
 	isLoading: boolean;
@@ -51,7 +53,7 @@ export interface ProxyContextValue {
 	// proxyLatencies is a map of proxy id to latency report. If the proxyLatencies[proxy.id] is undefined
 	// then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
 	// Refer to the returned report for a given proxy for more information.
-	proxyLatencies: Record<string, ProxyLatencyReport>;
+	proxyLatencies: ProxyLatencies;
 	// refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
 	// are loaded once.
 	refetchProxyLatencies: () => Date;

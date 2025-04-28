@@ -6,12 +6,12 @@ USAGE:
   Start a Coder server
 
 SUBCOMMANDS:
-    create-admin-user         Create a new admin user with the given username,
-                              email and password and adds it to every
-                              organization.
-    postgres-builtin-serve    Run the built-in PostgreSQL deployment.
-    postgres-builtin-url      Output the connection URL for the built-in
-                              PostgreSQL deployment.
+    create-admin-user           Create a new admin user with the given username,
+                                email and password and adds it to every
+                                organization.
+    postgres-builtin-serve      Run the built-in PostgreSQL deployment.
+    postgres-builtin-url        Output the connection URL for the built-in
+                                PostgreSQL deployment.
 
 OPTIONS:
       --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
@@ -51,13 +51,15 @@ OPTIONS:
           all available experiments.
 
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
-          Type of auth to use when connecting to postgres.
+          Type of auth to use when connecting to postgres. For AWS RDS, using
+          IAM authentication (awsiamrds) is recommended.
 
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
           data in the config root. Access the built-in database with "coder
-          server postgres-builtin-url".
+          server postgres-builtin-url". Note that any special characters in the
+          URL must be URL-encoded.
 
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
@@ -76,7 +78,7 @@ OPTIONS:
 
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
-Clients include the coder cli, vs code extension, and the web UI.
+Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 
       --cli-upgrade-message string, $CODER_CLI_UPGRADE_MESSAGE
           The upgrade message to display to users when a client/server mismatch
@@ -95,6 +97,11 @@ Clients include the coder cli, vs code extension, and the web UI.
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are
           'canvas', 'webgl', or 'dom'.
+
+      --workspace-hostname-suffix string, $CODER_WORKSPACE_HOSTNAME_SUFFIX (default: coder)
+          Workspace hostnames use this suffix in SSH config and Coder Connect on
+          Coder Desktop. By default it is coder, resulting in names like
+          myworkspace.coder.
 
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.
@@ -243,6 +250,9 @@ NETWORKING OPTIONS:
       --redirect-to-access-url bool, $CODER_REDIRECT_TO_ACCESS_URL
           Specifies whether to redirect requests that do not match the access
           URL host.
+
+      --samesite-auth-cookie lax|none, $CODER_SAMESITE_AUTH_COOKIE (default: lax)
+          Controls the 'SameSite' property is set on browser session cookies.
 
       --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
           Controls if the 'Secure' property is set on browser session cookies.
@@ -471,6 +481,10 @@ Configure TLS for your SMTP server target.
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
           DEPRECATED: Use --email-tls-starttls instead.
 
+NOTIFICATIONS / INBOX OPTIONS: 
+      --notifications-inbox-enabled bool, $CODER_NOTIFICATIONS_INBOX_ENABLED (default: true)
+          Enable Coder Inbox.
+
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
           The endpoint to which to send webhooks.
@@ -495,6 +509,12 @@ OAUTH2 / GITHUB OPTIONS:
 
       --oauth2-github-client-secret string, $CODER_OAUTH2_GITHUB_CLIENT_SECRET
           Client secret for Login with GitHub.
+
+      --oauth2-github-default-provider-enable bool, $CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE (default: true)
+          Enable the default GitHub OAuth2 provider managed by Coder.
+
+      --oauth2-github-device-flow bool, $CODER_OAUTH2_GITHUB_DEVICE_FLOW (default: false)
+          Enable device flow for Login with GitHub.
 
       --oauth2-github-enterprise-base-url string, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
           Base URL of a GitHub Enterprise deployment to use for Login with
@@ -622,9 +642,9 @@ updating, and deleting workspace resources.
           in queued state for a long time, consider increasing this.
 
 TELEMETRY OPTIONS: 
-Telemetry is critical to our ability to improve Coder. We strip all
-personalinformation before sending data to our servers. Please only disable
-telemetrywhen required by your organization's security policy.
+Telemetry is critical to our ability to improve Coder. We strip all personal
+information before sending data to our servers. Please only disable telemetry
+when required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage

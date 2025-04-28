@@ -3,7 +3,8 @@
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Muhammad Atif Ali</span>
-    <img src="https://github.com/matifali.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/matifali.png" alt="matifali" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+
   </a>
 </div>
 November 15, 2024
@@ -104,7 +105,7 @@ jobs:
           coder create -t $TEMPLATE_NAME --template-version ${{ steps.name.outputs.version_name }} test-${{ steps.name.outputs.version_name }} --yes
           coder config-ssh --yes
           # run some example commands
-          coder ssh test-${{ steps.name.outputs.version_name }} -- make build
+          ssh coder.test-${{ steps.name.outputs.version_name }} -- make build
 
       - name: Delete the test workspace
         if: always()

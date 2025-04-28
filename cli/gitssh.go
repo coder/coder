@@ -91,7 +91,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(inv.Stderr,
 						"\n"+pretty.Sprintf(
-							cliui.DefaultStyles.Wrap,
+							cliui.DefaultStyles.Wrap, "%s",
 							"Coder authenticates with "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+
 								" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n",
 					)
@@ -138,7 +138,7 @@ var fallbackIdentityFiles = strings.Join([]string{
 //
 // The extra arguments work without issue and lets us run the command
 // as-is without stripping out the excess (git-upload-pack 'coder/coder').
-func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
+func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, xerrors.Errorf("get user home dir failed: %w", err)

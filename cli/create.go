@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -38,7 +39,7 @@ func (r *RootCmd) create() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "create [name]",
+		Use:         "create [workspace]",
 		Short:       "Create a workspace",
 		Long: FormatExamples(
 			Example{
@@ -103,7 +104,8 @@ func (r *RootCmd) create() *serpent.Command {
 
 			var template codersdk.Template
 			var templateVersionID uuid.UUID
-			if templateName == "" {
+			switch {
+			case templateName == "":
 				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
 				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
@@ -160,13 +162,13 @@ func (r *RootCmd) create() *serpent.Command {
 
 				template = templateByName[option]
 				templateVersionID = template.ActiveVersionID
-			} else if sourceWorkspace.LatestBuild.TemplateVersionID != uuid.Nil {
+			case sourceWorkspace.LatestBuild.TemplateVersionID != uuid.Nil:
 				template, err = client.Template(inv.Context(), sourceWorkspace.TemplateID)
 				if err != nil {
 					return xerrors.Errorf("get template by name: %w", err)
 				}
 				templateVersionID = sourceWorkspace.LatestBuild.TemplateVersionID
-			} else {
+			default:
 				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{
 					ExactName: templateName,
 				})
@@ -289,7 +291,7 @@ func (r *RootCmd) create() *serpent.Command {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
 			}
 
-			workspace, err := client.CreateWorkspace(inv.Context(), template.OrganizationID, workspaceOwner, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
@@ -300,6 +302,8 @@ func (r *RootCmd) create() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
 			}
+
+			cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
@@ -433,6 +437,12 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
 	}
+
+	matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get matched provisioners: %w", err)
+	}
+	cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
 	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {

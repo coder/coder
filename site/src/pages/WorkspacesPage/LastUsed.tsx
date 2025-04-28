@@ -1,6 +1,5 @@
-import { useTheme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useTime } from "hooks/useTime";
@@ -12,25 +11,23 @@ interface LastUsedProps {
 }
 
 export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
-	const theme = useTheme();
-
 	const [circle, message] = useTime(() => {
 		const t = dayjs(lastUsedAt);
 		const now = dayjs();
 		let message = t.fromNow();
-		let circle = <StatusIndicator color="info" variant="outlined" />;
+		let circle = <StatusIndicatorDot variant="inactive" />;
 
 		if (t.isAfter(now.subtract(1, "hour"))) {
-			circle = <StatusIndicator color="success" />;
+			circle = <StatusIndicatorDot variant="success" />;
 			// Since the agent reports on a 10m interval,
 			// the last_used_at can be inaccurate when recent.
 			message = "Now";
 		} else if (t.isAfter(now.subtract(3, "day"))) {
-			circle = <StatusIndicator color="info" />;
+			circle = <StatusIndicatorDot variant="pending" />;
 		} else if (t.isAfter(now.subtract(1, "month"))) {
-			circle = <StatusIndicator color="warning" />;
+			circle = <StatusIndicatorDot variant="warning" />;
 		} else if (t.isAfter(now.subtract(100, "year"))) {
-			circle = <StatusIndicator color="error" />;
+			circle = <StatusIndicatorDot variant="failed" />;
 		} else {
 			message = "Never";
 		}
@@ -40,7 +37,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 
 	return (
 		<Stack
-			style={{ color: theme.palette.text.secondary }}
+			className="text-content-secondary"
 			direction="row"
 			spacing={1}
 			alignItems="center"

@@ -21,6 +21,7 @@ Coder can provision all Terraform modules, resources, and properties. The Coder
 server essentially runs a `terraform apply` every time a workspace is created,
 started, or stopped.
 
+> [!TIP]
 > Haven't written Terraform before? Check out Hashicorp's
 > [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
@@ -46,15 +47,15 @@ and save the following text in `Dockerfile` then exit the editor:
 FROM ubuntu
 
 RUN apt-get update \
-	&& apt-get install -y \
-	sudo \
-	curl \
-	&& rm -rf /var/lib/apt/lists/*
+    && apt-get install -y \
+    sudo \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 ARG USER=coder
 RUN useradd --groups sudo --no-create-home --shell /bin/bash ${USER} \
-	&& echo "${USER} ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/${USER} \
-	&& chmod 0440 /etc/sudoers.d/${USER}
+    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/${USER} \
+    && chmod 0440 /etc/sudoers.d/${USER}
 USER ${USER}
 WORKDIR /home/${USER}
 ```
@@ -98,6 +99,9 @@ provider "coder" {
 }
 
 data "coder_workspace" "me" {
+}
+
+data "coder_workspace_owner" "me" {
 }
 ```
 
@@ -340,7 +344,7 @@ use the Coder CLI.
    Attempting to authenticate with config URL: 'https://coder.example.com'
    Open the following in your browser:
 
-   	https://coder.example.com/cli-auth
+       https://coder.example.com/cli-auth
 
    > Paste your token here:
    ```

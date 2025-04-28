@@ -9,6 +9,8 @@ import (
 	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Table creates a new table with standardized styles.
@@ -29,10 +31,33 @@ func Table() table.Writer {
 // e.g. `[]any{someRow, TableSeparator, someRow}`
 type TableSeparator struct{}
 
-// filterTableColumns returns configurations to hide columns
+// filterHeaders filters the headers to only include the columns
+// that are provided in the array. If the array is empty, all
+// headers are included.
+func filterHeaders(header table.Row, columns []string) table.Row {
+	if len(columns) == 0 {
+		return header
+	}
+
+	filteredHeaders := make(table.Row, len(columns))
+	for i, column := range columns {
+		column = strings.ReplaceAll(column, "_", " ")
+
+		for _, headerTextRaw := range header {
+			headerText, _ := headerTextRaw.(string)
+			if strings.EqualFold(column, headerText) {
+				filteredHeaders[i] = headerText
+				break
+			}
+		}
+	}
+	return filteredHeaders
+}
+
+// createColumnConfigs returns configuration to hide columns
 // that are not provided in the array. If the array is empty,
 // no filtering will occur!
-func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig {
+func createColumnConfigs(header table.Row, columns []string) []table.ColumnConfig {
 	if len(columns) == 0 {
 		return nil
 	}
@@ -155,10 +180,13 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 func renderTable(out any, sort string, headers table.Row, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
+	headers = filterHeaders(headers, filterColumns)
+	columnConfigs := createColumnConfigs(headers, filterColumns)
+
 	// Setup the table formatter.
 	tw := Table()
 	tw.AppendHeader(headers)
-	tw.SetColumnConfigs(filterTableColumns(headers, filterColumns))
+	tw.SetColumnConfigs(columnConfigs)
 	if sort != "" {
 		tw.SortBy([]table.SortBy{{
 			Name: sort,
@@ -195,6 +223,16 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				if val != nil {
 					v = val.Format(time.RFC3339)
 				}
+			case codersdk.NullTime:
+				if val.Valid {
+					v = val.Time.Format(time.RFC3339)
+				} else {
+					v = nil
+				}
+			case *string:
+				if val != nil {
+					v = *val
+				}
 			case *int64:
 				if val != nil {
 					v = *val
@@ -204,8 +242,13 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 					v = val.String()
 				}
 			case fmt.Stringer:
-				if val != nil {
+				// Protect against typed nils since fmt.Stringer is an interface.
+				vv := reflect.ValueOf(v)
+				nilPtr := vv.Kind() == reflect.Ptr && vv.IsNil()
+				if val != nil && !nilPtr {
 					v = val.String()
+				} else if nilPtr {
+					v = nil
 				}
 			}
 
@@ -225,6 +268,18 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				default:
 					// Leave it as it is
 				}
+			}
+
+			// Last resort, just get the interface value to avoid printing
+			// pointer values. For example, if we have a `*MyType("value")`
+			// which is defined as `type MyType string`, we want to print
+			// the string value, not the pointer.
+			if v != nil {
+				vv := reflect.ValueOf(v)
+				for vv.Kind() == reflect.Ptr && !vv.IsNil() {
+					vv = vv.Elem()
+				}
+				v = vv.Interface()
 			}
 
 			rowSlice[i] = v

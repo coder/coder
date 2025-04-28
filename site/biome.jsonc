@@ -1,0 +1,51 @@
+{
+	"vcs": {
+		"enabled": true,
+		"useIgnoreFile": true,
+		"clientKind": "git",
+		"root": ".."
+	},
+	"files": {
+		"ignore": ["e2e/**/*Generated.ts", "pnpm-lock.yaml"],
+		"ignoreUnknown": true
+	},
+	"linter": {
+		"rules": {
+			"a11y": {
+				"noSvgWithoutTitle": { "level": "off" },
+				"useButtonType": { "level": "off" },
+				"useSemanticElements": { "level": "off" }
+			},
+			"style": {
+				"noNonNullAssertion": { "level": "off" },
+				"noParameterAssign": { "level": "off" },
+				"useDefaultParameterLast": { "level": "off" },
+				"useSelfClosingElements": { "level": "off" }
+			},
+			"suspicious": {
+				"noArrayIndexKey": { "level": "off" },
+				"noConsoleLog": { "level": "error" },
+				"noThenProperty": { "level": "off" }
+			},
+			"nursery": {
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"@mui/material": "Use @mui/material/<name> instead. See: https://material-ui.com/guides/minimizing-bundle-size/.",
+							"@mui/icons-material": "Use @mui/icons-material/<name> instead. See: https://material-ui.com/guides/minimizing-bundle-size/.",
+							"@mui/material/Avatar": "Use components/Avatar/Avatar instead.",
+							"@mui/material/Alert": "Use components/Alert/Alert instead.",
+							"@mui/material/Popover": "Use components/Popover/Popover instead.",
+							"@mui/material/Typography": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
+							"@mui/material/Box": "Use a <div> instead.",
+							"@mui/material/styles": "Import from @emotion/react instead.",
+							"lodash": "Use lodash/<name> instead."
+						}
+					}
+				}
+			}
+		}
+	},
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json"
+}

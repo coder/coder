@@ -25,7 +25,7 @@ $ scaletest.sh --help
 Usage: scaletest.sh --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--dry-run] [--skip-cleanup]
 ```
 
-### Required arguments:
+### Required arguments
 
 - `--name`: Name for the loadtest. This is added as a prefix to resources created by Terraform (e.g. `joe-big-loadtest`).
 - `--project`: Google Cloud project in which to create the resources (example: `my-loadtest-project`).
@@ -35,7 +35,7 @@ Usage: scaletest.sh --name <name> --project <project> --num-workspaces <num-work
 > **Note:** In order to capture Prometheus metrics, you must define the environment variables
 > `SCALETEST_PROMETHEUS_REMOTE_WRITE_USER` and `SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD`.
 
-### Optional arguments:
+### Optional arguments
 
 - `--dry-run`: Do not perform any action and instead print what would be executed.
 - `--skip-cleanup`: Do not perform any cleanup. You will be responsible for deleting any resources this creates.
@@ -62,7 +62,7 @@ A number of existing scenarios are provided in `scaletest/terraform/scenario-*.t
 
 For example, `scenario-small.tfvars` includes the following variable definitions:
 
-```
+```hcl
 nodepool_machine_type_coder      = "t2d-standard-2"
 nodepool_machine_type_workspaces = "t2d-standard-2"
 coder_cpu                        = "1000m" # Leaving 1 CPU for system workloads

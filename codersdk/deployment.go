@@ -81,6 +81,7 @@ const (
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
+	FeatureWorkspacePrebuilds         FeatureName = "workspace_prebuilds"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -103,6 +104,7 @@ var FeatureNames = []FeatureName{
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
 	FeatureMultipleOrganizations,
+	FeatureWorkspacePrebuilds,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -132,6 +134,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
+		FeatureWorkspacePrebuilds:         true,
 	}[n]
 }
 
@@ -350,6 +353,7 @@ type DeploymentValues struct {
 	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
+	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
@@ -357,7 +361,7 @@ type DeploymentValues struct {
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
 	TLS                             TLSConfig                            `json:"tls,omitempty" typescript:",notnull"`
 	Trace                           TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                serpent.Bool                         `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	HTTPCookies                     HTTPCookieConfig                     `json:"http_cookies,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         serpent.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
 	StrictTransportSecurityOptions  serpent.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
 	SSHKeygenAlgorithm              serpent.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
@@ -392,11 +396,13 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
 
-	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
+	// Deprecated: Use HTTPAddress or TLS.Address instead.
 	Address serpent.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 
@@ -502,13 +508,15 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          serpent.String      `json:"client_id" typescript:",notnull"`
-	ClientSecret      serpent.String      `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      serpent.Bool        `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID              serpent.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret          serpent.String      `json:"client_secret" typescript:",notnull"`
+	DeviceFlow            serpent.Bool        `json:"device_flow" typescript:",notnull"`
+	DefaultProviderEnable serpent.Bool        `json:"default_provider_enable" typescript:",notnull"`
+	AllowedOrgs           serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams          serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups          serpent.Bool        `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone         serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL     serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
@@ -516,17 +524,27 @@ type OIDCConfig struct {
 	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
 	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
 	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
-	ClientKeyFile             serpent.String                         `json:"client_key_file" typescript:",notnull"`
-	ClientCertFile            serpent.String                         `json:"client_cert_file" typescript:",notnull"`
-	EmailDomain               serpent.StringArray                    `json:"email_domain" typescript:",notnull"`
-	IssuerURL                 serpent.String                         `json:"issuer_url" typescript:",notnull"`
-	Scopes                    serpent.StringArray                    `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified       serpent.Bool                           `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField             serpent.String                         `json:"username_field" typescript:",notnull"`
-	NameField                 serpent.String                         `json:"name_field" typescript:",notnull"`
-	EmailField                serpent.String                         `json:"email_field" typescript:",notnull"`
-	AuthURLParams             serpent.Struct[map[string]string]      `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo            serpent.Bool                           `json:"ignore_user_info" typescript:",notnull"`
+	ClientKeyFile       serpent.String                    `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile      serpent.String                    `json:"client_cert_file" typescript:",notnull"`
+	EmailDomain         serpent.StringArray               `json:"email_domain" typescript:",notnull"`
+	IssuerURL           serpent.String                    `json:"issuer_url" typescript:",notnull"`
+	Scopes              serpent.StringArray               `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified serpent.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       serpent.String                    `json:"username_field" typescript:",notnull"`
+	NameField           serpent.String                    `json:"name_field" typescript:",notnull"`
+	EmailField          serpent.String                    `json:"email_field" typescript:",notnull"`
+	AuthURLParams       serpent.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
+	// IgnoreUserInfo & UserInfoFromAccessToken are mutually exclusive. Only 1
+	// can be set to true. Ideally this would be an enum with 3 states, ['none',
+	// 'userinfo', 'access_token']. However, for backward compatibility,
+	// `ignore_user_info` must remain. And `access_token` is a niche, non-spec
+	// compliant edge case. So it's use is rare, and should not be advised.
+	IgnoreUserInfo serpent.Bool `json:"ignore_user_info" typescript:",notnull"`
+	// UserInfoFromAccessToken as mentioned above is an edge case. This allows
+	// sourcing the user_info from the access token itself instead of a user_info
+	// endpoint. This assumes the access token is a valid JWT with a set of claims to
+	// be merged with the id_token.
+	UserInfoFromAccessToken   serpent.Bool                           `json:"source_user_info_from_access_token" typescript:",notnull"`
 	OrganizationField         serpent.String                         `json:"organization_field" typescript:",notnull"`
 	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping" typescript:",notnull"`
 	OrganizationAssignDefault serpent.Bool                           `json:"organization_assign_default" typescript:",notnull"`
@@ -570,6 +588,30 @@ type TraceConfig struct {
 	HoneycombAPIKey serpent.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     serpent.Bool   `json:"capture_logs" typescript:",notnull"`
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
+}
+
+type HTTPCookieConfig struct {
+	Secure   serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	SameSite string       `json:"same_site,omitempty" typescript:",notnull"`
+}
+
+func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
+	c.Secure = cfg.Secure.Value()
+	c.SameSite = cfg.HTTPSameSite()
+	return c
+}
+
+func (cfg HTTPCookieConfig) HTTPSameSite() http.SameSite {
+	switch strings.ToLower(cfg.SameSite) {
+	case "lax":
+		return http.SameSiteLaxMode
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteDefaultMode
+	}
 }
 
 type ExternalAuthConfig struct {
@@ -685,10 +727,17 @@ type NotificationsConfig struct {
 	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
 	// Webhook settings.
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
+	// Inbox settings.
+	Inbox NotificationsInboxConfig `json:"inbox" typescript:",notnull"`
 }
 
+// Are either of the notification methods enabled?
 func (n *NotificationsConfig) Enabled() bool {
 	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
+}
+
+type NotificationsInboxConfig struct {
+	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
 }
 
 type NotificationsEmailConfig struct {
@@ -746,6 +795,19 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	// ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.
+	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval
+	// when errors occur during reconciliation.
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffLookback determines the time window to look back when calculating
+	// the number of failed prebuilds, which influences the backoff strategy.
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -793,7 +855,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:   "Report a bug",
-			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=" + buildInfo,
+			Target: "https://github.com/coder/coder/issues/new?labels=needs+triage&body=" + buildInfo,
 			Icon:   "bug",
 		},
 		{
@@ -904,8 +966,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.`,
+ information before sending data to our servers. Please only disable telemetry
+ when required by your organization's security policy.`,
 		}
 		deploymentGroupProvisioning = serpent.Group{
 			Name:        "Provisioning",
@@ -924,7 +986,7 @@ when required by your organization's security policy.`,
 		deploymentGroupClient = serpent.Group{
 			Name: "Client",
 			Description: "These options change the behavior of how clients interact with the Coder. " +
-				"Clients include the coder cli, vs code extension, and the web UI.",
+				"Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.",
 			YAML: "client",
 		}
 		deploymentGroupConfig = serpent.Group{
@@ -975,6 +1037,16 @@ when required by your organization's security policy.`,
 			Name:   "Webhook",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "webhook",
+		}
+		deploymentGroupPrebuilds = serpent.Group{
+			Name:        "Workspace Prebuilds",
+			YAML:        "workspace_prebuilds",
+			Description: "Configure how workspace prebuilds behave.",
+		}
+		deploymentGroupInbox = serpent.Group{
+			Name:   "Inbox",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "inbox",
 		}
 	)
 
@@ -1572,6 +1644,26 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupOAuth2GitHub,
 		},
 		{
+			Name:        "OAuth2 GitHub Device Flow",
+			Description: "Enable device flow for Login with GitHub.",
+			Flag:        "oauth2-github-device-flow",
+			Env:         "CODER_OAUTH2_GITHUB_DEVICE_FLOW",
+			Value:       &c.OAuth2.Github.DeviceFlow,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "deviceFlow",
+			Default:     "false",
+		},
+		{
+			Name:        "OAuth2 GitHub Default Provider Enable",
+			Description: "Enable the default GitHub OAuth2 provider managed by Coder.",
+			Flag:        "oauth2-github-default-provider-enable",
+			Env:         "CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Github.DefaultProviderEnable,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "defaultProviderEnable",
+			Default:     "true",
+		},
+		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:        "oauth2-github-allowed-orgs",
@@ -1751,6 +1843,23 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.IgnoreUserInfo,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "ignoreUserInfo",
+		},
+		{
+			Name: "OIDC Access Token Claims",
+			// This is a niche edge case that should not be advertised. Alternatives should
+			// be investigated before turning this on. A properly configured IdP should
+			// always have a userinfo endpoint which is preferred.
+			Hidden: true,
+			Description: "Source supplemental user claims from the 'access_token'. This assumes the " +
+				"token is a jwt signed by the same issuer as the id_token. Using this requires setting " +
+				"'oidc-ignore-userinfo' to true. This setting is not compliant with the OIDC specification " +
+				"and is not recommended. Use at your own risk.",
+			Flag:    "oidc-access-token-claims",
+			Env:     "CODER_OIDC_ACCESS_TOKEN_CLAIMS",
+			Default: "false",
+			Value:   &c.OIDC.UserInfoFromAccessToken,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "accessTokenClaims",
 		},
 		{
 			Name: "OIDC Organization Field",
@@ -2283,8 +2392,17 @@ when required by your organization's security policy.`,
 			YAML:        "inMemoryDatabase",
 		},
 		{
+			Name:        "Ephemeral Deployment",
+			Description: "Controls whether Coder data, including built-in Postgres, will be stored in a temporary directory and deleted when the server is stopped.",
+			Flag:        "ephemeral",
+			Env:         "CODER_EPHEMERAL",
+			Hidden:      true,
+			Value:       &c.EphemeralDeployment,
+			YAML:        "ephemeralDeployment",
+		},
+		{
 			Name:        "Postgres Connection URL",
-			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\". Note that any special characters in the URL must be URL-encoded.",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -2292,7 +2410,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Auth",
-			Description: "Type of auth to use when connecting to postgres.",
+			Description: "Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.",
 			Flag:        "postgres-auth",
 			Env:         "CODER_PG_AUTH",
 			Default:     "password",
@@ -2304,9 +2422,21 @@ when required by your organization's security policy.`,
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
 			Env:         "CODER_SECURE_AUTH_COOKIE",
-			Value:       &c.SecureAuthCookie,
+			Value:       &c.HTTPCookies.Secure,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "SameSite Auth Cookie",
+			Description: "Controls the 'SameSite' property is set on browser session cookies.",
+			Flag:        "samesite-auth-cookie",
+			Env:         "CODER_SAMESITE_AUTH_COOKIE",
+			// Do not allow "strict" same-site cookies. That would potentially break workspace apps.
+			Value:       serpent.EnumOf(&c.HTTPCookies.SameSite, "lax", "none"),
+			Default:     "lax",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "sameSiteAuthCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
@@ -2376,7 +2506,7 @@ when required by your organization's security policy.`,
 			Flag:        "agent-fallback-troubleshooting-url",
 			Env:         "CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL",
 			Hidden:      true,
-			Default:     "https://coder.com/docs/templates/troubleshooting",
+			Default:     "https://coder.com/docs/admin/templates/troubleshooting",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
 		},
@@ -2477,6 +2607,17 @@ when required by your organization's security policy.`,
 			Value:       &c.SSHConfig.DeploymentName,
 			Hidden:      false,
 			Default:     "coder.",
+		},
+		{
+			Name:        "Workspace Hostname Suffix",
+			Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+			Flag:        "workspace-hostname-suffix",
+			Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
+			YAML:        "workspaceHostnameSuffix",
+			Group:       &deploymentGroupClient,
+			Value:       &c.WorkspaceHostnameSuffix,
+			Hidden:      false,
+			Default:     "coder",
 		},
 		{
 			Name: "SSH Config Options",
@@ -2798,6 +2939,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "endpoint",
 		},
 		{
+			Name:        "Notifications: Inbox: Enabled",
+			Description: "Enable Coder Inbox.",
+			Flag:        "notifications-inbox-enabled",
+			Env:         "CODER_NOTIFICATIONS_INBOX_ENABLED",
+			Value:       &c.Notifications.Inbox.Enabled,
+			Default:     "true",
+			Group:       &deploymentGroupInbox,
+			YAML:        "enabled",
+		},
+		{
 			Name:        "Notifications: Max Send Attempts",
 			Description: "The upper limit of attempts to send a notification.",
 			Flag:        "notifications-max-send-attempts",
@@ -2886,6 +3037,44 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "fetchInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+
+		// Workspace Prebuilds Options
+		{
+			Name:        "Reconciliation Interval",
+			Description: "How often to reconcile workspace prebuilds state.",
+			Flag:        "workspace-prebuilds-reconciliation-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      ExperimentsSafe.Enabled(ExperimentWorkspacePrebuilds), // Hide setting while this feature is experimental.
+		},
+		{
+			Name:        "Reconciliation Backoff Interval",
+			Description: "Interval to increase reconciliation backoff by when prebuilds fail, after which a retry attempt is made.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
+		},
+		{
+			Name:        "Reconciliation Backoff Lookback Period",
+			Description: "Interval to look back to determine number of failed prebuilds, which influences backoff.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
+			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
+			Default:     (time.Hour).String(), // TODO: use https://pkg.go.dev/github.com/jackc/pgtype@v1.12.0#Interval
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_lookback_period",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
 		},
 	}
 
@@ -3066,6 +3255,9 @@ type BuildInfoResponse struct {
 
 	// DeploymentID is the unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
+
+	// WebPushPublicKey is the public key for push notifications via Web Push.
+	WebPushPublicKey string `json:"webpush_public_key,omitempty"`
 }
 
 type WorkspaceProxyBuildInfo struct {
@@ -3108,13 +3300,18 @@ const (
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
+	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
+	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
+	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 )
 
-// ExperimentsAll should include all experiments that are safe for
+// ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentWorkspacePrebuilds,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -3294,7 +3491,12 @@ type DeploymentStats struct {
 }
 
 type SSHConfigResponse struct {
-	HostnamePrefix   string            `json:"hostname_prefix"`
+	// HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
+	// Deprecated: use HostnameSuffix instead.
+	HostnamePrefix string `json:"hostname_prefix"`
+
+	// HostnameSuffix is the suffix to append to workspace names for SSH hostnames.
+	HostnameSuffix   string            `json:"hostname_suffix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 

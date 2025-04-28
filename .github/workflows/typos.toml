@@ -1,3 +1,6 @@
+[default]
+extend-ignore-identifiers-re = ["gho_.*"]
+
 [default.extend-identifiers]
 alog = "alog"
 Jetbrains = "JetBrains"
@@ -24,6 +27,7 @@ EDE = "EDE"
 HELO = "HELO"
 LKE = "LKE"
 byt = "byt"
+typ = "typ"
 
 [files]
 extend-exclude = [
@@ -35,7 +39,6 @@ extend-exclude = [
 	# These files contain base64 strings that confuse the detector
 	"**XService**.ts",
 	"**identity.go",
-	"scripts/ci-report/testdata/**",
 	"**/*_test.go",
 	"**/*.test.tsx",
 	"**/pnpm-lock.yaml",
@@ -43,5 +46,6 @@ extend-exclude = [
 	"site/src/pages/SetupPage/countries.tsx",
 	"provisioner/terraform/testdata/**",
 	# notifications' golden files confuse the detector because of quoted-printable encoding
-	"coderd/notifications/testdata/**"
+	"coderd/notifications/testdata/**",
+	"agent/agentcontainers/testdata/devcontainercli/**"
 ]

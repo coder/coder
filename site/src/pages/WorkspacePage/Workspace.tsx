@@ -4,16 +4,20 @@ import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
+import type { WorkspaceApp } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import type { FC } from "react";
+import { type FC, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { AppStatuses } from "./AppStatuses";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	ActiveTransition,
 	WorkspaceBuildProgress,
@@ -46,7 +50,7 @@ export interface WorkspaceProps {
 	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	buildLogs?: React.ReactNode;
+	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
@@ -107,6 +111,23 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
+
+	const workspaceRunning = workspace.latest_build.status === "running";
+	const workspacePending = workspace.latest_build.status === "pending";
+	const haveBuildLogs = (buildLogs ?? []).length > 0;
+	const shouldShowBuildLogs = haveBuildLogs && !workspaceRunning;
+	const provisionersHealthy =
+		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
+	const shouldShowProvisionerAlert =
+		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+
+	const hasAppStatus = useMemo(() => {
+		return selectedResource?.agents?.some((agent) => {
+			return agent.apps?.some((app) => {
+				return app.statuses?.length > 0;
+			});
+		});
+	}, [selectedResource]);
 
 	return (
 		<div
@@ -208,6 +229,18 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
+					{shouldShowProvisionerAlert && (
+						<ProvisionerStatusAlert
+							matchingProvisioners={
+								workspace.latest_build.matched_provisioners?.count
+							}
+							availableProvisioners={
+								workspace.latest_build.matched_provisioners?.available ?? 0
+							}
+							tags={workspace.latest_build.job.tags}
+						/>
+					)}
+
 					{workspace.latest_build.job.error && (
 						<Alert severity="error">
 							<AlertTitle>Workspace build failed</AlertTitle>
@@ -222,48 +255,148 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{buildLogs}
+					{shouldShowBuildLogs && (
+						<WorkspaceBuildLogsSection logs={buildLogs} />
+					)}
 
+					{/* Container for Agent Rows + Activity Sidebar */}
 					{selectedResource && (
-						<section
-							css={{ display: "flex", flexDirection: "column", gap: 24 }}
-						>
-							{selectedResource.agents?.map((agent) => (
-								<AgentRow
-									key={agent.id}
-									agent={agent}
-									workspace={workspace}
-									template={template}
-									sshPrefix={sshPrefix}
-									showApps={permissions.updateWorkspace}
-									showBuiltinApps={permissions.updateWorkspace}
-									hideSSHButton={hideSSHButton}
-									hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-									serverVersion={buildInfo?.version || ""}
-									serverAPIVersion={buildInfo?.agent_api_version || ""}
-									onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-								/>
-							))}
+						<div css={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+							{/* Left Side: Agent Rows */}
+							<section
+								css={{
+									display: "flex",
+									flexDirection: "column",
+									gap: 24,
+									flexGrow: 1,
+									minWidth: 0 /* Prevent overflow */,
+								}}
+							>
+								{selectedResource.agents?.map((agent) => (
+									<AgentRow
+										key={agent.id}
+										agent={agent}
+										workspace={workspace}
+										template={template}
+										sshPrefix={sshPrefix}
+										showApps={permissions.updateWorkspace}
+										showBuiltinApps={permissions.updateWorkspace}
+										hideSSHButton={hideSSHButton}
+										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+										serverVersion={buildInfo?.version || ""}
+										serverAPIVersion={buildInfo?.agent_api_version || ""}
+										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+									/>
+								))}
 
-							{(!selectedResource.agents ||
-								selectedResource.agents?.length === 0) && (
+								{(!selectedResource.agents ||
+									selectedResource.agents?.length === 0) && (
+									<div
+										css={{
+											display: "flex",
+											justifyContent: "center",
+											alignItems: "center",
+											width: "100%",
+											height: "100%",
+										}}
+									>
+										<div>
+											<h4 css={{ fontSize: 16, fontWeight: 500 }}>
+												No agents are currently assigned to this resource.
+											</h4>
+										</div>
+									</div>
+								)}
+							</section>
+
+							{/* Right Side: Activity Box */}
+							{hasAppStatus && (
 								<div
 									css={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										width: "100%",
-										height: "100%",
+										// Mimic AgentRow styling but with subtler border
+										border: `1px solid ${theme.palette.divider}`, // Use divider color
+										borderRadius: "8px",
+										boxShadow: theme.shadows[3],
+										width: 360,
+										flexShrink: 0,
+										backgroundColor: theme.palette.background.default, // Add background color
+										overflow: "hidden",
 									}}
 								>
-									<div>
-										<h4 css={{ fontSize: 16, fontWeight: 500 }}>
-											No agents are currently assigned to this resource.
-										</h4>
+									{/* Activity Header */}
+									<div
+										css={{
+											display: "flex",
+											justifyContent: "space-between",
+											alignItems: "center",
+											backgroundColor: theme.palette.background.paper,
+											paddingLeft: 16,
+											paddingRight: 16,
+											paddingTop: 12,
+											paddingBottom: 12,
+											borderBottom: `1px solid ${theme.palette.divider}`, // Add separator
+										}}
+									>
+										<div
+											css={{
+												fontWeight: 500,
+												fontSize: 14,
+											}}
+										>
+											Activity
+										</div>
+										<div
+											css={{
+												fontSize: 12,
+												color: theme.palette.text.secondary,
+											}}
+										>
+											{
+												// Calculate total status count
+												selectedResource.agents
+													?.flatMap((agent) => agent.apps ?? [])
+													.reduce(
+														(count, app) => count + (app.statuses?.length ?? 0),
+														0,
+													)
+											}{" "}
+											Total
+										</div>
+									</div>
+
+									<div
+										css={{
+											maxHeight: 800,
+											overflowY: "auto",
+											// Thin scrollbar styles
+											"&::-webkit-scrollbar": {
+												width: "6px",
+											},
+											"&::-webkit-scrollbar-track": {
+												background: theme.palette.background.paper, // Match header background
+											},
+											"&::-webkit-scrollbar-thumb": {
+												backgroundColor: theme.palette.divider, // Use divider color
+												borderRadius: "3px",
+											},
+											"&::-webkit-scrollbar-thumb:hover": {
+												backgroundColor: theme.palette.text.secondary, // Darken on hover
+											},
+										}}
+									>
+										<AppStatuses
+											apps={
+												selectedResource.agents?.flatMap(
+													(agent) => agent.apps ?? [],
+												) as WorkspaceApp[]
+											}
+											workspace={workspace}
+											agents={selectedResource.agents || []}
+										/>
 									</div>
 								</div>
 							)}
-						</section>
+						</div>
 					)}
 
 					<WorkspaceTimings

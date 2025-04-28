@@ -14,11 +14,11 @@ connecting with their workspace over SSH, a workspace app, port forwarding, etc.
 Dashboard connections and API calls (e.g. the workspaces list) are not served
 over workspace proxies.
 
-# Deploy a workspace proxy
+## Deploy a workspace proxy
 
-Each workspace proxy should be a unique instance. At no point should 2 workspace
-proxy instances share the same authentication token. They only require port 443
-to be open and are expected to have network connectivity to the coderd
+Each workspace proxy should be a unique instance. At no point should two
+workspace proxy instances share the same authentication token. They only require
+port 443 to be open and are expected to have network connectivity to the coderd
 dashboard. Workspace proxies **do not** make any database connections.
 
 Workspace proxies can be used in the browser by navigating to the user
@@ -104,10 +104,10 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 
 ### Running on Kubernetes
 
-Make a `values-wsproxy.yaml` with the workspace proxy configuration:
+Make a `values-wsproxy.yaml` with the workspace proxy configuration.
 
-> Notice the `workspaceProxy` configuration which is `false` by default in the
-> coder Helm chart.
+Notice the `workspaceProxy` configuration which is `false` by default in the
+Coder Helm chart:
 
 ```yaml
 coder:
@@ -207,6 +207,15 @@ goes offline, the session will fall back to the primary proxy. This could take
 up to 60 seconds.
 
 ![Workspace proxy picker](../../images/admin/networking/workspace-proxies/ws-proxy-picker.png)
+
+## Multiple workspace proxies
+
+When multiple workspace proxies are deployed:
+
+- The browser measures latency to each available proxy independently.
+- Users can select their preferred proxy from the dashboard.
+- The system can automatically select the lowest-latency proxy.
+- The dashboard latency indicator shows latency to the currently selected proxy.
 
 ## Observability
 

@@ -20,7 +20,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 
 	return (
 		<SignInLayout>
-			<Welcome>Session token</Welcome>
+			<Welcome className="pb-3">Session token</Welcome>
 
 			<p css={styles.instructions}>
 				Copy the session token below and

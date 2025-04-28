@@ -6,6 +6,9 @@ terraform {
     azurerm = {
       source = "hashicorp/azurerm"
     }
+    cloudinit = {
+      source = "hashicorp/cloudinit"
+    }
   }
 }
 
@@ -167,12 +170,24 @@ module "jetbrains_gateway" {
 
 locals {
   prefix = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
+}
 
-  userdata = templatefile("cloud-config.yaml.tftpl", {
-    username    = "coder" # Ensure this user/group does not exist in your VM image
-    init_script = base64encode(coder_agent.main.init_script)
-    hostname    = lower(data.coder_workspace.me.name)
-  })
+data "cloudinit_config" "user_data" {
+  gzip          = false
+  base64_encode = true
+
+  boundary = "//"
+
+  part {
+    filename     = "cloud-config.yaml"
+    content_type = "text/cloud-config"
+
+    content = templatefile("${path.module}/cloud-init/cloud-config.yaml.tftpl", {
+      username    = "coder" # Ensure this user/group does not exist in your VM image
+      init_script = base64encode(coder_agent.main.init_script)
+      hostname    = lower(data.coder_workspace.me.name)
+    })
+  }
 }
 
 resource "azurerm_resource_group" "main" {
@@ -249,7 +264,7 @@ resource "tls_private_key" "dummy" {
 }
 
 resource "azurerm_linux_virtual_machine" "main" {
-  count               = data.coder_workspace.me.transition == "start" ? 1 : 0
+  count               = data.coder_workspace.me.start_count
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -275,7 +290,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     sku       = "20_04-lts-gen2"
     version   = "latest"
   }
-  user_data = base64encode(local.userdata)
+  user_data = data.cloudinit_config.user_data.rendered
 
   tags = {
     Coder_Provisioned = "true"

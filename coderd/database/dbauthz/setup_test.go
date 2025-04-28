@@ -2,6 +2,7 @@ package dbauthz_test
 
 import (
 	"context"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"reflect"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/stretchr/testify/require"
@@ -22,8 +25,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -114,7 +117,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		methodName := names[len(names)-1]
 		s.methodAccounting[methodName]++
 
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
@@ -198,11 +201,29 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				s.Equal(len(testCase.outputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
 					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
-					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
-						// Order does not matter
-						s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
-					} else {
-						s.Equal(a, b, "method %q returned unexpected output %d", methodName, i)
+
+					// To avoid the extra small overhead of gob encoding, we can
+					// first check if the values are equal with regard to order.
+					// If not, re-check disregarding order and show a nice diff
+					// output of the two values.
+					if !cmp.Equal(a, b, cmpopts.EquateEmpty()) {
+						if diff := cmp.Diff(a, b,
+							// Equate nil and empty slices.
+							cmpopts.EquateEmpty(),
+							// Allow slice order to be ignored.
+							cmpopts.SortSlices(func(a, b any) bool {
+								var ab, bb strings.Builder
+								_ = gob.NewEncoder(&ab).Encode(a)
+								_ = gob.NewEncoder(&bb).Encode(b)
+								// This might seem a bit dubious, but we really
+								// don't care about order and cmp doesn't provide
+								// a generic less function for slices:
+								// https://github.com/google/go-cmp/issues/67
+								return ab.String() < bb.String()
+							}),
+						); diff != "" {
+							s.Failf("compare outputs failed", "method %q returned unexpected output %d (-want +got):\n%s", methodName, i, diff)
+						}
 					}
 				}
 			}
@@ -217,7 +238,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				}
 			}
 
-			rec.AssertActor(s.T(), actor, pairs...)
+			if testCase.outOfOrder {
+				rec.AssertOutOfOrder(s.T(), actor, pairs...)
+			} else {
+				rec.AssertActor(s.T(), actor, pairs...)
+			}
 			s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
 		})
 	}
@@ -227,7 +252,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 	s.Run("AsRemoveActor", func() {
 		// Call without any actor
 		_, err := callMethod(context.Background())
-		s.ErrorIs(err, dbauthz.NoActorError, "method should return NoActorError error when no actor is provided")
+		s.ErrorIs(err, dbauthz.ErrNoActor, "method should return NoActorError error when no actor is provided")
 	})
 }
 
@@ -236,6 +261,8 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
 		az.AlwaysReturn(rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
+		// Override the SQL filter to always fail.
+		az.OverrideSQLFilter("FALSE")
 
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
@@ -328,6 +355,14 @@ type expects struct {
 	notAuthorizedExpect string
 	cancelledCtxExpect  string
 	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
+	outOfOrder          bool
+}
+
+// OutOfOrder is optional. It controls whether the assertions should be
+// asserted in order.
+func (m *expects) OutOfOrder() *expects {
+	m.outOfOrder = true
+	return m
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -355,6 +390,24 @@ func (m *expects) Returns(rets ...any) *expects {
 // Errors is optional. If it is never called, it will not be asserted.
 func (m *expects) Errors(err error) *expects {
 	m.err = err
+	return m
+}
+
+// ErrorsWithPG is optional. If it is never called, it will not be asserted.
+// It will only be asserted if the test is running with a Postgres database.
+func (m *expects) ErrorsWithPG(err error) *expects {
+	if dbtestutil.WillUsePostgres() {
+		return m.Errors(err)
+	}
+	return m
+}
+
+// ErrorsWithInMemDB is optional. If it is never called, it will not be asserted.
+// It will only be asserted if the test is running with an in-memory database.
+func (m *expects) ErrorsWithInMemDB(err error) *expects {
+	if !dbtestutil.WillUsePostgres() {
+		return m.Errors(err)
+	}
 	return m
 }
 
@@ -450,7 +503,7 @@ func asserts(inputs ...any) []AssertRBAC {
 				// Could be the string type.
 				actionAsString, ok := inputs[i+1].(string)
 				if !ok {
-					panic(fmt.Sprintf("action '%q' not a supported action", actionAsString))
+					panic(fmt.Sprintf("action '%T' not a supported action", inputs[i+1]))
 				}
 				action = policy.Action(actionAsString)
 			}

@@ -2,51 +2,61 @@
 
 ## Requirements
 
-We recommend using the [Nix](https://nix.dev/) package manager as it makes any
-pain related to maintaining dependency versions
-[disappear](https://nixos.org/guides/how-nix-works). Once nix
-[has been installed](https://nixos.org/download.html) the development
-environment can be _manually instantiated_ through the `nix-shell` command:
+<div class="tabs">
 
-```shell
-cd ~/code/coder
+We recommend that you use [Nix](https://nix.dev/) package manager to
+[maintain dependency versions](https://nixos.org/guides/how-nix-works).
 
-# https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
-nix-shell
+### Nix
 
-...
-copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://cache.nixos.org'...
-copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://cache.nixos.org'...
-copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.nixos.org'...
-...
-```
+1. [Install Nix](https://nix.dev/install-nix#install-nix)
 
-If [direnv](https://direnv.net/) is installed and the
-[hooks are configured](https://direnv.net/docs/hook.html) then the development
-environment can be _automatically instantiated_ by creating the following
-`.envrc`, thus removing the need to run `nix-shell` by hand!
+1. After you've installed Nix, instantiate the development with the `nix-shell`
+   command:
 
-```shell
-cd ~/code/coder
-echo "use nix" >.envrc
-direnv allow
-```
+   ```shell
+   cd ~/code/coder
 
-Now, whenever you enter the project folder,
-[`direnv`](https://direnv.net/docs/hook.html) will prepare the environment for
-you:
+   # https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
+   nix-shell
 
-```shell
-cd ~/code/coder
+   ...
+   copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://   cache.nixos.org'...
+   copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://   cache.nixos.org'...
+   copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.   nixos.org'...
+   ...
+   ```
 
-direnv: loading ~/code/coder/.envrc
-direnv: using nix
-direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_BINTOOLS +NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_BUILD_CORES +NIX_BUILD_TOP +NIX_CC +NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_CFLAGS_COMPILE +NIX_ENFORCE_NO_NATIVE +NIX_HARDENING_ENABLE +NIX_INDENT_MAKE +NIX_LDFLAGS +NIX_STORE +NM +NODE_PATH +OBJCOPY +OBJDUMP +RANLIB +READELF +SIZE +SOURCE_DATE_EPOCH +STRINGS +STRIP +TEMP +TEMPDIR +TMP +TMPDIR +XDG_DATA_DIRS +buildInputs +buildPhase +builder +cmakeFlags +configureFlags +depsBuildBuild +depsBuildBuildPropagated +depsBuildTarget +depsBuildTargetPropagated +depsHostHost +depsHostHostPropagated +depsTargetTarget +depsTargetTargetPropagated +doCheck +doInstallCheck +mesonFlags +name +nativeBuildInputs +out +outputs +patches +phases +propagatedBuildInputs +propagatedNativeBuildInputs +shell +shellHook +stdenv +strictDeps +system ~PATH
+1. Optional: If you have [direnv](https://direnv.net/) installed with
+   [hooks configured](https://direnv.net/docs/hook.html), you can add `use nix`
+   to `.envrc` to automatically instantiate the development environment:
 
-🎉
-```
+   ```shell
+   cd ~/code/coder
+   echo "use nix" >.envrc
+   direnv allow
+   ```
 
-Alternatively if you do not want to use nix then you'll need to install the need
+   Now, whenever you enter the project folder,
+   [`direnv`](https://direnv.net/docs/hook.html) will prepare the environment
+   for you:
+
+   ```shell
+   cd ~/code/coder
+
+   direnv: loading ~/code/coder/.envrc
+   direnv: using nix
+   direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_BINTOOLS +NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_BUILD_CORES +NIX_BUILD_TOP +NIX_CC +NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_CFLAGS_COMPILE +NIX_ENFORCE_NO_NATIVE +NIX_HARDENING_ENABLE +NIX_INDENT_MAKE +NIX_LDFLAGS +NIX_STORE +NM +NODE_PATH +OBJCOPY +OBJDUMP +RANLIB +READELF +SIZE +SOURCE_DATE_EPOCH +STRINGS +STRIP +TEMP +TEMPDIR +TMP +TMPDIR +XDG_DATA_DIRS +buildInputs +buildPhase +builder +cmakeFlags +configureFlags +depsBuildBuild +depsBuildBuildPropagated +depsBuildTarget +depsBuildTargetPropagated +depsHostHost +depsHostHostPropagated +depsTargetTarget +depsTargetTargetPropagated +doCheck +doInstallCheck +mesonFlags +name +nativeBuildInputs +out +outputs +patches +phases +propagatedBuildInputs +propagatedNativeBuildInputs +shell +shellHook +stdenv +strictDeps +system ~PATH
+
+   🎉
+   ```
+
+   - If you encounter a `creating directory` error on macOS, check the
+     [troubleshooting](#troubleshooting) section below.
+
+### Without Nix
+
+Alternatively if you do not want to use Nix then you'll need to install the need
 the following tools by hand:
 
 - Go 1.18+
@@ -62,6 +72,11 @@ the following tools by hand:
 - [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
+- PostgreSQL 13 (optional if Docker is available)
+  - *Note*: If you are using Docker, you can skip this step
+  - on macOS, run `brew install postgresql@13` and `brew services start postgresql@13`
+  - To enable schema generation with non-containerized PostgreSQL, set the following environment variable:
+    - `export DB_DUMP_CONNECTION_URL="postgres://postgres@localhost:5432/postgres?password=postgres&sslmode=disable"`
 - `pkg-config`
   - on macOS, run `brew install pkg-config`
 - `pixman`
@@ -73,7 +88,9 @@ the following tools by hand:
 - `pandoc`
   - on macOS, run `brew install pandocomatic`
 
-### Development workflow
+</div>
+
+## Development workflow
 
 Use the following `make` commands and scripts in development:
 
@@ -89,11 +106,18 @@ Use the following `make` commands and scripts in development:
 - The default user is `admin@coder.com` and the default password is
   `SomeSecurePassword!`
 
+### Running Coder using docker-compose
+
+This mode is useful for testing HA or validating more complex setups.
+
+- Generate a new image from your HEAD: `make build/coder_$(./scripts/version.sh)_$(go env GOOS)_$(go env GOARCH).tag`
+  - This will output the name of the new image, e.g.: `ghcr.io/coder/coder:v2.19.0-devel-22fa71d15-amd64`
+- Inject this image into docker-compose: `CODER_VERSION=v2.19.0-devel-22fa71d15-amd64 docker-compose up` (*note the prefix `ghcr.io/coder/coder:` was removed*)
+- To use Docker, determine your host's `docker` group ID with `getent group docker | cut -d: -f3`, then update the value of `group_add` and uncomment
+
 ### Deploying a PR
 
-> You need to be a member or collaborator of the of
-> [coder](https://github.com/coder) GitHub organization to be able to deploy a
-> PR.
+You need to be a member or collaborator of the [coder](https://github.com/coder) GitHub organization to be able to deploy a PR.
 
 You can test your changes by creating a PR deployment. There are two ways to do
 this:
@@ -116,7 +140,8 @@ this:
   name and PR number, etc.
 - `-y` or `--yes`, will skip the CLI confirmation prompt.
 
-> Note: PR deployment will be re-deployed automatically when the PR is updated.
+> [!NOTE]
+> PR deployment will be re-deployed automatically when the PR is updated.
 > It will use the last values automatically for redeployment.
 
 Once the deployment is finished, a unique link and credentials will be posted in
@@ -133,16 +158,16 @@ Database migrations are managed with
 To add new migrations, use the following command:
 
 ```shell
-./coderd/database/migrations/create_fixture.sh my name
+./coderd/database/migrations/create_migration.sh my name
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
 ```
 
-Run "make gen" to generate models.
-
 Then write queries into the generated `.up.sql` and `.down.sql` files and commit
 them into the repository. The down script should make a best-effort to retain as
 much data as possible.
+
+Run `make gen` to generate models.
 
 #### Database fixtures (for testing migrations)
 
@@ -203,8 +228,7 @@ This helps in naming the dump (e.g. `000069` above).
 
 ### Documentation
 
-Our style guide for authoring documentation can be found
-[here](./contributing/documentation.md).
+Visit our [documentation style guide](./contributing/documentation.md).
 
 ### Backend
 
@@ -231,8 +255,7 @@ Our frontend guide can be found [here](./contributing/frontend.md).
 
 ## Reviews
 
-> The following information has been borrowed from
-> [Go's review philosophy](https://go.dev/doc/contribute#reviews).
+The following information has been borrowed from [Go's review philosophy](https://go.dev/doc/contribute#reviews).
 
 Coder values thorough reviews. For each review comment that you receive, please
 "close" it by implementing the suggestion or providing an explanation on why the
@@ -320,8 +343,9 @@ Breaking changes can be triggered in two ways:
 
 ### Security
 
+> [!CAUTION]
 > If you find a vulnerability, **DO NOT FILE AN ISSUE**. Instead, send an email
-> to security@coder.com.
+> to <security@coder.com>.
 
 The
 [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity)
@@ -334,3 +358,17 @@ The
 [`release/experimental`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fexperimental)
 label can be used to move the note to the bottom of the release notes under a
 separate title.
+
+## Troubleshooting
+
+### Nix on macOS: `error: creating directory`
+
+On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause
+`nix-shell` to fail to build or run `coder`. If you encounter
+`error: creating directory` when you attempt to run, build, or test, add a
+`mkdir` line to your `.envrc`:
+
+```shell
+use nix
+mkdir -p "$TMPDIR"
+```

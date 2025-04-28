@@ -13,6 +13,17 @@ func ToStrings[T ~string](a []T) []string {
 	return tmp
 }
 
+func StringEnums[E ~string](a []string) []E {
+	if a == nil {
+		return nil
+	}
+	tmp := make([]E, 0, len(a))
+	for _, v := range a {
+		tmp = append(tmp, E(v))
+	}
+	return tmp
+}
+
 // Omit creates a new slice with the arguments omitted from the list.
 func Omit[T comparable](a []T, omits ...T) []T {
 	tmp := make([]T, 0, len(a))
@@ -55,6 +66,19 @@ func Contains[T comparable](haystack []T, needle T) bool {
 	})
 }
 
+func CountMatchingPairs[A, B any](a []A, b []B, match func(A, B) bool) int {
+	count := 0
+	for _, a := range a {
+		for _, b := range b {
+			if match(a, b) {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
 // Find returns the first element that satisfies the condition.
 func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	for _, hay := range haystack {
@@ -64,6 +88,17 @@ func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	}
 	var empty T
 	return empty, false
+}
+
+// Filter returns all elements that satisfy the condition.
+func Filter[T any](haystack []T, cond func(T) bool) []T {
+	out := make([]T, 0, len(haystack))
+	for _, hay := range haystack {
+		if cond(hay) {
+			out = append(out, hay)
+		}
+	}
+	return out
 }
 
 // Overlap returns if the 2 sets have any overlap (element(s) in common)
@@ -165,4 +200,20 @@ func DifferenceFunc[T any](a []T, b []T, equal func(a, b T) bool) []T {
 		}
 	}
 	return tmp
+}
+
+func CountConsecutive[T comparable](needle T, haystack ...T) int {
+	maxLength := 0
+	curLength := 0
+
+	for _, v := range haystack {
+		if v == needle {
+			curLength++
+		} else {
+			maxLength = max(maxLength, curLength)
+			curLength = 0
+		}
+	}
+
+	return max(maxLength, curLength)
 }

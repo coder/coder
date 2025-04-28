@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -61,14 +62,20 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
 		// nolint:gocritic
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 
 		// nolint:gocritic
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -137,13 +144,19 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		// them read the group members.
 		// We should probably at least return more truncated user data here.
 		// nolint:gocritic
-		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 		// nolint:gocritic
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -222,7 +235,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 					delete(template.UserACL, id)
 					continue
 				}
-				template.UserACL[id] = convertSDKTemplateRole(role)
+				template.UserACL[id] = db2sdk.TemplateRoleActions(role)
 			}
 		}
 
@@ -234,7 +247,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 					delete(template.GroupACL, id)
 					continue
 				}
-				template.GroupACL[id] = convertSDKTemplateRole(role)
+				template.GroupACL[id] = db2sdk.TemplateRoleActions(role)
 			}
 		}
 
@@ -316,8 +329,8 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 }
 
 func validateTemplateRole(role codersdk.TemplateRole) error {
-	actions := convertSDKTemplateRole(role)
-	if actions == nil && role != codersdk.TemplateRoleDeleted {
+	actions := db2sdk.TemplateRoleActions(role)
+	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
 		return xerrors.Errorf("role %q is not a valid Template role", role)
 	}
 
@@ -326,24 +339,13 @@ func validateTemplateRole(role codersdk.TemplateRole) error {
 
 func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
-	case len(actions) == 1 && actions[0] == policy.ActionRead:
+	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
 		return codersdk.TemplateRoleUse
 	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
 		return codersdk.TemplateRoleAdmin
 	}
 
 	return ""
-}
-
-func convertSDKTemplateRole(role codersdk.TemplateRole) []policy.Action {
-	switch role {
-	case codersdk.TemplateRoleAdmin:
-		return []policy.Action{policy.WildcardSymbol}
-	case codersdk.TemplateRoleUse:
-		return []policy.Action{policy.ActionRead}
-	}
-
-	return nil
 }
 
 // TODO move to api.RequireFeatureMW when we are OK with changing the behavior.

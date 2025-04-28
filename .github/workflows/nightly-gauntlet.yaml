@@ -3,30 +3,38 @@
 name: nightly-gauntlet
 on:
   schedule:
-    # Every day at midnight
-    - cron: "0 0 * * *"
+    # Every day at 4AM
+    - cron: "0 4 * * 1-5"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  go-race:
-    # While GitHub's toaster runners are likelier to flake, we want consistency
-    # between this environment and the regular test environment for DataDog
-    # statistics and to only show real workflow threats.
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    # This runner costs 0.016 USD per minute,
-    # so 0.016 * 240 = 3.84 USD per run.
-    timeout-minutes: 240
+  test-go-pg:
+    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    if: github.ref == 'refs/heads/main'
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -34,41 +42,101 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Run Tests
-        run: |
-          # -race is likeliest to catch flaky tests
-          # due to correctness detection and its performance
-          # impact.
-          gotestsum --junitfile="gotests.xml" -- -timeout=240m -count=10 -race ./...
+      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+      - name: Setup ImDisk
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/setup-imdisk
 
-      - name: Upload test results to DataDog
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
+          LC_CTYPE: "en_US.UTF-8"
+          LC_ALL: "en_US.UTF-8"
+        shell: bash
+        run: |
+          # if macOS, install google-chrome for scaletests
+          # As another concern, should we really have this kind of external dependency
+          # requirement on standard CI?
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            brew install google-chrome
+          fi
+
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
+
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            # Create a temp dir on the R: ramdisk drive for Windows. The default
+            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
+          else
+            go run scripts/embedded-pg/main.go
+          fi
+
+          # Reduce test parallelism, mirroring what we do for race tests.
+          # We'd been encountering issues with timing related flakes, and
+          # this seems to help.
+          DB=ci gotestsum --format standard-quiet -- -v -short -count=1 -parallel 4 -p 4 ./...
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
         uses: ./.github/actions/upload-datadog
-        if: always()
+        if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-  go-timing:
-    # We run these tests with p=1 so we don't need a lot of compute.
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04' || 'ubuntu-latest' }}
-    timeout-minutes: 10
+  notify-slack-on-failure:
+    needs:
+      - test-go-pg
+    runs-on: ubuntu-latest
+    if: failure() && github.ref == 'refs/heads/main'
+
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Run Tests
+      - name: Send Slack notification
         run: |
-          gotestsum --junitfile="gotests.xml" -- --tags="timing" -p=1 -run='_Timing/' ./...
-
-      - name: Upload test results to DataDog
-        uses: ./.github/actions/upload-datadog
-        if: always()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ Nightly gauntlet failed",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Workflow:*\n${{ github.workflow }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Committer:*\n${{ github.actor }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Commit:*\n${{ github.sha }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View failure:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>"
+                }
+              }
+            ]
+          }' ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -35,7 +35,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("hello")
-		resp := testutil.RequireRecvCtx(ctx, t, msgChan)
+		resp := testutil.TryReceive(ctx, t, msgChan)
 		require.Equal(t, "hello", resp)
 	})
 
@@ -54,7 +54,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("yes")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
 	})
 
@@ -91,7 +91,7 @@ func TestPrompt(t *testing.T) {
 			doneChan <- resp
 		}()
 
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
 		// Close the reader to end the io.Copy
 		require.NoError(t, ptty.Close(), "close eof reader")
@@ -115,7 +115,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("{}")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "{}", resp)
 	})
 
@@ -133,7 +133,7 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("{a")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "{a", resp)
 	})
 
@@ -153,7 +153,7 @@ func TestPrompt(t *testing.T) {
 		ptty.WriteLine(`{
 "test": "wow"
 }`)
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, `{"test":"wow"}`, resp)
 	})
 
@@ -178,8 +178,50 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("foo\nbar\nbaz\n\n\nvalid\n")
-		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "valid", resp)
+	})
+
+	t.Run("MaskedSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+				Text:   "Password:",
+				Secret: true,
+			}, nil)
+			assert.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Password: ")
+
+		ptty.WriteLine("test")
+
+		resp := testutil.TryReceive(ctx, t, doneChan)
+		require.Equal(t, "test", resp)
+	})
+
+	t.Run("UTF8Password", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+				Text:   "Password:",
+				Secret: true,
+			}, nil)
+			assert.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Password: ")
+
+		ptty.WriteLine("和製漢字")
+
+		resp := testutil.TryReceive(ctx, t, doneChan)
+		require.Equal(t, "和製漢字", resp)
 	})
 }
 
@@ -209,13 +251,12 @@ func TestPasswordTerminalState(t *testing.T) {
 		passwordHelper()
 		return
 	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on windows. PTY doesn't read ptty.Write correctly.")
+	}
 	t.Parallel()
 
 	ptty := ptytest.New(t)
-	ptyWithFlags, ok := ptty.PTY.(pty.WithFlags)
-	if !ok {
-		t.Skip("unable to check PTY local echo on this platform")
-	}
 
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
@@ -229,21 +270,16 @@ func TestPasswordTerminalState(t *testing.T) {
 	defer process.Kill()
 
 	ptty.ExpectMatch("Password: ")
-
-	require.Eventually(t, func() bool {
-		echo, err := ptyWithFlags.EchoEnabled()
-		return err == nil && !echo
-	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
+	ptty.Write('t')
+	ptty.Write('e')
+	ptty.Write('s')
+	ptty.Write('t')
+	ptty.ExpectMatch("****")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
 	_, err = process.Wait()
 	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		echo, err := ptyWithFlags.EchoEnabled()
-		return err == nil && echo
-	}, testutil.WaitShort, testutil.IntervalMedium, "echo is off after reading password")
 }
 
 // nolint:unused

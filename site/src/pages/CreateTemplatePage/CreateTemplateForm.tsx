@@ -2,6 +2,7 @@ import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { provisionerDaemons } from "api/queries/organizations";
 import type {
+	CreateTemplateVersionRequest,
 	Organization,
 	ProvisionerJobLog,
 	ProvisionerType,
@@ -11,6 +12,7 @@ import type {
 	VariableValue,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -19,9 +21,11 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
+import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
@@ -61,6 +65,7 @@ export interface CreateTemplateFormData {
 	allow_everyone_group_access: boolean;
 	provisioner_type: ProvisionerType;
 	organization: string;
+	tags: CreateTemplateVersionRequest["tags"];
 }
 
 const validationSchema = Yup.object({
@@ -94,6 +99,7 @@ const defaultInitialValues: CreateTemplateFormData = {
 	allow_everyone_group_access: true,
 	provisioner_type: "terraform",
 	organization: "default",
+	tags: {},
 };
 
 type GetInitialValuesParams = {
@@ -215,12 +221,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
-	const provisionerDaemonsQuery = useQuery(
+	const { data: provisioners } = useQuery(
 		selectedOrg
 			? {
 					...provisionerDaemons(selectedOrg.id),
 					enabled: showOrganizationPicker,
-					select: (provisioners) => provisioners.length < 1,
 				}
 			: { enabled: false },
 	);
@@ -231,7 +236,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	// form submission**!! A user could easily see this warning, connect a
 	// provisioner, and then not refresh the page. Even if they submit without
 	// a provisioner, it'll just sit in the job queue until they connect one.
-	const showProvisionerWarning = provisionerDaemonsQuery.data;
+	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
 
 	return (
 		<HorizontalForm onSubmit={form.handleSubmit}>
@@ -261,7 +266,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 								{...getFieldHelpers("organization")}
 								required
 								label="Belongs to"
-								value={selectedOrg}
 								onChange={(newValue) => {
 									setSelectedOrg(newValue);
 									void form.setFieldValue("organization", newValue?.name || "");
@@ -324,6 +328,32 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				</FormFields>
 			</FormSection>
 
+			{provisioners && provisioners.length > 0 && (
+				<FormSection
+					title="Provisioner tags"
+					description={
+						<>
+							Tags are a way to control which provisioner daemons complete which
+							build jobs.&nbsp;
+							<Link
+								href={docs("/admin/provisioners")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Learn more...
+							</Link>
+						</>
+					}
+				>
+					<FormFields>
+						<ProvisionerTagsField
+							value={form.values.tags}
+							onChange={(tags) => form.setFieldValue("tags", tags)}
+						/>
+					</FormFields>
+				</FormSection>
+			)}
+
 			{/* Variables */}
 			{variables && variables.length > 0 && (
 				<FormSection
@@ -350,37 +380,37 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				</FormSection>
 			)}
 
-			<div className="flex items-center">
-				<FormFooter
-					extraActions={
-						logs && (
-							<button
-								type="button"
-								onClick={onOpenBuildLogsDrawer}
-								css={(theme) => ({
-									backgroundColor: "transparent",
-									border: 0,
-									fontWeight: 500,
-									fontSize: 14,
-									cursor: "pointer",
-									color: theme.palette.text.secondary,
+			<FormFooter>
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+				<Button type="submit" disabled={isSubmitting}>
+					<Spinner loading={isSubmitting} />
+					{jobError ? "Retry" : "Save"}
+				</Button>
+				{logs && (
+					<button
+						type="button"
+						onClick={onOpenBuildLogsDrawer}
+						css={(theme) => ({
+							backgroundColor: "transparent",
+							border: 0,
+							fontWeight: 500,
+							fontSize: 14,
+							cursor: "pointer",
+							color: theme.palette.text.secondary,
 
-									"&:hover": {
-										textDecoration: "underline",
-										textUnderlineOffset: 4,
-										color: theme.palette.text.primary,
-									},
-								})}
-							>
-								Show build logs
-							</button>
-						)
-					}
-					onCancel={onCancel}
-					isLoading={isSubmitting}
-					submitLabel={jobError ? "Retry" : "Create template"}
-				/>
-			</div>
+							"&:hover": {
+								textDecoration: "underline",
+								textUnderlineOffset: 4,
+								color: theme.palette.text.primary,
+							},
+						})}
+					>
+						Show build logs
+					</button>
+				)}
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

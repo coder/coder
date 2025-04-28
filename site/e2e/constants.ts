@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-export const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
+export const coderBinary = path.join(__dirname, "./bin/coder");
 
 // Default port from the server
 export const coderPort = process.env.CODER_E2E_PORT
@@ -15,11 +15,43 @@ export const coderdPProfPort = 6062;
 
 // The name of the organization that should be used by default when needed.
 export const defaultOrganizationName = "coder";
+export const defaultOrganizationId = "00000000-0000-0000-0000-000000000000";
+export const defaultPassword = "SomeSecurePassword!";
 
-// Credentials for the first user
-export const username = "admin";
-export const password = "SomeSecurePassword!";
-export const email = "admin@coder.com";
+// Credentials for users
+export const users = {
+	owner: {
+		username: "owner",
+		password: defaultPassword,
+		email: "owner@coder.com",
+	},
+	templateAdmin: {
+		username: "template-admin",
+		password: defaultPassword,
+		email: "templateadmin@coder.com",
+		roles: ["Template Admin"],
+	},
+	userAdmin: {
+		username: "user-admin",
+		password: defaultPassword,
+		email: "useradmin@coder.com",
+		roles: ["User Admin"],
+	},
+	auditor: {
+		username: "auditor",
+		password: defaultPassword,
+		email: "auditor@coder.com",
+		roles: ["Auditor"],
+	},
+	member: {
+		username: "member",
+		password: defaultPassword,
+		email: "member@coder.com",
+	},
+} satisfies Record<
+	string,
+	{ username: string; password: string; email: string; roles?: string[] }
+>;
 
 export const gitAuth = {
 	deviceProvider: "device",

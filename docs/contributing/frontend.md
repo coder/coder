@@ -23,14 +23,13 @@ You can run the UI and access the Coder dashboard in two ways:
 In both cases, you can access the dashboard on `http://localhost:8080`. If using
 `./scripts/develop.sh` you can log in with the default credentials.
 
-> [!TIP]
->
+> [!NOTE]
 > **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
 
 ## Tech Stack Overview
 
-All our dependencies are described in `site/package.json` but the following are
-the most important:
+All our dependencies are described in `site/package.json`, but the following are
+the most important.
 
 - [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
@@ -86,8 +85,8 @@ views, tests, and utility functions. The page component fetches necessary data
 and passes to the view. We explain this decision a bit better in the next
 section which talks about where to fetch data.
 
-> ℹ️ If code within a page becomes reusable across other parts of the app,
-> consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
+If code within a page becomes reusable across other parts of the app,
+consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
 
 ### Handling States
 
@@ -129,17 +128,17 @@ within the component's story.
 
 ```tsx
 export const WithQuota: Story = {
-	parameters: {
-		queries: [
-			{
-				key: getWorkspaceQuotaQueryKey(MockUser.username),
-				data: {
-					credits_consumed: 2,
-					budget: 40,
-				},
-			},
-		],
-	},
+    parameters: {
+        queries: [
+            {
+                key: getWorkspaceQuotaQueryKey(MockUser.username),
+                data: {
+                    credits_consumed: 2,
+                    budget: 40,
+                },
+            },
+        ],
+    },
 };
 ```
 
@@ -156,12 +155,12 @@ execution. Here's an illustrative example:"
 
 ```ts
 export const getAgentListeningPorts = async (
-	agentID: string,
+    agentID: string,
 ): Promise<TypesGen.ListeningPortsResponse> => {
-	const response = await axiosInstance.get(
-		`/api/v2/workspaceagents/${agentID}/listening-ports`,
-	);
-	return response.data;
+    const response = await axiosInstance.get(
+        `/api/v2/workspaceagents/${agentID}/listening-ports`,
+    );
+    return response.data;
 };
 ```
 
@@ -170,10 +169,10 @@ as a single function.
 
 ```ts
 export const updateWorkspaceVersion = async (
-	workspace: TypesGen.Workspace,
+    workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
-	const template = await getTemplate(workspace.template_id);
-	return startWorkspace(workspace.id, template.active_version_id);
+    const template = await getTemplate(workspace.template_id);
+    return startWorkspace(workspace.id, template.active_version_id);
 };
 ```
 
@@ -224,10 +223,10 @@ inside the component itself using MUI's `visuallyHidden` utility function.
 import { visuallyHidden } from "@mui/utils";
 
 <Button>
-	<GearIcon />
-	<Box component="span" sx={visuallyHidden}>
-		Settings
-	</Box>
+    <GearIcon />
+    <Box component="span" sx={visuallyHidden}>
+        Settings
+    </Box>
 </Button>;
 ```
 
@@ -270,8 +269,8 @@ template", etc. We use [Playwright](https://playwright.dev/). If you only need
 to test if the page is being rendered correctly, you should consider using the
 **Visual Testing** approach.
 
-> ℹ️ For scenarios where you need to be authenticated, you can use
-> `test.use({ storageState: getStatePath("authState") })`.
+For scenarios where you need to be authenticated, you can use
+`test.use({ storageState: getStatePath("authState") })`.
 
 For ease of debugging, it's possible to run a Playwright test in headful mode
 running a Playwright server on your local machine, and executing the test inside
@@ -307,8 +306,8 @@ always be your first option since it is way easier to maintain. For this, we use
 [Storybook](https://storybook.js.org/) and
 [Chromatic](https://www.chromatic.com/).
 
-> ℹ️ To learn more about testing components that fetch API data, refer to the
-> [**Where to fetch data**](#where-to-fetch-data) section.
+To learn more about testing components that fetch API data, refer to the
+[**Where to fetch data**](#where-to-fetch-data) section.
 
 ### What should I test?
 
@@ -332,8 +331,8 @@ One thing we figured out that was slowing down our tests was the use of `ByRole`
 queries because of how it calculates the role attribute for every element on the
 `screen`. You can read more about it on the links below:
 
-- https://stackoverflow.com/questions/69711888/react-testing-library-getbyrole-is-performing-extremely-slowly
-- https://github.com/testing-library/dom-testing-library/issues/552#issuecomment-625172052
+- <https://stackoverflow.com/questions/69711888/react-testing-library-getbyrole-is-performing-extremely-slowly>
+- <https://github.com/testing-library/dom-testing-library/issues/552#issuecomment-625172052>
 
 Even with `ByRole` having performance issues we still want to use it but for
 that, we have to scope the "querying" area by using the `within` command. So

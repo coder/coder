@@ -3,6 +3,8 @@ package dbcrypt
 import (
 	"bytes"
 	"encoding/base64"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,7 +59,7 @@ func TestCipherAES256(t *testing.T) {
 
 		munged := make([]byte, len(encrypted1))
 		copy(munged, encrypted1)
-		munged[0] = munged[0] ^ 0xff
+		munged[0] ^= 0xff
 		_, err = cipher.Decrypt(munged)
 		var decryptErr *DecryptFailedError
 		require.ErrorAs(t, err, &decryptErr, "munging the first byte of the encrypted data should cause decryption to fail")
@@ -88,4 +90,37 @@ func TestCiphersBackwardCompatibility(t *testing.T) {
 	decrypted, err := cipher.Decrypt(decoded)
 	require.NoError(t, err, "decryption should succeed")
 	require.Equal(t, msg, string(decrypted), "decrypted message should match original message")
+}
+
+// If you're looking here, you're probably in trouble.
+// Here's what you need to do:
+//  1. Get the current CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS environment variable.
+//  2. Run the following command:
+//     ENCRYPT_ME="<value to encrypt>" CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS="<secret keys here>" go test -v -count=1 ./enterprise/dbcrypt -test.run='^TestHelpMeEncryptSomeValue$'
+//  3. Copy the value from the test output and do what you need with it.
+func TestHelpMeEncryptSomeValue(t *testing.T) {
+	t.Parallel()
+	valueToEncrypt := os.Getenv("ENCRYPT_ME")
+	if valueToEncrypt == "" {
+		t.Skip("Set ENCRYPT_ME to some value you need to encrypt")
+	}
+	t.Logf("valueToEncrypt: %q", valueToEncrypt)
+	keys := os.Getenv("CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS")
+	require.NotEmpty(t, keys, "Set the CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS environment variable to use this")
+
+	base64Keys := strings.Split(keys, ",")
+	activeKey := base64Keys[0]
+
+	decodedKey, err := base64.StdEncoding.DecodeString(activeKey)
+	require.NoError(t, err, "the active key should be valid base64")
+
+	cipher, err := cipherAES256(decodedKey)
+	require.NoError(t, err)
+
+	t.Logf("cipher digest: %+v", cipher.HexDigest())
+
+	encryptedEmptyString, err := cipher.Encrypt([]byte(valueToEncrypt))
+	require.NoError(t, err)
+
+	t.Logf("encrypted and base64-encoded: %q", base64.StdEncoding.EncodeToString(encryptedEmptyString))
 }

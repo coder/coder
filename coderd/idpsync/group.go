@@ -30,7 +30,7 @@ func (AGPLIDPSync) GroupSyncEntitled() bool {
 	return false
 }
 
-func (s AGPLIDPSync) UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
+func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
 	err := s.SyncSettings.Group.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
@@ -268,6 +268,9 @@ func (s *GroupSyncSettings) Set(v string) error {
 }
 
 func (s *GroupSyncSettings) String() string {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
 	return runtimeconfig.JSONString(s)
 }
 

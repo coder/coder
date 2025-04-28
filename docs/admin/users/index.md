@@ -166,6 +166,7 @@ You can also reset a password via the CLI:
 coder reset-password <username>
 ```
 
+> [!NOTE]
 > Resetting a user's password, e.g., the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 
@@ -185,8 +186,12 @@ to use the Coder's filter query:
 
 - To find active users, use the filter `status:active`.
 - To find admin users, use the filter `role:admin`.
-- To find users have not been active since July 2023:
+- To find users who have not been active since July 2023:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
+- To find users who were created between January 1 and January 18, 2023:
+  `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
+- To find users who login using Github:
+  `login_type:github`
 
 The following filters are supported:
 
@@ -195,6 +200,9 @@ The following filters are supported:
 - `role` - Represents the role of the user. You can refer to the
   [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole)
   for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a used has used the
+- `last_seen_before` and `last_seen_after` - The last time a user has used the
   platform (e.g. logging in, any API requests, connecting to workspaces). Uses
   the RFC3339Nano format.
+- `created_before` and `created_after` - The time a user was created. Uses the
+  RFC3339Nano format.
+- `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values

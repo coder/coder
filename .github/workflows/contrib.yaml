@@ -2,7 +2,7 @@ name: contrib
 
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited]
   pull_request_target:
     types:
       - opened
@@ -10,7 +10,6 @@ on:
       - synchronize
       - labeled
       - unlabeled
-      - opened
       - reopened
       - edited
       # For jobs that don't run on draft PRs.
@@ -23,37 +22,18 @@ permissions:
 concurrency: pr-${{ github.ref }}
 
 jobs:
-  # Dependabot is annoying, but this makes it a bit less so.
-  auto-approve-dependabot:
+  cla:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
     permissions:
       pull-requests: write
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
-        with:
-          egress-policy: audit
-
-      - name: auto-approve dependabot
-        uses: hmarr/auto-approve-action@f0939ea97e9205ef24d872e76833fa908a770363 # v4.0.0
-        if: github.actor == 'dependabot[bot]'
-
-  cla:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
-        with:
-          egress-policy: audit
-
       - name: cla
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # the below token should have repo scope and must be manually added by you in the repository's secret
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCOMMUNITY_GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
         with:
           remote-organization-name: "coder"
           remote-repository-name: "cla"
@@ -66,14 +46,11 @@ jobs:
 
   release-labels:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     # Skip tagging for draft PRs.
     if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
-        with:
-          egress-policy: audit
-
       - name: release-labels
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
@@ -107,7 +84,7 @@ jobs:
               repo: context.repo.repo,
             }
 
-            if (action === "opened" || action === "reopened") {
+            if (action === "opened" || action === "reopened" || action === "ready_for_review") {
               if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
                 console.log('Add "%s" label', releaseLabels.breaking)
                 await github.rest.issues.addLabels({

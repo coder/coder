@@ -144,6 +144,7 @@ resource "docker_image" "main" {
   triggers = {
     dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1("${path.module}/${f}")]))
   }
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {

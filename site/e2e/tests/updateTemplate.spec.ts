@@ -1,15 +1,21 @@
 import { expect, test } from "@playwright/test";
-import { defaultOrganizationName } from "../constants";
+import { defaultOrganizationName, users } from "../constants";
 import { expectUrl } from "../expectUrl";
 import {
 	createGroup,
 	createTemplate,
+	login,
 	requiresLicense,
 	updateTemplateSettings,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.describe.configure({ mode: "parallel" });
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page, users.templateAdmin);
+});
 
 test("template update with new name redirects on successful submit", async ({
 	page,
@@ -23,9 +29,12 @@ test("template update with new name redirects on successful submit", async ({
 test("add and remove a group", async ({ page }) => {
 	requiresLicense();
 
+	await login(page, users.userAdmin);
 	const orgName = defaultOrganizationName;
-	const templateName = await createTemplate(page, undefined, orgName);
-	const groupName = await createGroup(page);
+	const groupName = await createGroup(page, orgName);
+
+	await login(page, users.templateAdmin);
+	const templateName = await createTemplate(page);
 
 	await page.goto(
 		`/templates/${orgName}/${templateName}/settings/permissions`,
@@ -61,7 +70,7 @@ test("require latest version", async ({ page }) => {
 	await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
 	let checkbox = await page.waitForSelector("#require_active_version");
 	await checkbox.click();
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await page.goto(`/templates/${templateName}/settings`, {
 		waitUntil: "domcontentloaded",

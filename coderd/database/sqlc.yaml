@@ -146,6 +146,7 @@ sql:
           login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
           crypto_key_feature_workspace_apps_api_key: CryptoKeyFeatureWorkspaceAppsAPIKey
           crypto_key_feature_oidc_convert: CryptoKeyFeatureOIDCConvert
+          stale_interval_ms: StaleIntervalMS
           app_cors_behavior: AppCORSBehavior
           cors_behavior: CORSBehavior
 rules:

@@ -1,9 +1,28 @@
-import { API } from "api/api";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "api/api";
 import type {
-	AuthorizationResponse,
 	CreateOrganizationRequest,
+	GroupSyncSettings,
+	PaginatedMembersRequest,
+	PaginatedMembersResponse,
+	ProvisionerJobStatus,
+	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import {
+	type OrganizationPermissionName,
+	type OrganizationPermissions,
+	organizationPermissionChecks,
+} from "modules/permissions/organizations";
+import {
+	type WorkspacePermissionName,
+	type WorkspacePermissions,
+	workspacePermissionChecks,
+} from "modules/permissions/workspaces";
 import type { QueryClient } from "react-query";
 import { meKey } from "./users";
 
@@ -53,10 +72,42 @@ export const organizationMembersKey = (id: string) => [
 	"members",
 ];
 
+/**
+ * Creates a query configuration to fetch all members of an organization.
+ *
+ * Unlike the paginated version, this function sets the `limit` parameter to 0,
+ * which instructs the API to return all organization members in a single request
+ * without pagination.
+ *
+ * @param id - The unique identifier of the organization
+ * @returns A query configuration object for use with React Query
+ *
+ * @see paginatedOrganizationMembers - For fetching members with pagination support
+ */
 export const organizationMembers = (id: string) => {
 	return {
-		queryFn: () => API.getOrganizationMembers(id),
+		queryFn: () => API.getOrganizationPaginatedMembers(id, { limit: 0 }),
 		queryKey: organizationMembersKey(id),
+	};
+};
+
+export const paginatedOrganizationMembers = (
+	id: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<
+	PaginatedMembersResponse,
+	PaginatedMembersRequest
+> => {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit: limit,
+				offset: offset,
+			};
+		},
+		queryKey: ({ payload }) => [...organizationMembersKey(id), payload],
+		queryFn: ({ payload }) => API.getOrganizationPaginatedMembers(id, payload),
 	};
 };
 
@@ -117,16 +168,17 @@ export const organizations = () => {
 
 export const getProvisionerDaemonsKey = (
 	organization: string,
-	tags?: Record<string, string>,
-) => ["organization", organization, tags, "provisionerDaemons"];
+	params?: GetProvisionerDaemonsParams,
+) => ["organization", organization, "provisionerDaemons", params];
 
 export const provisionerDaemons = (
 	organization: string,
-	tags?: Record<string, string>,
+	params?: GetProvisionerDaemonsParams,
 ) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization, tags),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
+		queryKey: getProvisionerDaemonsKey(organization, params),
+		queryFn: () =>
+			API.getProvisionerDaemonsByOrganization(organization, params),
 	};
 };
 
@@ -156,6 +208,18 @@ export const groupIdpSyncSettings = (organization: string) => {
 	};
 };
 
+export const patchGroupSyncSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (request: GroupSyncSettings) =>
+			API.patchGroupIdpSyncSettings(request, organization),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries(groupIdpSyncSettings(organization)),
+	};
+};
+
 export const getRoleIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
@@ -169,50 +233,32 @@ export const roleIdpSyncSettings = (organization: string) => {
 	};
 };
 
-/**
- * Fetch permissions for a single organization.
- *
- * If the ID is undefined, return a disabled query.
- */
-export const organizationPermissions = (organizationId: string | undefined) => {
-	if (!organizationId) {
-		return { enabled: false };
-	}
+export const patchRoleSyncSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
 	return {
-		queryKey: ["organization", organizationId, "permissions"],
-		queryFn: () =>
-			// Only request what we use on individual org settings, members, and group
-			// pages, which at the moment is whether you can edit the members on the
-			// members page, create roles on the roles page, and create groups on the
-			// groups page.  The edit organization check for the settings page is
-			// covered by the multi-org query at the moment, and the edit group check
-			// on the group page is done on the group itself, not the org, so neither
-			// show up here.
-			API.checkAuthorization({
-				checks: {
-					editMembers: {
-						object: {
-							resource_type: "organization_member",
-							organization_id: organizationId,
-						},
-						action: "update",
-					},
-					createGroup: {
-						object: {
-							resource_type: "group",
-							organization_id: organizationId,
-						},
-						action: "create",
-					},
-					assignOrgRole: {
-						object: {
-							resource_type: "assign_org_role",
-							organization_id: organizationId,
-						},
-						action: "create",
-					},
-				},
-			}),
+		mutationFn: (request: RoleSyncSettings) =>
+			API.patchRoleIdpSyncSettings(request, organization),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries(
+				getRoleIdpSyncSettingsKey(organization),
+			),
+	};
+};
+
+export const provisionerJobsQueryKey = (
+	orgId: string,
+	params: GetProvisionerJobsParams = {},
+) => ["organization", orgId, "provisionerjobs", params];
+
+export const provisionerJobs = (
+	orgId: string,
+	params: GetProvisionerJobsParams = {},
+) => {
+	return {
+		queryKey: provisionerJobsQueryKey(orgId, params),
+		queryFn: () => API.getProvisionerJobs(orgId, params),
 	};
 };
 
@@ -229,64 +275,19 @@ export const organizationsPermissions = (
 	}
 
 	return {
-		queryKey: ["organizations", organizationIds.sort(), "permissions"],
+		queryKey: ["organizations", [...organizationIds.sort()], "permissions"],
 		queryFn: async () => {
 			// Only request what we need for the sidebar, which is one edit permission
 			// per sub-link (settings, groups, roles, and members pages) that tells us
 			// whether to show that page, since we only show them if you can edit (and
 			// not, at the moment if you can only view).
-			const checks = (organizationId: string) => ({
-				editMembers: {
-					object: {
-						resource_type: "organization_member",
-						organization_id: organizationId,
-					},
-					action: "update",
-				},
-				editGroups: {
-					object: {
-						resource_type: "group",
-						organization_id: organizationId,
-					},
-					action: "update",
-				},
-				editOrganization: {
-					object: {
-						resource_type: "organization",
-						organization_id: organizationId,
-					},
-					action: "update",
-				},
-				assignOrgRole: {
-					object: {
-						resource_type: "assign_org_role",
-						organization_id: organizationId,
-					},
-					action: "create",
-				},
-				viewProvisioners: {
-					object: {
-						resource_type: "provisioner_daemon",
-						organization_id: organizationId,
-					},
-					action: "read",
-				},
-				viewIdpSyncSettings: {
-					object: {
-						resource_type: "idpsync_settings",
-						organization_id: organizationId,
-					},
-					action: "read",
-				},
-			});
 
 			// The endpoint takes a flat array, so to avoid collisions prepend each
 			// check with the org ID (the key can be anything we want).
 			const prefixedChecks = organizationIds.flatMap((orgId) =>
-				Object.entries(checks(orgId)).map(([key, val]) => [
-					`${orgId}.${key}`,
-					val,
-				]),
+				Object.entries(organizationPermissionChecks(orgId)).map(
+					([key, val]) => [`${orgId}.${key}`, val],
+				),
 			);
 
 			const response = await API.checkAuthorization({
@@ -302,11 +303,65 @@ export const organizationsPermissions = (
 					if (!acc[orgId]) {
 						acc[orgId] = {};
 					}
-					acc[orgId][perm] = value;
+					acc[orgId][perm as OrganizationPermissionName] = value;
 					return acc;
 				},
-				{} as Record<string, AuthorizationResponse>,
-			);
+				{} as Record<string, Partial<OrganizationPermissions>>,
+			) as Record<string, OrganizationPermissions>;
 		},
+	};
+};
+
+export const workspacePermissionsByOrganization = (
+	organizationIds: string[] | undefined,
+	userId: string,
+) => {
+	if (!organizationIds) {
+		return { enabled: false };
+	}
+
+	return {
+		queryKey: ["workspaces", [...organizationIds.sort()], "permissions"],
+		queryFn: async () => {
+			const prefixedChecks = organizationIds.flatMap((orgId) =>
+				Object.entries(workspacePermissionChecks(orgId, userId)).map(
+					([key, val]) => [`${orgId}.${key}`, val],
+				),
+			);
+
+			const response = await API.checkAuthorization({
+				checks: Object.fromEntries(prefixedChecks),
+			});
+
+			return Object.entries(response).reduce(
+				(acc, [key, value]) => {
+					const index = key.indexOf(".");
+					const orgId = key.substring(0, index);
+					const perm = key.substring(index + 1);
+					if (!acc[orgId]) {
+						acc[orgId] = {};
+					}
+					acc[orgId][perm as WorkspacePermissionName] = value;
+					return acc;
+				},
+				{} as Record<string, Partial<WorkspacePermissions>>,
+			) as Record<string, WorkspacePermissions>;
+		},
+	};
+};
+
+export const getOrganizationIdpSyncClaimFieldValuesKey = (
+	organization: string,
+	field: string,
+) => [organization, "idpSync", "fieldValues", field];
+
+export const organizationIdpSyncClaimFieldValues = (
+	organization: string,
+	field: string,
+) => {
+	return {
+		queryKey: getOrganizationIdpSyncClaimFieldValuesKey(organization, field),
+		queryFn: () =>
+			API.getOrganizationIdpSyncClaimFieldValues(organization, field),
 	};
 };

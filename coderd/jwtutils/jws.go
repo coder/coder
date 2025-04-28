@@ -38,7 +38,7 @@ type Claims interface {
 }
 
 const (
-	signingAlgo = jose.HS512
+	SigningAlgo = jose.HS512
 )
 
 type SigningKeyManager interface {
@@ -62,7 +62,7 @@ func Sign(ctx context.Context, s SigningKeyProvider, claims Claims) (string, err
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: signingAlgo,
+		Algorithm: SigningAlgo,
 		Key:       key,
 	}, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]interface{}{
@@ -109,7 +109,7 @@ func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claim
 		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),
 		},
-		SignatureAlgorithm: signingAlgo,
+		SignatureAlgorithm: SigningAlgo,
 	}
 
 	for _, opt := range opts {
@@ -127,8 +127,8 @@ func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claim
 
 	signature := object.Signatures[0]
 
-	if signature.Header.Algorithm != string(signingAlgo) {
-		return xerrors.Errorf("expected JWS algorithm to be %q, got %q", signingAlgo, object.Signatures[0].Header.Algorithm)
+	if signature.Header.Algorithm != string(SigningAlgo) {
+		return xerrors.Errorf("expected JWS algorithm to be %q, got %q", SigningAlgo, object.Signatures[0].Header.Algorithm)
 	}
 
 	kid := signature.Header.KeyID

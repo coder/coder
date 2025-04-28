@@ -27,8 +27,8 @@ here!
 If you prefer to use Coder on the
 [command line](../../../reference/cli/index.md), `coder templates init`.
 
-> Coder starter templates are also available on our
-> [GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
+Coder starter templates are also available on our
+[GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
 
 ## Community Templates
 
@@ -46,6 +46,7 @@ any template's files directly in the Coder dashboard.
 If you'd prefer to use the CLI, use `coder templates pull`, edit the template
 files, then `coder templates push`.
 
+> [!TIP]
 > Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).
 
@@ -58,7 +59,11 @@ infrastructure, software, or security patches. Learn more about
 
 ![Updating a template](../../../images/templates/update.png)
 
-### Template update policies (enterprise) (premium)
+### Template update policies
+
+> [!NOTE]
+> Template update policies are a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may want workspaces to always remain on the latest
 version of their parent template. To do so, enable **Template Update Policies**
@@ -91,5 +96,5 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Devcontainer templates](./devcontainers.md)
+- [Devcontainer templates](./devcontainers/index.md)
 - [Change management](./change-management.md)

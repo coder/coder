@@ -174,6 +174,9 @@ networking:
   # Controls if the 'Secure' property is set on browser session cookies.
   # (default: <unset>, type: bool)
   secureAuthCookie: false
+  # Controls the 'SameSite' property is set on browser session cookies.
+  # (default: lax, type: enum[lax\|none])
+  sameSiteAuthCookie: lax
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
@@ -262,6 +265,12 @@ oauth2:
     # Client ID for Login with GitHub.
     # (default: <unset>, type: string)
     clientID: ""
+    # Enable device flow for Login with GitHub.
+    # (default: false, type: bool)
+    deviceFlow: false
+    # Enable the default GitHub OAuth2 provider managed by Coder.
+    # (default: true, type: bool)
+    defaultProviderEnable: true
     # Organizations the user must be a member of to Login with GitHub.
     # (default: <unset>, type: string-array)
     allowedOrgs: []
@@ -326,6 +335,12 @@ oidc:
   # Ignore the userinfo endpoint and only use the ID token for user information.
   # (default: false, type: bool)
   ignoreUserInfo: false
+  # Source supplemental user claims from the 'access_token'. This assumes the token
+  # is a jwt signed by the same issuer as the id_token. Using this requires setting
+  # 'oidc-ignore-userinfo' to true. This setting is not compliant with the OIDC
+  # specification and is not recommended. Use at your own risk.
+  # (default: false, type: bool)
+  accessTokenClaims: false
   # This field must be set if using the organization sync feature. Set to the claim
   # to be used for organizations.
   # (default: <unset>, type: string)
@@ -390,8 +405,8 @@ oidc:
   # (default: <unset>, type: bool)
   dangerousSkipIssuerChecks: false
 # Telemetry is critical to our ability to improve Coder. We strip all personal
-# information before sending data to our servers. Please only disable telemetry
-# when required by your organization's security policy.
+#  information before sending data to our servers. Please only disable telemetry
+#  when required by your organization's security policy.
 telemetry:
   # Whether telemetry is enabled or not. Coder collects anonymized usage data to
   # help improve our product.
@@ -446,7 +461,12 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
-# Type of auth to use when connecting to postgres.
+# Controls whether Coder data, including built-in Postgres, will be stored in a
+# temporary directory and deleted when the server is stopped.
+# (default: <unset>, type: bool)
+ephemeralDeployment: false
+# Type of auth to use when connecting to postgres. For AWS RDS, using IAM
+# authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
 # A URL to an external Terms of Service that must be accepted by users when
@@ -458,8 +478,8 @@ termsOfServiceURL: ""
 # (default: ed25519, type: string)
 sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
-# (default: https://coder.com/docs/templates/troubleshooting, type: url)
-agentFallbackTroubleshootingURL: https://coder.com/docs/templates/troubleshooting
+# (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
+agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -473,11 +493,15 @@ disablePathApps: false
 # (default: <unset>, type: bool)
 disableOwnerWorkspaceAccess: false
 # These options change the behavior of how clients interact with the Coder.
-# Clients include the coder cli, vs code extension, and the web UI.
+# Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
   # The SSH deployment prefix is used in the Host of the ssh config.
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
+  # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
+  # Desktop. By default it is coder, resulting in names like myworkspace.coder.
+  # (default: coder, type: string)
+  workspaceHostnameSuffix: coder
   # These SSH config options will override the default SSH config options. Provide
   # options in "key=value" or "key value" format separated by commas.Using this
   # incorrectly can break SSH to your deployment, use cautiously.
@@ -626,6 +650,10 @@ notifications:
     # The endpoint to which to send webhooks.
     # (default: <unset>, type: url)
     endpoint:
+  inbox:
+    # Enable Coder Inbox.
+    # (default: true, type: bool)
+    enabled: true
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
   maxSendAttempts: 5
@@ -660,3 +688,16 @@ notifications:
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
   fetchInterval: 15s
+# Configure how workspace prebuilds behave.
+workspace_prebuilds:
+  # How often to reconcile workspace prebuilds state.
+  # (default: 15s, type: duration)
+  reconciliation_interval: 15s
+  # Interval to increase reconciliation backoff by when prebuilds fail, after which
+  # a retry attempt is made.
+  # (default: 15s, type: duration)
+  reconciliation_backoff_interval: 15s
+  # Interval to look back to determine number of failed prebuilds, which influences
+  # backoff.
+  # (default: 1h0m0s, type: duration)
+  reconciliation_backoff_lookback_period: 1h0m0s

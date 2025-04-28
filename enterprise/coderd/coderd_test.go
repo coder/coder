@@ -28,9 +28,14 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
+
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
 
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -50,12 +55,10 @@ import (
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/retry"
-	"github.com/coder/serpent"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestEntitlements(t *testing.T) {
@@ -251,6 +254,90 @@ func TestEntitlements_HeaderWarnings(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Empty(t, res.Header.Values(codersdk.EntitlementsWarningHeader))
 	})
+}
+
+func TestEntitlements_Prebuilds(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name              string
+		experimentEnabled bool
+		featureEnabled    bool
+		expectedEnabled   bool
+	}{
+		{
+			name:              "Fully enabled",
+			featureEnabled:    true,
+			experimentEnabled: true,
+			expectedEnabled:   true,
+		},
+		{
+			name:              "Feature disabled",
+			featureEnabled:    false,
+			experimentEnabled: true,
+			expectedEnabled:   false,
+		},
+		{
+			name:              "Experiment disabled",
+			featureEnabled:    true,
+			experimentEnabled: false,
+			expectedEnabled:   false,
+		},
+		{
+			name:              "Fully disabled",
+			featureEnabled:    false,
+			experimentEnabled: false,
+			expectedEnabled:   false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var prebuildsEntitled int64
+			if tc.featureEnabled {
+				prebuildsEntitled = 1
+			}
+
+			_, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+						if tc.experimentEnabled {
+							values.Experiments = serpent.StringArray{string(codersdk.ExperimentWorkspacePrebuilds)}
+						}
+					}),
+				},
+
+				EntitlementsUpdateInterval: time.Second,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureWorkspacePrebuilds: prebuildsEntitled,
+					},
+				},
+			})
+
+			// The entitlements will need to refresh before the reconciler is set.
+			require.Eventually(t, func() bool {
+				return api.AGPL.PrebuildsReconciler.Load() != nil
+			}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+			reconciler := api.AGPL.PrebuildsReconciler.Load()
+			claimer := api.AGPL.PrebuildsClaimer.Load()
+			require.NotNil(t, reconciler)
+			require.NotNil(t, claimer)
+
+			if tc.expectedEnabled {
+				require.IsType(t, &prebuilds.StoreReconciler{}, *reconciler)
+				require.IsType(t, prebuilds.EnterpriseClaimer{}, *claimer)
+			} else {
+				require.Equal(t, &agplprebuilds.DefaultReconciler, reconciler)
+				require.Equal(t, &agplprebuilds.DefaultClaimer, claimer)
+			}
+		})
+	}
 }
 
 func TestAuditLogging(t *testing.T) {

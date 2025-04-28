@@ -81,7 +81,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 // Note that duplicate rbac calls are handled by the rbac.Cacher(), but
 // will be recorded twice. So AllCalls() returns calls regardless if they
 // were returned from the cached or not.
-func (a RBACAsserter) AllCalls() []AuthCall {
+func (a RBACAsserter) AllCalls() AuthCalls {
 	return a.Recorder.AllCalls(&a.Subject)
 }
 
@@ -140,8 +140,11 @@ func (a RBACAsserter) Reset() RBACAsserter {
 	return a
 }
 
+type AuthCalls []AuthCall
+
 type AuthCall struct {
 	rbac.AuthCall
+	Err error
 
 	asserted bool
 	// callers is a small stack trace for debugging.
@@ -252,7 +255,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 }
 
 // recordAuthorize is the internal method that records the Authorize() call.
-func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object) {
+func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object, authzErr error) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -262,6 +265,7 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action polic
 			Action: action,
 			Object: object,
 		},
+		Err: authzErr,
 		callers: []string{
 			// This is a decent stack trace for debugging.
 			// Some dbauthz calls are a bit nested, so we skip a few.
@@ -288,11 +292,12 @@ func caller(skip int) string {
 }
 
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
-	r.recordAuthorize(subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
-	return r.Wrapped.Authorize(ctx, subject, action, object)
+	authzErr := r.Wrapped.Authorize(ctx, subject, action, object)
+	r.recordAuthorize(subject, action, object, authzErr)
+	return authzErr
 }
 
 func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
@@ -339,10 +344,11 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	s.rw.Lock()
 	defer s.rw.Unlock()
 
+	authzErr := s.prepped.Authorize(ctx, object)
 	if !s.usingSQL {
-		s.rec.recordAuthorize(s.subject, s.action, object)
+		s.rec.recordAuthorize(s.subject, s.action, object, authzErr)
 	}
-	return s.prepped.Authorize(ctx, object)
+	return authzErr
 }
 
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
@@ -358,6 +364,7 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 // Meaning 'FakeAuthorizer' by default will never return "unauthorized".
 type FakeAuthorizer struct {
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
+	sqlFilter         string
 }
 
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
@@ -367,6 +374,12 @@ func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
 	d.ConditionalReturn = func(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
 		return err
 	}
+	return d
+}
+
+// OverrideSQLFilter sets the SQL filter that will always be returned by CompileToSQL.
+func (d *FakeAuthorizer) OverrideSQLFilter(filter string) *FakeAuthorizer {
+	d.sqlFilter = filter
 	return d
 }
 
@@ -400,10 +413,12 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
-// CompileToSQL returns a compiled version of the authorizer that will work for
-// in memory databases. This fake version will not work against a SQL database.
-func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "not a valid sql string", nil
+func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	if f.Original.sqlFilter != "" {
+		return f.Original.sqlFilter, nil
+	}
+	// By default, allow all SQL queries.
+	return "TRUE", nil
 }
 
 // Random rbac helper funcs

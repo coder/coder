@@ -33,21 +33,26 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	interceptor := &syncInterceptor{Store: store}
 	santa := &santaHandler{}
+	santaInbox := &santaHandler{}
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
 
 	// GIVEN: a manager which will pass or fail notifications based on their "nice" labels
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, ps, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
-		database.NotificationMethodSmtp: santa,
-	})
+
+	handlers := map[database.NotificationMethod]notifications.Handler{
+		database.NotificationMethodSmtp:  santa,
+		database.NotificationMethodInbox: santaInbox,
+	}
+
+	mgr.WithHandlers(handlers)
 	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
@@ -79,7 +84,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// Wait for the expected number of buffered updates to be accumulated.
 	require.Eventually(t, func() bool {
 		success, failure := mgr.BufferedUpdatesCount()
-		return success == expectedSuccess && failure == expectedFailure
+		return success == expectedSuccess*len(handlers) && failure == expectedFailure*len(handlers)
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
@@ -93,8 +98,8 @@ func TestBufferedUpdates(t *testing.T) {
 			ct.FailNow()
 		}
 
-		assert.EqualValues(ct, expectedFailure, interceptor.failed.Load())
-		assert.EqualValues(ct, expectedSuccess, interceptor.sent.Load())
+		assert.EqualValues(ct, expectedFailure*len(handlers), interceptor.failed.Load())
+		assert.EqualValues(ct, expectedSuccess*len(handlers), interceptor.sent.Load())
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
@@ -150,7 +155,7 @@ func TestBuildPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: expect that a payload will be constructed and have the expected values
-	payload := testutil.RequireRecvCtx(ctx, t, interceptor.payload)
+	payload := testutil.TryReceive(ctx, t, interceptor.payload)
 	require.Len(t, payload.Actions, 1)
 	require.Equal(t, label, payload.Actions[0].Label)
 	require.Equal(t, url, payload.Actions[0].URL)
@@ -163,11 +168,11 @@ func TestStopBeforeRun(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a standard manager
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), store, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), store, ps, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
 	// THEN: validate that the manager can be stopped safely without Run() having been called yet
@@ -187,6 +192,7 @@ type syncInterceptor struct {
 
 func (b *syncInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	updated, err := b.Store.BulkMarkNotificationMessagesSent(ctx, arg)
+	// #nosec G115 - Safe conversion as the count of updated notification messages is expected to be within int32 range
 	b.sent.Add(int32(updated))
 	if err != nil {
 		b.err.Store(err)
@@ -196,6 +202,7 @@ func (b *syncInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, 
 
 func (b *syncInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	updated, err := b.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
+	// #nosec G115 - Safe conversion as the count of updated notification messages is expected to be within int32 range
 	b.failed.Add(int32(updated))
 	if err != nil {
 		b.err.Store(err)
@@ -229,7 +236,7 @@ type enqueueInterceptor struct {
 }
 
 func newEnqueueInterceptor(db notifications.Store, metadataFn func() database.FetchNewMessageMetadataRow) *enqueueInterceptor {
-	return &enqueueInterceptor{Store: db, payload: make(chan types.MessagePayload, 1), metadataFn: metadataFn}
+	return &enqueueInterceptor{Store: db, payload: make(chan types.MessagePayload, 2), metadataFn: metadataFn}
 }
 
 func (e *enqueueInterceptor) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) error {

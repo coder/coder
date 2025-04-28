@@ -15,8 +15,8 @@ Persistent resources stay provisioned when the workspace is stopped, where as
 ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
-> Template administrators can learn more about resource configuration in the
-> [extending templates docs](../admin/templates/extending-templates/resource-persistence.md).
+Template administrators can learn more about resource configuration in the
+[extending templates docs](../admin/templates/extending-templates/resource-persistence.md).
 
 ## Workspace States
 
@@ -55,7 +55,7 @@ contain some computational resource to run the Coder agent process.
 
 The provisioned workspace's computational resources start the agent process,
 which opens connections to your workspace via SSH, the terminal, and IDES such
-as [JetBrains](./workspace-access/jetbrains.md) or
+as [JetBrains](./workspace-access/jetbrains/index.md) or
 [VSCode](./workspace-access/vscode.md).
 
 Once started, the Coder agent is responsible for running your workspace startup

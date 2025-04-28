@@ -15,7 +15,7 @@ Get the first 10MiB of data from `$CODER_AGENT_LOG_DIR/coder-agent.log`.
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema |
-| ------ | ------------------------------------------------------- | ----------- | ------ |
+|--------|---------------------------------------------------------|-------------|--------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 ## Get debug info for magicsock
@@ -48,13 +48,13 @@ for more information.
 ### Parameters
 
 | Name    | In   | Type    | Required | Description         |
-| ------- | ---- | ------- | -------- | ------------------- |
+|---------|------|---------|----------|---------------------|
 | `state` | path | boolean | true     | Debug logging state |
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema |
-| ------ | ------------------------------------------------------- | ----------- | ------ |
+|--------|---------------------------------------------------------|-------------|--------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 ## Get debug manifest
@@ -72,5 +72,5 @@ Get the manifest the agent fetched from `coderd` upon startup.
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                             |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Manifest](./schemas.md#agentsdkmanifest) |

@@ -36,7 +36,7 @@ Both **negative** and **positive** permissions override **abstain** at the same 
 This can be represented by the following truth table, where Y represents _positive_, N represents _negative_, and \_ represents _abstain_:
 
 | Action | Positive | Negative | Result |
-| ------ | -------- | -------- | ------ |
+|--------|----------|----------|--------|
 | read   | Y        | \_       | Y      |
 | read   | Y        | N        | N      |
 | read   | \_       | \_       | \_     |
@@ -63,10 +63,10 @@ This can be represented by the following truth table, where Y represents _positi
 A _role_ is a set of permissions. When evaluating a role's permission to form an action, all the relevant permissions for the role are combined at each level. Permissions at a higher level override permissions at a lower level.
 
 The following table shows the per-level role evaluation.
-Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _ indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
+Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
 
 | Role (example)  | Site | Org  | User | Result |
-| --------------- | ---- | ---- | ---- | ------ |
+|-----------------|------|------|------|--------|
 | site-admin      | Y    | YN\_ | YN\_ | Y      |
 | no-permission   | N    | YN\_ | YN\_ | N      |
 | org-admin       | \_   | Y    | YN\_ | Y      |
@@ -102,7 +102,7 @@ Example of a scope for a workspace agent token, using an `allow_list` containing
     }
 ```
 
-# Testing
+## Testing
 
 You can test outside of golang by using the `opa` cli.
 

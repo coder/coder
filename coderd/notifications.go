@@ -11,9 +11,12 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -154,6 +157,11 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Request) {
 	var methods []string
 	for _, nm := range database.AllNotificationMethodValues() {
+		// Skip inbox method as for now this is an implicit delivery target and should not appear
+		// anywhere in the Web UI.
+		if nm == database.NotificationMethodInbox {
+			continue
+		}
 		methods = append(methods, string(nm))
 	}
 
@@ -161,6 +169,53 @@ func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Requ
 		AvailableNotificationMethods: methods,
 		DefaultNotificationMethod:    api.DeploymentValues.Notifications.Method.Value(),
 	})
+}
+
+// @Summary Send a test notification
+// @ID send-a-test-notification
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Success 200
+// @Router /notifications/test [post]
+func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+		key = httpmw.APIKey(r)
+	)
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		//nolint:gocritic // We need to be notifier to send the notification.
+		dbauthz.AsNotifier(ctx),
+		key.UserID,
+		notifications.TemplateTestNotification,
+		map[string]string{},
+		map[string]any{
+			// NOTE(DanielleMaywood):
+			// When notifications are enqueued, they are checked to be
+			// unique within a single day. This means that if we attempt
+			// to send two test notifications to the same user on
+			// the same day, the enqueuer will prevent us from sending
+			// a second one. We are injecting a timestamp to make the
+			// notifications appear different enough to circumvent this
+			// deduplication logic.
+			"timestamp": api.Clock.Now(),
+		},
+		"send-test-notification",
+	); err != nil {
+		api.Logger.Error(ctx, "send notification", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send test notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get user notification preferences
@@ -271,14 +326,15 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
 	for _, tmpl := range in {
 		out = append(out, codersdk.NotificationTemplate{
-			ID:            tmpl.ID,
-			Name:          tmpl.Name,
-			TitleTemplate: tmpl.TitleTemplate,
-			BodyTemplate:  tmpl.BodyTemplate,
-			Actions:       string(tmpl.Actions),
-			Group:         tmpl.Group.String,
-			Method:        string(tmpl.Method.NotificationMethod),
-			Kind:          string(tmpl.Kind),
+			ID:               tmpl.ID,
+			Name:             tmpl.Name,
+			TitleTemplate:    tmpl.TitleTemplate,
+			BodyTemplate:     tmpl.BodyTemplate,
+			Actions:          string(tmpl.Actions),
+			Group:            tmpl.Group.String,
+			Method:           string(tmpl.Method.NotificationMethod),
+			Kind:             string(tmpl.Kind),
+			EnabledByDefault: tmpl.EnabledByDefault,
 		})
 	}
 

@@ -151,7 +151,7 @@ describe("WorkspaceSchedulePage", () => {
 					ttl: 0,
 				},
 				{
-					ttl_ms: undefined,
+					ttl_ms: null,
 				},
 			],
 			[
@@ -288,9 +288,15 @@ describe("WorkspaceSchedulePage", () => {
 			);
 			await user.click(autostopToggle);
 			const submitButton = await screen.findByRole("button", {
-				name: /submit/i,
+				name: /save/i,
 			});
 			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				"Workspace schedule updated",
+			);
+			expect(notification).toBeInTheDocument();
+
 			const dialog = await screen.findByText("Restart workspace?");
 			expect(dialog).toBeInTheDocument();
 		});
@@ -309,9 +315,15 @@ describe("WorkspaceSchedulePage", () => {
 			);
 			await user.click(autostartToggle);
 			const submitButton = await screen.findByRole("button", {
-				name: /submit/i,
+				name: /save/i,
 			});
 			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				"Workspace schedule updated",
+			);
+			expect(notification).toBeInTheDocument();
+
 			const dialog = screen.queryByText("Restart workspace?");
 			expect(dialog).not.toBeInTheDocument();
 		});

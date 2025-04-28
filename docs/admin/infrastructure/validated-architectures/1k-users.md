@@ -12,9 +12,9 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 ### Coderd nodes
 
-| Users       | Node capacity       | Replicas            | GCP             | AWS        | Azure             |
-| ----------- | ------------------- | ------------------- | --------------- | ---------- | ----------------- |
-| Up to 1,000 | 2 vCPU, 8 GB memory | 1-2 / 1 coderd each | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
+| Users       | Node capacity       | Replicas                 | GCP             | AWS        | Azure             |
+|-------------|---------------------|--------------------------|-----------------|------------|-------------------|
+| Up to 1,000 | 2 vCPU, 8 GB memory | 1-2 nodes, 1 coderd each | `n1-standard-2` | `m5.large` | `Standard_D2s_v3` |
 
 **Footnotes**:
 
@@ -23,9 +23,9 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 ### Provisioner nodes
 
-| Users       | Node capacity        | Replicas                       | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 1,000 | 8 vCPU, 32 GB memory | 2 nodes / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
+|-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
+| Up to 1,000 | 8 vCPU, 32 GB memory | 2 nodes, 30 provisioners each | `t2d-standard-8` | `c5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -33,9 +33,9 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 ### Workspace nodes
 
-| Users       | Node capacity        | Replicas                | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ----------------------- | ---------------- | ------------ | ----------------- |
-| Up to 1,000 | 8 vCPU, 32 GB memory | 64 / 16 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                     | GCP              | AWS          | Azure             |
+|-------------|----------------------|------------------------------|------------------|--------------|-------------------|
+| Up to 1,000 | 8 vCPU, 32 GB memory | 64 nodes, 16 workspaces each | `t2d-standard-8` | `m5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -47,5 +47,12 @@ tech startups, educational units, or small to mid-sized enterprises.
 ### Database nodes
 
 | Users       | Node capacity       | Replicas | Storage | GCP                | AWS           | Azure             |
-| ----------- | ------------------- | -------- | ------- | ------------------ | ------------- | ----------------- |
-| Up to 1,000 | 2 vCPU, 8 GB memory | 1        | 512 GB  | `db-custom-2-7680` | `db.t3.large` | `Standard_D2s_v3` |
+|-------------|---------------------|----------|---------|--------------------|---------------|-------------------|
+| Up to 1,000 | 2 vCPU, 8 GB memory | 1 node   | 512 GB  | `db-custom-2-7680` | `db.m5.large` | `Standard_D2s_v3` |
+
+**Footnotes for AWS instance types**:
+
+- For production deployments, we recommend using non-burstable instance types,
+  such as `m5` or `c5`, instead of burstable instances, such as `t3`.
+  Burstable instances can experience significant performance degradation once
+  CPU credits are exhausted, leading to poor user experience under sustained load.

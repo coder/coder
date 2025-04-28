@@ -6,12 +6,10 @@ import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { PremiumBadge } from "components/Badges/Badges";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -23,6 +21,7 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -30,7 +29,7 @@ import {
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { FC } from "react";
-import { UserRoleCell } from "../../ManagementSettingsPage/UserTable/UserRoleCell";
+import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
@@ -88,9 +87,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 				<TableLoaderSkeleton>
 					<TableRowSkeleton>
 						<TableCell>
-							<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-								<AvatarDataSkeleton />
-							</div>
+							<AvatarDataSkeleton />
 						</TableCell>
 
 						<TableCell>
@@ -176,7 +173,9 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 							]}
 						>
 							<div>{user.status}</div>
-							<LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
+							{(user.status === "active" || user.status === "dormant") && (
+								<LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
+							)}
 						</TableCell>
 
 						{canEditUsers && (

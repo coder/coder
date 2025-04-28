@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,19 +9,21 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"unicode"
 
-	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
 // PromptOptions supply a set of options to the prompt.
 type PromptOptions struct {
-	Text      string
-	Default   string
+	Text    string
+	Default string
+	// When true, the input will be masked with asterisks.
 	Secret    bool
 	IsConfirm bool
 	Validate  func(string) error
@@ -88,14 +91,13 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		var line string
 		var err error
 
+		signal.Notify(interrupt, os.Interrupt)
+		defer signal.Stop(interrupt)
+
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
-			// we don't install a signal handler here because speakeasy has its own
-			line, err = speakeasy.Ask("")
+			line, err = readSecretInput(inFile, inv.Stdout)
 		} else {
-			signal.Notify(interrupt, os.Interrupt)
-			defer signal.Stop(interrupt)
-
 			line, err = readUntil(inv.Stdin, '\n')
 
 			// Check if the first line beings with JSON object or array chars.
@@ -124,7 +126,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		return "", err
 	case line := <-lineCh:
 		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, xerrors.Errorf("got %q: %w", line, Canceled)
+			return line, xerrors.Errorf("got %q: %w", line, ErrCanceled)
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
@@ -139,7 +141,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
 		_, _ = fmt.Fprintln(inv.Stdout)
-		return "", Canceled
+		return "", ErrCanceled
 	}
 }
 
@@ -201,6 +203,61 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 		}
 		if err != nil {
 			return string(have), err
+		}
+	}
+}
+
+// readSecretInput reads secret input from the terminal rune-by-rune,
+// masking each character with an asterisk.
+func readSecretInput(f *os.File, w io.Writer) (string, error) {
+	// Put terminal into raw mode (no echo, no line buffering).
+	oldState, err := pty.MakeInputRaw(f.Fd())
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = pty.RestoreTerminal(f.Fd(), oldState)
+	}()
+
+	reader := bufio.NewReader(f)
+	var runes []rune
+
+	for {
+		r, _, err := reader.ReadRune()
+		if err != nil {
+			return "", err
+		}
+
+		switch {
+		case r == '\r' || r == '\n':
+			// Finish on Enter
+			if _, err := fmt.Fprint(w, "\r\n"); err != nil {
+				return "", err
+			}
+			return string(runes), nil
+
+		case r == 3:
+			// Ctrl+C
+			return "", ErrCanceled
+
+		case r == 127 || r == '\b':
+			// Backspace/Delete: remove last rune
+			if len(runes) > 0 {
+				// Erase the last '*' on the screen
+				if _, err := fmt.Fprint(w, "\b \b"); err != nil {
+					return "", err
+				}
+				runes = runes[:len(runes)-1]
+			}
+
+		default:
+			// Only mask printable, non-control runes
+			if !unicode.IsControl(r) {
+				runes = append(runes, r)
+				if _, err := fmt.Fprint(w, "*"); err != nil {
+					return "", err
+				}
+			}
 		}
 	}
 }

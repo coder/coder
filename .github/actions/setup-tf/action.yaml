@@ -7,5 +7,5 @@ runs:
     - name: Install Terraform
       uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
       with:
-        terraform_version: 1.9.8
+        terraform_version: 1.11.4
         terraform_wrapper: false

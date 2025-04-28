@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	previewtypes "github.com/coder/preview/types"
 )
 
 type TemplateVersionWarning string
@@ -32,7 +34,7 @@ type TemplateVersion struct {
 	Archived       bool           `json:"archived"`
 
 	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
-	MatchedProvisioners MatchedProvisioners      `json:"matched_provisioners,omitempty"`
+	MatchedProvisioners *MatchedProvisioners     `json:"matched_provisioners,omitempty"`
 }
 
 type TemplateVersionExternalAuth struct {
@@ -121,6 +123,20 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type DynamicParametersRequest struct {
+	// ID identifies the request. The response contains the same
+	// ID so that the client can match it to the request.
+	ID     int               `json:"id"`
+	Inputs map[string]string `json:"inputs"`
+}
+
+type DynamicParametersResponse struct {
+	ID          int                      `json:"id"`
+	Diagnostics previewtypes.Diagnostics `json:"diagnostics"`
+	Parameters  []previewtypes.Parameter `json:"parameters"`
+	// TODO: Workspace tags
 }
 
 // TemplateVersionParameters returns parameters a template version exposes.
@@ -222,6 +238,22 @@ func (c *Client) TemplateVersionDryRun(ctx context.Context, version, job uuid.UU
 
 	var j ProvisionerJob
 	return j, json.NewDecoder(res.Body).Decode(&j)
+}
+
+// TemplateVersionDryRunMatchedProvisioners returns the matched provisioners for a
+// template version dry-run job.
+func (c *Client) TemplateVersionDryRunMatchedProvisioners(ctx context.Context, version, job uuid.UUID) (MatchedProvisioners, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/matched-provisioners", version, job), nil)
+	if err != nil {
+		return MatchedProvisioners{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MatchedProvisioners{}, ReadBodyAsError(res)
+	}
+
+	var matched MatchedProvisioners
+	return matched, json.NewDecoder(res.Body).Decode(&matched)
 }
 
 // TemplateVersionDryRunResources returns the resources of a finished template

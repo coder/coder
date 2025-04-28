@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Updates SRI hashes for flake.nix.
 
-set -eu
+set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -36,5 +36,7 @@ PROTOC_GEN_GO_REV=$(nix eval --extra-experimental-features nix-command --extra-e
 echo "protoc-gen-go version: $PROTOC_GEN_GO_REV"
 PROTOC_GEN_GO_SHA256=$(nix-prefetch-git https://github.com/protocolbuffers/protobuf-go --rev "$PROTOC_GEN_GO_REV" | jq -r .hash)
 sed -i "s#\(sha256 = \"\)[^\"]*#\1${PROTOC_GEN_GO_SHA256}#" ./flake.nix
+
+make dogfood/coder/nix.hash
 
 echo "Flake updated successfully!"

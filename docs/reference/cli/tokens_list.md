@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # tokens list
 
 List tokens
 
 Aliases:
 
-- ls
+* ls
 
 ## Usage
 
@@ -19,7 +18,7 @@ coder tokens list [flags]
 ### -a, --all
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).
@@ -27,7 +26,7 @@ Specifies whether all users' tokens will be listed or not (must have Owner role 
 ### -c, --column
 
 |         |                                                                   |
-| ------- | ----------------------------------------------------------------- |
+|---------|-------------------------------------------------------------------|
 | Type    | <code>[id\|name\|last used\|expires at\|created at\|owner]</code> |
 | Default | <code>id,name,last used,expires at,created at</code>              |
 
@@ -36,7 +35,7 @@ Columns to display in table output.
 ### -o, --output
 
 |         |                          |
-| ------- | ------------------------ |
+|---------|--------------------------|
 | Type    | <code>table\|json</code> |
 | Default | <code>table</code>       |
 

@@ -15,20 +15,21 @@ permissions:
 
 jobs:
   check-docs:
-    runs-on: ubuntu-latest
+    # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
+    runs-on: ubuntu-22.04
     permissions:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@fc382e19892aca958e189954912fe379a8df270c # v1.2.4
+        uses: umbrelladocs/action-linkspector@a0567ce1c7c13de4a2358587492ed43cab5d0102 # v1.3.4
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:

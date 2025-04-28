@@ -141,7 +141,7 @@ func (d *Details) AppClient(t *testing.T) *codersdk.Client {
 	client := codersdk.New(d.PathAppBaseURL)
 	client.SetSessionToken(d.SDKClient.SessionToken())
 	forceURLTransport(t, client)
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
@@ -196,7 +196,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
-	deployment.SDKClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	deployment.SDKClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	forceURLTransport(t, deployment.SDKClient)

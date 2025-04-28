@@ -2,7 +2,7 @@ import http from "node:http";
 import type { BrowserContext, Page } from "@playwright/test";
 import { coderPort, gitAuth } from "./constants";
 
-export const beforeCoderTest = async (page: Page) => {
+export const beforeCoderTest = (page: Page) => {
 	page.on("console", (msg) => console.info(`[onConsole] ${msg.text()}`));
 
 	page.on("request", (request) => {
@@ -35,6 +35,7 @@ export const beforeCoderTest = async (page: Page) => {
 				responseText = "skipped...";
 			}
 		} catch (error) {
+			console.error(error);
 			responseText = "not_available";
 		}
 

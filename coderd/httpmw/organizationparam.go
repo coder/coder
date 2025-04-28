@@ -73,7 +73,10 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				if err == nil {
 					organization, dbErr = db.GetOrganizationByID(ctx, id)
 				} else {
-					organization, dbErr = db.GetOrganizationByName(ctx, arg)
+					organization, dbErr = db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+						Name:    arg,
+						Deleted: false,
+					})
 				}
 			}
 			if httpapi.Is404Error(dbErr) {
@@ -114,7 +117,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			// very important that we do not add the User object to the request context or otherwise
 			// leak it to the API handler.
 			// nolint:gocritic
-			user, ok := extractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
+			user, ok := ExtractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
 			if !ok {
 				return
 			}
@@ -123,6 +126,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			organizationMember, err := database.ExpectOne(db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 				OrganizationID: organization.ID,
 				UserID:         user.ID,
+				IncludeSystem:  false,
 			}))
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)

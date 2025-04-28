@@ -42,7 +42,7 @@ _provisionerd_ is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
 By default, the Coder server runs multiple provisioner daemons.
-[External provisioners](../provisioners.md) can be added for security or
+[External provisioners](../provisioners/index.md) can be added for security or
 scalability purposes.
 
 ### Workspaces
@@ -94,7 +94,8 @@ external PostgreSQL 13+ database for production deployments.
 
 A managed PostgreSQL database, with daily backups, is recommended:
 
-- For AWS: Amazon RDS for PostgreSQL
+- For AWS: Amazon RDS for PostgreSQL (preferably using
+  [RDS IAM authentication](../../reference/cli/server.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 

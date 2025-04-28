@@ -30,6 +30,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			DisplayName:    "code-server 1",
 			HealthcheckUrl: "http://localhost:3000",
 			Health:         database.WorkspaceAppHealthInitializing,
+			OpenIn:         database.WorkspaceAppOpenInSlimWindow,
 		}
 		app2 = database.WorkspaceApp{
 			ID:             uuid.New(),
@@ -38,6 +39,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			DisplayName:    "code-server 2",
 			HealthcheckUrl: "http://localhost:3001",
 			Health:         database.WorkspaceAppHealthHealthy,
+			OpenIn:         database.WorkspaceAppOpenInSlimWindow,
 		}
 	)
 
@@ -163,6 +165,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentID:     agent.ID,
 			Slug:        "code-server-3",
 			DisplayName: "code-server 3",
+			OpenIn:      database.WorkspaceAppOpenInSlimWindow,
 		}
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))

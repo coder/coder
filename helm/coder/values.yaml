@@ -196,16 +196,15 @@ coder:
     #   exec:
     #     command: ["/bin/sh","-c","echo preStart"]
 
-  # coder.resources -- The resources to request for Coder. These are optional
-  # and are not set by default.
+  # coder.resources -- The resources to request for Coder. The below values are
+  # defaults and can be overridden.
   resources:
-    {}
     # limits:
-    #   cpu: 2000m
-    #   memory: 4096Mi
+    #  cpu: 2000m
+    #  memory: 4096Mi
     # requests:
-    #   cpu: 2000m
-    #   memory: 4096Mi
+    #  cpu: 2000m
+    #  memory: 4096Mi
 
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:
@@ -281,15 +280,18 @@ coder:
     # your cloud and specify it here in production to avoid accidental IP
     # address changes.
     loadBalancerIP: ""
+    # coder.service.loadBalancerClass -- The class name of the LoadBalancer. See:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#load-balancer-class
+    loadBalancerClass: ""
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
     # coder.service.httpNodePort -- Enabled if coder.service.type is set to
-    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpNodePort: ""
     # coder.service.httpsNodePort -- Enabled if coder.service.type is set to
-    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpsNodePort: ""
 

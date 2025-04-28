@@ -1,8 +1,6 @@
-import { execSync } from "node:child_process";
 import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
 import {
-	coderMain,
 	coderPort,
 	coderdPProfPort,
 	e2eFakeExperiment1,
@@ -13,58 +11,21 @@ import {
 
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
-// This is where auth cookies are stored!
-export const storageState = path.join(__dirname, ".auth.json");
-
-// If running terraform tests, verify the requirements exist in the
-// environment.
-//
-// These execs will throw an error if the status code is non-zero.
-// So if both these work, then we can launch terraform provisioners.
-let hasTerraform = false;
-let hasDocker = false;
-try {
-	execSync("terraform --version");
-	hasTerraform = true;
-} catch {
-	/* empty */
-}
-
-try {
-	execSync("docker --version");
-	hasDocker = true;
-} catch {
-	/* empty */
-}
-
-if (!hasTerraform || !hasDocker) {
-	const msg = `Terraform provisioners require docker & terraform binaries to function. \n${
-		hasTerraform
-			? ""
-			: "\tThe `terraform` executable is not present in the runtime environment.\n"
-	}${
-		hasDocker
-			? ""
-			: "\tThe `docker` executable is not present in the runtime environment.\n"
-	}`;
-	throw new Error(msg);
-}
-
 const localURL = (port: number, path: string): string => {
 	return `http://localhost:${port}${path}`;
 };
 
 export default defineConfig({
+	globalSetup: require.resolve("./setup/preflight"),
 	projects: [
 		{
 			name: "testsSetup",
-			testMatch: /global.setup\.ts/,
+			testMatch: /setup\/.*\.spec\.ts/,
 		},
 		{
 			name: "tests",
-			testMatch: /.*\.spec\.ts/,
+			testMatch: /tests\/.*\.spec\.ts/,
 			dependencies: ["testsSetup"],
-			use: { storageState },
 			timeout: 30_000,
 		},
 	],
@@ -88,7 +49,8 @@ export default defineConfig({
 	webServer: {
 		url: `http://localhost:${coderPort}/api/v2/deployment/config`,
 		command: [
-			`go run -tags embed ${coderMain} server`,
+			`go run -tags embed ${path.join(__dirname, "../../enterprise/cmd/coder")}`,
+			"server",
 			"--global-config $(mktemp -d -t e2e-XXXXXXXXXX)",
 			`--access-url=http://localhost:${coderPort}`,
 			`--http-address=0.0.0.0:${coderPort}`,

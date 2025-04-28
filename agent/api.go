@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -35,9 +36,27 @@ func (a *agent) apiHandler() http.Handler {
 		ignorePorts:   cpy,
 		cacheDuration: cacheDuration,
 	}
+
+	containerAPIOpts := []agentcontainers.Option{
+		agentcontainers.WithLister(a.lister),
+	}
+	if a.experimentalDevcontainersEnabled {
+		manifest := a.manifest.Load()
+		if manifest != nil && len(manifest.Devcontainers) > 0 {
+			containerAPIOpts = append(
+				containerAPIOpts,
+				agentcontainers.WithDevcontainers(manifest.Devcontainers),
+			)
+		}
+	}
+	containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
+
+	r.Mount("/api/v0/containers", containerAPI.Routes())
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
+	r.Post("/api/v0/list-directory", a.HandleLS)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)

@@ -1,15 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import AlertTitle from "@mui/material/AlertTitle";
-import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
-import { CopyButton } from "components/CopyButton/CopyButton";
+import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import type { FC, ReactNode } from "react";
@@ -76,7 +74,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 			</p>
 
 			{externalAuth.installations.length > 0 && (
-				<div css={styles.authorizedInstalls}>
+				<div
+					css={styles.authorizedInstalls}
+					className="flex gap-2 items-center"
+				>
 					{externalAuth.installations.map((install) => {
 						if (!install.account) {
 							return;
@@ -88,9 +89,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 									target="_blank"
 									rel="noreferrer"
 								>
-									<Avatar size="sm" src={install.account.avatar_url}>
-										{install.account.login}
-									</Avatar>
+									<Avatar
+										src={install.account.avatar_url}
+										fallback={install.account.login}
+									/>
 								</Link>
 							</Tooltip>
 						);
@@ -137,89 +139,6 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	);
 };
 
-interface GitDeviceAuthProps {
-	externalAuthDevice?: ExternalAuthDevice;
-	deviceExchangeError?: ApiErrorResponse;
-}
-
-const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
-	externalAuthDevice,
-	deviceExchangeError,
-}) => {
-	let status = (
-		<p css={styles.status}>
-			<CircularProgress size={16} color="secondary" data-chromatic="ignore" />
-			Checking for authentication...
-		</p>
-	);
-	if (deviceExchangeError) {
-		// See https://datatracker.ietf.org/doc/html/rfc8628#section-3.5
-		switch (deviceExchangeError.detail) {
-			case "authorization_pending":
-				break;
-			case "expired_token":
-				status = (
-					<Alert severity="error">
-						The one-time code has expired. Refresh to get a new one!
-					</Alert>
-				);
-				break;
-			case "access_denied":
-				status = (
-					<Alert severity="error">Access to the Git provider was denied.</Alert>
-				);
-				break;
-			default:
-				status = (
-					<Alert severity="error">
-						<AlertTitle>{deviceExchangeError.message}</AlertTitle>
-						{deviceExchangeError.detail && (
-							<AlertDetail>{deviceExchangeError.detail}</AlertDetail>
-						)}
-					</Alert>
-				);
-				break;
-		}
-	}
-
-	// If the error comes from the `externalAuthDevice` query,
-	// we cannot even display the user_code.
-	if (deviceExchangeError && !externalAuthDevice) {
-		return <div>{status}</div>;
-	}
-
-	if (!externalAuthDevice) {
-		return <CircularProgress />;
-	}
-
-	return (
-		<div>
-			<p css={styles.text}>
-				Copy your one-time code:&nbsp;
-				<div css={styles.copyCode}>
-					<span css={styles.code}>{externalAuthDevice.user_code}</span>
-					&nbsp; <CopyButton text={externalAuthDevice.user_code} />
-				</div>
-				<br />
-				Then open the link below and paste it:
-			</p>
-			<div css={styles.links}>
-				<Link
-					css={styles.link}
-					href={externalAuthDevice.verification_uri}
-					target="_blank"
-					rel="noreferrer"
-				>
-					<OpenInNewIcon fontSize="small" />
-					Open and Paste
-				</Link>
-			</div>
-
-			{status}
-		</div>
-	);
-};
-
 export default ExternalAuthPageView;
 
 const styles = {
@@ -229,16 +148,6 @@ const styles = {
 		textAlign: "center",
 		lineHeight: "160%",
 		margin: 0,
-	}),
-
-	copyCode: {
-		display: "inline-flex",
-		alignItems: "center",
-	},
-
-	code: (theme) => ({
-		fontWeight: "bold",
-		color: theme.palette.text.primary,
 	}),
 
 	installAlert: {
@@ -259,14 +168,6 @@ const styles = {
 		fontSize: 16,
 		gap: 8,
 	},
-
-	status: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		gap: 8,
-		color: theme.palette.text.disabled,
-	}),
 
 	authorizedInstalls: (theme) => ({
 		display: "flex",

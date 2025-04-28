@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -382,7 +383,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !createTemplate.DisableEveryoneGroupAccess {
 		// The organization ID is used as the group ID for the everyone group
 		// in this organization.
-		defaultsGroups[organization.ID.String()] = []policy.Action{policy.ActionRead}
+		defaultsGroups[organization.ID.String()] = db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse)
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := dbtime.Now()
@@ -1044,7 +1045,7 @@ func (api *API) convertTemplate(
 		TimeTilDormantMillis:           time.Duration(template.TimeTilDormant).Milliseconds(),
 		TimeTilDormantAutoDeleteMillis: time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)),
+			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)), // #nosec G115 - Safe conversion as AutostopRequirementDaysOfWeek is a 7-bit bitmap
 			Weeks:      autostopRequirementWeeks,
 		},
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -34,7 +34,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // Ensures no goroutines leak.
@@ -66,7 +66,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	defer func() {
 		if t.Failed() {
-			t.Logf("Test failed, printing rows...")
+			t.Log("Test failed, printing rows...")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
@@ -413,7 +413,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -426,7 +426,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -441,7 +441,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -457,7 +457,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 

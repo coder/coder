@@ -26,6 +26,7 @@ import {
 	ActiveUserChart,
 	ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -35,7 +36,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import {
 	addHours,
 	addWeeks,
@@ -316,10 +316,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 								}}
 							>
 								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<UserAvatar
-										username={row.username}
-										avatarURL={row.avatar_url}
-									/>
+									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div css={{ fontWeight: 500 }}>{row.username}</div>
 								</div>
 								<div
@@ -387,10 +384,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 								}}
 							>
 								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<UserAvatar
-										username={row.username}
-										avatarURL={row.avatar_url}
-									/>
+									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div css={{ fontWeight: 500 }}>{row.username}</div>
 								</div>
 								<div
@@ -418,7 +412,9 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	...panelProps
 }) => {
 	const theme = useTheme();
-	const validUsage = data?.filter((u) => u.seconds > 0);
+	const validUsage = data
+		?.filter((u) => u.seconds > 0)
+		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
 	const usageColors = chroma
@@ -444,86 +440,82 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 							gap: 24,
 						}}
 					>
-						{validUsage
-							.sort((a, b) => b.seconds - a.seconds)
-							.map((usage, i) => {
-								const percentage = (usage.seconds / totalInSeconds) * 100;
-								return (
-									<div
-										key={usage.slug}
-										css={{ display: "flex", gap: 24, alignItems: "center" }}
-									>
+						{validUsage.map((usage, i) => {
+							const percentage = (usage.seconds / totalInSeconds) * 100;
+							return (
+								<div
+									key={usage.slug}
+									css={{ display: "flex", gap: 24, alignItems: "center" }}
+								>
+									<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
 										<div
-											css={{ display: "flex", alignItems: "center", gap: 8 }}
-										>
-											<div
-												css={{
-													width: 20,
-													height: 20,
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-												}}
-											>
-												<img
-													src={usage.icon}
-													alt=""
-													style={{
-														objectFit: "contain",
-														width: "100%",
-														height: "100%",
-													}}
-												/>
-											</div>
-											<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-												{usage.display_name}
-											</div>
-										</div>
-										<Tooltip
-											title={`${Math.floor(percentage)}%`}
-											placement="top"
-											arrow
-										>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												css={{
-													width: "100%",
-													height: 8,
-													backgroundColor: theme.palette.divider,
-													"& .MuiLinearProgress-bar": {
-														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
-												}}
-											/>
-										</Tooltip>
-										<Stack
-											spacing={0}
 											css={{
-												fontSize: 13,
-												color: theme.palette.text.secondary,
-												width: 120,
-												flexShrink: 0,
-												lineHeight: "1.5",
+												width: 20,
+												height: 20,
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
 											}}
 										>
-											{formatTime(usage.seconds)}
-											{usage.times_used > 0 && (
-												<span
-													css={{
-														fontSize: 12,
-														color: theme.palette.text.disabled,
-													}}
-												>
-													Opened {usage.times_used.toLocaleString()}{" "}
-													{usage.times_used === 1 ? "time" : "times"}
-												</span>
-											)}
-										</Stack>
+											<img
+												src={usage.icon}
+												alt=""
+												style={{
+													objectFit: "contain",
+													width: "100%",
+													height: "100%",
+												}}
+											/>
+										</div>
+										<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+											{usage.display_name}
+										</div>
 									</div>
-								);
-							})}
+									<Tooltip
+										title={`${Math.floor(percentage)}%`}
+										placement="top"
+										arrow
+									>
+										<LinearProgress
+											value={percentage}
+											variant="determinate"
+											css={{
+												width: "100%",
+												height: 8,
+												backgroundColor: theme.palette.divider,
+												"& .MuiLinearProgress-bar": {
+													backgroundColor: usageColors[i],
+													borderRadius: 999,
+												},
+											}}
+										/>
+									</Tooltip>
+									<Stack
+										spacing={0}
+										css={{
+											fontSize: 13,
+											color: theme.palette.text.secondary,
+											width: 120,
+											flexShrink: 0,
+											lineHeight: "1.5",
+										}}
+									>
+										{formatTime(usage.seconds)}
+										{usage.times_used > 0 && (
+											<span
+												css={{
+													fontSize: 12,
+													color: theme.palette.text.disabled,
+												}}
+											>
+												Opened {usage.times_used.toLocaleString()}{" "}
+												{usage.times_used === 1 ? "time" : "times"}
+											</span>
+										)}
+									</Stack>
+								</div>
+							);
+						})}
 					</div>
 				)}
 			</PanelContent>

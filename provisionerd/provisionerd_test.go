@@ -30,7 +30,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func closedWithin(c chan struct{}, d time.Duration) func() bool {
@@ -70,8 +70,11 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		completeChan := make(chan struct{})
+		var completed sync.Once
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			defer close(completeChan)
+			completed.Do(func() {
+				defer close(completeChan)
+			})
 			return nil, xerrors.New("an error")
 		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
@@ -171,7 +174,7 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitMedium))
 		require.NoError(t, closer.Close())
 	})
 
@@ -1267,6 +1270,11 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 		return nil
 	}
 	err := stream.Send(a.job)
-	assert.NoError(a.t, err)
+	// dRPC is racy, and sometimes will return context.Canceled after it has successfully sent the message if we cancel
+	// right away, e.g. in unit tests that complete. So, just swallow the error in that case. If we are canceled before
+	// the job was acquired, presumably something else in the test will have failed.
+	if !xerrors.Is(err, context.Canceled) {
+		assert.NoError(a.t, err)
+	}
 	return nil
 }

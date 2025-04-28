@@ -25,6 +25,7 @@ import (
 
 // screenReconnectingPTY provides a reconnectable PTY via `screen`.
 type screenReconnectingPTY struct {
+	execer  agentexec.Execer
 	command *pty.Cmd
 
 	// id holds the id of the session for both creating and attaching.  This will
@@ -59,8 +60,9 @@ type screenReconnectingPTY struct {
 // spawns the daemon with a hardcoded 24x80 size it is not a very good user
 // experience.  Instead we will let the attach command spawn the daemon on its
 // own which causes it to spawn with the specified size.
-func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger) *screenReconnectingPTY {
+func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) *screenReconnectingPTY {
 	rpty := &screenReconnectingPTY{
+		execer:  execer,
 		command: cmd,
 		metrics: options.Metrics,
 		state:   newState(),
@@ -210,7 +212,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	logger.Debug(ctx, "spawning screen client", slog.F("screen_id", rpty.id))
 
 	// Wrap the command with screen and tie it to the connection's context.
-	cmd, err := agentexec.PTYCommandContext(ctx, "screen", append([]string{
+	cmd := rpty.execer.PTYCommandContext(ctx, "screen", append([]string{
 		// -S is for setting the session's name.
 		"-S", rpty.id,
 		// -U tells screen to use UTF-8 encoding.
@@ -223,9 +225,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		rpty.command.Path,
 		// pty.Cmd duplicates Path as the first argument so remove it.
 	}, rpty.command.Args[1:]...)...)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("pty command context: %w", err)
-	}
+	//nolint:gocritic
 	cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
 	cmd.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
@@ -307,9 +307,9 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		if closeErr != nil {
 			logger.Debug(ctx, "closed ptty with error", slog.Error(closeErr))
 		}
-		closeErr = process.Kill()
-		if closeErr != nil {
-			logger.Debug(ctx, "killed process with error", slog.Error(closeErr))
+		killErr := process.Kill()
+		if killErr != nil {
+			logger.Debug(ctx, "killed process with error", slog.Error(killErr))
 		}
 		rpty.metrics.WithLabelValues("screen_wait").Add(1)
 		return nil, nil, err
@@ -333,7 +333,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	run := func() (bool, error) {
 		var stdout bytes.Buffer
 		//nolint:gosec
-		cmd, err := agentexec.CommandContext(ctx, "screen",
+		cmd := rpty.execer.CommandContext(ctx, "screen",
 			// -x targets an attached session.
 			"-x", rpty.id,
 			// -c is the flag for the config file.
@@ -341,13 +341,11 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			// -X runs a command in the matching session.
 			"-X", command,
 		)
-		if err != nil {
-			return false, xerrors.Errorf("command context: %w", err)
-		}
+		//nolint:gocritic
 		cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
 		cmd.Dir = rpty.command.Dir
 		cmd.Stdout = &stdout
-		err = cmd.Run()
+		err := cmd.Run()
 		if err == nil {
 			return true, nil
 		}

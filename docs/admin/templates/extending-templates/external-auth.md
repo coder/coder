@@ -31,11 +31,8 @@ you can require users authenticate via git prior to creating a workspace:
 
 ### Native git authentication will auto-refresh tokens
 
-<blockquote class="info">
-  <p>
-  This is the preferred authentication method.
-  </p>
-</blockquote>
+> [!TIP]
+> This is the preferred authentication method.
 
 By default, the coder agent will configure native `git` authentication via the
 `GIT_ASKPASS` environment variable. Meaning, with no additional configuration,
@@ -52,7 +49,7 @@ coder external-auth access-token <external-auth-id>
 Note: Some IDE's override the `GIT_ASKPASS` environment variable and need to be
 configured.
 
-**VSCode**
+#### VSCode
 
 Use the
 [Coder](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)

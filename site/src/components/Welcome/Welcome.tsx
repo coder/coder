@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, PropsWithChildren } from "react";
 import { CoderIcon } from "../Icons/CoderIcon";
 
@@ -10,39 +9,21 @@ const Language = {
 	),
 };
 
-export const Welcome: FC<PropsWithChildren> = ({ children }) => {
+type WelcomeProps = Readonly<
+	PropsWithChildren<{
+		className?: string;
+	}>
+>;
+export const Welcome: FC<WelcomeProps> = ({ children, className }) => {
 	return (
-		<div>
-			<div css={styles.container}>
-				<CoderIcon css={styles.icon} />
+		<div className={className}>
+			<div className="flex justify-center pb-1">
+				<CoderIcon className="w-12 h-12" />
 			</div>
-			<h1 css={styles.header}>{children || Language.defaultMessage}</h1>
+
+			<h1 className="text-center text-3xl font-normal m-0 leading-[1.1] pb-4 [&_strong]:font-semibold">
+				{children || Language.defaultMessage}
+			</h1>
 		</div>
 	);
 };
-
-const styles = {
-	container: {
-		display: "flex",
-		justifyContent: "center",
-	},
-
-	icon: (theme) => ({
-		color: theme.palette.text.primary,
-		fontSize: 64,
-	}),
-
-	header: {
-		textAlign: "center",
-		fontSize: 32,
-		fontWeight: 400,
-		margin: 0,
-		marginTop: 16,
-		marginBottom: 32,
-		lineHeight: 1.25,
-
-		"& strong": {
-			fontWeight: 600,
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

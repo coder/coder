@@ -1,14 +1,9 @@
+<!-- markdownlint-disable MD024 -->
 # Uninstall
 
 This article walks you through how to uninstall your Coder server.
 
 To uninstall your Coder server, delete the following directories.
-
-## Cached Coder releases
-
-```shell
-rm -rf ~/.cache/coder
-```
 
 ## The Coder server binary and CLI
 
@@ -71,11 +66,11 @@ winget uninstall Coder.Coder
 sudo rm /etc/coder.d/coder.env
 ```
 
-## Coder settings and the optional built-in PostgreSQL database
+## Coder settings, cache, and the optional built-in PostgreSQL database
 
-> There is a `postgres` directory within the `coderv2` directory that has the
-> database engine and database. If you want to reuse the database, consider not
-> performing the following step or copying the directory to another location.
+There is a `postgres` directory within the `coderv2` directory that has the
+database engine and database. If you want to reuse the database, consider not
+performing the following step or copying the directory to another location.
 
 <div class="tabs">
 
@@ -89,6 +84,7 @@ rm -rf ~/Library/Application\ Support/coderv2
 
 ```shell
 rm -rf ~/.config/coderv2
+rm -rf ~/.cache/coder
 ```
 
 ## Windows

@@ -2,13 +2,15 @@
 	"_comment": "This version doesn't matter, it's just to allow importing from other repos.",
 	"name": "coder",
 	"version": "0.0.0",
-	"packageManager": "pnpm@9.7.1+sha512.faf344af2d6ca65c4c5c8c2224ea77a81a5e8859cbc4e06b1511ddce2f0151512431dd19e6aff31f2c6a8f5f2aced9bd2273e1fed7dd4de1868984059d2c4247",
+	"packageManager": "pnpm@9.14.4",
 	"scripts": {
-		"format": "prettier --cache --write '**/*.{css,html,json,md,yaml,yml}'",
-		"format:check": "prettier --cache --check '**/*.{css,html,json,md,yaml,yml}'",
+		"format-docs": "markdown-table-formatter $(find docs -name '*.md') *.md",
+		"lint-docs": "markdownlint-cli2 --fix $(find docs -name '*.md') *.md",
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
-		"prettier": "3.3.3"
+		"markdown-table-formatter": "^1.6.1",
+		"markdownlint-cli2": "^0.16.0",
+		"quicktype": "^23.0.0"
 	}
 }

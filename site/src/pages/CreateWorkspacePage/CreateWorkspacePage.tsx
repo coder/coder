@@ -5,6 +5,7 @@ import {
 	richParameters,
 	templateByName,
 	templateVersionExternalAuth,
+	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
@@ -25,7 +26,10 @@ import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { type CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import {
+	type CreateWorkspacePermissions,
+	createWorkspaceChecks,
+} from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -56,6 +60,10 @@ const CreateWorkspacePage: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
+	const templateVersionPresetsQuery = useQuery({
+		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
+		enabled: templateQuery.data !== undefined,
+	});
 	const permissionsQuery = useQuery(
 		templateQuery.data
 			? checkAuthorization({
@@ -129,7 +137,7 @@ const CreateWorkspacePage: FC = () => {
 			});
 
 			onCreateWorkspace(newWorkspace);
-		} catch (err) {
+		} catch {
 			setMode("form");
 		}
 	});
@@ -201,8 +209,9 @@ const CreateWorkspacePage: FC = () => {
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
-					permissions={permissionsQuery.data as CreateWSPermissions}
+					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={realizedParameters as TemplateVersionParameter[]}
+					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isLoading}
 					onCancel={() => {
 						navigate(-1);

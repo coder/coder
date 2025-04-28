@@ -2,11 +2,11 @@ package devtunnel
 
 import (
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
-	"github.com/go-ping/ping"
-	"golang.org/x/exp/slices"
+	ping "github.com/prometheus-community/pro-bing"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 

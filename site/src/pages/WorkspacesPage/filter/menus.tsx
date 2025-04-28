@@ -1,5 +1,6 @@
 import { API } from "api/api";
-import type { WorkspaceStatus } from "api/typesGenerated";
+import type { Template, WorkspaceStatus } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
 	type SelectFilterOption,
@@ -9,8 +10,10 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
-import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
+import {
+	StatusIndicatorDot,
+	type StatusIndicatorDotProps,
+} from "components/StatusIndicator/StatusIndicator";
 import type { FC } from "react";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
@@ -30,7 +33,7 @@ export const useTemplateFilterMenu = ({
 				return {
 					label: template.display_name || template.name,
 					value: template.name,
-					startIcon: <TemplateAvatar size="xs" template={template} />,
+					startIcon: <TemplateAvatar template={template} />,
 				} satisfies SelectFilterOption;
 			}
 			return null;
@@ -46,10 +49,21 @@ export const useTemplateFilterMenu = ({
 			return filteredTemplates.map((template) => ({
 				label: template.display_name || template.name,
 				value: template.name,
-				startIcon: <TemplateAvatar size="xs" template={template} />,
+				startIcon: <TemplateAvatar template={template} />,
 			}));
 		},
 	});
+};
+
+const TemplateAvatar: FC<{ template: Template }> = ({ template }) => {
+	return (
+		<Avatar
+			size="sm"
+			variant="icon"
+			src={template.icon}
+			fallback={template.display_name || template.name}
+		/>
+	);
 };
 
 export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
@@ -98,7 +112,9 @@ export const useStatusFilterMenu = ({
 		return {
 			label: display.text,
 			value: status,
-			startIcon: <StatusIndicator color={display.type ?? "warning"} />,
+			startIcon: (
+				<StatusIndicatorDot variant={getStatusIndicatorVariant(status)} />
+			),
 		};
 	});
 	return useFilterMenu({
@@ -129,4 +145,27 @@ export const StatusMenu: FC<StatusMenuProps> = ({ width, menu }) => {
 			onSelect={menu.selectOption}
 		/>
 	);
+};
+
+export const getStatusIndicatorVariant = (
+	status: WorkspaceStatus,
+): StatusIndicatorDotProps["variant"] => {
+	switch (status) {
+		case "running":
+			return "success";
+		case "starting":
+		case "pending":
+			return "pending";
+		case undefined:
+		case "canceling":
+		case "canceled":
+		case "stopping":
+		case "stopped":
+			return "inactive";
+		case "deleting":
+		case "deleted":
+			return "warning";
+		case "failed":
+			return "failed";
+	}
 };

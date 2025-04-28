@@ -20,8 +20,7 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar, ExternalAvatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
@@ -30,6 +29,7 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";
@@ -110,25 +110,6 @@ interface ExternalAuthRowProps {
 	onValidateExternalAuth: () => void;
 }
 
-const StyledBadge = styled(Badge)(({ theme }) => ({
-	"& .MuiBadge-badge": {
-		// Make a circular background for the icon. Background provides contrast, with a thin
-		// border to separate it from the avatar image.
-		backgroundColor: `${theme.palette.background.paper}`,
-		borderStyle: "solid",
-		borderColor: `${theme.palette.secondary.main}`,
-		borderWidth: "thin",
-
-		// Override the default minimum sizes, as they are larger than what we want.
-		minHeight: "0px",
-		minWidth: "0px",
-		// Override the default "height", which is usually set to some constant value.
-		height: "auto",
-		// Padding adds some room for the icon to live in.
-		padding: "0.1em",
-	},
-}));
-
 const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	app,
 	unlinked,
@@ -151,60 +132,40 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		? externalAuth.authenticated
 		: (link?.authenticated ?? false);
 
-	let avatar = app.display_icon ? (
-		<ExternalAvatar
-			src={app.display_icon}
-			size="sm"
-			variant="square"
-			fitImage
-		/>
-	) : (
-		<Avatar>{name}</Avatar>
-	);
-
-	// If the link is authenticated and has a refresh token, show that it will automatically
-	// attempt to authenticate when the token expires.
-	if (link?.has_refresh_token && authenticated) {
-		avatar = (
-			<StyledBadge
-				anchorOrigin={{
-					vertical: "bottom",
-					horizontal: "right",
-				}}
-				color="default"
-				overlap="circular"
-				badgeContent={
-					<Tooltip
-						title="Authentication token will automatically refresh when expired."
-						placement="right"
-					>
-						<AutorenewIcon
-							sx={{
-								fontSize: "1em",
-							}}
-						/>
-					</Tooltip>
-				}
-			>
-				{avatar}
-			</StyledBadge>
-		);
-	}
-
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<AvatarData title={name} avatar={avatar} />
-				{link?.validate_error && (
-					<>
-						<span
-							css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+				<Stack direction="row" alignItems="center" spacing={1}>
+					<Avatar variant="icon" src={app.display_icon} fallback={name} />
+					<span className="font-semibold">{name}</span>
+					{/*
+					 * If the link is authenticated and has a refresh token, show that it will automatically
+					 * attempt to authenticate when the token expires.
+					 */}
+					{link?.has_refresh_token && authenticated && (
+						<Tooltip
+							title="Authentication token will automatically refresh when expired."
+							placement="right"
 						>
-							Error:{" "}
+							<AutorenewIcon
+								sx={{
+									fontSize: "0.75rem",
+								}}
+							/>
+						</Tooltip>
+					)}
+
+					{link?.validate_error && (
+						<span>
+							<span
+								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+							>
+								Error:{" "}
+							</span>
+							{link?.validate_error}
 						</span>
-						{link?.validate_error}
-					</>
-				)}
+					)}
+				</Stack>
 			</TableCell>
 			<TableCell css={{ textAlign: "right" }}>
 				<LoadingButton

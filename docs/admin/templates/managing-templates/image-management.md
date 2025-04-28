@@ -11,9 +11,9 @@ practices around managing workspaces images for Coder.
 3. Allow developers to bring their own images and customizations with Dev
    Containers
 
-> Note: An image is just one of the many properties defined within the template.
-> Templates can pull images from a public image registry (e.g. Docker Hub) or an
-> internal one., thanks to Terraform.
+An image is just one of the many properties defined within the template.
+Templates can pull images from a public image registry (e.g. Docker Hub) or an
+internal one, thanks to Terraform.
 
 ## Create a minimal base image
 
@@ -31,9 +31,9 @@ to consider:
   `docker`, `bash`, `jq`, and/or internal tooling
 - Consider creating (and starting the container with) a non-root user
 
-> See Coder's
-> [example base image](https://github.com/coder/enterprise-images/tree/main/images/minimal)
-> for reference.
+See Coder's
+[example base image](https://github.com/coder/enterprise-images/tree/main/images/minimal)
+for reference.
 
 ## Create general-purpose golden image(s) with standard tooling
 
@@ -54,10 +54,10 @@ purpose images are great for:
   stacks and types of projects, the golden image can be a good starting point
   for those projects.
 
-> This is often referred to as a "sandbox" or "kitchen sink" image. Since large
-> multi-purpose container images can quickly become difficult to maintain, it's
-> important to keep the number of general-purpose images to a minimum (2-3 in
-> most cases) with a well-defined scope.
+This is often referred to as a "sandbox" or "kitchen sink" image. Since large
+multi-purpose container images can quickly become difficult to maintain, it's
+important to keep the number of general-purpose images to a minimum (2-3 in
+most cases) with a well-defined scope.
 
 Examples:
 
@@ -70,4 +70,4 @@ specific tooling for their projects. The [Dev Container](https://containers.dev)
 specification allows developers to define their projects dependencies within a
 `devcontainer.json` in their Git repository.
 
-- [Learn how to integrate Dev Containers with Coder](./devcontainers.md)
+- [Learn how to integrate Dev Containers with Coder](./devcontainers/index.md)

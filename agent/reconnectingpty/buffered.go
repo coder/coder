@@ -5,11 +5,11 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/armon/circbuf"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -40,7 +40,7 @@ type bufferedReconnectingPTY struct {
 
 // newBuffered starts the buffered pty.  If the context ends the process will be
 // killed.
-func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger) *bufferedReconnectingPTY {
+func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) *bufferedReconnectingPTY {
 	rpty := &bufferedReconnectingPTY{
 		activeConns: map[string]net.Conn{},
 		command:     cmd,
@@ -59,11 +59,8 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 
 	// Add TERM then start the command with a pty.  pty.Cmd duplicates Path as the
 	// first argument so remove it.
-	cmdWithEnv, err := agentexec.PTYCommandContext(ctx, cmd.Path, cmd.Args[1:]...)
-	if err != nil {
-		rpty.state.setState(StateDone, xerrors.Errorf("pty command context: %w", err))
-		return rpty
-	}
+	cmdWithEnv := execer.PTYCommandContext(ctx, cmd.Path, cmd.Args[1:]...)
+	//nolint:gocritic
 	cmdWithEnv.Env = append(rpty.command.Env, "TERM=xterm-256color")
 	cmdWithEnv.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmdWithEnv)
@@ -240,7 +237,7 @@ func (rpty *bufferedReconnectingPTY) Wait() {
 	_, _ = rpty.state.waitForState(StateClosing)
 }
 
-func (rpty *bufferedReconnectingPTY) Close(error error) {
+func (rpty *bufferedReconnectingPTY) Close(err error) {
 	// The closing state change will be handled by the lifecycle.
-	rpty.state.setState(StateClosing, error)
+	rpty.state.setState(StateClosing, err)
 }

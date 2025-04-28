@@ -17,15 +17,15 @@ deployment reliability under load.
 
 ### Coderd nodes
 
-| Users       | Node capacity        | Replicas                | GCP             | AWS         | Azure             |
-| ----------- | -------------------- | ----------------------- | --------------- | ----------- | ----------------- |
-| Up to 2,000 | 4 vCPU, 16 GB memory | 2 nodes / 1 coderd each | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
+| Users       | Node capacity        | Replicas               | GCP             | AWS         | Azure             |
+|-------------|----------------------|------------------------|-----------------|-------------|-------------------|
+| Up to 2,000 | 4 vCPU, 16 GB memory | 2 nodes, 1 coderd each | `n1-standard-4` | `m5.xlarge` | `Standard_D4s_v3` |
 
 ### Provisioner nodes
 
-| Users       | Node capacity        | Replicas                       | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 2,000 | 8 vCPU, 32 GB memory | 4 nodes / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
+|-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
+| Up to 2,000 | 8 vCPU, 32 GB memory | 4 nodes, 30 provisioners each | `t2d-standard-8` | `c5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -36,9 +36,9 @@ deployment reliability under load.
 
 ### Workspace nodes
 
-| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 2,000 | 8 vCPU, 32 GB memory | 128 / 16 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
+|-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
+| Up to 2,000 | 8 vCPU, 32 GB memory | 128 nodes, 16 workspaces each | `t2d-standard-8` | `m5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -50,10 +50,17 @@ deployment reliability under load.
 ### Database nodes
 
 | Users       | Node capacity        | Replicas | Storage | GCP                 | AWS            | Azure             |
-| ----------- | -------------------- | -------- | ------- | ------------------- | -------------- | ----------------- |
-| Up to 2,000 | 4 vCPU, 16 GB memory | 1        | 1 TB    | `db-custom-4-15360` | `db.t3.xlarge` | `Standard_D4s_v3` |
+|-------------|----------------------|----------|---------|---------------------|----------------|-------------------|
+| Up to 2,000 | 4 vCPU, 16 GB memory | 1 node   | 1 TB    | `db-custom-4-15360` | `db.m5.xlarge` | `Standard_D4s_v3` |
 
 **Footnotes**:
 
 - Consider adding more replicas if the workspace activity is higher than 500
   workspace builds per day or to achieve higher RPS.
+
+**Footnotes for AWS instance types**:
+
+- For production deployments, we recommend using non-burstable instance types,
+  such as `m5` or `c5`, instead of burstable instances, such as `t3`.
+  Burstable instances can experience significant performance degradation once
+  CPU credits are exhausted, leading to poor user experience under sustained load.

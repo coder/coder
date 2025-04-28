@@ -6,6 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
@@ -60,7 +61,9 @@ export const WorkspaceSchedulePage: FC = () => {
 					params.workspace,
 				),
 			);
+			displaySuccess("Workspace schedule updated");
 		},
+		onError: () => displayError("Failed to update workspace schedule"),
 	});
 	const error = checkPermissionsError || getTemplateError;
 	const isLoading = !template || !permissions;
@@ -118,7 +121,10 @@ export const WorkspaceSchedulePage: FC = () => {
 
 						await submitScheduleMutation.mutateAsync(data);
 
-						if (data.autostopChanged) {
+						if (
+							data.autostopChanged &&
+							getAutostop(workspace).autostopEnabled
+						) {
 							setIsConfirmingApply(true);
 						}
 					}}

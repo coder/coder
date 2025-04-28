@@ -3,6 +3,9 @@ terraform {
     coder = {
       source = "coder/coder"
     }
+    cloudinit = {
+      source = "hashicorp/cloudinit"
+    }
     aws = {
       source = "hashicorp/aws"
     }

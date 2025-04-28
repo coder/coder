@@ -15,11 +15,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // TestSpeaker_RawPeer tests the speaker with a peer that we simulate by directly making reads and
@@ -47,22 +48,22 @@ func TestSpeaker_RawPeer(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn 1.0 tunnel\n"
+	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, expectedHandshake, string(b[:n]))
 
-	_, err = mp.Write([]byte("codervpn 1.0 manager\n"))
+	_, err = mp.Write([]byte("codervpn manager 1.3,2.1\n"))
 	require.NoError(t, err)
 
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	tun.start()
 
 	// send a message and verify it follows protocol for encoding
-	testutil.RequireSendCtx(ctx, t, tun.sendCh, &TunnelMessage{
+	testutil.RequireSend(ctx, t, tun.sendCh, &TunnelMessage{
 		Msg: &TunnelMessage_Start{
 			Start: &StartResponse{},
 		},
@@ -74,6 +75,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	msgBuf := make([]byte, msgLen)
 	n, err = mp.Read(msgBuf)
 	require.NoError(t, err)
+	// #nosec G115 - Safe conversion of read bytes count to uint32 for comparison with message length
 	require.Equal(t, msgLen, uint32(n))
 	msg := new(TunnelMessage)
 	err = proto.Unmarshal(msgBuf, msg)
@@ -105,7 +107,7 @@ func TestSpeaker_HandshakeRWFailure(t *testing.T) {
 		tun = s
 		errCh <- err
 	}()
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.ErrorContains(t, err, "handshake failed")
 	require.Nil(t, tun)
 }
@@ -129,7 +131,7 @@ func TestSpeaker_HandshakeCtxDone(t *testing.T) {
 		errCh <- err
 	}()
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, errCh)
+	err := testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorContains(t, err, "handshake failed")
 	require.Nil(t, tun)
 }
@@ -155,7 +157,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn 1.0 tunnel\n"
+	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -166,7 +168,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 	_, err = mp.Write([]byte(badHandshake))
 	require.Error(t, err) // other side closes when we write too much
 
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.ErrorContains(t, err, "handshake failed")
 	require.Nil(t, tun)
 }
@@ -177,12 +179,12 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 	for _, tc := range []struct {
 		name, handshake string
 	}{
-		{name: "preamble", handshake: "ssh 1.0 manager\n"},
+		{name: "preamble", handshake: "ssh manager 1.1\n"},
 		{name: "2components", handshake: "ssh manager\n"},
-		{name: "newversion", handshake: "codervpn 1.1 manager\n"},
-		{name: "oldversion", handshake: "codervpn 0.1 manager\n"},
-		{name: "unknown_role", handshake: "codervpn 1.0 supervisor\n"},
-		{name: "unexpected_role", handshake: "codervpn 1.0 tunnel\n"},
+		{name: "newmajors", handshake: "codervpn manager 2.0,3.0\n"},
+		{name: "0version", handshake: "codervpn 0.1 manager\n"},
+		{name: "unknown_role", handshake: "codervpn 1.1 supervisor\n"},
+		{name: "unexpected_role", handshake: "codervpn 1.1 tunnel\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -208,13 +210,13 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			_, err = mp.Write([]byte(tc.handshake))
 			require.NoError(t, err)
 
-			expectedHandshake := "codervpn 1.0 tunnel\n"
+			expectedHandshake := "codervpn tunnel 1.1\n"
 			b := make([]byte, 256)
 			n, err := mp.Read(b)
 			require.NoError(t, err)
 			require.Equal(t, expectedHandshake, string(b[:n]))
 
-			err = testutil.RequireRecvCtx(ctx, t, errCh)
+			err = testutil.TryReceive(ctx, t, errCh)
 			require.ErrorContains(t, err, "validate header")
 			require.Nil(t, tun)
 		})
@@ -246,17 +248,17 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn 1.0 tunnel\n"
+	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, expectedHandshake, string(b[:n]))
 
-	_, err = mp.Write([]byte("codervpn 1.0 manager\n"))
+	_, err = mp.Write([]byte("codervpn manager 1.0\n"))
 	require.NoError(t, err)
 
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	tun.start()
 
@@ -288,7 +290,7 @@ func TestSpeaker_unaryRPC_mainline(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	req := testutil.RequireRecvCtx(ctx, t, tun.requests)
+	req := testutil.TryReceive(ctx, t, tun.requests)
 	require.NotEqualValues(t, 0, req.msg.GetRpc().GetMsgId())
 	require.Equal(t, "https://coder.example.com", req.msg.GetStart().GetCoderUrl())
 	err := req.sendReply(&TunnelMessage{
@@ -297,7 +299,7 @@ func TestSpeaker_unaryRPC_mainline(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -332,12 +334,12 @@ func TestSpeaker_unaryRPC_canceled(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	req := testutil.RequireRecvCtx(testCtx, t, tun.requests)
+	req := testutil.TryReceive(testCtx, t, tun.requests)
 	require.NotEqualValues(t, 0, req.msg.GetRpc().GetMsgId())
 	require.Equal(t, "https://coder.example.com", req.msg.GetStart().GetCoderUrl())
 
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, errCh)
+	err := testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, resp)
 
@@ -368,7 +370,7 @@ func TestSpeaker_unaryRPC_hung_up(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	req := testutil.RequireRecvCtx(testCtx, t, tun.requests)
+	req := testutil.TryReceive(testCtx, t, tun.requests)
 	require.NotEqualValues(t, 0, req.msg.GetRpc().GetMsgId())
 	require.Equal(t, "https://coder.example.com", req.msg.GetStart().GetCoderUrl())
 
@@ -376,7 +378,7 @@ func TestSpeaker_unaryRPC_hung_up(t *testing.T) {
 	err := tun.Close()
 	require.NoError(t, err)
 	// Then: we should get an error on the RPC.
-	err = testutil.RequireRecvCtx(testCtx, t, errCh)
+	err = testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	require.Nil(t, resp)
 }
@@ -395,7 +397,7 @@ func TestSpeaker_unaryRPC_sendLoop(t *testing.T) {
 	// When: serdes sendloop is closed
 	// Send a message from the manager. This closes the manager serdes sendloop, since it will error
 	// when writing the message to the (closed) pipe.
-	testutil.RequireSendCtx(ctx, t, mgr.sendCh, &ManagerMessage{
+	testutil.RequireSend(ctx, t, mgr.sendCh, &ManagerMessage{
 		Msg: &ManagerMessage_GetPeerUpdate{},
 	})
 
@@ -415,7 +417,7 @@ func TestSpeaker_unaryRPC_sendLoop(t *testing.T) {
 	}()
 
 	// Then: we should get an error on the RPC.
-	err = testutil.RequireRecvCtx(testCtx, t, errCh)
+	err = testutil.TryReceive(testCtx, t, errCh)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	require.Nil(t, resp)
 }
@@ -446,9 +448,9 @@ func setupSpeakers(t *testing.T) (
 		mgr = s
 		errCh <- err
 	}()
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	tun.start()
 	mgr.start()

@@ -14,6 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
+	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -51,6 +52,7 @@ const (
 	WorkspaceAgentSSHPort             = 1
 	WorkspaceAgentReconnectingPTYPort = 2
 	WorkspaceAgentSpeedtestPort       = 3
+	WorkspaceAgentStandardSSHPort     = 22
 )
 
 // EnvMagicsockDebugLogging enables super-verbose logging for the magicsock
@@ -113,6 +115,14 @@ type Options struct {
 	DNSConfigurator dns.OSConfigurator
 	// Router is optional, and is passed to the underlying wireguard engine.
 	Router router.Router
+	// TUNDev is optional, and is passed to the underlying wireguard engine.
+	TUNDev tun.Device
+	// WireguardMonitor is optional, and is passed to the underlying wireguard
+	// engine.
+	WireguardMonitor *netmon.Monitor
+	// DNSMatchDomain is the DNS suffix to use as a match domain. Only relevant for TUN connections that configure the
+	// OS DNS resolver.
+	DNSMatchDomain string
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -125,6 +135,7 @@ type TelemetrySink interface {
 // NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
 // the returned NodeID is always positive.
 func NodeID(uid uuid.UUID) tailcfg.NodeID {
+	// #nosec G115 - This is safe because the next lines ensure the ID is always positive
 	id := int64(binary.BigEndian.Uint64(uid[8:]))
 
 	// ensure id is positive
@@ -142,6 +153,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if len(options.Addresses) == 0 {
 		return nil, xerrors.New("At least one IP range must be provided")
 	}
+
+	netns.SetEnabled(options.TUNDev != nil)
 
 	var telemetryStore *TelemetryStore
 	if options.TelemetrySink != nil {
@@ -166,13 +179,15 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodeID = tailcfg.NodeID(uid)
 	}
 
-	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
-	if err != nil {
-		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
+	if options.WireguardMonitor == nil {
+		options.WireguardMonitor, err = netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
+		if err != nil {
+			return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
+		}
 	}
 	defer func() {
 		if err != nil {
-			wireguardMonitor.Close()
+			options.WireguardMonitor.Close()
 		}
 	}()
 
@@ -181,12 +196,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 	sys := new(tsd.System)
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
-		NetMon:       wireguardMonitor,
+		NetMon:       options.WireguardMonitor,
 		Dialer:       dialer,
 		ListenPort:   options.ListenPort,
 		SetSubsystem: sys.Set,
 		DNS:          options.DNSConfigurator,
 		Router:       options.Router,
+		Tun:          options.TUNDev,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
@@ -197,11 +213,14 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 	wireguardEngine.InstallCaptureHook(options.CaptureHook)
-	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
-		_, ok := wireguardEngine.PeerForIP(ip)
-		return ok
+	if options.TUNDev == nil {
+		dialer.UseNetstackForIP = func(ip netip.Addr) bool {
+			_, ok := wireguardEngine.PeerForIP(ip)
+			return ok
+		}
 	}
 
+	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	sys.Set(wireguardEngine)
 
 	magicConn := sys.MagicSock.Get()
@@ -244,18 +263,28 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
 
-	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
-		return netStack.DialContextTCP(ctx, dst)
+	if options.TUNDev == nil {
+		dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
+			return netStack.DialContextTCP(ctx, dst)
+		}
+		netStack.ProcessLocalIPs = true
 	}
-	netStack.ProcessLocalIPs = true
-	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 
+	if options.DNSMatchDomain == "" {
+		options.DNSMatchDomain = CoderDNSSuffix
+	}
+	matchDomain, err := dnsname.ToFQDN(options.DNSMatchDomain + ".")
+	if err != nil {
+		return nil, xerrors.Errorf("convert hostname suffix (%s) to fully-qualified domain: %w",
+			options.DNSMatchDomain, err)
+	}
 	cfgMaps := newConfigMaps(
 		options.Logger,
 		wireguardEngine,
 		nodeID,
 		nodePrivateKey,
 		magicConn.DiscoPublicKey(),
+		matchDomain,
 	)
 	cfgMaps.setAddresses(options.Addresses)
 	if options.DERPMap != nil {
@@ -283,7 +312,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		listeners:        map[listenKey]*listener{},
 		tunDevice:        sys.Tun.Get(),
 		netStack:         netStack,
-		wireguardMonitor: wireguardMonitor,
+		wireguardMonitor: options.WireguardMonitor,
 		wireguardRouter: &router.Config{
 			LocalAddrs: options.Addresses,
 		},
@@ -336,6 +365,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	return server, nil
 }
+
+// A FQDN to be mapped to `tsaddr.CoderServiceIPv6`. This address can be used
+// when you want to know if Coder Connect is running, but are not trying to
+// connect to a specific known workspace.
+const IsCoderConnectEnabledFmtString = "is.coder--connect--enabled--right--now.%s."
 
 type ServicePrefix [6]byte
 
@@ -730,7 +764,7 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 		return nil, nil, false
 	}
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
-	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == 22 {
+	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == WorkspaceAgentStandardSSHPort {
 		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
 		opts = append(opts, &opt)
 	}

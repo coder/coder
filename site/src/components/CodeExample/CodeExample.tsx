@@ -65,7 +65,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 						</span>
 					</>
 				) : (
-					<>{code}</>
+					code
 				)}
 			</code>
 

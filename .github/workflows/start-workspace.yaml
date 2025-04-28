@@ -1,0 +1,35 @@
+name: Start Workspace On Issue Creation or Comment
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@coder')) || 
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@coder'))
+    environment: dev.coder.com
+    timeout-minutes: 5
+    steps:
+      - name: Start Coder workspace
+        uses: coder/start-workspace-action@35a4608cefc7e8cc56573cae7c3b85304575cb72
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-username: >-
+            ${{
+              (github.event_name == 'issue_comment' && github.event.comment.user.login) || 
+              (github.event_name == 'issues' && github.event.issue.user.login)
+            }}
+          coder-url: ${{ secrets.CODER_URL }}
+          coder-token: ${{ secrets.CODER_TOKEN }}
+          template-name: ${{ secrets.CODER_TEMPLATE_NAME }}
+          parameters: |-
+            AI Prompt: "Use the gh CLI tool to read the details of issue https://github.com/${{ github.repository }}/issues/${{ github.event.issue.number }} and then address it."
+            Region: us-pittsburgh

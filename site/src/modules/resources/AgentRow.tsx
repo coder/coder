@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { xrayScan } from "api/queries/integrations";
+import { API } from "api/api";
 import type {
 	Template,
 	Workspace,
@@ -11,6 +11,7 @@ import type {
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import {
@@ -25,6 +26,7 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -35,10 +37,9 @@ import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
-import { SSHButton } from "./SSHButton/SSHButton";
+import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { XRayScanAlert } from "./XRayScanAlert";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -69,11 +70,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	storybookAgentMetadata,
 	sshPrefix,
 }) => {
-	// XRay integration
-	const xrayScanQuery = useQuery(
-		xrayScan({ workspaceId: workspace.id, agentId: agent.id }),
-	);
-
 	// Apps visibility
 	const visibleApps = agent.apps.filter((app) => !app.hidden);
 	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
@@ -152,6 +148,18 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
+	const { data: containers } = useQuery({
+		queryKey: ["agents", agent.id, "containers"],
+		queryFn: () =>
+			// Only return devcontainers
+			API.getAgentContainers(agent.id, [
+				"devcontainer.config_file=",
+				"devcontainer.local_folder=",
+			]),
+		enabled: agent.status === "connected",
+		select: (res) => res.containers.filter((c) => c.status === "running"),
+	});
+
 	return (
 		<Stack
 			key={agent.id}
@@ -191,14 +199,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 				{showBuiltinApps && (
 					<div css={{ display: "flex" }}>
 						{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
-							<SSHButton
+							<AgentSSHButton
 								workspaceName={workspace.name}
 								agentName={agent.name}
 								sshPrefix={sshPrefix}
 							/>
 						)}
-						{proxy.preferredWildcardHostname &&
-							proxy.preferredWildcardHostname !== "" &&
+						{proxy.preferredWildcardHostname !== "" &&
 							agent.display_apps.includes("port_forwarding_helper") && (
 								<PortForwardButton
 									host={proxy.preferredWildcardHostname}
@@ -212,8 +219,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 				)}
 			</header>
-
-			{xrayScanQuery.data && <XRayScanAlert scan={xrayScanQuery.data} />}
 
 			<div css={styles.content}>
 				{agent.status === "connected" && (
@@ -267,6 +272,22 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
+				{containers && containers.length > 0 && (
+					<section className="flex flex-col gap-4">
+						{containers.map((container) => {
+							return (
+								<AgentDevcontainerCard
+									key={container.id}
+									container={container}
+									workspace={workspace}
+									wildcardHostname={proxy.preferredWildcardHostname}
+									agent={agent}
+								/>
+							);
+						})}
+					</section>
+				)}
+
 				<AgentMetadata
 					storybookMetadata={storybookAgentMetadata}
 					agent={agent}
@@ -289,7 +310,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map((l) => ({
+									logs={startupLogs.map<Line>((l) => ({
 										id: l.id,
 										level: l.level,
 										output: l.output,

@@ -161,11 +161,11 @@ func TestTemplates(t *testing.T) {
 							Name: "some",
 							Type: "example",
 							Agents: []*proto.Agent{{
-								Id: "something",
+								Id:   "something",
+								Name: "test",
 								Auth: &proto.Agent_Token{
 									Token: uuid.NewString(),
 								},
-								Name: "test",
 							}},
 						}, {
 							Name: "another",
@@ -689,7 +689,7 @@ func TestTemplates(t *testing.T) {
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -739,7 +739,7 @@ func TestTemplates(t *testing.T) {
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -922,6 +922,7 @@ func TestTemplateACL(t *testing.T) {
 
 	t.Run("everyoneGroup", func(t *testing.T) {
 		t.Parallel()
+
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
@@ -940,7 +941,7 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, acl.Groups, 1)
-		require.Len(t, acl.Groups[0].Members, 2)
+		require.Len(t, acl.Groups[0].Members, 2) // orgAdmin + TemplateAdmin
 		require.Len(t, acl.Users, 0)
 	})
 
@@ -2018,7 +2019,7 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 	t.Logf("Second organization: %s", second.ID.String())
 	t.Logf("Third organization: %s", third.ID.String())
 
-	t.Logf("Creating template version in second organization")
+	t.Log("Creating template version in second organization")
 
 	start := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)

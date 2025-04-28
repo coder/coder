@@ -7,12 +7,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
 	passwordvalidator "github.com/wagslane/go-password-validator"
 	"golang.org/x/crypto/pbkdf2"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/util/lazy"

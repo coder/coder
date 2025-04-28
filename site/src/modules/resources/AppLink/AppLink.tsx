@@ -5,7 +5,9 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
+import { useEffect } from "react";
 import { type FC, type MouseEvent, useState } from "react";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
@@ -37,6 +39,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const preferredPathBase = proxy.preferredPathAppURL;
 	const appsHost = proxy.preferredWildcardHostname;
 	const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
+	const [iconError, setIconError] = useState(false);
 
 	const theme = useTheme();
 	const username = workspace.owner_name;
@@ -67,7 +70,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
-	let icon = <BaseIcon app={app} />;
+	let icon = !iconError && (
+		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
+	);
 
 	let primaryTooltip = "";
 	if (app.health === "initializing") {
@@ -129,12 +134,13 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					}
 
 					event.preventDefault();
+
 					// This is an external URI like "vscode://", so
 					// it needs to be opened with the browser protocol handler.
-					if (app.external && !app.url.startsWith("http")) {
-						// If the protocol is external the browser does not
-						// redirect the user from the page.
+					const shouldOpenAppExternally =
+						app.external && !app.url.startsWith("http");
 
+					if (shouldOpenAppExternally) {
 						// This is a magic undocumented string that is replaced
 						// with a brand-new session token from the backend.
 						// This only exists for external URLs, and should only
@@ -148,13 +154,37 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 							url = href.replaceAll(magicTokenString, key.key);
 							setFetchingSessionToken(false);
 						}
+
+						// When browser recognizes the protocol and is able to navigate to the app,
+						// it will blur away, and will stop the timer. Otherwise,
+						// an error message will be displayed.
+						const openAppExternallyFailedTimeout = 500;
+						const openAppExternallyFailed = setTimeout(() => {
+							displayError(
+								`${app.display_name !== "" ? app.display_name : app.slug} must be installed first.`,
+							);
+						}, openAppExternallyFailedTimeout);
+						window.addEventListener("blur", () => {
+							clearTimeout(openAppExternallyFailed);
+						});
+
 						window.location.href = url;
-					} else {
-						window.open(
-							href,
-							Language.appTitle(appDisplayName, generateRandomString(12)),
-							"width=900,height=600",
-						);
+						return;
+					}
+
+					switch (app.open_in) {
+						case "slim-window": {
+							window.open(
+								href,
+								Language.appTitle(appDisplayName, generateRandomString(12)),
+								"width=900,height=600",
+							);
+							return;
+						}
+						default: {
+							window.open(href);
+							return;
+						}
 					}
 				}}
 			>

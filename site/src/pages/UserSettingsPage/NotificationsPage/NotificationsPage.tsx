@@ -48,7 +48,7 @@ export const NotificationsPage: FC = () => {
 				...systemNotificationTemplates(),
 				select: (data: NotificationTemplate[]) => {
 					const groups = selectTemplatesByGroup(data);
-					return permissions.viewDeploymentValues
+					return permissions.viewDeploymentConfig
 						? groups
 						: {
 								// Members only have access to the "Workspace Notifications" group
@@ -99,13 +99,12 @@ export const NotificationsPage: FC = () => {
 				title="Notifications"
 				description="Control which notifications you receive."
 				layout="fluid"
-				featureStage="beta"
 			>
 				{ready ? (
 					<Stack spacing={4}>
 						{Object.entries(templatesByGroup.data).map(([group, templates]) => {
 							const allDisabled = templates.some((tpl) => {
-								return disabledPreferences.data[tpl.id] === true;
+								return notificationIsDisabled(disabledPreferences.data, tpl);
 							});
 
 							return (
@@ -150,6 +149,11 @@ export const NotificationsPage: FC = () => {
 											const label = methodLabels[method];
 											const isLastItem = i === templates.length - 1;
 
+											const disabled = notificationIsDisabled(
+												disabledPreferences.data,
+												tmpl,
+											);
+
 											return (
 												<Fragment key={tmpl.id}>
 													<ListItem>
@@ -157,7 +161,7 @@ export const NotificationsPage: FC = () => {
 															<Switch
 																size="small"
 																id={tmpl.id}
-																checked={!disabledPreferences.data[tmpl.id]}
+																checked={!disabled}
 																onChange={async (_, checked) => {
 																	await updatePreferences.mutateAsync({
 																		template_disabled_map: {
@@ -206,6 +210,16 @@ export const NotificationsPage: FC = () => {
 };
 
 export default NotificationsPage;
+
+function notificationIsDisabled(
+	disabledPreferences: Record<string, boolean>,
+	tmpl: NotificationTemplate,
+): boolean {
+	return (
+		(!tmpl.enabled_by_default && disabledPreferences[tmpl.id] === undefined) ||
+		!!disabledPreferences[tmpl.id]
+	);
+}
 
 function selectDisabledPreferences(data: NotificationPreference[]) {
 	return data.reduce(

@@ -11,20 +11,20 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/websocket"
 )
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
+	client    *codersdk.Client
+	webClient *codersdk.Client
+	cfg       Config
 }
 
 var (
@@ -34,9 +34,15 @@ var (
 
 // func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+	webClient := client
+	if cfg.WebClient != nil {
+		webClient = cfg.WebClient
+	}
+
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:    client,
+		webClient: webClient,
+		cfg:       cfg,
 	}
 }
 
@@ -94,7 +100,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	switch {
 	case r.cfg.App.Name != "":
 		logger.Info(ctx, "sending traffic to workspace app", slog.F("app", r.cfg.App.Name))
-		conn, err = appClientConn(ctx, r.client, r.cfg.App.URL)
+		conn, err = appClientConn(ctx, r.webClient, r.cfg.App.URL)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace app", slog.Error(err))
 			return xerrors.Errorf("connect to workspace app: %w", err)
@@ -113,7 +119,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 
 	default:
 		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "reconnectingpty"))
-		conn, err = connectRPTY(ctx, r.client, agentID, reconnect, command)
+		conn, err = connectRPTY(ctx, r.webClient, agentID, reconnect, command)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via reconnectingpty", slog.Error(err))
 			return xerrors.Errorf("connect to workspace via reconnectingpty: %w", err)

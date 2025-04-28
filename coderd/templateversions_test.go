@@ -50,6 +50,12 @@ func TestTemplateVersion(t *testing.T) {
 		tv, err := client.TemplateVersion(ctx, version.ID)
 		authz.AssertChecked(t, policy.ActionRead, tv)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		assert.Equal(t, "bananas", tv.Name)
 		assert.Equal(t, "first try", tv.Message)
@@ -87,8 +93,14 @@ func TestTemplateVersion(t *testing.T) {
 
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		_, err := client1.TemplateVersion(ctx, version.ID)
+		tv, err := client1.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -158,6 +170,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, version.Job.Tags[provisionersdk.TagScope])
+		if assert.Equal(t, version.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, version.MatchedProvisioners)
+			assert.Equal(t, 1, version.MatchedProvisioners.Available)
+			assert.Equal(t, 1, version.MatchedProvisioners.Count)
+			assert.True(t, version.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
@@ -275,6 +293,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							type = string
 							default = "2"
 						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
@@ -283,18 +306,23 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with empty workspace tags",
 				files: map[string]string{
 					`main.tf`: `
-					variable "a" {
-						type = string
-						default = "1"
-					}
-					data "coder_parameter" "b" {
-						type = string
-						default = "2"
-					}
-					resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {}
-					}`,
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {}
+						}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
@@ -310,6 +338,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							type = string
 							default = "2"
 						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -322,28 +355,82 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2"},
 			},
 			{
-				name: "main.tf with workspace tags and request tags",
+				name: "main.tf with request tags not clobbering workspace tags",
 				files: map[string]string{
 					`main.tf`: `
-					variable "a" {
-						type = string
-						default = "1"
-					}
-					data "coder_parameter" "b" {
-						type = string
-						default = "2"
-					}
-					resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"foo": "bar",
-							"a": var.a,
-							"b": data.coder_parameter.b.value,
+						// This file is, once again, the same as the above, except
+						// for a slightly different comment.
+						variable "a" {
+							type = string
+							default = "1"
 						}
-					}`,
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
 				},
-				reqTags:  map[string]string{"baz": "zap", "foo": "noclobber"},
+				reqTags:  map[string]string{"baz": "zap"},
 				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap", "a": "1", "b": "2"},
+			},
+			{
+				name: "main.tf with request tags clobbering workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+						// This file is the same as the above, except for this comment.
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
+				},
+				reqTags:  map[string]string{"baz": "zap", "foo": "clobbered"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "clobbered", "baz": "zap", "a": "1", "b": "2"},
+			},
+			// FIXME(cian): we should skip evaluating tags for which values have already been provided.
+			{
+				name: "main.tf with variable missing default value but value is passed in request",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"a": var.a,
+							}
+						}`,
+				},
+				reqTags:  map[string]string{"a": "b"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "a": "b"},
 			},
 			{
 				name: "main.tf with disallowed workspace tag value",
@@ -356,6 +443,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						data "coder_parameter" "b" {
 							type = string
 							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
 						}
 						resource "null_resource" "test" {
 							name = "foo"
@@ -383,6 +475,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							type = string
 							default = "2"
 						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {
 							name = "foo"
 						}
@@ -391,11 +488,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 								"foo": "bar",
 								"a": var.a,
 								"b": data.coder_parameter.b.value,
-								"test": try(null_resource.test.name, "whatever"),
+								"test": pathexpand("~/file.txt"),
 							}
 						}`,
 				},
-				expectError: `Function calls not allowed; Functions may not be called here.`,
+				expectError: `function "pathexpand" may not be used here`,
 			},
 			// We will allow coder_workspace_tags to set the scope on a template version import job
 			// BUT the user ID will be ultimately determined by the API key in the scope.
@@ -405,6 +502,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags that attempts to set user scope",
 				files: map[string]string{
 					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -419,6 +521,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags that attempt to clobber org ID",
 				files: map[string]string{
 					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -433,6 +540,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags that set scope=user",
 				files: map[string]string{
 					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -441,6 +553,55 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}`,
 				},
 				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+			// Ref: https://github.com/coder/coder/issues/16021
+			{
+				name: "main.tf with no workspace_tags and a function call in a parameter default",
+				files: map[string]string{
+					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with tags from parameter with default value from variable no default",
+				files: map[string]string{
+					`main.tf`: `
+						variable "provisioner" {
+						  type        = string
+						}
+						variable "default_provisioner" {
+						  type        = string
+						  default     = "" # intentionally blank, set on template creation
+						}
+						data "coder_parameter" "provisioner" {
+						  name         = "provisioner"
+						  mutable      = false
+						  default      = var.default_provisioner
+						  dynamic "option" {
+							for_each = toset(split(",", var.provisioner))
+							content {
+							  name  = option.value
+							  value = option.value
+							}
+						  }
+						}
+						data "coder_workspace_tags" "tags" {
+						  tags = {
+							"provisioner" : data.coder_parameter.provisioner.value
+						  }
+						}`,
+				},
+				reqTags: map[string]string{
+					"provisioner": "alpha",
+				},
+				wantTags: map[string]string{
+					"provisioner": "alpha", "owner": "", "scope": "organization",
+				},
 			},
 		} {
 			tt := tt
@@ -456,7 +617,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create a template version from the archive
-				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				tvName := testutil.GetRandomNameHyphenated(t)
 				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
 					Name:            tvName,
 					StorageMethod:   codersdk.ProvisionerStorageMethodFile,
@@ -471,14 +632,13 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
 					require.NoError(t, err)
 					require.EqualValues(t, tt.wantTags, pj.Tags)
+					// Also assert that we get the expected information back from the API endpoint
+					require.Zero(t, tv.MatchedProvisioners.Count)
+					require.Zero(t, tv.MatchedProvisioners.Available)
+					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
 				}
-
-				// Also assert that we get the expected information back from the API endpoint
-				require.Zero(t, tv.MatchedProvisioners.Count)
-				require.Zero(t, tv.MatchedProvisioners.Available)
-				require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 			})
 		}
 	})
@@ -669,6 +829,7 @@ func TestTemplateVersionResources(t *testing.T) {
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
+								Name: "dev",
 								Auth: &proto.Agent_Token{},
 							}},
 						}, {
@@ -715,7 +876,8 @@ func TestTemplateVersionLogs(t *testing.T) {
 						Name: "some",
 						Type: "example",
 						Agents: []*proto.Agent{{
-							Id: "something",
+							Id:   "something",
+							Name: "dev",
 							Auth: &proto.Agent_Token{
 								Token: uuid.NewString(),
 							},
@@ -791,8 +953,15 @@ func TestTemplateVersionByName(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
+		tv, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
 		require.NoError(t, err)
+
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -980,6 +1149,13 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, job.ID, newJob.ID)
 
+		// Check matched provisioners
+		matched, err := client.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, matched.Count)
+		require.Equal(t, 1, matched.Available)
+		require.NotZero(t, matched.MostRecentlySeen.Time)
+
 		// Stream logs
 		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, 0)
 		require.NoError(t, err)
@@ -1031,7 +1207,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusTooEarly, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -1151,6 +1327,49 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
+	})
+
+	t.Run("Pending", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closer.Close()
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := db.Exec("DELETE FROM provisioner_daemons")
+		require.NoError(t, err)
+
+		job, err := templateAdmin.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+			WorkspaceName:       "test",
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{},
+			UserVariableValues:  []codersdk.VariableValue{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
+
+		matched, err := templateAdmin.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 0, matched.Count)
+		require.Equal(t, 0, matched.Available)
+		require.Zero(t, matched.MostRecentlySeen.Time)
 	})
 }
 
@@ -1837,11 +2056,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some unused versions
 	for i := 0; i < 2; i++ {
-		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		expArchived = append(expArchived, unused.ID)
@@ -1850,11 +2065,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some used template versions
 	for i := 0; i < 2; i++ {
-		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
