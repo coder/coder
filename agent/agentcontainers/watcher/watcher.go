@@ -51,16 +51,16 @@ func NewFSNotify() (Watcher, error) {
 	}, nil
 }
 
-func (f *fsnotifyWatcher) Add(file string) error {
-	if err := f.Watcher.Add(file); err != nil {
-		return xerrors.Errorf("add file to watcher: %w", err)
+func (f *fsnotifyWatcher) Add(path string) error {
+	if err := f.Watcher.Add(path); err != nil {
+		return xerrors.Errorf("add path to watcher: %w", err)
 	}
 	return nil
 }
 
-func (f *fsnotifyWatcher) Remove(file string) error {
-	if err := f.Watcher.Remove(file); err != nil {
-		return xerrors.Errorf("remove file from watcher: %w", err)
+func (f *fsnotifyWatcher) Remove(path string) error {
+	if err := f.Watcher.Remove(path); err != nil {
+		return xerrors.Errorf("remove path from watcher: %w", err)
 	}
 	return nil
 }
