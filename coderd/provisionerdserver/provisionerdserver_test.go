@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -1741,6 +1742,123 @@ func TestCompleteJob(t *testing.T) {
 				}
 				for _, module := range modules {
 					require.Equal(t, "matched", module.Key)
+				}
+			})
+		}
+	})
+
+	t.Run("ReinitializePrebuiltAgents", func(t *testing.T) {
+		t.Parallel()
+		type testcase struct {
+			name                    string
+			shouldReinitializeAgent bool
+		}
+
+		for _, tc := range []testcase{
+			// Whether or not there are presets and those presets define prebuilds, etc
+			// are all irrelevant at this level. Those factors are useful earlier in the process.
+			// Everything relevant to this test is determined by whether or not the workspace build job
+			// has `PrebuildClaimedByUser` set. As such, there are only two significant test cases:
+			{
+				name:                    "claimed prebuild",
+				shouldReinitializeAgent: true,
+			},
+			{
+				name:                    "not a claimed prebuild",
+				shouldReinitializeAgent: false,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Setup starting state:
+
+				userID := uuid.New()
+
+				srv, db, ps, pd := setup(t, false, &overrides{})
+
+				buildID := uuid.New()
+				scheduledJobInput := provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				}
+				if tc.shouldReinitializeAgent { // This is the key lever in the test
+					scheduledJobInput.PrebuildClaimedByUser = userID
+				}
+				input, err := json.Marshal(scheduledJobInput)
+				require.NoError(t, err)
+
+				ctx := testutil.Context(t, time.Second) // Even testutil.WaitShort feels too long for this.
+				job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+					Input:         input,
+					Provisioner:   database.ProvisionerTypeEcho,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+				})
+				require.NoError(t, err)
+
+				tpl := dbgen.Template(t, db, database.Template{
+					OrganizationID: pd.OrganizationID,
+				})
+				tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+					JobID:      job.ID,
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID: tpl.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                buildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: tv.ID,
+				})
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				// Subscribe to workspace reinitialization:
+
+				// If the job needs to reinitialize agents for the workspace,
+				// check that the instruction to do so was enqueued
+				eventName := agentsdk.PrebuildClaimedChannel(workspace.ID)
+				gotChan := make(chan []byte, 1)
+				cancel, err := ps.Subscribe(eventName, func(inner context.Context, userIDMessage []byte) {
+					select {
+					case <-ctx.Done():
+						return
+					case <-inner.Done():
+						return
+					default:
+					}
+					gotChan <- userIDMessage
+				})
+				require.NoError(t, err)
+				defer cancel()
+
+				// Complete the job, optionally triggering workspace agent reinitialization:
+
+				completedJob := proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{},
+					},
+				}
+				_, err = srv.CompleteJob(ctx, &completedJob)
+				require.NoError(t, err)
+
+				select {
+				case userIDMessage := <-gotChan:
+					gotUserID, err := uuid.ParseBytes(userIDMessage)
+					require.NoError(t, err)
+					require.True(t, tc.shouldReinitializeAgent)
+					require.Equal(t, userID, gotUserID)
+				case <-ctx.Done():
+					require.False(t, tc.shouldReinitializeAgent)
 				}
 			})
 		}

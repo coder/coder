@@ -699,7 +699,6 @@ type ReinitializationResponse struct {
 	Reason  ReinitializationReason `json:"reason"`
 }
 
-// TODO: maybe place this somewhere else?
 func PrebuildClaimedChannel(id uuid.UUID) string {
 	return fmt.Sprintf("prebuild_claimed_%s", id)
 }

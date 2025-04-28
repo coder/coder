@@ -1746,13 +1746,13 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		}
 
 		if input.PrebuildClaimedByUser != uuid.Nil {
-			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
 			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
 				slog.F("user", input.PrebuildClaimedByUser.String()),
-				slog.F("workspace_id", workspace.ID),
-				slog.F("channel", channel))
+				slog.F("workspace_id", workspace.ID))
+
+			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
 			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimedByUser.String())); err != nil {
-				s.Logger.Error(ctx, "failed to publish message to workspace agent to pull new manifest", slog.Error(err))
+				s.Logger.Error(ctx, "failed to publish message to instruct prebuilt workspace agent reinitialization", slog.Error(err))
 			}
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
