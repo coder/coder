@@ -301,6 +301,7 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 			continue
 		}
 
+		// NOTE(mafredri): This name impl. may change to accommodate devcontainer agents RFC.
 		// If not in our known list, add as a runtime detected entry.
 		name := path.Base(workspaceFolder)
 		if _, ok := api.devcontainerNames[name]; ok {
