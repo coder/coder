@@ -43,6 +43,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -473,7 +474,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -542,7 +543,7 @@ func TestSSH(t *testing.T) {
 		signer, err := agentssh.CoderSigner(keySeed)
 		assert.NoError(t, err)
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -605,7 +606,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -773,7 +774,7 @@ func TestSSH(t *testing.T) {
 		// have access to the shell.
 		_ = agenttest.New(t, client.URL, authToken)
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: proxyCommandStdoutR,
 			Writer: clientStdinW,
 		}, "", &ssh.ClientConfig{
@@ -835,7 +836,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -894,7 +895,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -1082,7 +1083,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -1741,7 +1742,7 @@ func TestSSH(t *testing.T) {
 					assert.NoError(t, err)
 				})
 
-				conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+				conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
 					Reader: serverOutput,
 					Writer: clientInput,
 				}, "", &ssh.ClientConfig{
@@ -2110,6 +2111,46 @@ func TestSSH_Container(t *testing.T) {
 	})
 }
 
+func TestSSH_CoderConnect(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	fs := afero.NewMemMapFs()
+	//nolint:revive,staticcheck
+	ctx = context.WithValue(ctx, "fs", fs)
+
+	client, workspace, agentToken := setupWorkspaceForAgent(t)
+	inv, root := clitest.New(t, "ssh", workspace.Name, "--network-info-dir", "/net", "--stdio")
+	clitest.SetupConfig(t, client, root)
+	_ = ptytest.New(t).Attach(inv)
+
+	errCh := make(chan error, 1)
+	tGo(t, func() {
+		err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
+		errCh <- err
+	})
+
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	err := testutil.TryReceive(ctx, t, errCh)
+	// Making an SSH server available here is difficult, so we'll just check
+	// the command attempts to dial it.
+	require.ErrorContains(t, err, "dial coder connect host")
+	require.ErrorContains(t, err, "dev.myworkspace.myuser.coder")
+
+	// The network info file should be created since we passed `--stdio`
+	assert.Eventually(t, func() bool {
+		entries, err := afero.ReadDir(fs, "/net")
+		if err != nil {
+			return false
+		}
+		return len(entries) > 0
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
 // tGoContext runs fn in a goroutine passing a context that will be
 // canceled on test completion and wait until fn has finished executing.
 // Done and cancel are returned for optionally waiting until completion
@@ -2151,35 +2192,6 @@ func tGo(t *testing.T, fn func()) (done <-chan struct{}) {
 	}()
 
 	return doneC
-}
-
-type stdioConn struct {
-	io.Reader
-	io.Writer
-}
-
-func (*stdioConn) Close() (err error) {
-	return nil
-}
-
-func (*stdioConn) LocalAddr() net.Addr {
-	return nil
-}
-
-func (*stdioConn) RemoteAddr() net.Addr {
-	return nil
-}
-
-func (*stdioConn) SetDeadline(_ time.Time) error {
-	return nil
-}
-
-func (*stdioConn) SetReadDeadline(_ time.Time) error {
-	return nil
-}
-
-func (*stdioConn) SetWriteDeadline(_ time.Time) error {
-	return nil
 }
 
 // tempDirUnixSocket returns a temporary directory that can safely hold unix

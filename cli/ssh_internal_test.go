@@ -3,20 +3,26 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"net/url"
 	"sync"
 	"testing"
 	"time"
 
+	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -218,6 +224,118 @@ func TestCloserStack_Timeout(t *testing.T) {
 	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
 	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
 	testutil.TryReceive(ctx, t, closed)
+}
+
+func TestCoderConnectPTY(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	stack := newCloserStack(ctx, logger, quartz.NewMock(t))
+
+	server := newSSHServer("127.0.0.1:0")
+	ln, err := net.Listen("tcp", server.server.Addr)
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.Serve(ln)
+	}()
+	t.Cleanup(func() {
+		_ = server.Close()
+	})
+
+	ptty := ptytest.New(t)
+	ptyDone := make(chan struct{})
+	go func() {
+		err := runCoderConnectPTY(ctx, ln.Addr().String(), ptty.Output(), ptty.Input(), ptty.Output(), stack)
+		assert.NoError(t, err)
+		close(ptyDone)
+	}()
+	ptty.ExpectMatch("Connected!")
+	// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+	ptty.WriteLine("exit")
+	<-ptyDone
+}
+
+func TestCoderConnectStdio(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	stack := newCloserStack(ctx, logger, quartz.NewMock(t))
+
+	clientOutput, clientInput := io.Pipe()
+	serverOutput, serverInput := io.Pipe()
+	defer func() {
+		for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+			_ = c.Close()
+		}
+	}()
+
+	server := newSSHServer("127.0.0.1:0")
+	ln, err := net.Listen("tcp", server.server.Addr)
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.Serve(ln)
+	}()
+	t.Cleanup(func() {
+		_ = server.Close()
+	})
+
+	stdioDone := make(chan struct{})
+	go func() {
+		err = runCoderConnectStdio(ctx, ln.Addr().String(), clientOutput, serverInput, stack)
+		assert.NoError(t, err)
+		close(stdioDone)
+	}()
+
+	conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		Reader: serverOutput,
+		Writer: clientInput,
+	}, "", &ssh.ClientConfig{
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	sshClient := ssh.NewClient(conn, channels, requests)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+	err = session.Run("exit")
+	require.NoError(t, err)
+	err = sshClient.Close()
+	require.NoError(t, err)
+	_ = clientOutput.Close()
+
+	<-stdioDone
+}
+
+type sshServer struct {
+	server *gliderssh.Server
+}
+
+func newSSHServer(addr string) *sshServer {
+	return &sshServer{
+		server: &gliderssh.Server{
+			Addr: addr,
+			Handler: func(s gliderssh.Session) {
+				_, _ = io.WriteString(s, "Connected!")
+			},
+		},
+	}
+}
+
+func (s *sshServer) Serve(ln net.Listener) error {
+	return s.server.Serve(ln)
+}
+
+func (s *sshServer) Close() error {
+	return s.server.Close()
 }
 
 type fakeCloser struct {
