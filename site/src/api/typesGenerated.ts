@@ -146,7 +146,7 @@ export const AuditActions: AuditAction[] = [
 ];
 
 // From codersdk/audit.go
-export type AuditDiff = Record<string, AuditDiffField>;
+export type AuditDiff = Record<string, AuditDiffField> | null;
 
 // From codersdk/audit.go
 export interface AuditDiffField {
@@ -171,7 +171,7 @@ export interface AuditLog {
 	readonly action: AuditAction;
 	readonly diff: AuditDiff;
 	readonly status_code: number;
-	readonly additional_fields: Record<string, string>;
+	readonly additional_fields: Record<string, string> | null;
 	readonly description: string;
 	readonly resource_link: string;
 	readonly is_deleted: boolean;
@@ -221,11 +221,11 @@ export interface AuthorizationObject {
 
 // From codersdk/authorization.go
 export interface AuthorizationRequest {
-	readonly checks: Record<string, AuthorizationCheck>;
+	readonly checks: Record<string, AuthorizationCheck> | null;
 }
 
 // From codersdk/authorization.go
-export type AuthorizationResponse = Record<string, boolean>;
+export type AuthorizationResponse = Record<string, boolean> | null;
 
 // From codersdk/workspaces.go
 export type AutomaticUpdates = "always" | "never";
@@ -358,7 +358,7 @@ export interface CreateOrganizationRequest {
 // From codersdk/provisionerdaemons.go
 export interface CreateProvisionerKeyRequest {
 	readonly name: string;
-	readonly tags: Record<string, string>;
+	readonly tags: Record<string, string> | null;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -404,7 +404,7 @@ export interface CreateTemplateVersionRequest {
 	readonly file_id?: string;
 	readonly example_id?: string;
 	readonly provisioner: ProvisionerType;
-	readonly tags: Record<string, string>;
+	readonly tags: Record<string, string> | null;
 	readonly user_variable_values?: readonly VariableValue[];
 }
 
@@ -536,7 +536,7 @@ export interface DERPConfig {
 // From healthsdk/healthsdk.go
 export interface DERPHealthReport extends BaseReport {
 	readonly healthy: boolean;
-	readonly regions: Record<number, DERPRegionReport | null>;
+	readonly regions: Record<number, DERPRegionReport | null> | null;
 	readonly netcheck?: NetcheckReport;
 	readonly netcheck_err?: string;
 	readonly netcheck_logs: readonly string[];
@@ -716,7 +716,7 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/templateversions.go
 export interface DynamicParametersRequest {
 	readonly id: number;
-	readonly inputs: Record<string, string>;
+	readonly inputs: Record<string, string> | null;
 }
 
 // From codersdk/templateversions.go
@@ -755,7 +755,7 @@ export type Entitlement = "entitled" | "grace_period" | "not_entitled";
 
 // From codersdk/deployment.go
 export interface Entitlements {
-	readonly features: Record<FeatureName, Feature>;
+	readonly features: Record<FeatureName, Feature> | null;
 	readonly warnings: readonly string[];
 	readonly errors: readonly string[];
 	readonly has_license: boolean;
@@ -947,7 +947,7 @@ export interface GetUserStatusCountsRequest {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsResponse {
-	readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
+	readonly status_counts: Record<UserStatus, UserStatusChangeCount[]> | null;
 }
 
 // From codersdk/users.go
@@ -1000,7 +1000,7 @@ export const GroupSources: GroupSource[] = ["oidc", "user"];
 // From codersdk/idpsync.go
 export interface GroupSyncSettings {
 	readonly field: string;
-	readonly mapping: Record<string, string[]>;
+	readonly mapping: Record<string, string[]> | null;
 	readonly regex_filter: string | null;
 	readonly auto_create_missing_groups: boolean;
 	readonly legacy_group_name_mapping?: Record<string, string>;
@@ -1192,7 +1192,7 @@ export interface License {
 	readonly uuid: string;
 	readonly uploaded_at: string;
 	// empty interface{} type, falling back to unknown
-	readonly claims: Record<string, unknown>;
+	readonly claims: Record<string, unknown> | null;
 }
 
 // From codersdk/licenses.go
@@ -1313,9 +1313,9 @@ export interface NetcheckReport {
 	readonly PMP: boolean | null;
 	readonly PCP: boolean | null;
 	readonly PreferredDERP: number;
-	readonly RegionLatency: Record<number, number>;
-	readonly RegionV4Latency: Record<number, number>;
-	readonly RegionV6Latency: Record<number, number>;
+	readonly RegionLatency: Record<number, number> | null;
+	readonly RegionV4Latency: Record<number, number> | null;
+	readonly RegionV6Latency: Record<number, number> | null;
 	readonly GlobalV4: string;
 	readonly GlobalV6: string;
 	readonly CaptivePortal: boolean | null;
@@ -1518,19 +1518,19 @@ export interface OIDCConfig {
 	readonly username_field: string;
 	readonly name_field: string;
 	readonly email_field: string;
-	readonly auth_url_params: SerpentStruct<Record<string, string>>;
+	readonly auth_url_params: SerpentStruct<Record<string, string> | null>;
 	readonly ignore_user_info: boolean;
 	readonly source_user_info_from_access_token: boolean;
 	readonly organization_field: string;
-	readonly organization_mapping: SerpentStruct<Record<string, string[]>>;
+	readonly organization_mapping: SerpentStruct<Record<string, string[]> | null>;
 	readonly organization_assign_default: boolean;
 	readonly group_auto_create: boolean;
 	readonly group_regex_filter: string;
 	readonly group_allow_list: string;
 	readonly groups_field: string;
-	readonly group_mapping: SerpentStruct<Record<string, string>>;
+	readonly group_mapping: SerpentStruct<Record<string, string> | null>;
 	readonly user_role_field: string;
-	readonly user_role_mapping: SerpentStruct<Record<string, string[]>>;
+	readonly user_role_mapping: SerpentStruct<Record<string, string[]> | null>;
 	readonly user_roles_default: string;
 	readonly sign_in_text: string;
 	readonly icon_url: string;
@@ -1568,7 +1568,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
 	readonly IDs: readonly string[];
-	readonly Tags: Record<string, string>;
+	readonly Tags: Record<string, string> | null;
 }
 
 // From codersdk/organizations.go
@@ -1576,13 +1576,13 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly Limit: number;
 	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
-	readonly Tags: Record<string, string>;
+	readonly Tags: Record<string, string> | null;
 }
 
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	readonly field: string;
-	readonly mapping: Record<string, string[]>;
+	readonly mapping: Record<string, string[]> | null;
 	readonly organization_assign_default: boolean;
 }
 
@@ -1803,7 +1803,7 @@ export interface ProvisionerDaemon {
 	readonly version: string;
 	readonly api_version: string;
 	readonly provisioners: readonly ProvisionerType[];
-	readonly tags: Record<string, string>;
+	readonly tags: Record<string, string> | null;
 	readonly key_name: string | null;
 	readonly status: ProvisionerDaemonStatus | null;
 	readonly current_job: ProvisionerDaemonJob | null;
@@ -1857,7 +1857,7 @@ export interface ProvisionerJob {
 	readonly status: ProvisionerJobStatus;
 	readonly worker_id?: string;
 	readonly file_id: string;
-	readonly tags: Record<string, string>;
+	readonly tags: Record<string, string> | null;
 	readonly queue_position: number;
 	readonly queue_size: number;
 	readonly organization_id: string;
@@ -1961,7 +1961,7 @@ export const ProvisionerKeyNamePSK = "psk";
 export const ProvisionerKeyNameUserAuth = "user-auth";
 
 // From codersdk/provisionerdaemons.go
-export type ProvisionerKeyTags = Record<string, string>;
+export type ProvisionerKeyTags = Record<string, string> | null;
 
 // From codersdk/workspaces.go
 export type ProvisionerLogLevel = "debug";
@@ -2293,7 +2293,7 @@ export const RoleOwner = "owner";
 // From codersdk/idpsync.go
 export interface RoleSyncSettings {
 	readonly field: string;
-	readonly mapping: Record<string, string[]>;
+	readonly mapping: Record<string, string[]> | null;
 }
 
 // From codersdk/rbacroles.go
@@ -2312,7 +2312,7 @@ export interface SSHConfig {
 export interface SSHConfigResponse {
 	readonly hostname_prefix: string;
 	readonly hostname_suffix: string;
-	readonly ssh_config_options: Record<string, string>;
+	readonly ssh_config_options: Record<string, string> | null;
 }
 
 // From healthsdk/healthsdk.go
@@ -2323,7 +2323,7 @@ export interface STUNReport {
 }
 
 // From serpent/serpent.go
-export type SerpentAnnotations = Record<string, string>;
+export type SerpentAnnotations = Record<string, string> | null;
 
 // From serpent/serpent.go
 export interface SerpentGroup {
@@ -2562,7 +2562,7 @@ export interface TemplateAutostopRequirement {
 export type TemplateBuildTimeStats = Record<
 	WorkspaceTransition,
 	TransitionStats
->;
+> | null;
 
 // From codersdk/insights.go
 export const TemplateBuiltinAppDisplayNameJetBrains = "JetBrains";
@@ -2903,7 +2903,7 @@ export interface UpdateUserAppearanceSettingsRequest {
 
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
-	readonly template_disabled_map: Record<string, boolean>;
+	readonly template_disabled_map: Record<string, boolean> | null;
 }
 
 // From codersdk/users.go
@@ -3077,7 +3077,7 @@ export interface UserQuietHoursScheduleResponse {
 // From codersdk/users.go
 export interface UserRoles {
 	readonly roles: readonly string[];
-	readonly organization_roles: Record<string, string[]>;
+	readonly organization_roles: Record<string, string[]> | null;
 }
 
 // From codersdk/users.go
@@ -3204,7 +3204,7 @@ export interface WorkspaceAgent {
 	readonly resource_id: string;
 	readonly instance_id?: string;
 	readonly architecture: string;
-	readonly environment_variables: Record<string, string>;
+	readonly environment_variables: Record<string, string> | null;
 	readonly operating_system: string;
 	readonly logs_length: number;
 	readonly logs_overflowed: boolean;
@@ -3230,11 +3230,11 @@ export interface WorkspaceAgentContainer {
 	readonly id: string;
 	readonly name: string;
 	readonly image: string;
-	readonly labels: Record<string, string>;
+	readonly labels: Record<string, string> | null;
 	readonly running: boolean;
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
-	readonly volumes: Record<string, string>;
+	readonly volumes: Record<string, string> | null;
 }
 
 // From codersdk/workspaceagents.go
