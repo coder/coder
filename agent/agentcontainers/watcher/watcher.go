@@ -8,6 +8,7 @@ package watcher
 
 import (
 	"context"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/xerrors"
@@ -33,7 +34,8 @@ type Watcher interface {
 
 type fsnotifyWatcher struct {
 	*fsnotify.Watcher
-	closed chan struct{}
+	closeOnce sync.Once
+	closed    chan struct{}
 }
 
 func NewFSNotify() (Watcher, error) {
@@ -80,10 +82,12 @@ func (f *fsnotifyWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
 	}
 }
 
-func (f *fsnotifyWatcher) Close() error {
-	if err := f.Watcher.Close(); err != nil {
-		return xerrors.Errorf("close watcher: %w", err)
-	}
-	close(f.closed)
-	return nil
+func (f *fsnotifyWatcher) Close() (err error) {
+	f.closeOnce.Do(func() {
+		if err := f.Watcher.Close(); err != nil {
+			err = xerrors.Errorf("close watcher: %w", err)
+		}
+		close(f.closed)
+	})
+	return err
 }
