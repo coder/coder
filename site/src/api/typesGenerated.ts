@@ -3252,6 +3252,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly workspace_folder: string;
 	readonly config_path?: string;
 	readonly running: boolean;
+	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 }
 
