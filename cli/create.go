@@ -429,41 +429,106 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		return nil, xerrors.Errorf("template version git auth: %w", err)
 	}
 
-	// Run a dry-run with the given parameters to check correctness
-	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		WorkspaceName:       args.NewWorkspaceName,
-		RichParameterValues: buildParameters,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
-	}
+	// Attempts to run the dry-run with the given parameters
+	// If validation fails, will try to reprompt for the invalid parameters
+	var dryRunJob codersdk.ProvisionerJob
+	var matchedProvisioners codersdk.MatchedProvisioners
+	
+	for {
+		// Run a dry-run with the given parameters to check correctness
+		var err error
+		dryRunJob, err = client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
+			WorkspaceName:       args.NewWorkspaceName,
+			RichParameterValues: buildParameters,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
+		}
 
-	matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get matched provisioners: %w", err)
-	}
-	cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
-	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
-	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
-		Fetch: func() (codersdk.ProvisionerJob, error) {
-			return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-		},
-		Cancel: func() error {
-			return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
-		},
-		// Don't show log output for the dry-run unless there's an error.
-		Silent: true,
-	})
-	if err != nil {
-		// TODO (Dean): reprompt for parameter values if we deem it to
-		// be a validation error
+		matchedProvisioners, err = client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRunJob.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get matched provisioners: %w", err)
+		}
+		cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRunJob)
+		_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
+		err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
+			Fetch: func() (codersdk.ProvisionerJob, error) {
+				return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRunJob.ID)
+			},
+			Cancel: func() error {
+				return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRunJob.ID)
+			},
+			Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
+				return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRunJob.ID, 0)
+			},
+			// Don't show log output for the dry-run unless there's an error.
+			Silent: true,
+		})
+		if err == nil {
+			// Success, we can continue
+			break
+		}
+
+		// Check if this is a validation error we can recover from
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && len(sdkErr.Validations) > 0 {
+			_, _ = fmt.Fprintf(inv.Stderr, "\n%s\n\n", pretty.Sprint(cliui.DefaultStyles.Error, "Parameter validation failed. Let's fix the invalid values."))
+			
+			// Track which parameters have been reprompted to avoid duplicates
+			repromptedParams := make(map[string]bool)
+
+			// Prompt for each invalid parameter
+			for _, validation := range sdkErr.Validations {
+				if repromptedParams[validation.Field] {
+					continue
+				}
+
+				// Find the parameter definition
+				var matchingParam *codersdk.TemplateVersionParameter
+				for i, param := range templateVersionParameters {
+					if param.Name == validation.Field {
+						matchingParam = &templateVersionParameters[i]
+						break
+					}
+				}
+
+				if matchingParam != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "Parameter %q: %s\n", validation.Field, validation.Detail)
+					parameterValue, promptErr := cliui.RichParameter(inv, *matchingParam, make(map[string]string))
+					if promptErr != nil {
+						return nil, xerrors.Errorf("prompt for parameter: %w", promptErr)
+					}
+
+					// Update the parameter value in buildParameters
+					found := false
+					for i := range buildParameters {
+						if buildParameters[i].Name == validation.Field {
+							buildParameters[i].Value = parameterValue
+							found = true
+							break
+						}
+					}
+
+					if !found {
+						buildParameters = append(buildParameters, codersdk.WorkspaceBuildParameter{
+							Name:  validation.Field,
+							Value: parameterValue,
+						})
+					}
+
+					repromptedParams[validation.Field] = true
+				}
+			}
+
+			// Try the dry run again with updated parameters
+			continue
+		}
+
+		// Not a validation error or couldn't handle it, so return the original error
 		return nil, xerrors.Errorf("dry-run workspace: %w", err)
 	}
 
-	resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRun.ID)
+	resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRunJob.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
 	}
