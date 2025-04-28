@@ -652,12 +652,17 @@ func TestAPI(t *testing.T) {
 		assert.Contains(t, fWatcher.addedPaths, configPath,
 			"watcher should be watching the container's config file")
 
+		// Make sure the start loop has been called.
+		fWatcher.waitNext(ctx)
+
 		// Send a file modification event and check if the container is
 		// marked dirty.
 		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
 			Name: configPath,
 			Op:   fsnotify.Write,
 		})
+
+		mClock.Advance(time.Minute).MustWait(ctx)
 
 		// Check if the container is marked as dirty.
 		req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil)
@@ -671,7 +676,7 @@ func TestAPI(t *testing.T) {
 		assert.True(t, response.Devcontainers[0].Dirty,
 			"container should be marked as dirty after config file was modified")
 
-		mClock.Advance(10 * time.Minute).MustWait(ctx)
+		mClock.Advance(time.Minute).MustWait(ctx)
 
 		container.ID = "new-container-id" // Simulate a new container ID after recreation.
 		container.FriendlyName = "new-container-name"
