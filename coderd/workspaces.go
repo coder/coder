@@ -655,6 +655,9 @@ func createWorkspace(
 			if err != nil &&
 				!errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) &&
 				!errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces) {
+				api.Logger.Error(ctx, "failed to claim prebuilt workspace", slog.Error(err),
+					slog.F("workspace_name", req.Name), slog.F("template_version_preset_id", req.TemplateVersionPresetID))
+
 				return xerrors.Errorf("failed to claim prebuilt workspace: %w", err)
 			}
 		}
