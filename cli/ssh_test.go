@@ -2114,41 +2114,71 @@ func TestSSH_Container(t *testing.T) {
 func TestSSH_CoderConnect(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+	t.Run("Enabled", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
 
-	fs := afero.NewMemMapFs()
-	//nolint:revive,staticcheck
-	ctx = context.WithValue(ctx, "fs", fs)
+		fs := afero.NewMemMapFs()
+		//nolint:revive,staticcheck
+		ctx = context.WithValue(ctx, "fs", fs)
 
-	client, workspace, agentToken := setupWorkspaceForAgent(t)
-	inv, root := clitest.New(t, "ssh", workspace.Name, "--network-info-dir", "/net", "--stdio")
-	clitest.SetupConfig(t, client, root)
-	_ = ptytest.New(t).Attach(inv)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "--network-info-dir", "/net", "--stdio")
+		clitest.SetupConfig(t, client, root)
+		_ = ptytest.New(t).Attach(inv)
 
-	errCh := make(chan error, 1)
-	tGo(t, func() {
-		err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
-		errCh <- err
+		errCh := make(chan error, 1)
+		tGo(t, func() {
+			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
+			errCh <- err
+		})
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		err := testutil.TryReceive(ctx, t, errCh)
+		// Making an SSH server available here is difficult, so we'll just check
+		// the command attempts to dial it.
+		require.ErrorContains(t, err, "dial coder connect host")
+		require.ErrorContains(t, err, "dev.myworkspace.myuser.coder")
+
+		// The network info file should be created since we passed `--stdio`
+		assert.Eventually(t, func() bool {
+			entries, err := afero.ReadDir(fs, "/net")
+			if err != nil {
+				return false
+			}
+			return len(entries) > 0
+		}, testutil.WaitLong, testutil.IntervalFast)
 	})
 
-	_ = agenttest.New(t, client.URL, agentToken)
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
 
-	err := testutil.TryReceive(ctx, t, errCh)
-	// Making an SSH server available here is difficult, so we'll just check
-	// the command attempts to dial it.
-	require.ErrorContains(t, err, "dial coder connect host")
-	require.ErrorContains(t, err, "dev.myworkspace.myuser.coder")
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "--force-new-tunnel")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
 
-	// The network info file should be created since we passed `--stdio`
-	assert.Eventually(t, func() bool {
-		entries, err := afero.ReadDir(fs, "/net")
-		if err != nil {
-			return false
-		}
-		return len(entries) > 0
-	}, testutil.WaitLong, testutil.IntervalFast)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
+			assert.NoError(t, err)
+		})
+		// Shouldn't fail to dial the coder connect host `--force-new-tunnel`
+		// is passed.
+		pty.ExpectMatch("Waiting")
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+		pty.WriteLine("exit")
+		<-cmdDone
+	})
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be

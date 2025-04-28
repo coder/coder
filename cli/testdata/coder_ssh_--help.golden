@@ -12,8 +12,8 @@ OPTIONS:
   -e, --env string-array, $CODER_SSH_ENV
           Set environment variable(s) for session (key1=value1,key2=value2,...).
 
-      --force-tunnel bool
-          Force the use of a new tunnel to the workspace, even if the Coder
+      --force-new-tunnel bool
+          Force the creation of a new tunnel to the workspace, even if the Coder
           Connect tunnel is available.
 
   -A, --forward-agent bool, $CODER_SSH_FORWARD_AGENT

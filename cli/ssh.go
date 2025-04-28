@@ -665,8 +665,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Hidden:      true, // Hidden until this features is at least in beta.
 		},
 		{
-			Flag:        "force-tunnel",
-			Description: "Force the use of a new tunnel to the workspace, even if the Coder Connect tunnel is available.",
+			Flag:        "force-new-tunnel",
+			Description: "Force the creation of a new tunnel to the workspace, even if the Coder Connect tunnel is available.",
 			Value:       serpent.BoolOf(&forceTunnel),
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
