@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
-	"golang.org/x/xerrors"
 )
 
 // NewNoop creates a new watcher that does nothing.
@@ -27,12 +26,13 @@ func (*noopWatcher) Remove(string) error {
 	return nil
 }
 
+// Next blocks until the context is canceled or the watcher is closed.
 func (n *noopWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-n.done:
-		return nil, xerrors.New("watcher closed")
+		return nil, ErrWatcherClosed
 	}
 }
 
@@ -40,7 +40,7 @@ func (n *noopWatcher) Close() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
-		return nil
+		return ErrWatcherClosed
 	}
 	n.closed = true
 	close(n.done)
