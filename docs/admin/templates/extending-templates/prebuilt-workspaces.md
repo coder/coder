@@ -1,4 +1,4 @@
-# Prebuilt workspaces (beta)
+# Prebuilt workspaces
 
 ## Overview
 
