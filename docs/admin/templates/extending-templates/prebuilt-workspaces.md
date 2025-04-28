@@ -2,9 +2,9 @@
 
 ## Overview
 
-Prebuilt workspaces let you pre-provision and maintain a pool of ready-to-claim workspaces.
-When a developer requests a workspace matching a preset, Coder assigns an existing instance instead of creating a new
-one, reducing setup time significantly.
+Prebuilt workspaces let you pre-provision and maintain a pool of ready-to-deploy workspaces.
+Instead of creating a new workspace when a developer requests one, if a workspace matches a preset defined in the
+template parameters, Coder assigns an existing instance, reducing setup time significantly.
 
 ## Prerequisites
 
@@ -30,32 +30,34 @@ one, reducing setup time significantly.
    }
    ```
 
-2. Publish and import the template
-3. An internal reconciliation loop maintains exactly the specified `instances` of prebuilt workspaces.
+   Do not define values for `coder_workspace` or `coder_workspace_owner`.
+   These values are [replaced](#resource-replacement) when the workspace is deployed, and if Coder detects an existing
+   value, it will destroy the prebuilt workspace and create a new one.
 
-_This model of declarative configuration plus a reconciliation loop is similar to Kubernetes._
+1. Publish and import the template.
+1. Coder automatically provisions another prebuilt workspace through an internal reconciliation loop
+   (similar to Kubernetes) to maintain the number of specified `instances`.
 
-## Ownership
+## Workspace ownership
 
-When prebuilt workspaces are created, they are owned by the pseudo-user `prebuilds`. This user has no permissions, and
-is simply a mechanism to identify unclaimed prebuilt workspaces.
+After a prebuilt workspace is created, it is owned by the unprivileged pseudo-user `prebuilds`, which belongs to the
+`Everyone` group.
+Coder uses the `prebuilds` user to identify unclaimed prebuilt workspaces.
+You can add the `prebuilds` user to additional groups if you need to.
 
-The `prebuilds` user is as a member of the `Everyone` group, and can be added to other groups.
+## View prebuilt workspaces
 
-## Viewing prebuilt workspaces
+You can view prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
-Given that prebuilt workspaces are just regular workspaces, you can view them in the **Workspaces** view in the
-frontend:
-
-![prebuilt-workspaces.png](prebuilt-workspaces.png)
+![A prebuilt workspace on the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
 
 ## Claiming
 
-A prebuilt workspace is automatically and transparently assigned to a user when the following occurs:
+A prebuilt workspace is automatically and transparently assigned to a user when a:
 
-1. The user creates a new workspace via the API or the Coder web UI
-2. The user selected a preset in #1 which has been configured for prebuilds
-3. A prebuilt workspace is in eligible state
+- User creates a new workspace via the API or the Coder web UI.
+- User selected a preset which has been configured for prebuilds.
+- Prebuilt workspace is in eligible state.
 
 The ownership of the prebuilt workspace will change to the requesting user, and this is referred to as a "claim".
 
@@ -66,26 +68,24 @@ startup scripts, the workspace will be marked eligible to be claimed.
 
 ## Relationship to workspace presets
 
-[Workspace presets](./parameters.md#workspace-presets-beta) allow
-you to configure commonly used combinations of parameters into a single option, which makes it easier for developers to
-pick one that fits
-their needs.
+[Workspace presets](./parameters.md#workspace-presets-beta) allow you to configure commonly used combinations of
+parameters into a single option, which makes it easier for developers to pick one that fits their needs.
 
-Prebuilt workspaces need to have a preset defined to match the _base configuration_ of a workspace, i.e. the preset
+Prebuilt workspaces need to have a preset defined to match the base configuration of a workspace, i.e. the preset
 needs to define all the required parameters needed to build a workspace. These parameters are necessary in order to
 build workspaces in the background.
 
-Parameters which are not required or not part of a preset can still be used with prebuilt workspaces. The preset defines
-the minimum required set of parameters, and these are immutable.
+Parameters which are not required or not part of a preset can still be used with prebuilt workspaces.
+The preset defines the minimum required set of parameters, and these are immutable.
 
-## Invalidation
+## Update a prebuilt workspace
 
-Prebuilt workspaces are _never_ updated after they are created.
+Prebuilt workspaces are not automatically updated after they are created.
 
-Whenever a template version changes, all prebuilt workspaces relating to an inactive template version will be destroyed.
+When a template version changes, all prebuilt workspaces relating to an inactive template version are destroyed.
 New prebuilt workspaces will be provisioned for the active template version.
 
-Invalidating prebuilt workspaces is useful when your template version does not change but a referenced dependency does,
+You can invalidate a prebuilt workspace your template version does not change but a referenced dependency does,
 which is necessary for running an up-to-date workspace. For example, if
 an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) which is referenced by your template is updated,
 you can simply delete the prebuilt workspaces, and they will be recreated with the latest AMI.
@@ -95,32 +95,33 @@ _In future releases, we will allow operators to invalidate their prebuilt worksp
 ## Quotas
 
 Prebuilt workspaces can be used in conjunction with [Resource Quotas](../../users/quotas.md). Given
-that all unclaimed prebuilt workspaces are [owned](#ownership) by the `prebuilds` user, you may configure a quota for
+that all unclaimed prebuilt workspaces are [owned](#workspace-ownership) by the `prebuilds` user, you may configure a quota for
 any group which this user appears in.
 
 Once the quota is exceeded, prebuilt workspaces will fail provisioning like regular workspaces would.
 
 ## Current Limitations
 
-### Organizations
+- Organizations
 
-Prebuilt workspaces can only be utilized by the default organization.
+   Prebuilt workspaces can only be utilized by the default organization.
 
-https://github.com/coder/internal/issues/364 is open to track this feature, and will be implemented in a future release.
+   [coder/internal#364](https://github.com/coder/internal/issues/364)
 
-### Autoscaling
+- Autoscaling
 
-Prebuilt workspaces will remain running indefinitely until they are claimed. We do not at present have an autoscaling
-mechanism to reduce the number of instances after working hours.
+   Prebuilt workspaces remain running until they are claimed.
+   We do not currently have an autoscaling mechanism to reduce the number of instances after working hours.
 
-https://github.com/coder/internal/issues/312 is open to track this feature, and will be implemented in a future release.
+   [coder/internal#312](https://github.com/coder/internal/issues/312)
 
 ## Gotchas
 
 ### Resource Replacement
 
-When a prebuilt workspace is created, it is initially [owned](#ownership) by the `prebuilds` user and a random name
-is generated for it. When `terraform apply` runs, it will provide these values during provisioning in the
+When a prebuilt workspace is created, it is initially [owned](#workspace-ownership) by the `prebuilds` user and a random name
+is generated for it.
+When `terraform apply` runs, it will provide these values during provisioning in the
 [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) and
 [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
 datasources.
@@ -139,7 +140,7 @@ eliminating the value of the prior pre-provisioning.
 Should this occur when a prebuilt workspace is claimed, all Template Admins will receive a notification which will
 link them to the build logs to investigate which resource was being replaced.
 
-![replacement-notification.png](replacement-notification.png)
+![Workspace replaced notification.png](../../../images/admin/templates/extend-templates/prebuilt/replacement-notification.png)
 
 To avoid this problem, you will need to add a `lifecycle` block to your resource:
 
@@ -159,8 +160,7 @@ In the above example, the `docker_container` would be created with a `name` attr
 initial owner (i.e. `prebuilds`), and will never change - even when the values of `data.coder_workspace_owner.me.name`
 and `data.coder_workspace.me.name` change in the above example. `name` is immutable like `user_data` above.
 
-You can read more about `ignore_changes`
-here: https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes
+You can read more about `ignore_changes`in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
 
 Should certain mutable attributes be required to change, you can use a more targeted approach by providing a list of
 attributes to `ignore_changes`:
@@ -196,4 +196,4 @@ resource "docker_container" "workspace" {
 
 ### Logs
 
-Search for `coderd.prebuilds:` to gain insight into the behaviour of the reconciliation loop
+Search for `coderd.prebuilds:` to gain insight into the behavior of the reconciliation loop.
