@@ -10,7 +10,7 @@ one, reducing setup time significantly.
 
 - Premium license
 - Use `coder/coder` Terraform provider `>= 2.3.0-pre2` in your template (**TODO: update with latest version**)
-- Enable the `workspace-prebuilds` [experiment](https://coder.com/docs/reference/cli/server#--experiments)
+- Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments)
 
 ## Configuration
 
@@ -66,7 +66,7 @@ startup scripts, the workspace will be marked eligible to be claimed.
 
 ## Relationship to workspace presets
 
-[Workspace presets](https://coder.com/docs/admin/templates/extending-templates/parameters#workspace-presets-beta) allow
+[Workspace presets](./parameters.md#workspace-presets-beta) allow
 you to configure commonly used combinations of parameters into a single option, which makes it easier for developers to
 pick one that fits
 their needs.
@@ -94,7 +94,7 @@ _In future releases, we will allow operators to invalidate their prebuilt worksp
 
 ## Quotas
 
-Prebuilt workspaces can be used in conjunction with [Resource Quotas](https://coder.com/docs/admin/users/quotas). Given
+Prebuilt workspaces can be used in conjunction with [Resource Quotas](../../users/quotas.md). Given
 that all unclaimed prebuilt workspaces are [owned](#ownership) by the `prebuilds` user, you may configure a quota for
 any group which this user appears in.
 
