@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -17,6 +19,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // fakeLister implements the agentcontainers.Lister interface for
@@ -39,6 +43,103 @@ type fakeDevcontainerCLI struct {
 
 func (f *fakeDevcontainerCLI) Up(_ context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
 	return f.id, f.err
+}
+
+// fakeWatcher implements the watcher.Watcher interface for testing.
+// It allows controlling what events are sent and when.
+type fakeWatcher struct {
+	t           testing.TB
+	events      chan *fsnotify.Event
+	closeNotify chan struct{}
+	addedPaths  []string
+	closed      bool
+	nextCalled  chan struct{}
+	nextErr     error
+	closeErr    error
+}
+
+func newFakeWatcher(t testing.TB) *fakeWatcher {
+	return &fakeWatcher{
+		t:           t,
+		events:      make(chan *fsnotify.Event, 10), // Buffered to avoid blocking tests.
+		closeNotify: make(chan struct{}),
+		addedPaths:  make([]string, 0),
+		nextCalled:  make(chan struct{}, 1),
+	}
+}
+
+func (w *fakeWatcher) Add(file string) error {
+	w.addedPaths = append(w.addedPaths, file)
+	return nil
+}
+
+func (w *fakeWatcher) Remove(file string) error {
+	for i, path := range w.addedPaths {
+		if path == file {
+			w.addedPaths = append(w.addedPaths[:i], w.addedPaths[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+func (w *fakeWatcher) clearNext() {
+	select {
+	case <-w.nextCalled:
+	default:
+	}
+}
+
+func (w *fakeWatcher) waitNext(ctx context.Context) bool {
+	select {
+	case <-w.t.Context().Done():
+		return false
+	case <-ctx.Done():
+		return false
+	case <-w.closeNotify:
+		return false
+	case <-w.nextCalled:
+		return true
+	}
+}
+
+func (w *fakeWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
+	select {
+	case w.nextCalled <- struct{}{}:
+	default:
+	}
+
+	if w.nextErr != nil {
+		err := w.nextErr
+		w.nextErr = nil
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-w.closeNotify:
+		return nil, xerrors.New("watcher closed")
+	case event := <-w.events:
+		return event, nil
+	}
+}
+
+func (w *fakeWatcher) Close() error {
+	if w.closed {
+		return nil
+	}
+
+	w.closed = true
+	close(w.closeNotify)
+	return w.closeErr
+}
+
+// sendEvent sends a file system event through the fake watcher.
+func (w *fakeWatcher) sendEventWaitNextCalled(ctx context.Context, event fsnotify.Event) {
+	w.clearNext()
+	w.events <- &event
+	w.waitNext(ctx)
 }
 
 func TestAPI(t *testing.T) {
@@ -153,6 +254,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithLister(tt.lister),
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
 				)
+				defer api.Close()
 				r.Mount("/", api.Routes())
 
 				// Simulate HTTP request to the recreate endpoint.
@@ -463,6 +565,7 @@ func TestAPI(t *testing.T) {
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)
+				defer api.Close()
 				r.Mount("/", api.Routes())
 
 				req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil)
@@ -488,6 +591,104 @@ func TestAPI(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("FileWatcher", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		startTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+		mClock := quartz.NewMock(t)
+		mClock.Set(startTime)
+		fWatcher := newFakeWatcher(t)
+
+		// Create a fake container with a config file.
+		configPath := "/workspace/project/.devcontainer/devcontainer.json"
+		container := codersdk.WorkspaceAgentContainer{
+			ID:           "container-id",
+			FriendlyName: "container-name",
+			Running:      true,
+			CreatedAt:    startTime.Add(-1 * time.Hour), // Created 1 hour before test start.
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+				agentcontainers.DevcontainerConfigFileLabel:  configPath,
+			},
+		}
+
+		fLister := &fakeLister{
+			containers: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{container},
+			},
+		}
+
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		api := agentcontainers.NewAPI(
+			logger,
+			agentcontainers.WithLister(fLister),
+			agentcontainers.WithWatcher(fWatcher),
+			agentcontainers.WithClock(mClock),
+		)
+		defer api.Close()
+
+		r := chi.NewRouter()
+		r.Mount("/", api.Routes())
+
+		// Call the list endpoint first to ensure config files are
+		// detected and watched.
+		req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var response codersdk.WorkspaceAgentDevcontainersResponse
+		err := json.NewDecoder(rec.Body).Decode(&response)
+		require.NoError(t, err)
+		require.Len(t, response.Devcontainers, 1)
+		assert.False(t, response.Devcontainers[0].Dirty,
+			"container should not be marked as dirty initially")
+
+		// Verify the watcher is watching the config file.
+		assert.Contains(t, fWatcher.addedPaths, configPath,
+			"watcher should be watching the container's config file")
+
+		// Send a file modification event and check if the container is
+		// marked dirty.
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+
+		// Check if the container is marked as dirty.
+		req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil)
+		rec = httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		require.NoError(t, err)
+		require.Len(t, response.Devcontainers, 1)
+		assert.True(t, response.Devcontainers[0].Dirty,
+			"container should be marked as dirty after config file was modified")
+
+		mClock.Advance(10 * time.Minute).MustWait(ctx)
+
+		container.ID = "new-container-id" // Simulate a new container ID after recreation.
+		container.FriendlyName = "new-container-name"
+		container.CreatedAt = mClock.Now() // Update the creation time.
+		fLister.containers.Containers = []codersdk.WorkspaceAgentContainer{container}
+
+		// Check if dirty flag is cleared.
+		req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil)
+		rec = httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		require.NoError(t, err)
+		require.Len(t, response.Devcontainers, 1)
+		assert.False(t, response.Devcontainers[0].Dirty,
+			"dirty flag should be cleared after container recreation")
 	})
 }
 

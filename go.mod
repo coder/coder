@@ -488,6 +488,7 @@ require (
 
 require (
 	github.com/coder/preview v0.0.1
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.5
 	github.com/mark3labs/mcp-go v0.22.0
 )
