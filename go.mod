@@ -96,7 +96,7 @@ require (
 	github.com/chromedp/chromedp v0.13.3
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/flog v1.1.0
-	github.com/coder/guts v1.3.0
+	github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.1.2
 	github.com/coder/retry v1.5.1

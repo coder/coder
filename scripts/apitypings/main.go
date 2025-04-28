@@ -67,10 +67,10 @@ func main() {
 
 func TsMutations(ts *guts.Typescript) {
 	ts.ApplyMutations(
-		FixSerpentStruct,
 		// TODO: Remove 'NotNullMaps'. This is hiding potential bugs
 		//   of referencing maps that are actually null.
 		config.NotNullMaps,
+		FixSerpentStruct,
 		// Prefer enums as types
 		config.EnumAsTypes,
 		// Enum list generator
