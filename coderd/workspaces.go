@@ -650,6 +650,8 @@ func createWorkspace(
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
 			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
+			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil &&
 				!errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) &&
 				!errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuilds) {
