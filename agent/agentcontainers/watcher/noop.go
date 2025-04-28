@@ -2,17 +2,19 @@ package watcher
 
 import (
 	"context"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/xerrors"
 )
 
+// NewNoop creates a new watcher that does nothing.
 func NewNoop() Watcher {
-	return &noopWatcher{closed: make(chan struct{})}
+	return &noopWatcher{done: make(chan struct{})}
 }
 
 type noopWatcher struct {
-	mu     synx.Mutex
+	mu     sync.Mutex
 	closed bool
 	done   chan struct{}
 }
