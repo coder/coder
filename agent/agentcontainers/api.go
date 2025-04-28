@@ -252,9 +252,11 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 	api.mtime = now
 
 	dirtyStates := make(map[string]bool)
+	// Reset all known devcontainers to not running.
 	for i := range api.knownDevcontainers {
 		api.knownDevcontainers[i].Running = false
 		api.knownDevcontainers[i].Container = nil
+
 		// Preserve the dirty state and store in map for lookup.
 		dirtyStates[api.knownDevcontainers[i].WorkspaceFolder] = api.knownDevcontainers[i].Dirty
 	}
