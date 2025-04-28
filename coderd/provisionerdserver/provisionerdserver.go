@@ -1840,7 +1840,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 	}
 }
 
-func (s *server) notifyPrebuiltWorkspaceResourceReplacement(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacements) {
+func (s *server) notifyPrebuiltWorkspaceResourceReplacement(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
 	if claimantID == uuid.Nil {
 		// This is not a prebuild claim.
 		return

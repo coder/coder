@@ -75,7 +75,7 @@ message CompletedJob {
         repeated provisioner.Resource resources = 2;
         repeated provisioner.Timing timings = 3;
         repeated provisioner.Module modules = 4;
-        repeated provisioner.ResourceReplacements resourceReplacements = 5;
+        repeated provisioner.ResourceReplacement resourceReplacements = 5;
     }
     message TemplateImport {
         repeated provisioner.Resource start_resources = 1;

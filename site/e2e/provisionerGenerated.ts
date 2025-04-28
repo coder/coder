@@ -110,7 +110,7 @@ export interface PresetParameter {
   value: string;
 }
 
-export interface ResourceReplacements {
+export interface ResourceReplacement {
   resource: string;
   paths: string[];
 }
@@ -361,7 +361,7 @@ export interface PlanComplete {
   modules: Module[];
   presets: Preset[];
   plan: Uint8Array;
-  resourceReplacements: ResourceReplacements[];
+  resourceReplacements: ResourceReplacement[];
 }
 
 /**
@@ -561,8 +561,8 @@ export const PresetParameter = {
   },
 };
 
-export const ResourceReplacements = {
-  encode(message: ResourceReplacements, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+export const ResourceReplacement = {
+  encode(message: ResourceReplacement, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.resource !== "") {
       writer.uint32(10).string(message.resource);
     }
@@ -1155,7 +1155,7 @@ export const PlanComplete = {
       writer.uint32(74).bytes(message.plan);
     }
     for (const v of message.resourceReplacements) {
-      ResourceReplacements.encode(v!, writer.uint32(82).fork()).ldelim();
+      ResourceReplacement.encode(v!, writer.uint32(82).fork()).ldelim();
     }
     return writer;
   },
