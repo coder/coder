@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/quartz"
 
@@ -31,11 +32,13 @@ import (
 )
 
 type StoreReconciler struct {
-	store  database.Store
-	cfg    codersdk.PrebuildsConfig
-	pubsub pubsub.Pubsub
-	logger slog.Logger
-	clock  quartz.Clock
+	store      database.Store
+	cfg        codersdk.PrebuildsConfig
+	pubsub     pubsub.Pubsub
+	logger     slog.Logger
+	clock      quartz.Clock
+	registerer prometheus.Registerer
+	metrics    *MetricsCollector
 
 	cancelFn context.CancelCauseFunc
 	running  atomic.Bool
@@ -45,21 +48,30 @@ type StoreReconciler struct {
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
-func NewStoreReconciler(
-	store database.Store,
+func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
 	cfg codersdk.PrebuildsConfig,
 	logger slog.Logger,
 	clock quartz.Clock,
+	registerer prometheus.Registerer,
 ) *StoreReconciler {
-	return &StoreReconciler{
-		store:  store,
-		pubsub: ps,
-		logger: logger,
-		cfg:    cfg,
-		clock:  clock,
-		done:   make(chan struct{}, 1),
+	reconciler := &StoreReconciler{
+		store:      store,
+		pubsub:     ps,
+		logger:     logger,
+		cfg:        cfg,
+		clock:      clock,
+		registerer: registerer,
+		done:       make(chan struct{}, 1),
 	}
+
+	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
+	if err := registerer.Register(reconciler.metrics); err != nil {
+		// If the registerer fails to register the metrics collector, it's not fatal.
+		logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
+	}
+
+	return reconciler
 }
 
 func (c *StoreReconciler) Run(ctx context.Context) {
@@ -126,6 +138,17 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	// NOTE: we need to *prospectively* mark this as stopped to prevent Stop being called multiple times and causing problems.
 	if c.stopped.Swap(true) {
 		return
+	}
+
+	// Unregister the metrics collector.
+	if c.metrics != nil && c.registerer != nil {
+		if !c.registerer.Unregister(c.metrics) {
+			// The API doesn't allow us to know why the de-registration failed, but it's not very consequential.
+			// The only time this would be an issue is if the premium license is removed, leading to the feature being
+			// disabled (and consequently this Stop method being called), and then adding a new license which enables the
+			// feature again. If the metrics cannot be registered, it'll log an error from NewStoreReconciler.
+			c.logger.Warn(context.Background(), "failed to unregister metrics collector")
+		}
 	}
 
 	// If the reconciler is not running, there's nothing else to do.

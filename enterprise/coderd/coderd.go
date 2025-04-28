@@ -1165,6 +1165,6 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 	}
 
 	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
-		api.Logger.Named("prebuilds"), quartz.NewReal())
+		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry)
 	return reconciler, prebuilds.EnterpriseClaimer{}
 }
