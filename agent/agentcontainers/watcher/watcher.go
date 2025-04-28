@@ -152,11 +152,11 @@ func (f *fsnotifyWatcher) Next(ctx context.Context) (event *fsnotify.Event, err 
 			f.mu.Lock()
 			isWatched := f.watchedFiles[absPath]
 			f.mu.Unlock()
-			if isWatched {
-				return &evt, nil
+			if !isWatched {
+				continue // Ignore events for files not being watched.
 			}
 
-			continue // Ignore events for files not being watched.
+			return &evt, nil
 
 		case err, ok := <-f.Errors:
 			if !ok {
