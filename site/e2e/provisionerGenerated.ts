@@ -22,18 +22,18 @@ export enum AppSharingLevel {
   UNRECOGNIZED = -1,
 }
 
+export enum AppCORSBehavior {
+  SIMPLE = 0,
+  PASSTHRU = 1,
+  UNRECOGNIZED = -1,
+}
+
 export enum AppOpenIn {
   /** @deprecated */
   WINDOW = 0,
   SLIM_WINDOW = 1,
   TAB = 2,
   UNRECOGNIZED = -1,
-}
-
-export enum AppCORSBehavior {
-	SIMPLE = 0,
-	PASSTHRU = 1,
-	UNRECOGNIZED = -1,
 }
 
 /** WorkspaceTransition is the desired outcome of a build */
@@ -236,24 +236,6 @@ export interface Devcontainer {
 
 /** App represents a dev-accessible application on the workspace. */
 export interface App {
-<<<<<<< HEAD
-	/**
-	 * slug is the unique identifier for the app, usually the name from the
-	 * template. It must be URL-safe and hostname-safe.
-	 */
-	slug: string;
-	displayName: string;
-	command: string;
-	url: string;
-	icon: string;
-	subdomain: boolean;
-	healthcheck: Healthcheck | undefined;
-	sharingLevel: AppSharingLevel;
-	corsBehavior: AppCORSBehavior;
-	external: boolean;
-	order: number;
-	hidden: boolean;
-=======
   /**
    * slug is the unique identifier for the app, usually the name from the
    * template. It must be URL-safe and hostname-safe.
@@ -270,7 +252,7 @@ export interface App {
   order: number;
   hidden: boolean;
   openIn: AppOpenIn;
->>>>>>> origin/main
+  corsBehavior: AppCORSBehavior;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -859,50 +841,6 @@ export const Devcontainer = {
 };
 
 export const App = {
-<<<<<<< HEAD
-	encode(message: App, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-		if (message.slug !== "") {
-			writer.uint32(10).string(message.slug);
-		}
-		if (message.displayName !== "") {
-			writer.uint32(18).string(message.displayName);
-		}
-		if (message.command !== "") {
-			writer.uint32(26).string(message.command);
-		}
-		if (message.url !== "") {
-			writer.uint32(34).string(message.url);
-		}
-		if (message.icon !== "") {
-			writer.uint32(42).string(message.icon);
-		}
-		if (message.subdomain === true) {
-			writer.uint32(48).bool(message.subdomain);
-		}
-		if (message.healthcheck !== undefined) {
-			Healthcheck.encode(
-				message.healthcheck,
-				writer.uint32(58).fork(),
-			).ldelim();
-		}
-		if (message.sharingLevel !== 0) {
-			writer.uint32(64).int32(message.sharingLevel);
-		}
-		if (message.corsBehavior !== 0) {
-			writer.uint32(96).int32(message.corsBehavior);
-		}
-		if (message.external === true) {
-			writer.uint32(72).bool(message.external);
-		}
-		if (message.order !== 0) {
-			writer.uint32(80).int64(message.order);
-		}
-		if (message.hidden === true) {
-			writer.uint32(88).bool(message.hidden);
-		}
-		return writer;
-	},
-=======
   encode(message: App, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.slug !== "") {
       writer.uint32(10).string(message.slug);
@@ -940,9 +878,11 @@ export const App = {
     if (message.openIn !== 0) {
       writer.uint32(96).int32(message.openIn);
     }
+    if (message.corsBehavior !== 0) {
+      writer.uint32(104).int32(message.corsBehavior);
+    }
     return writer;
   },
->>>>>>> origin/main
 };
 
 export const Healthcheck = {

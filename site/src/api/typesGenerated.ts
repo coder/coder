@@ -81,6 +81,11 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"exectrace",
 ];
 
+// From codersdk/cors_behavior.go
+export type AppCORSBehavior = "passthru" | "simple";
+
+export const AppCORSBehaviors: AppCORSBehavior[] = ["passthru", "simple"];
+
 // From codersdk/deployment.go
 export interface AppHostResponse {
 	readonly host: string;
@@ -3665,34 +3670,8 @@ export interface WorkspacesResponse {
 	readonly count: number;
 }
 
-<<<<<<< HEAD
-// From codersdk/apikey.go
-export type APIKeyScope = "all" | "application_connect"
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
-
-// From codersdk/workspaceagents.go
-export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
-export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"]
-
-// From codersdk/cors_behavior.go
-export type AppCORSBehavior = "passthru" | "simple"
-export const AppCORSBehaviors: AppCORSBehavior[] = ["passthru", "simple"]
-
-// From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "request_password_reset" | "start" | "stop" | "write"
-export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "request_password_reset", "start", "stop", "write"]
-
-// From codersdk/workspaces.go
-export type AutomaticUpdates = "always" | "never"
-export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"]
-
-// From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "initiator"
-export const BuildReasons: BuildReason[] = ["autostart", "autostop", "initiator"]
-=======
 // From codersdk/deployment.go
 export const annotationEnterpriseKey = "enterprise";
->>>>>>> origin/main
 
 // From codersdk/deployment.go
 export const annotationExternalProxies = "external_workspace_proxies";

@@ -10,6 +10,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'application_connect'
 );
 
+CREATE TYPE app_cors_behavior AS ENUM (
+    'simple',
+    'passthru'
+);
+
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
@@ -1933,7 +1938,8 @@ CREATE TABLE workspace_apps (
     external boolean DEFAULT false NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
-    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL
+    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
+    cors_behavior app_cors_behavior DEFAULT 'simple'::app_cors_behavior NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';

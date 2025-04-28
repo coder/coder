@@ -3585,12 +3585,9 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-<<<<<<< HEAD
-	Hidden       bool            `db:"hidden" json:"hidden"`
-	CORSBehavior AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
-=======
-	Hidden bool               `db:"hidden" json:"hidden"`
-	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	Hidden       bool               `db:"hidden" json:"hidden"`
+	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	CORSBehavior AppCORSBehavior    `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
@@ -3614,7 +3611,6 @@ type WorkspaceAppAuditSession struct {
 	// The time the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	ID        uuid.UUID `db:"id" json:"id"`
->>>>>>> origin/main
 }
 
 // A record of workspace app usage statistics
