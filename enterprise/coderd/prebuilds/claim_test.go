@@ -111,6 +111,11 @@ func TestClaimPrebuild(t *testing.T) {
 			markPrebuildsClaimable: true,
 			claimingErr:            agplprebuilds.ErrNoClaimablePrebuiltWorkspaces,
 		},
+		"AGPL does not support prebuilds error is returned": {
+			expectPrebuildClaimed:  false,
+			markPrebuildsClaimable: true,
+			claimingErr:            agplprebuilds.ErrAGPLDoesNotSupportPrebuilds,
+		},
 		"unexpected claiming error is returned": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: true,
@@ -224,8 +229,11 @@ func TestClaimPrebuild(t *testing.T) {
 				TemplateVersionPresetID: presets[0].ID,
 			})
 
+			isNoPrebuiltWorkspaces := errors.Is(tc.claimingErr, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces)
+			isUnsupported := errors.Is(tc.claimingErr, agplprebuilds.ErrAGPLDoesNotSupportPrebuilds)
+
 			switch {
-			case tc.claimingErr != nil && errors.Is(tc.claimingErr, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces):
+			case tc.claimingErr != nil && (isNoPrebuiltWorkspaces || isUnsupported):
 				require.NoError(t, err)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
