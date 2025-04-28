@@ -43,7 +43,7 @@ func TestFSNotifyWatcher(t *testing.T) {
 	require.NoError(t, err, "next event failed")
 
 	require.NotNil(t, event, "want non-nil event")
-	require.True(t, event.Has(fsnotify.Write), "want write event")
+	require.True(t, event.Has(fsnotify.Write), "want write event", event.String())
 	require.Equal(t, event.Name, testFile, "want event for test file")
 
 	// Test removing the file from the watcher.
