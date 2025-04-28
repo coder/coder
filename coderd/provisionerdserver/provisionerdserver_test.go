@@ -1757,8 +1757,8 @@ func TestCompleteJob(t *testing.T) {
 		for _, tc := range []testcase{
 			// Whether or not there are presets and those presets define prebuilds, etc
 			// are all irrelevant at this level. Those factors are useful earlier in the process.
-			// Everything relevant to this test is determined by whether or not the workspace build job
-			// has `PrebuildClaimedByUser` set. As such, there are only two significant test cases:
+			// Everything relevant to this test is determined by the value of `PrebuildClaimedByUser`
+			// on the provisioner job. As such, there are only two significant test cases:
 			{
 				name:                    "claimed prebuild",
 				shouldReinitializeAgent: true,
@@ -1787,7 +1787,7 @@ func TestCompleteJob(t *testing.T) {
 				input, err := json.Marshal(scheduledJobInput)
 				require.NoError(t, err)
 
-				ctx := testutil.Context(t, time.Second) // Even testutil.WaitShort feels too long for this.
+				ctx := testutil.Context(t, testutil.WaitShort)
 				job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 					Input:         input,
 					Provisioner:   database.ProvisionerTypeEcho,
@@ -1828,13 +1828,6 @@ func TestCompleteJob(t *testing.T) {
 				eventName := agentsdk.PrebuildClaimedChannel(workspace.ID)
 				gotChan := make(chan []byte, 1)
 				cancel, err := ps.Subscribe(eventName, func(inner context.Context, userIDMessage []byte) {
-					select {
-					case <-ctx.Done():
-						return
-					case <-inner.Done():
-						return
-					default:
-					}
 					gotChan <- userIDMessage
 				})
 				require.NoError(t, err)
