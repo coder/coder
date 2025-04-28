@@ -3,6 +3,7 @@ import type {
 	ProvisionerJob,
 	ProvisionerJobStatus,
 } from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
@@ -33,6 +34,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { XIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { docs } from "utils/docs";
@@ -64,6 +72,7 @@ const StatusFilters: ProvisionerJobStatus[] = [
 
 type JobProvisionersFilter = {
 	status: string;
+	ids: string;
 };
 
 type OrganizationProvisionerJobsPageViewProps = {
@@ -110,30 +119,62 @@ const OrganizationProvisionerJobsPageView: FC<
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Select
-					value={filter.status}
-					onValueChange={(status) => {
-						onFilterChange({ status: status as ProvisionerJobStatus });
-					}}
-				>
-					<SelectTrigger className="w-[180px]" data-testid="status-filter">
-						<SelectValue placeholder="All statuses" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectGroup>
-							{StatusFilters.map((status) => (
-								<SelectItem key={status} value={status}>
-									<StatusIndicator variant={variantByStatus[status]}>
-										<StatusIndicatorDot />
-										<span className="block first-letter:uppercase">
-											{status}
-										</span>
-									</StatusIndicator>
-								</SelectItem>
-							))}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
+				<div className="flex items-center gap-2">
+					{filter.ids && (
+						<div className="relative">
+							<Badge className="h-10 text-sm pl-3 pr-10 font-mono">
+								{filter.ids}
+							</Badge>
+							<div className="size-10 flex items-center justify-center absolute top-0 right-0">
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												onClick={() => {
+													onFilterChange({ ...filter, ids: "" });
+												}}
+											>
+												<span className="sr-only">Clear ID</span>
+												<XIcon />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Clear ID</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							</div>
+						</div>
+					)}
+
+					<Select
+						value={filter.status}
+						onValueChange={(status) => {
+							onFilterChange({
+								...filter,
+								status,
+							});
+						}}
+					>
+						<SelectTrigger className="w-[180px]" data-testid="status-filter">
+							<SelectValue placeholder="All statuses" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectGroup>
+								{StatusFilters.map((status) => (
+									<SelectItem key={status} value={status}>
+										<StatusIndicator variant={variantByStatus[status]}>
+											<StatusIndicatorDot />
+											<span className="block first-letter:uppercase">
+												{status}
+											</span>
+										</StatusIndicator>
+									</SelectItem>
+								))}
+							</SelectGroup>
+						</SelectContent>
+					</Select>
+				</div>
 
 				<Table className="mt-6">
 					<TableHeader>
@@ -149,7 +190,13 @@ const OrganizationProvisionerJobsPageView: FC<
 					<TableBody>
 						{jobs ? (
 							jobs.length > 0 ? (
-								jobs.map((j) => <JobRow key={j.id} job={j} />)
+								jobs.map((j) => (
+									<JobRow
+										defaultIsOpen={filter.ids.includes(j.id)}
+										key={j.id}
+										job={j}
+									/>
+								))
 							) : (
 								<TableRow>
 									<TableCell colSpan={999}>
