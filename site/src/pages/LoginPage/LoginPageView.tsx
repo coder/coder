@@ -7,6 +7,7 @@ import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
+import { useTimeSync } from "hooks/useTimeSync";
 
 export interface LoginPageViewProps {
 	authMethods: AuthMethods | undefined;
@@ -27,6 +28,10 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	onSignIn,
 	redirectTo,
 }) => {
+	const year = useTimeSync({
+		maxRefreshIntervalMs: Number.POSITIVE_INFINITY,
+		select: (date) => date.getFullYear(),
+	});
 	const location = useLocation();
 	// This allows messages to be displayed at the top of the sign in form.
 	// Helpful for any redirects that want to inform the user of something.
@@ -57,9 +62,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 					/>
 				)}
 				<footer css={styles.footer}>
-					<div>
-						Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
-					</div>
+					<div>Copyright &copy; {year} Coder Technologies, Inc.</div>
 					<div>{buildInfo?.version}</div>
 					{tosAccepted && (
 						<TermsOfServiceLink

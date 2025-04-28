@@ -19,6 +19,7 @@ import type {
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import { MAX_REFRESH_ONE_MINUTE, useTimeSync } from "hooks/useTimeSync";
 import type { FC } from "react";
 import { createAppLinkHref } from "utils/apps";
 
@@ -152,6 +153,10 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	agents,
 	referenceDate,
 }) => {
+	const comparisonDate = useTimeSync({
+		maxRefreshIntervalMs: MAX_REFRESH_ONE_MINUTE,
+		select: (dateState) => referenceDate ?? dateState,
+	});
 	const theme = useTheme();
 	const { proxy } = useProxy();
 	const preferredPathBase = proxy.preferredPathAppURL;
@@ -165,14 +170,12 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 		})),
 	);
 
-	// 2. Sort statuses chronologically (newest first)
+	// 2. Sort statuses chronologically (newest first) - mutating the value is
+	// fine since it's not an outside parameter
 	allStatuses.sort(
 		(a, b) =>
 			new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
 	);
-
-	// Determine the reference point for time calculation
-	const comparisonDate = referenceDate ?? new Date();
 
 	if (allStatuses.length === 0) {
 		return null;

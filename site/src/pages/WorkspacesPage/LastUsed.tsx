@@ -1,9 +1,8 @@
-import { useTheme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { useTime } from "hooks/useTime";
+import { useTimeSync } from "hooks/useTimeSync";
 import type { FC } from "react";
 
 dayjs.extend(relativeTime);
@@ -12,35 +11,36 @@ interface LastUsedProps {
 }
 
 export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
-	const theme = useTheme();
+	const [circle, message] = useTimeSync({
+		maxRefreshIntervalMs: 1_000,
+		select: (date) => {
+			const t = dayjs(lastUsedAt);
+			const now = dayjs(date);
+			let message = t.fromNow();
+			let circle = <StatusIndicatorDot variant="inactive" />;
 
-	const [circle, message] = useTime(() => {
-		const t = dayjs(lastUsedAt);
-		const now = dayjs();
-		let message = t.fromNow();
-		let circle = <StatusIndicatorDot variant="inactive" />;
+			if (t.isAfter(now.subtract(1, "hour"))) {
+				circle = <StatusIndicatorDot variant="success" />;
+				// Since the agent reports on a 10m interval,
+				// the last_used_at can be inaccurate when recent.
+				message = "Now";
+			} else if (t.isAfter(now.subtract(3, "day"))) {
+				circle = <StatusIndicatorDot variant="pending" />;
+			} else if (t.isAfter(now.subtract(1, "month"))) {
+				circle = <StatusIndicatorDot variant="warning" />;
+			} else if (t.isAfter(now.subtract(100, "year"))) {
+				circle = <StatusIndicatorDot variant="failed" />;
+			} else {
+				message = "Never";
+			}
 
-		if (t.isAfter(now.subtract(1, "hour"))) {
-			circle = <StatusIndicatorDot variant="success" />;
-			// Since the agent reports on a 10m interval,
-			// the last_used_at can be inaccurate when recent.
-			message = "Now";
-		} else if (t.isAfter(now.subtract(3, "day"))) {
-			circle = <StatusIndicatorDot variant="pending" />;
-		} else if (t.isAfter(now.subtract(1, "month"))) {
-			circle = <StatusIndicatorDot variant="warning" />;
-		} else if (t.isAfter(now.subtract(100, "year"))) {
-			circle = <StatusIndicatorDot variant="failed" />;
-		} else {
-			message = "Never";
-		}
-
-		return [circle, message];
+			return [circle, message] as const;
+		},
 	});
 
 	return (
 		<Stack
-			style={{ color: theme.palette.text.secondary }}
+			className="text-content-secondary"
 			direction="row"
 			spacing={1}
 			alignItems="center"

@@ -62,6 +62,7 @@ import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { lastWeeks } from "./utils";
+import { MAX_REFRESH_ONE_DAY, useTimeSync } from "hooks/useTimeSync";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -69,11 +70,22 @@ export default function TemplateInsightsPage() {
 	const { template } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
-	const defaultInterval = getDefaultInterval(template);
-	const interval =
-		(searchParams.get("interval") as InsightsInterval) || defaultInterval;
+	const insightsInterval = useTimeSync<InsightsInterval>({
+		maxRefreshIntervalMs: MAX_REFRESH_ONE_DAY,
+		select: (newDatetime) => {
+			const templateCreateDate = new Date(template.created_at);
+			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDatetime;
+			const defaultInterval = hasFiveWeeksOrMore ? "week" : "day";
 
-	const dateRange = getDateRange(searchParams, interval);
+			const paramsValue = searchParams.get("interval");
+			if (paramsValue === "week" || paramsValue === "day") {
+				return paramsValue;
+			}
+			return defaultInterval;
+		},
+	});
+
+	const dateRange = getDateRange(searchParams, insightsInterval);
 	const setDateRange = (newDateRange: DateRangeValue) => {
 		searchParams.set("startDate", newDateRange.startDate.toISOString());
 		searchParams.set("endDate", newDateRange.endDate.toISOString());
@@ -89,7 +101,7 @@ export default function TemplateInsightsPage() {
 		end_time: toISOLocal(dateRange.endDate, baseOffset),
 	};
 
-	const insightsFilter = { ...commonFilters, interval };
+	const insightsFilter = { ...commonFilters, interval: insightsInterval };
 	const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
 	const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
 	const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
@@ -108,7 +120,7 @@ export default function TemplateInsightsPage() {
 				controls={
 					<>
 						<IntervalMenu
-							value={interval}
+							value={insightsInterval}
 							onChange={(interval) => {
 								// When going from daily to week we need to set a safe week range
 								if (interval === "week") {
@@ -118,7 +130,7 @@ export default function TemplateInsightsPage() {
 								setSearchParams(searchParams);
 							}}
 						/>
-						{interval === "day" ? (
+						{insightsInterval === "day" ? (
 							<DailyPicker value={dateRange} onChange={setDateRange} />
 						) : (
 							<WeekPicker value={dateRange} onChange={setDateRange} />
@@ -128,19 +140,12 @@ export default function TemplateInsightsPage() {
 				templateInsights={templateInsights}
 				userLatency={userLatency}
 				userActivity={userActivity}
-				interval={interval}
+				interval={insightsInterval}
 				entitlements={entitlementsQuery}
 			/>
 		</>
 	);
 }
-
-const getDefaultInterval = (template: Template) => {
-	const now = new Date();
-	const templateCreateDate = new Date(template.created_at);
-	const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
-	return hasFiveWeeksOrMore ? "week" : "day";
-};
 
 const getDateRange = (
 	searchParams: URLSearchParams,
@@ -412,7 +417,9 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	...panelProps
 }) => {
 	const theme = useTheme();
-	const validUsage = data?.filter((u) => u.seconds > 0);
+	const validUsage = data
+		?.filter((u) => u.seconds > 0)
+		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
 	const usageColors = chroma
@@ -438,86 +445,82 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 							gap: 24,
 						}}
 					>
-						{validUsage
-							.sort((a, b) => b.seconds - a.seconds)
-							.map((usage, i) => {
-								const percentage = (usage.seconds / totalInSeconds) * 100;
-								return (
-									<div
-										key={usage.slug}
-										css={{ display: "flex", gap: 24, alignItems: "center" }}
-									>
+						{validUsage.map((usage, i) => {
+							const percentage = (usage.seconds / totalInSeconds) * 100;
+							return (
+								<div
+									key={usage.slug}
+									css={{ display: "flex", gap: 24, alignItems: "center" }}
+								>
+									<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
 										<div
-											css={{ display: "flex", alignItems: "center", gap: 8 }}
-										>
-											<div
-												css={{
-													width: 20,
-													height: 20,
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-												}}
-											>
-												<img
-													src={usage.icon}
-													alt=""
-													style={{
-														objectFit: "contain",
-														width: "100%",
-														height: "100%",
-													}}
-												/>
-											</div>
-											<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-												{usage.display_name}
-											</div>
-										</div>
-										<Tooltip
-											title={`${Math.floor(percentage)}%`}
-											placement="top"
-											arrow
-										>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												css={{
-													width: "100%",
-													height: 8,
-													backgroundColor: theme.palette.divider,
-													"& .MuiLinearProgress-bar": {
-														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
-												}}
-											/>
-										</Tooltip>
-										<Stack
-											spacing={0}
 											css={{
-												fontSize: 13,
-												color: theme.palette.text.secondary,
-												width: 120,
-												flexShrink: 0,
-												lineHeight: "1.5",
+												width: 20,
+												height: 20,
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
 											}}
 										>
-											{formatTime(usage.seconds)}
-											{usage.times_used > 0 && (
-												<span
-													css={{
-														fontSize: 12,
-														color: theme.palette.text.disabled,
-													}}
-												>
-													Opened {usage.times_used.toLocaleString()}{" "}
-													{usage.times_used === 1 ? "time" : "times"}
-												</span>
-											)}
-										</Stack>
+											<img
+												src={usage.icon}
+												alt=""
+												style={{
+													objectFit: "contain",
+													width: "100%",
+													height: "100%",
+												}}
+											/>
+										</div>
+										<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+											{usage.display_name}
+										</div>
 									</div>
-								);
-							})}
+									<Tooltip
+										title={`${Math.floor(percentage)}%`}
+										placement="top"
+										arrow
+									>
+										<LinearProgress
+											value={percentage}
+											variant="determinate"
+											css={{
+												width: "100%",
+												height: 8,
+												backgroundColor: theme.palette.divider,
+												"& .MuiLinearProgress-bar": {
+													backgroundColor: usageColors[i],
+													borderRadius: 999,
+												},
+											}}
+										/>
+									</Tooltip>
+									<Stack
+										spacing={0}
+										css={{
+											fontSize: 13,
+											color: theme.palette.text.secondary,
+											width: 120,
+											flexShrink: 0,
+											lineHeight: "1.5",
+										}}
+									>
+										{formatTime(usage.seconds)}
+										{usage.times_used > 0 && (
+											<span
+												css={{
+													fontSize: 12,
+													color: theme.palette.text.disabled,
+												}}
+											>
+												Opened {usage.times_used.toLocaleString()}{" "}
+												{usage.times_used === 1 ? "time" : "times"}
+											</span>
+										)}
+									</Stack>
+								</div>
+							);
+						})}
 					</div>
 				)}
 			</PanelContent>

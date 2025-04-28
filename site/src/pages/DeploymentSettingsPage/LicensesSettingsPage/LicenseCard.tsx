@@ -7,6 +7,7 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { compareAsc } from "date-fns";
 import dayjs from "dayjs";
+import { useTimeSync } from "hooks/useTimeSync";
 import { type FC, useState } from "react";
 
 type LicenseCardProps = {
@@ -24,6 +25,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	onRemove,
 	isRemoving,
 }) => {
+	const time = useTimeSync({ maxRefreshIntervalMs: 30_000 });
 	const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
 		number | undefined
 	>(undefined);
@@ -92,10 +94,8 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						alignItems="center"
 						width="134px" // standardize width of date column
 					>
-						{compareAsc(
-							new Date(license.claims.license_expires * 1000),
-							new Date(),
-						) < 1 ? (
+						{compareAsc(new Date(license.claims.license_expires * 1000), time) <
+						1 ? (
 							<Pill css={styles.expiredBadge} type="error">
 								Expired
 							</Pill>
