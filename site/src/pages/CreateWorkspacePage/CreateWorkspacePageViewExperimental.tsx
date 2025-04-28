@@ -13,7 +13,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { type FormikContextType, useFormik } from "formik";
 import { useDebouncedFunction } from "hooks/debounce";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
@@ -38,6 +37,7 @@ import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
+import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
