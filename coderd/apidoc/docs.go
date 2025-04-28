@@ -11453,6 +11453,9 @@ const docTemplate = `{
                 "autostart_schedule": {
                     "type": "string"
                 },
+                "enable_dynamic_parameters": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -11923,6 +11926,9 @@ const docTemplate = `{
                 "workspace_hostname_suffix": {
                     "type": "string"
                 },
+                "workspace_prebuilds": {
+                    "$ref": "#/definitions/codersdk.PrebuildsConfig"
+                },
                 "write_config": {
                     "type": "boolean"
                 }
@@ -12002,7 +12008,8 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "web-push",
-                "dynamic-parameters"
+                "dynamic-parameters",
+                "workspace-prebuilds"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -12010,6 +12017,7 @@ const docTemplate = `{
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspacePrebuilds": "Enables the new workspace prebuilds feature.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
@@ -12018,7 +12026,8 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
-                "ExperimentDynamicParameters"
+                "ExperimentDynamicParameters",
+                "ExperimentWorkspacePrebuilds"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -13648,6 +13657,23 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PrebuildsConfig": {
+            "type": "object",
+            "properties": {
+                "reconciliation_backoff_interval": {
+                    "description": "ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval\nwhen errors occur during reconciliation.",
+                    "type": "integer"
+                },
+                "reconciliation_backoff_lookback": {
+                    "description": "ReconciliationBackoffLookback determines the time window to look back when calculating\nthe number of failed prebuilds, which influences the backoff strategy.",
+                    "type": "integer"
+                },
+                "reconciliation_interval": {
+                    "description": "ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.",
+                    "type": "integer"
                 }
             }
         },

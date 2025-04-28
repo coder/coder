@@ -86,19 +86,21 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 	return (
 		<div className="flex items-start gap-2">
 			{parameter.icon && (
-				<span className="w-5 h-5">
-					<ExternalImage
-						className="w-full h-full mt-0.5 object-contain"
-						alt="Parameter icon"
-						src={parameter.icon}
-					/>
-				</span>
+				<ExternalImage
+					className="w-5 h-5 mt-0.5 object-contain"
+					alt="Parameter icon"
+					src={parameter.icon}
+				/>
 			)}
 
 			<div className="flex flex-col w-full gap-1">
 				<Label className="flex gap-2 flex-wrap text-sm font-medium">
-					{displayName}
-
+					<span className="flex">
+						{displayName}
+						{!parameter.required && (
+							<span className="text-content-destructive">*</span>
+						)}
+					</span>
 					{parameter.mutable && (
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
@@ -171,6 +173,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					onValueChange={onChange}
 					defaultValue={defaultValue}
 					disabled={disabled}
+					required={parameter.required}
 				>
 					<SelectTrigger>
 						<SelectValue
@@ -327,6 +330,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					placeholder={
 						(parameter.styling as { placeholder?: string })?.placeholder
 					}
+					required={parameter.required}
 				/>
 			);
 
@@ -353,6 +357,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					defaultValue={defaultValue}
 					onChange={(e) => onChange(e.target.value)}
 					disabled={disabled}
+					required={parameter.required}
 					placeholder={
 						(parameter.styling as { placeholder?: string })?.placeholder
 					}

@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "2.3.0"
+      version = "~> 2.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0.0"
+      version = "~> 3.0"
     }
   }
 }
@@ -220,6 +220,14 @@ module "coder-login" {
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/cursor/coder"
+  version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "windsurf" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/modules/windsurf/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
