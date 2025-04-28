@@ -4,7 +4,7 @@ import {
 	templateVersion,
 	templateVersionByName,
 } from "api/queries/templates";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";

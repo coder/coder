@@ -22,7 +22,7 @@ import type {
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import {
 	castNotificationMethod,
 	methodIcons,

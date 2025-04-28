@@ -3,7 +3,7 @@ import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { type FC, type HTMLAttributes, Suspense } from "react";

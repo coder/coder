@@ -3,7 +3,7 @@ import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";

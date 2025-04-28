@@ -1,7 +1,7 @@
 import { API } from "api/api";
 import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
