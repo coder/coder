@@ -1,8 +1,9 @@
 import { templateByName } from "api/queries/templates";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { ExperimentalFormContext } from "contexts/ExperimentalFormContext";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, createContext } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import CreateWorkspacePage from "./CreateWorkspacePage";
@@ -70,7 +71,3 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 export default CreateWorkspaceExperimentRouter;
 
 const optOutKey = (id: string) => `parameters.${id}.optOut`;
-
-export const ExperimentalFormContext = createContext<
-	{ toggleOptedOut: () => void } | undefined
->(undefined);
