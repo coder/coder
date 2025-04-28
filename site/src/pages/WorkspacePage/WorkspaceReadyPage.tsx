@@ -22,8 +22,8 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import dayjs from "dayjs";
+import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";

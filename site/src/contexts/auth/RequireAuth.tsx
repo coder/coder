@@ -6,7 +6,7 @@ import { DashboardProvider as ProductionDashboardProvider } from "modules/dashbo
 import { type FC, useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { embedRedirect } from "utils/redirect";
-import { type AuthContextValue, useAuthContext } from "./AuthProvider";
+import { useAuthContext } from "./AuthProvider";
 
 type RequireAuthProps = Readonly<{
 	ProxyProvider?: typeof ProductionProxyProvider;
@@ -80,29 +80,4 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 			</ProxyProvider>
 		</DashboardProvider>
 	);
-};
-
-type RequireKeys<T, R extends keyof T> = Omit<T, R> & {
-	[K in keyof Pick<T, R>]-?: NonNullable<T[K]>;
-};
-
-// We can do some TS magic here but I would rather to be explicit on what
-// values are not undefined when authenticated
-type AuthenticatedAuthContextValue = RequireKeys<
-	AuthContextValue,
-	"user" | "permissions"
->;
-
-export const useAuthenticated = (): AuthenticatedAuthContextValue => {
-	const auth = useAuthContext();
-
-	if (!auth.user) {
-		throw new Error("User is not authenticated.");
-	}
-
-	if (!auth.permissions) {
-		throw new Error("Permissions are not available.");
-	}
-
-	return auth as AuthenticatedAuthContextValue;
 };
