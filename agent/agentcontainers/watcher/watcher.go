@@ -174,6 +174,7 @@ func (f *fsnotifyWatcher) Close() (err error) {
 	f.watchedFiles = nil
 	f.watchedDirs = nil
 	closed := f.closed
+	f.closed = true
 	f.mu.Unlock()
 
 	if closed {
