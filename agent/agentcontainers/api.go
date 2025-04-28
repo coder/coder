@@ -152,8 +152,12 @@ func (api *API) start() {
 	for {
 		event, err := api.watcher.Next(api.ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, watcher.ErrWatcherClosed) {
 				api.logger.Debug(api.ctx, "watcher closed")
+				return
+			}
+			if api.ctx.Err() != nil {
+				api.logger.Debug(api.ctx, "api context canceled")
 				return
 			}
 			api.logger.Error(api.ctx, "watcher error waiting for next event", slog.Error(err))

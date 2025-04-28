@@ -14,6 +14,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var ErrWatcherClosed = xerrors.New("watcher closed")
+
 // Watcher defines an interface for monitoring file system changes.
 // Implementations track file modifications and provide an event stream
 // that clients can consume to react to changes.
@@ -63,28 +65,36 @@ func (f *fsnotifyWatcher) Remove(file string) error {
 	return nil
 }
 
-func (f *fsnotifyWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
+func (f *fsnotifyWatcher) Next(ctx context.Context) (event *fsnotify.Event, err error) {
+	defer func() {
+		if ctx.Err() != nil {
+			event = nil
+			err = ctx.Err()
+		}
+	}()
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case event, ok := <-f.Events:
 		if !ok {
-			return nil, xerrors.New("watcher closed")
+			return nil, ErrWatcherClosed
 		}
 		return &event, nil
 	case err, ok := <-f.Errors:
 		if !ok {
-			return nil, xerrors.New("watcher closed")
+			return nil, ErrWatcherClosed
 		}
 		return nil, xerrors.Errorf("watcher error: %w", err)
 	case <-f.closed:
-		return nil, xerrors.New("watcher closed")
+		return nil, ErrWatcherClosed
 	}
 }
 
 func (f *fsnotifyWatcher) Close() (err error) {
+	err = ErrWatcherClosed
 	f.closeOnce.Do(func() {
-		if err := f.Watcher.Close(); err != nil {
+		if err = f.Watcher.Close(); err != nil {
 			err = xerrors.Errorf("close watcher: %w", err)
 		}
 		close(f.closed)
