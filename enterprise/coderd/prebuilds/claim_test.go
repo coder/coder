@@ -126,22 +126,22 @@ func TestClaimPrebuild(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			db, pubsub := dbtestutil.NewDB(t)
 
-			wrappedStore := newStoreSpy(db, tc.storeError)
+			spy := newStoreSpy(db, tc.storeError)
 			expectedPrebuildsCount := desiredInstances * presetCount
 
 			logger := testutil.Logger(t)
 			client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
-					Database:                 wrappedStore,
+					Database:                 spy,
 					Pubsub:                   pubsub,
 				},
 
 				EntitlementsUpdateInterval: time.Second,
 			})
 
-			reconciler := prebuilds.NewStoreReconciler(wrappedStore, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry())
-			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(wrappedStore)
+			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry())
+			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
@@ -154,7 +154,7 @@ func TestClaimPrebuild(t *testing.T) {
 			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
 
 			// Given: the reconciliation state is snapshot.
-			state, err := reconciler.SnapshotState(ctx, wrappedStore)
+			state, err := reconciler.SnapshotState(ctx, spy)
 			require.NoError(t, err)
 			require.Len(t, state.Presets, presetCount)
 
@@ -173,7 +173,7 @@ func TestClaimPrebuild(t *testing.T) {
 			// Given: a set of running, eligible prebuilds eventually starts up.
 			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
 			require.Eventually(t, func() bool {
-				rows, err := wrappedStore.GetRunningPrebuiltWorkspaces(ctx)
+				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				if err != nil {
 					return false
 				}
@@ -228,7 +228,7 @@ func TestClaimPrebuild(t *testing.T) {
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
 				// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed and we fallback to creating new workspace.
-				currentPrebuilds, err := wrappedStore.GetRunningPrebuiltWorkspaces(ctx)
+				currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				require.NoError(t, err)
 				require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
 				return
@@ -239,7 +239,7 @@ func TestClaimPrebuild(t *testing.T) {
 				require.ErrorContains(t, err, unexpectedClaimingError.Error())
 
 				// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed.
-				currentPrebuilds, err := wrappedStore.GetRunningPrebuiltWorkspaces(ctx)
+				currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				require.NoError(t, err)
 				require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
 				return
@@ -251,7 +251,6 @@ func TestClaimPrebuild(t *testing.T) {
 			}
 
 			// at this point we know that wrappedStore has *storeSpy type
-			spy := wrappedStore
 
 			// Then: a prebuild should have been claimed.
 			require.EqualValues(t, spy.claims.Load(), 1)
