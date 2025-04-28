@@ -1,0 +1,3 @@
+ALTER TABLE ONLY workspace_app_statuses
+		ADD COLUMN IF NOT EXISTS needs_user_attention BOOLEAN NOT NULL DEFAULT FALSE,
+		ADD COLUMN IF NOT EXISTS icon TEXT;

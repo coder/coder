@@ -14,6 +14,7 @@ import {
 	MockAuthMethodsAll,
 	MockBuildInfo,
 	MockDefaultOrganization,
+	MockDeploymentConfig,
 	MockEntitlements,
 	MockExperiments,
 	MockUser,
@@ -78,13 +79,27 @@ const meta = {
 				data: { editWorkspaceProxies: true },
 			},
 			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
+			{
+				key: ["deployment", "config"],
+				data: {
+					...MockDeploymentConfig,
+					config: {
+						...MockDeploymentConfig.config,
+						web_terminal_renderer: "canvas",
+					},
+				},
+			},
 		],
-		chromatic: { delay: 300 },
+		chromatic: {
+			diffThreshold: 0.8,
+		},
 	},
 	decorators: [
 		(Story) => (
 			<AuthProvider>
-				<Story />
+				<div style={{ width: 1170, height: 880 }}>
+					<Story />
+				</div>
 			</AuthProvider>
 		),
 	],

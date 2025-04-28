@@ -18,6 +18,7 @@ import {
 } from "modules/provisioners/ProvisionerTags";
 import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
 import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";
@@ -34,13 +35,15 @@ const variantByStatus: Record<
 type ProvisionerRowProps = {
 	provisioner: ProvisionerDaemon;
 	buildVersion: string | undefined;
+	defaultIsOpen: boolean;
 };
 
 export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 	provisioner,
 	buildVersion,
+	defaultIsOpen = false,
 }) => {
-	const [isOpen, setIsOpen] = useState(false);
+	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 
 	return (
 		<>
@@ -111,10 +114,10 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							])}
 						>
 							<dt>Last seen:</dt>
-							<dd>{provisioner.last_seen_at}</dd>
+							<dd data-chromatic="ignore">{provisioner.last_seen_at}</dd>
 
 							<dt>Creation time:</dt>
-							<dd>{provisioner.created_at}</dd>
+							<dd data-chromatic="ignore">{provisioner.created_at}</dd>
 
 							<dt>Version:</dt>
 							<dd>
@@ -151,7 +154,16 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							{provisioner.previous_job && (
 								<>
 									<dt>Previous job:</dt>
-									<dd>{provisioner.previous_job.id}</dd>
+									<dd className="flex items-center gap-2">
+										<span>{provisioner.previous_job.id}</span>
+										<Button size="xs" variant="outline" asChild>
+											<RouterLink
+												to={`../provisioner-jobs?${new URLSearchParams({ ids: provisioner.previous_job.id })}`}
+											>
+												View job
+											</RouterLink>
+										</Button>
+									</dd>
 
 									<dt>Previous job status:</dt>
 									<dd>

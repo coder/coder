@@ -1,0 +1,145 @@
+---
+# Source: coder-provisioner/templates/coder.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: coder-provisioner
+    app.kubernetes.io/part-of: coder-provisioner
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: coder-provisioner-0.1.0
+  name: coder-provisioner
+  namespace: default
+---
+# Source: coder-provisioner/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-provisioner-workspace-perms
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+---
+# Source: coder-provisioner/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "coder-provisioner"
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: "coder-provisioner"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-provisioner-workspace-perms
+---
+# Source: coder-provisioner/templates/coder.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: coder-provisioner
+    app.kubernetes.io/part-of: coder-provisioner
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: coder-provisioner-0.1.0
+  name: coder-provisioner
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: release-name
+      app.kubernetes.io/name: coder-provisioner
+  template:
+    metadata:
+      annotations: {}
+      labels:
+        app.kubernetes.io/instance: release-name
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: coder-provisioner
+        app.kubernetes.io/part-of: coder-provisioner
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: coder-provisioner-0.1.0
+    spec:
+      containers:
+      - args:
+        - provisionerd
+        - start
+        command:
+        - /opt/coder
+        env:
+        - name: CODER_PROMETHEUS_ADDRESS
+          value: 0.0.0.0:2112
+        - name: CODER_PROVISIONER_DAEMON_PSK
+          valueFrom:
+            secretKeyRef:
+              key: psk
+              name: coder-provisioner-psk
+        - name: CODER_URL
+          value: http://coder.default.svc.cluster.local
+        image: ghcr.io/coder/coder:latest
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: coder
+        ports: null
+        resources:
+          limits:
+            cpu: 4000m
+            memory: 8192Mi
+          requests:
+            cpu: 1000m
+            memory: 2048Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: null
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts: []
+      restartPolicy: Always
+      serviceAccountName: coder-provisioner
+      terminationGracePeriodSeconds: 600
+      volumes: []

@@ -81,6 +81,7 @@ const (
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
+	FeatureWorkspacePrebuilds         FeatureName = "workspace_prebuilds"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -103,6 +104,7 @@ var FeatureNames = []FeatureName{
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
 	FeatureMultipleOrganizations,
+	FeatureWorkspacePrebuilds,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -132,6 +134,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
+		FeatureWorkspacePrebuilds:         true,
 	}[n]
 }
 
@@ -394,6 +397,7 @@ type DeploymentValues struct {
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -791,6 +795,19 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	// ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.
+	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval
+	// when errors occur during reconciliation.
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+
+	// ReconciliationBackoffLookback determines the time window to look back when calculating
+	// the number of failed prebuilds, which influences the backoff strategy.
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -1020,6 +1037,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Webhook",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "webhook",
+		}
+		deploymentGroupPrebuilds = serpent.Group{
+			Name:        "Workspace Prebuilds",
+			YAML:        "workspace_prebuilds",
+			Description: "Configure how workspace prebuilds behave.",
 		}
 		deploymentGroupInbox = serpent.Group{
 			Name:   "Inbox",
@@ -3016,7 +3038,44 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
-		// Push notifications.
+
+		// Workspace Prebuilds Options
+		{
+			Name:        "Reconciliation Interval",
+			Description: "How often to reconcile workspace prebuilds state.",
+			Flag:        "workspace-prebuilds-reconciliation-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      ExperimentsSafe.Enabled(ExperimentWorkspacePrebuilds), // Hide setting while this feature is experimental.
+		},
+		{
+			Name:        "Reconciliation Backoff Interval",
+			Description: "Interval to increase reconciliation backoff by when prebuilds fail, after which a retry attempt is made.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
+		},
+		{
+			Name:        "Reconciliation Backoff Lookback Period",
+			Description: "Interval to look back to determine number of failed prebuilds, which influences backoff.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
+			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
+			Default:     (time.Hour).String(), // TODO: use https://pkg.go.dev/github.com/jackc/pgtype@v1.12.0#Interval
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_lookback_period",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
+		},
 	}
 
 	return opts
@@ -3243,13 +3302,16 @@ const (
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
+	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 )
 
-// ExperimentsAll should include all experiments that are safe for
+// ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentWorkspacePrebuilds,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

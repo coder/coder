@@ -287,8 +287,8 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Job hasn't completed!",
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
+			Message: "Template version job has not finished",
 		})
 		return
 	}
@@ -428,7 +428,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 	}
 	if !job.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Job hasn't completed!",
+			Message: "Template version job has not finished",
 		})
 		return
 	}
@@ -483,7 +483,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 			Message: "Template version import job hasn't completed!",
 		})
 		return

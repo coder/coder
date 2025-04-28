@@ -1,15 +1,15 @@
-FROM rust:slim@sha256:9abf10cc84dfad6ace1b0aae3951dc5200f467c593394288c11db1e17bb4d349 AS rust-utils
+# 1.86.0
+FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21651a4f AS rust-utils
 # Install rust helper programs
-# ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install typos-cli watchexec-cli && \
-	# Reduce image size.
-	rm -rf /usr/local/cargo/registry
+RUN apt-get update
+RUN apt-get install -y libssl-dev openssl pkg-config build-essential
+RUN cargo install jj-cli typos-cli watchexec-cli
 
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.1
+ARG GO_VERSION=1.24.2
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -85,7 +85,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/src
 
 # alpine:3.18
-FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto 
+FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
@@ -185,6 +185,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	sudo \
 	tcptraceroute \
 	termshark \
+	tmux \
 	traceroute \
 	unzip \
 	vim \
@@ -198,9 +199,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.3.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.4.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.3/terraform_1.11.3_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.4/terraform_1.11.4_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \

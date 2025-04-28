@@ -3570,75 +3570,6 @@ func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
 	return err
 }
 
-const getJFrogXrayScanByWorkspaceAndAgentID = `-- name: GetJFrogXrayScanByWorkspaceAndAgentID :one
-SELECT
-	agent_id, workspace_id, critical, high, medium, results_url
-FROM
-	jfrog_xray_scans
-WHERE
-	agent_id = $1
-AND
-	workspace_id = $2
-LIMIT
-	1
-`
-
-type GetJFrogXrayScanByWorkspaceAndAgentIDParams struct {
-	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-}
-
-func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error) {
-	row := q.db.QueryRowContext(ctx, getJFrogXrayScanByWorkspaceAndAgentID, arg.AgentID, arg.WorkspaceID)
-	var i JfrogXrayScan
-	err := row.Scan(
-		&i.AgentID,
-		&i.WorkspaceID,
-		&i.Critical,
-		&i.High,
-		&i.Medium,
-		&i.ResultsUrl,
-	)
-	return i, err
-}
-
-const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
-	jfrog_xray_scans (
-		agent_id,
-		workspace_id,
-		critical,
-		high,
-		medium,
-		results_url
-	)
-VALUES 
-	($1, $2, $3, $4, $5, $6)
-ON CONFLICT (agent_id, workspace_id)
-DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
-`
-
-type UpsertJFrogXrayScanByWorkspaceAndAgentIDParams struct {
-	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	Critical    int32     `db:"critical" json:"critical"`
-	High        int32     `db:"high" json:"high"`
-	Medium      int32     `db:"medium" json:"medium"`
-	ResultsUrl  string    `db:"results_url" json:"results_url"`
-}
-
-func (q *sqlQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	_, err := q.db.ExecContext(ctx, upsertJFrogXrayScanByWorkspaceAndAgentID,
-		arg.AgentID,
-		arg.WorkspaceID,
-		arg.Critical,
-		arg.High,
-		arg.Medium,
-		arg.ResultsUrl,
-	)
-	return err
-}
-
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses
@@ -5749,8 +5680,13 @@ SELECT
 FROM
     organizations
 WHERE
-    -- Optionally include deleted organizations
-    deleted = $2 AND
+    -- Optionally provide a filter for deleted organizations.
+  	CASE WHEN
+  	    $2 :: boolean IS NULL THEN
+			true
+		ELSE
+			deleted = $2
+	END AND
     id = ANY(
         SELECT
             organization_id
@@ -5762,8 +5698,8 @@ WHERE
 `
 
 type GetOrganizationsByUserIDParams struct {
-	UserID  uuid.UUID `db:"user_id" json:"user_id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
+	UserID  uuid.UUID    `db:"user_id" json:"user_id"`
+	Deleted sql.NullBool `db:"deleted" json:"deleted"`
 }
 
 func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error) {
@@ -6002,7 +5938,7 @@ func (q *sqlQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebui
 }
 
 const countInProgressPrebuilds = `-- name: CountInProgressPrebuilds :many
-SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
+SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count, wlb.template_version_preset_id as preset_id
 FROM workspace_latest_builds wlb
 		INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		-- We only need these counts for active template versions.
@@ -6013,7 +5949,7 @@ FROM workspace_latest_builds wlb
 		-- prebuilds that are still building.
 		INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
-GROUP BY t.id, wpb.template_version_id, wpb.transition
+GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_preset_id
 `
 
 type CountInProgressPrebuildsRow struct {
@@ -6021,9 +5957,10 @@ type CountInProgressPrebuildsRow struct {
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	Count             int32               `db:"count" json:"count"`
+	PresetID          uuid.NullUUID       `db:"preset_id" json:"preset_id"`
 }
 
-// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 // Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
 	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)
@@ -6039,6 +5976,7 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 			&i.TemplateVersionID,
 			&i.Transition,
 			&i.Count,
+			&i.PresetID,
 		); err != nil {
 			return nil, err
 		}
@@ -12133,10 +12071,10 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool)
 
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
-	-- username is returned just to help for logging purposes
+	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status,
+	id, username, status, email,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
@@ -12177,6 +12115,7 @@ type GetAuthorizationUserRolesRow struct {
 	ID       uuid.UUID  `db:"id" json:"id"`
 	Username string     `db:"username" json:"username"`
 	Status   UserStatus `db:"status" json:"status"`
+	Email    string     `db:"email" json:"email"`
 	Roles    []string   `db:"roles" json:"roles"`
 	Groups   []string   `db:"groups" json:"groups"`
 }
@@ -12190,6 +12129,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 		&i.ID,
 		&i.Username,
 		&i.Status,
+		&i.Email,
 		pq.Array(&i.Roles),
 		pq.Array(&i.Groups),
 	)
@@ -15667,8 +15607,8 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 
 const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
 SELECT DISTINCT ON (workspace_id)
-  id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
-FROM workspace_app_statuses 
+  id, created_at, agent_id, app_id, workspace_id, state, message, uri
+FROM workspace_app_statuses
 WHERE workspace_id = ANY($1 :: uuid[])
 ORDER BY workspace_id, created_at DESC
 `
@@ -15689,10 +15629,8 @@ func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Con
 			&i.AppID,
 			&i.WorkspaceID,
 			&i.State,
-			&i.NeedsUserAttention,
 			&i.Message,
 			&i.Uri,
-			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -15743,7 +15681,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 }
 
 const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
-SELECT id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
+SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
@@ -15762,10 +15700,8 @@ func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []
 			&i.AppID,
 			&i.WorkspaceID,
 			&i.State,
-			&i.NeedsUserAttention,
 			&i.Message,
 			&i.Uri,
-			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -16011,22 +15947,20 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 }
 
 const insertWorkspaceAppStatus = `-- name: InsertWorkspaceAppStatus :one
-INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, needs_user_attention, uri, icon)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
+INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, uri)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, created_at, agent_id, app_id, workspace_id, state, message, uri
 `
 
 type InsertWorkspaceAppStatusParams struct {
-	ID                 uuid.UUID               `db:"id" json:"id"`
-	CreatedAt          time.Time               `db:"created_at" json:"created_at"`
-	WorkspaceID        uuid.UUID               `db:"workspace_id" json:"workspace_id"`
-	AgentID            uuid.UUID               `db:"agent_id" json:"agent_id"`
-	AppID              uuid.UUID               `db:"app_id" json:"app_id"`
-	State              WorkspaceAppStatusState `db:"state" json:"state"`
-	Message            string                  `db:"message" json:"message"`
-	NeedsUserAttention bool                    `db:"needs_user_attention" json:"needs_user_attention"`
-	Uri                sql.NullString          `db:"uri" json:"uri"`
-	Icon               sql.NullString          `db:"icon" json:"icon"`
+	ID          uuid.UUID               `db:"id" json:"id"`
+	CreatedAt   time.Time               `db:"created_at" json:"created_at"`
+	WorkspaceID uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	AgentID     uuid.UUID               `db:"agent_id" json:"agent_id"`
+	AppID       uuid.UUID               `db:"app_id" json:"app_id"`
+	State       WorkspaceAppStatusState `db:"state" json:"state"`
+	Message     string                  `db:"message" json:"message"`
+	Uri         sql.NullString          `db:"uri" json:"uri"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error) {
@@ -16038,9 +15972,7 @@ func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWor
 		arg.AppID,
 		arg.State,
 		arg.Message,
-		arg.NeedsUserAttention,
 		arg.Uri,
-		arg.Icon,
 	)
 	var i WorkspaceAppStatus
 	err := row.Scan(
@@ -16050,10 +15982,8 @@ func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWor
 		&i.AppID,
 		&i.WorkspaceID,
 		&i.State,
-		&i.NeedsUserAttention,
 		&i.Message,
 		&i.Uri,
-		&i.Icon,
 	)
 	return i, err
 }
@@ -16334,6 +16264,7 @@ SELECT
 	tv.name AS template_version_name,
 	u.username AS workspace_owner_username,
 	w.name AS workspace_name,
+	w.id AS workspace_id,
 	wb.build_number AS workspace_build_number
 FROM
 	workspace_build_with_user AS wb
@@ -16372,10 +16303,11 @@ type GetFailedWorkspaceBuildsByTemplateIDParams struct {
 }
 
 type GetFailedWorkspaceBuildsByTemplateIDRow struct {
-	TemplateVersionName    string `db:"template_version_name" json:"template_version_name"`
-	WorkspaceOwnerUsername string `db:"workspace_owner_username" json:"workspace_owner_username"`
-	WorkspaceName          string `db:"workspace_name" json:"workspace_name"`
-	WorkspaceBuildNumber   int32  `db:"workspace_build_number" json:"workspace_build_number"`
+	TemplateVersionName    string    `db:"template_version_name" json:"template_version_name"`
+	WorkspaceOwnerUsername string    `db:"workspace_owner_username" json:"workspace_owner_username"`
+	WorkspaceName          string    `db:"workspace_name" json:"workspace_name"`
+	WorkspaceID            uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildNumber   int32     `db:"workspace_build_number" json:"workspace_build_number"`
 }
 
 func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error) {
@@ -16391,6 +16323,7 @@ func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, a
 			&i.TemplateVersionName,
 			&i.WorkspaceOwnerUsername,
 			&i.WorkspaceName,
+			&i.WorkspaceID,
 			&i.WorkspaceBuildNumber,
 		); err != nil {
 			return nil, err

@@ -9,8 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -48,6 +51,11 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(ctx, workspaceParamContextKey{}, workspace)
+
+			if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+				rlogger.WithFields(slog.F("workspace_name", workspace.Name))
+			}
+
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -154,6 +162,13 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 
 			ctx = context.WithValue(ctx, workspaceParamContextKey{}, workspace)
 			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agent)
+
+			if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+				rlogger.WithFields(
+					slog.F("workspace_name", workspace.Name),
+					slog.F("agent_name", agent.Name),
+				)
+			}
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

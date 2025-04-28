@@ -192,8 +192,8 @@ func TestPortForward(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 
 			flushCtx := testutil.Context(t, testutil.WaitShort)
-			testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
-			_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+			testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
+			_ = testutil.TryReceive(flushCtx, t, wuFlush)
 			updated, err := client.Workspace(context.Background(), workspace.ID)
 			require.NoError(t, err)
 			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
@@ -247,8 +247,8 @@ func TestPortForward(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 
 			flushCtx := testutil.Context(t, testutil.WaitShort)
-			testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
-			_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+			testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
+			_ = testutil.TryReceive(flushCtx, t, wuFlush)
 			updated, err := client.Workspace(context.Background(), workspace.ID)
 			require.NoError(t, err)
 			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
@@ -315,8 +315,8 @@ func TestPortForward(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 
 		flushCtx := testutil.Context(t, testutil.WaitShort)
-		testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
-		_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+		testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
+		_ = testutil.TryReceive(flushCtx, t, wuFlush)
 		updated, err := client.Workspace(context.Background(), workspace.ID)
 		require.NoError(t, err)
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
@@ -372,8 +372,8 @@ func TestPortForward(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 
 		flushCtx := testutil.Context(t, testutil.WaitShort)
-		testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
-		_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+		testutil.RequireSend(flushCtx, t, wuTick, dbtime.Now())
+		_ = testutil.TryReceive(flushCtx, t, wuFlush)
 		updated, err := client.Workspace(context.Background(), workspace.ID)
 		require.NoError(t, err)
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)

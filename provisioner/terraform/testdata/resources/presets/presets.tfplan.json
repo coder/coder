@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.11.3",
+  "terraform_version": "1.11.4",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -118,7 +118,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.11.3",
+    "terraform_version": "1.11.4",
     "values": {
       "root_module": {
         "resources": [

@@ -225,9 +225,8 @@ func TestRoleSyncTable(t *testing.T) {
 	// deployment. This tests all organizations being synced together.
 	// The reason we do them individually, is that it is much easier to
 	// debug a single test case.
+	//nolint:paralleltest, tparallel // This should run after all the individual tests
 	t.Run("AllTogether", func(t *testing.T) {
-		t.Parallel()
-
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{

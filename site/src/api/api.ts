@@ -381,11 +381,6 @@ export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
 
-export type GetJFrogXRayScanParams = {
-	workspaceId: string;
-	agentId: string;
-};
-
 export class MissingBuildParameters extends Error {
 	parameters: TypesGen.TemplateVersionParameter[] = [];
 	versionId: string;
@@ -401,7 +396,17 @@ export class MissingBuildParameters extends Error {
 }
 
 export type GetProvisionerJobsParams = {
-	status?: TypesGen.ProvisionerJobStatus;
+	status?: string;
+	limit?: number;
+	// IDs separated by comma
+	ids?: string;
+};
+
+export type GetProvisionerDaemonsParams = {
+	// IDs separated by comma
+	ids?: string;
+	// Stringified JSON Object
+	tags?: string;
 	limit?: number;
 };
 
@@ -716,22 +721,13 @@ class ApiMethods {
 		return response.data;
 	};
 
-	/**
-	 * @param organization Can be the organization's ID or name
-	 * @param tags to filter provisioner daemons by.
-	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
-		tags?: Record<string, string>,
+		params?: GetProvisionerDaemonsParams,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
-		const params = new URLSearchParams();
-
-		if (tags) {
-			params.append("tags", JSON.stringify(tags));
-		}
-
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons?${params}`,
+			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			{ params },
 		);
 		return response.data;
 	};
@@ -1012,6 +1008,39 @@ class ApiMethods {
 			`/api/v2/templateversions/${versionId}/rich-parameters`,
 		);
 		return response.data;
+	};
+
+	templateVersionDynamicParameters = (
+		userId: string,
+		versionId: string,
+		{
+			onMessage,
+			onError,
+			onClose,
+		}: {
+			onMessage: (response: TypesGen.DynamicParametersResponse) => void;
+			onError: (error: Error) => void;
+			onClose: () => void;
+		},
+	): WebSocket => {
+		const socket = createWebSocket(
+			`/api/v2/users/${userId}/templateversions/${versionId}/parameters`,
+		);
+
+		socket.addEventListener("message", (event) =>
+			onMessage(JSON.parse(event.data) as TypesGen.DynamicParametersResponse),
+		);
+
+		socket.addEventListener("error", () => {
+			onError(new Error("Connection for dynamic parameters failed."));
+			socket.close();
+		});
+
+		socket.addEventListener("close", () => {
+			onClose();
+		});
+
+		return socket;
 	};
 
 	/**
@@ -2275,29 +2304,6 @@ class ApiMethods {
 
 	deleteFavoriteWorkspace = async (workspaceID: string) => {
 		await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
-	};
-
-	getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
-		const searchParams = new URLSearchParams({
-			workspace_id: options.workspaceId,
-			agent_id: options.agentId,
-		});
-
-		try {
-			const res = await this.axios.get<TypesGen.JFrogXrayScan>(
-				`/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
-			);
-
-			return res.data;
-		} catch (error) {
-			if (isAxiosError(error) && error.response?.status === 404) {
-				// react-query library does not allow undefined to be returned as a
-				// query result
-				return null;
-			}
-
-			throw error;
-		}
 	};
 
 	postWorkspaceUsage = async (

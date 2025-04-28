@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -406,8 +408,72 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		ctx     = r.Context()
 		apiKey  = httpmw.APIKey(r)
 		auditor = api.Auditor.Load()
-		user    = httpmw.UserParam(r)
 	)
+
+	var req codersdk.CreateWorkspaceRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var owner workspaceOwner
+	// This user fetch is an optimization path for the most common case of creating a
+	// workspace for 'Me'.
+	//
+	// This is also required to allow `owners` to create workspaces for users
+	// that are not in an organization.
+	user, ok := httpmw.UserParamOptional(r)
+	if ok {
+		owner = workspaceOwner{
+			ID:        user.ID,
+			Username:  user.Username,
+			AvatarURL: user.AvatarURL,
+		}
+	} else {
+		// A workspace can still be created if the caller can read the organization
+		// member. The organization is required, which can be sourced from the
+		// template.
+		//
+		// TODO: This code gets called twice for each workspace build request.
+		//   This is inefficient and costs at most 2 extra RTTs to the DB.
+		//   This can be optimized. It exists as it is now for code simplicity.
+		//   The most common case is to create a workspace for 'Me'. Which does
+		//   not enter this code branch.
+		template, ok := requestTemplate(ctx, rw, req, api.Database)
+		if !ok {
+			return
+		}
+
+		// We need to fetch the original user as a system user to fetch the
+		// user_id. 'ExtractUserContext' handles all cases like usernames,
+		// 'Me', etc.
+		// nolint:gocritic // The user_id needs to be fetched. This handles all those cases.
+		user, ok := httpmw.ExtractUserContext(dbauthz.AsSystemRestricted(ctx), api.Database, rw, r)
+		if !ok {
+			return
+		}
+
+		organizationMember, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: template.OrganizationID,
+			UserID:         user.ID,
+			IncludeSystem:  false,
+		}))
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching organization member.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		owner = workspaceOwner{
+			ID:        organizationMember.OrganizationMember.UserID,
+			Username:  organizationMember.Username,
+			AvatarURL: organizationMember.AvatarURL,
+		}
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
 		Audit:   *auditor,
@@ -415,22 +481,11 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		Request: r,
 		Action:  database.AuditActionCreate,
 		AdditionalFields: audit.AdditionalFields{
-			WorkspaceOwner: user.Username,
+			WorkspaceOwner: owner.Username,
 		},
 	})
 
 	defer commitAudit()
-
-	var req codersdk.CreateWorkspaceRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	owner := workspaceOwner{
-		ID:        user.ID,
-		Username:  user.Username,
-		AvatarURL: user.AvatarURL,
-	}
 	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
 }
 
@@ -450,65 +505,8 @@ func createWorkspace(
 	rw http.ResponseWriter,
 	r *http.Request,
 ) {
-	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
-	templateID := req.TemplateID
-	if templateID == uuid.Nil {
-		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
-		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
-				Validations: []codersdk.ValidationError{{
-					Field:  "template_version_id",
-					Detail: "template not found",
-				}},
-			})
-			return
-		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching template version.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if templateVersion.Archived {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Archived template versions cannot be used to make a workspace.",
-				Validations: []codersdk.ValidationError{
-					{
-						Field:  "template_version_id",
-						Detail: "template version archived",
-					},
-				},
-			})
-			return
-		}
-
-		templateID = templateVersion.TemplateID.UUID
-	}
-
-	template, err := api.Database.GetTemplateByID(ctx, templateID)
-	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q doesn't exist.", templateID.String()),
-			Validations: []codersdk.ValidationError{{
-				Field:  "template_id",
-				Detail: "template not found",
-			}},
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if template.Deleted {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
-		})
+	template, ok := requestTemplate(ctx, rw, req, api.Database)
+	if !ok {
 		return
 	}
 
@@ -640,33 +638,57 @@ func createWorkspace(
 		workspaceBuild     *database.WorkspaceBuild
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
+
 	err = api.Database.InTx(func(db database.Store) error {
-		now := dbtime.Now()
-		// Workspaces are created without any versions.
-		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:                uuid.New(),
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			OwnerID:           owner.ID,
-			OrganizationID:    template.OrganizationID,
-			TemplateID:        template.ID,
-			Name:              req.Name,
-			AutostartSchedule: dbAutostartSchedule,
-			NextStartAt:       nextStartAt,
-			Ttl:               dbTTL,
-			// The workspaces page will sort by last used at, and it's useful to
-			// have the newly created workspace at the top of the list!
-			LastUsedAt:       dbtime.Now(),
-			AutomaticUpdates: dbAU,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace: %w", err)
+		var (
+			workspaceID      uuid.UUID
+			claimedWorkspace *database.Workspace
+			prebuildsClaimer = *api.PrebuildsClaimer.Load()
+		)
+
+		// If a template preset was chosen, try claim a prebuilt workspace.
+		if req.TemplateVersionPresetID != uuid.Nil {
+			// Try and claim an eligible prebuild, if available.
+			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			if err != nil && !errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) {
+				return xerrors.Errorf("claim prebuild: %w", err)
+			}
+		}
+
+		// No prebuild found; regular flow.
+		if claimedWorkspace == nil {
+			now := dbtime.Now()
+			// Workspaces are created without any versions.
+			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+				ID:                uuid.New(),
+				CreatedAt:         now,
+				UpdatedAt:         now,
+				OwnerID:           owner.ID,
+				OrganizationID:    template.OrganizationID,
+				TemplateID:        template.ID,
+				Name:              req.Name,
+				AutostartSchedule: dbAutostartSchedule,
+				NextStartAt:       nextStartAt,
+				Ttl:               dbTTL,
+				// The workspaces page will sort by last used at, and it's useful to
+				// have the newly created workspace at the top of the list!
+				LastUsedAt:       dbtime.Now(),
+				AutomaticUpdates: dbAU,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert workspace: %w", err)
+			}
+			workspaceID = minimumWorkspace.ID
+		} else {
+			// Prebuild found!
+			workspaceID = claimedWorkspace.ID
+			initiatorID = prebuildsClaimer.Initiator()
 		}
 
 		// We have to refetch the workspace for the joined in fields.
 		// TODO: We can use WorkspaceTable for the builder to not require
 		// this extra fetch.
-		workspace, err = db.GetWorkspaceByID(ctx, minimumWorkspace.ID)
+		workspace, err = db.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
@@ -675,9 +697,20 @@ func createWorkspace(
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
-			RichParameterValues(req.RichParameterValues)
+			RichParameterValues(req.RichParameterValues).
+			TemplateVersionPresetID(req.TemplateVersionPresetID)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
+		}
+		if req.TemplateVersionPresetID != uuid.Nil {
+			builder = builder.TemplateVersionPresetID(req.TemplateVersionPresetID)
+		}
+		if claimedWorkspace != nil {
+			builder = builder.MarkPrebuildClaimedBy(owner.ID)
+		}
+
+		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+			builder = builder.UsingDynamicParameters()
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
@@ -774,6 +807,87 @@ func createWorkspace(
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, w)
+}
+
+func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, bool) {
+	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
+	templateID := req.TemplateID
+
+	if templateID == uuid.Nil {
+		templateVersion, err := db.GetTemplateVersionByID(ctx, req.TemplateVersionID)
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Template version %q doesn't exist.", req.TemplateVersionID),
+				Validations: []codersdk.ValidationError{{
+					Field:  "template_version_id",
+					Detail: "template not found",
+				}},
+			})
+			return database.Template{}, false
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version.",
+				Detail:  err.Error(),
+			})
+			return database.Template{}, false
+		}
+		if templateVersion.Archived {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Archived template versions cannot be used to make a workspace.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "template_version_id",
+						Detail: "template version archived",
+					},
+				},
+			})
+			return database.Template{}, false
+		}
+
+		templateID = templateVersion.TemplateID.UUID
+	}
+
+	template, err := db.GetTemplateByID(ctx, templateID)
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q doesn't exist.", templateID),
+			Validations: []codersdk.ValidationError{{
+				Field:  "template_id",
+				Detail: "template not found",
+			}},
+		})
+		return database.Template{}, false
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template.",
+			Detail:  err.Error(),
+		})
+		return database.Template{}, false
+	}
+	if template.Deleted {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return database.Template{}, false
+	}
+	return template, true
+}
+
+func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
+	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
+	if err != nil {
+		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
+		return nil, xerrors.Errorf("claim prebuild: %w", err)
+	}
+
+	lookup, err := db.GetWorkspaceByID(ctx, *claimedID)
+	if err != nil {
+		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", claimedID.String()))
+		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", claimedID.String(), err)
+	}
+	return &lookup, nil
 }
 
 func (api *API) notifyWorkspaceCreated(

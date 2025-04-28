@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "2.2.0-pre0"
+      version = "~> 2.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0.0"
+      version = "~> 3.0"
     }
   }
 }
@@ -191,16 +191,15 @@ module "vscode-web" {
   accept_license          = true
 }
 
-module "jetbrains_gateway" {
-  count          = data.coder_workspace.me.start_count
-  source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = ">= 1.0.0"
-  agent_id       = coder_agent.dev.id
-  agent_name     = "dev"
-  folder         = local.repo_dir
-  jetbrains_ides = ["GO", "WS"]
-  default        = "GO"
-  latest         = true
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count
+  source   = "git::https://github.com/coder/modules.git//jetbrains?ref=jetbrains"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+  options  = ["WS", "GO"]
+  default  = "GO"
+  latest   = true
+  channel  = "eap"
 }
 
 module "filebrowser" {
@@ -221,6 +220,14 @@ module "coder-login" {
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/cursor/coder"
+  version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "windsurf" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/modules/windsurf/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
@@ -426,10 +433,16 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
-  # Ensure the workspace is given time to execute shutdown scripts.
-  destroy_grace_seconds = 60
-  stop_timeout          = 60
+
+  # Ensure the workspace is given time to:
+  # - Execute shutdown scripts
+  # - Stop the in workspace Docker daemon
+  # - Stop the container, especially when using devcontainers,
+  #   deleting the overlay filesystem can take a while.
+  destroy_grace_seconds = 300
+  stop_timeout          = 300
   stop_signal           = "SIGINT"
+
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "USE_CAP_NET_ADMIN=true",

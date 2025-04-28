@@ -1,4 +1,8 @@
-import { API, type GetProvisionerJobsParams } from "api/api";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
@@ -164,16 +168,17 @@ export const organizations = () => {
 
 export const getProvisionerDaemonsKey = (
 	organization: string,
-	tags?: Record<string, string>,
-) => ["organization", organization, tags, "provisionerDaemons"];
+	params?: GetProvisionerDaemonsParams,
+) => ["organization", organization, "provisionerDaemons", params];
 
 export const provisionerDaemons = (
 	organization: string,
-	tags?: Record<string, string>,
+	params?: GetProvisionerDaemonsParams,
 ) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization, tags),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
+		queryKey: getProvisionerDaemonsKey(organization, params),
+		queryFn: () =>
+			API.getProvisionerDaemonsByOrganization(organization, params),
 	};
 };
 
@@ -270,7 +275,7 @@ export const organizationsPermissions = (
 	}
 
 	return {
-		queryKey: ["organizations", organizationIds.sort(), "permissions"],
+		queryKey: ["organizations", [...organizationIds.sort()], "permissions"],
 		queryFn: async () => {
 			// Only request what we need for the sidebar, which is one edit permission
 			// per sub-link (settings, groups, roles, and members pages) that tells us
@@ -316,7 +321,7 @@ export const workspacePermissionsByOrganization = (
 	}
 
 	return {
-		queryKey: ["workspaces", organizationIds.sort(), "permissions"],
+		queryKey: ["workspaces", [...organizationIds.sort()], "permissions"],
 		queryFn: async () => {
 			const prefixedChecks = organizationIds.flatMap((orgId) =>
 				Object.entries(workspacePermissionChecks(orgId, userId)).map(

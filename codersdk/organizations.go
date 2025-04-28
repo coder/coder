@@ -207,6 +207,13 @@ type CreateTemplateRequest struct {
 // @Description CreateWorkspaceRequest provides options for creating a new workspace.
 // @Description Only one of TemplateID or TemplateVersionID can be specified, not both.
 // @Description If TemplateID is specified, the active version of the template will be used.
+// @Description Workspace names:
+// @Description - Must start with a letter or number
+// @Description - Can only contain letters, numbers, and hyphens
+// @Description - Cannot contain spaces or special characters
+// @Description - Cannot be named `new` or `create`
+// @Description - Must be unique within your workspaces
+// @Description - Maximum length of 32 characters
 type CreateWorkspaceRequest struct {
 	// TemplateID specifies which template should be used for creating the workspace.
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
@@ -217,8 +224,10 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	AutomaticUpdates    AutomaticUpdates          `json:"automatic_updates,omitempty"`
+	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
+	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	EnableDynamicParameters bool                      `json:"enable_dynamic_parameters,omitempty"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

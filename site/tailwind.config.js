@@ -8,6 +8,9 @@ module.exports = {
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
+			fontFamily: {
+				sans: `"Inter Variable", system-ui, sans-serif`,
+			},
 			size: {
 				"icon-lg": "1.5rem",
 				"icon-sm": "1.125rem",
@@ -49,9 +52,11 @@ module.exports = {
 					grey: "hsl(var(--surface-grey))",
 					orange: "hsl(var(--surface-orange))",
 					sky: "hsl(var(--surface-sky))",
+					red: "hsl(var(--surface-red))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
+					warning: "hsl(var(--border-warning))",
 					destructive: "hsl(var(--border-destructive))",
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",

@@ -582,7 +582,7 @@ GEN_FILES := \
 	coderd/database/pubsub/psmock/psmock.go \
 	agent/agentcontainers/acmock/acmock.go \
 	agent/agentcontainers/dcspec/dcspec_gen.go \
-	coderd/httpmw/loggermock/loggermock.go
+	coderd/httpmw/loggermw/loggermock/loggermock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -631,7 +631,7 @@ gen/mark-fresh:
 		coderd/database/pubsub/psmock/psmock.go \
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
-		coderd/httpmw/loggermock/loggermock.go \
+		coderd/httpmw/loggermw/loggermock/loggermock.go \
 		"
 
 	for file in $$files; do
@@ -671,8 +671,8 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	go generate ./agent/agentcontainers/acmock/
 	touch "$@"
 
-coderd/httpmw/loggermock/loggermock.go: coderd/httpmw/logger.go
-	go generate ./coderd/httpmw/loggermock/
+coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.go
+	go generate ./coderd/httpmw/loggermw/loggermock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -813,8 +813,8 @@ coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
 	touch "$@"
 
 update-golden-files:
-	echo 'WARNING: This target is deprecated. Use "make gen/golden-files" instead.' 2>&1
-	echo 'Running "make gen/golden-files"' 2>&1
+	echo 'WARNING: This target is deprecated. Use "make gen/golden-files" instead.' >&2
+	echo 'Running "make gen/golden-files"' >&2
 	make gen/golden-files
 .PHONY: update-golden-files
 
@@ -834,39 +834,39 @@ clean/golden-files:
 .PHONY: clean/golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
-	go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update
+	TZ=UTC go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update
 	touch "$@"
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
-	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
+	TZ=UTC go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
 	touch "$@"
 
 tailnet/testdata/.gen-golden: $(wildcard tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard tailnet/*_test.go)
-	go test ./tailnet -run="TestDebugTemplate" -update
+	TZ=UTC go test ./tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard enterprise/tailnet/*_test.go)
-	go test ./enterprise/tailnet -run="TestDebugTemplate" -update
+	TZ=UTC go test ./enterprise/tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)
-	go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/testdata/*.yaml) $(wildcard helm/provisioner/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/provisioner/tests/*_test.go)
-	go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
-	go test ./coderd -run="Test.*Golden$$" -update
+	TZ=UTC go test ./coderd -run="Test.*Golden$$" -update
 	touch "$@"
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
-	go test ./coderd/notifications -run="Test.*Golden$$" -update
+	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
 provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
-	go test ./provisioner/terraform -run="Test.*Golden$$" -update
+	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
 provisioner/terraform/testdata/version:

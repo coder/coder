@@ -271,12 +271,12 @@ func TestSSH(t *testing.T) {
 		}
 
 		// Allow one build to complete.
-		testutil.RequireSendCtx(ctx, t, buildPause, true)
-		testutil.RequireRecvCtx(ctx, t, buildDone)
+		testutil.RequireSend(ctx, t, buildPause, true)
+		testutil.TryReceive(ctx, t, buildDone)
 
 		// Allow the remaining builds to continue.
 		for i := 0; i < len(ptys)-1; i++ {
-			testutil.RequireSendCtx(ctx, t, buildPause, false)
+			testutil.RequireSend(ctx, t, buildPause, false)
 		}
 
 		var foundConflict int
@@ -1017,14 +1017,14 @@ func TestSSH(t *testing.T) {
 					}
 				}()
 
-				msg := testutil.RequireRecvCtx(ctx, t, msgs)
+				msg := testutil.TryReceive(ctx, t, msgs)
 				require.Equal(t, "test", msg)
 				close(success)
 				fsn.Notify()
 				<-cmdDone
 				fsn.AssertStopped()
 				// wait for dial goroutine to complete
-				_ = testutil.RequireRecvCtx(ctx, t, done)
+				_ = testutil.TryReceive(ctx, t, done)
 
 				// wait for the remote socket to get cleaned up before retrying,
 				// because cleaning up the socket happens asynchronously, and we
@@ -1977,7 +1977,9 @@ Expire-Date: 0
 	tpty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
 	listKeysOutput := tpty.ExpectMatch("gpg--listkeys-command-done")
 	require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
-	require.Contains(t, listKeysOutput, "[ultimate] Dean Sheather (work key) <dean@coder.com>")
+	// It's fine that this key is expired. We're just testing that the key trust
+	// gets synced properly.
+	require.Contains(t, listKeysOutput, "[ expired] Dean Sheather (work key) <dean@coder.com>")
 
 	// Try to sign something. This demonstrates that the forwarding is
 	// working as expected, since the workspace doesn't have access to the

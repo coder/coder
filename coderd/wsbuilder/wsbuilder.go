@@ -51,27 +51,33 @@ type Builder struct {
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 
-	richParameterValues []codersdk.WorkspaceBuildParameter
-	initiator           uuid.UUID
-	reason              database.BuildReason
+	richParameterValues      []codersdk.WorkspaceBuildParameter
+	dynamicParametersEnabled bool
+	initiator                uuid.UUID
+	reason                   database.BuildReason
+	templateVersionPresetID  uuid.UUID
 
 	// used during build, makes function arguments less verbose
 	ctx   context.Context
 	store database.Store
 
 	// cache of objects, so we only fetch once
-	template                     *database.Template
-	templateVersion              *database.TemplateVersion
-	templateVersionJob           *database.ProvisionerJob
-	templateVersionParameters    *[]database.TemplateVersionParameter
-	templateVersionVariables     *[]database.TemplateVersionVariable
-	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
-	lastBuild                    *database.WorkspaceBuild
-	lastBuildErr                 *error
-	lastBuildParameters          *[]database.WorkspaceBuildParameter
-	lastBuildJob                 *database.ProvisionerJob
-	parameterNames               *[]string
-	parameterValues              *[]string
+	template                             *database.Template
+	templateVersion                      *database.TemplateVersion
+	templateVersionJob                   *database.ProvisionerJob
+	templateVersionParameters            *[]database.TemplateVersionParameter
+	templateVersionVariables             *[]database.TemplateVersionVariable
+	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
+	lastBuild                            *database.WorkspaceBuild
+	lastBuildErr                         *error
+	lastBuildParameters                  *[]database.WorkspaceBuildParameter
+	lastBuildJob                         *database.ProvisionerJob
+	parameterNames                       *[]string
+	parameterValues                      *[]string
+	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
+
+	prebuild          bool
+	prebuildClaimedBy uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -168,6 +174,23 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 	return b
 }
 
+func (b Builder) MarkPrebuild() Builder {
+	// nolint: revive
+	b.prebuild = true
+	return b
+}
+
+func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
+	// nolint: revive
+	b.prebuildClaimedBy = userID
+	return b
+}
+
+func (b Builder) UsingDynamicParameters() Builder {
+	b.dynamicParametersEnabled = true
+	return b
+}
+
 // SetLastWorkspaceBuildInTx prepopulates the Builder's cache with the last workspace build.  This allows us
 // to avoid a repeated database query when the Builder's caller also needs the workspace build, e.g. auto-start &
 // auto-stop.
@@ -189,6 +212,12 @@ func (b Builder) SetLastWorkspaceBuildInTx(build *database.WorkspaceBuild) Build
 func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Builder {
 	// nolint: revive
 	b.lastBuildJob = job
+	return b
+}
+
+func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.templateVersionPresetID = id
 	return b
 }
 
@@ -293,8 +322,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-		LogLevel:         b.logLevel,
+		WorkspaceBuildID:      workspaceBuildID,
+		LogLevel:              b.logLevel,
+		IsPrebuild:            b.prebuild,
+		PrebuildClaimedByUser: b.prebuildClaimedBy,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{
@@ -363,20 +394,23 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
-			ID:                      workspaceBuildID,
-			CreatedAt:               now,
-			UpdatedAt:               now,
-			WorkspaceID:             b.workspace.ID,
-			TemplateVersionID:       templateVersionID,
-			BuildNumber:             buildNum,
-			ProvisionerState:        state,
-			InitiatorID:             b.initiator,
-			Transition:              b.trans,
-			JobID:                   provisionerJob.ID,
-			Reason:                  b.reason,
-			Deadline:                time.Time{},     // set by provisioner upon completion
-			MaxDeadline:             time.Time{},     // set by provisioner upon completion
-			TemplateVersionPresetID: uuid.NullUUID{}, // TODO (sasswart): add this in from the caller
+			ID:                workspaceBuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			WorkspaceID:       b.workspace.ID,
+			TemplateVersionID: templateVersionID,
+			BuildNumber:       buildNum,
+			ProvisionerState:  state,
+			InitiatorID:       b.initiator,
+			Transition:        b.trans,
+			JobID:             provisionerJob.ID,
+			Reason:            b.reason,
+			Deadline:          time.Time{}, // set by provisioner upon completion
+			MaxDeadline:       time.Time{}, // set by provisioner upon completion
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  b.templateVersionPresetID,
+				Valid: b.templateVersionPresetID != uuid.Nil,
+			},
 		})
 		if err != nil {
 			code := http.StatusInternalServerError
@@ -546,10 +580,19 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last build parameters", err}
 	}
+	if b.templateVersionPresetID != uuid.Nil {
+		// Fetch and cache these, since we'll need them to override requested values if a preset was chosen
+		presetParameters, err := b.store.GetPresetParametersByPresetID(b.ctx, b.templateVersionPresetID)
+		if err != nil {
+			return nil, nil, BuildError{http.StatusInternalServerError, "failed to get preset parameters", err}
+		}
+		b.templateVersionPresetParameterValues = presetParameters
+	}
 	err = b.verifyNoLegacyParameters()
 	if err != nil {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
+
 	resolver := codersdk.ParameterResolver{
 		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
 	}
@@ -558,16 +601,24 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
-		value, err := resolver.ValidateResolve(
-			tvp,
-			b.findNewBuildParameterValue(templateVersionParameter.Name),
-		)
-		if err != nil {
-			// At this point, we've queried all the data we need from the database,
-			// so the only errors are problems with the request (missing data, failed
-			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+
+		var value string
+		if !b.dynamicParametersEnabled {
+			var err error
+			value, err = resolver.ValidateResolve(
+				tvp,
+				b.findNewBuildParameterValue(templateVersionParameter.Name),
+			)
+			if err != nil {
+				// At this point, we've queried all the data we need from the database,
+				// so the only errors are problems with the request (missing data, failed
+				// validation, immutable parameters, etc.)
+				return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+			}
+		} else {
+			value = resolver.Resolve(tvp, b.findNewBuildParameterValue(templateVersionParameter.Name))
 		}
+
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
 	}
@@ -578,6 +629,15 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 }
 
 func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBuildParameter {
+	for _, v := range b.templateVersionPresetParameterValues {
+		if v.Name == name {
+			return &codersdk.WorkspaceBuildParameter{
+				Name:  v.Name,
+				Value: v.Value,
+			}
+		}
+	}
+
 	for _, v := range b.richParameterValues {
 		if v.Name == name {
 			return &v

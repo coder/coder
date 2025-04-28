@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"golang.org/x/xerrors"
+
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
 	"tailscale.com/wgengine/router"
@@ -107,6 +108,13 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	if err != nil {
 		return nil, xerrors.Errorf("get connection info: %w", err)
 	}
+	// default to DNS suffix of "coder" if the server hasn't set it (might be too old).
+	dnsNameOptions := tailnet.DNSNameOptions{Suffix: tailnet.CoderDNSSuffix}
+	dnsMatch := tailnet.CoderDNSSuffix
+	if connInfo.HostnameSuffix != "" {
+		dnsNameOptions.Suffix = connInfo.HostnameSuffix
+		dnsMatch = connInfo.HostnameSuffix
+	}
 
 	headers.Set(codersdk.SessionTokenHeader, token)
 	dialer := workspacesdk.NewWebsocketDialer(options.Logger, rpcURL, &websocket.DialOptions{
@@ -129,6 +137,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		Router:              options.Router,
 		TUNDev:              options.TUNDevice,
 		WireguardMonitor:    options.WireguardMonitor,
+		DNSMatchDomain:      dnsMatch,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -148,7 +157,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	updatesCtrl := tailnet.NewTunnelAllWorkspaceUpdatesController(
 		options.Logger,
 		coordCtrl,
-		tailnet.WithDNS(conn, me.Username),
+		tailnet.WithDNS(conn, me.Username, dnsNameOptions),
 		tailnet.WithHandler(options.UpdateHandler),
 	)
 	controller.WorkspaceUpdatesCtrl = updatesCtrl

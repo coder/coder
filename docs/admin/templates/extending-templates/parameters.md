@@ -293,10 +293,11 @@ data "coder_parameter" "instances" {
 }
 ```
 
-**NOTE:** as of
-[`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
-`options` can be specified in `number` parameters; this also works with
-validations such as `monotonic`.
+> [!NOTE]
+> As of
+> [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
+> `options` can be specified in `number` parameters; this also works with
+> validations such as `monotonic`.
 
 ### String
 
@@ -374,6 +375,15 @@ data "coder_parameter" "jetbrains_ide" {
 
 When the template doesn't specify default values, Coder may still autofill
 parameters.
+
+You need to enable `auto-fill-parameters` first:
+
+```shell
+coder server --experiments=auto-fill-parameters
+```
+
+Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
+With the feature enabled:
 
 1. Coder will look for URL query parameters with form `param.<name>=<value>`.
    This feature enables platform teams to create pre-filled template creation

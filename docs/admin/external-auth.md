@@ -71,6 +71,68 @@ Use [`external-auth`](../reference/cli/external-auth.md) in the Coder CLI to acc
 coder external-auth access-token <USER_DEFINED_ID>
 ```
 
+## Git Authentication in Workspaces
+
+Coder provides automatic Git authentication for workspaces through SSH authentication and Git-provider specific env variables.
+
+When performing Git operations, Coder first attempts to use external auth provider tokens if available.
+If no tokens are available, it defaults to SSH authentication.
+
+### OAuth (external auth)
+
+For Git providers configured with [external authentication](#configuration), Coder can use OAuth tokens for Git operations over HTTPS.
+When using SSH URLs (like `git@github.com:organization/repo.git`), Coder uses SSH keys as described in the [SSH Authentication](#ssh-authentication) section instead.
+
+For Git operations over HTTPS, Coder automatically uses the appropriate external auth provider
+token based on the repository URL.
+This works through Git's `GIT_ASKPASS` mechanism, which Coder configures in each workspace.
+
+To use OAuth tokens for Git authentication over HTTPS:
+
+1. Complete the OAuth authentication flow (**Login with GitHub**, **Login with GitLab**).
+1. Use HTTPS URLs when interacting with repositories (`https://github.com/organization/repo.git`).
+1. Coder automatically handles authentication. You can perform your Git operations as you normally would.
+
+Behind the scenes, Coder:
+
+- Stores your OAuth token securely in its database
+- Sets up `GIT_ASKPASS` at `/tmp/coder.<random-string>/coder` in your workspaces
+- Retrieves and injects the appropriate token when Git operations require authentication
+
+To manually access these tokens within a workspace:
+
+```shell
+coder external-auth access-token <USER_DEFINED_ID>
+```
+
+### SSH Authentication
+
+Coder automatically generates an SSH key pair for each user that can be used for Git operations.
+When you use SSH URLs for Git repositories, for example, `git@github.com:organization/repo.git`, Coder checks for and uses an existing SSH key.
+If one is not available, it uses the Coder-generated one.
+
+The `coder gitssh` command wraps the standard `ssh` command and injects the SSH key during Git operations.
+This works automatically when you:
+
+1. Clone a repository using SSH URLs
+1. Pull/push changes to remote repositories
+1. Use any Git command that requires SSH authentication
+
+You must add the SSH key to your Git provider.
+
+#### Add your Coder SSH key to your Git provider
+
+1. View your Coder Git SSH key:
+
+   ```shell
+   coder publickey
+   ```
+
+1. Add the key to your Git provider accounts:
+
+   - [GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account#adding-a-new-ssh-key-to-your-account)
+   - [GitLab](https://docs.gitlab.com/user/ssh/#add-an-ssh-key-to-your-gitlab-account)
+
 ## Git-provider specific env variables
 
 ### Azure DevOps

@@ -617,7 +617,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create a template version from the archive
-				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				tvName := testutil.GetRandomNameHyphenated(t)
 				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
 					Name:            tvName,
 					StorageMethod:   codersdk.ProvisionerStorageMethodFile,
@@ -1207,7 +1207,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusTooEarly, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -2056,11 +2056,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some unused versions
 	for i := 0; i < 2; i++ {
-		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		expArchived = append(expArchived, unused.ID)
@@ -2069,11 +2065,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some used template versions
 	for i := 0; i < 2; i++ {
-		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(req *codersdk.CreateTemplateVersionRequest) {
+		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)

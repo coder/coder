@@ -92,7 +92,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 	mClock.Advance(999 * time.Millisecond).MustWait(ctx) // app2 is now healthy
 
 	mClock.Advance(time.Millisecond).MustWait(ctx) // report gets triggered
-	update := testutil.RequireRecvCtx(ctx, t, fakeAPI.AppHealthCh())
+	update := testutil.TryReceive(ctx, t, fakeAPI.AppHealthCh())
 	require.Len(t, update.GetUpdates(), 2)
 	applyUpdate(t, apps, update)
 	require.Equal(t, codersdk.WorkspaceAppHealthHealthy, apps[1].Health)
@@ -101,7 +101,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 	mClock.Advance(999 * time.Millisecond).MustWait(ctx) // app3 is now healthy
 
 	mClock.Advance(time.Millisecond).MustWait(ctx) // report gets triggered
-	update = testutil.RequireRecvCtx(ctx, t, fakeAPI.AppHealthCh())
+	update = testutil.TryReceive(ctx, t, fakeAPI.AppHealthCh())
 	require.Len(t, update.GetUpdates(), 2)
 	applyUpdate(t, apps, update)
 	require.Equal(t, codersdk.WorkspaceAppHealthHealthy, apps[1].Health)
@@ -155,7 +155,7 @@ func TestAppHealth_500(t *testing.T) {
 	mClock.Advance(999 * time.Millisecond).MustWait(ctx) // 2nd check, crosses threshold
 	mClock.Advance(time.Millisecond).MustWait(ctx)       // 2nd report, sends update
 
-	update := testutil.RequireRecvCtx(ctx, t, fakeAPI.AppHealthCh())
+	update := testutil.TryReceive(ctx, t, fakeAPI.AppHealthCh())
 	require.Len(t, update.GetUpdates(), 1)
 	applyUpdate(t, apps, update)
 	require.Equal(t, codersdk.WorkspaceAppHealthUnhealthy, apps[0].Health)
@@ -223,7 +223,7 @@ func TestAppHealth_Timeout(t *testing.T) {
 	timeoutTrap.MustWait(ctx).Release()
 	mClock.Set(ms(3001)).MustWait(ctx) // report tick, sends changes
 
-	update := testutil.RequireRecvCtx(ctx, t, fakeAPI.AppHealthCh())
+	update := testutil.TryReceive(ctx, t, fakeAPI.AppHealthCh())
 	require.Len(t, update.GetUpdates(), 1)
 	applyUpdate(t, apps, update)
 	require.Equal(t, codersdk.WorkspaceAppHealthUnhealthy, apps[0].Health)

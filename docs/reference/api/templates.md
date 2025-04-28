@@ -2429,10 +2429,10 @@ Status Code **200**
 | `»»»» agent_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» app_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» icon`                     | string                                                                                                 | false    |              | Icon is an external URL to an icon that will be rendered in the UI.                                                                                                                                                                            |
+| `»»»» icon`                     | string                                                                                                 | false    |              | Deprecated: This field is unused and will be removed in a future version. Icon is an external URL to an icon that will be rendered in the UI.                                                                                                  |
 | `»»»» id`                       | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» message`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» needs_user_attention`     | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» needs_user_attention`     | boolean                                                                                                | false    |              | Deprecated: This field is unused and will be removed in a future version. NeedsUserAttention specifies whether the status needs user attention.                                                                                                |
 | `»»»» state`                    | [codersdk.WorkspaceAppStatusState](schemas.md#codersdkworkspaceappstatusstate)                         | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» uri`                      | string                                                                                                 | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file                                                                                                                     |
 | `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2950,10 +2950,10 @@ Status Code **200**
 | `»»»» agent_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» app_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» icon`                     | string                                                                                                 | false    |              | Icon is an external URL to an icon that will be rendered in the UI.                                                                                                                                                                            |
+| `»»»» icon`                     | string                                                                                                 | false    |              | Deprecated: This field is unused and will be removed in a future version. Icon is an external URL to an icon that will be rendered in the UI.                                                                                                  |
 | `»»»» id`                       | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» message`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» needs_user_attention`     | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» needs_user_attention`     | boolean                                                                                                | false    |              | Deprecated: This field is unused and will be removed in a future version. NeedsUserAttention specifies whether the status needs user attention.                                                                                                |
 | `»»»» state`                    | [codersdk.WorkspaceAppStatusState](schemas.md#codersdkworkspaceappstatusstate)                         | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» uri`                      | string                                                                                                 | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file                                                                                                                     |
 | `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -3297,5 +3297,32 @@ Status Code **200**
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Open dynamic parameters WebSocket by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/templateversions/{templateversion}/parameters \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/templateversions/{templateversion}/parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `user`            | path | string(uuid) | true     | Template version ID |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

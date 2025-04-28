@@ -66,6 +66,19 @@ func Contains[T comparable](haystack []T, needle T) bool {
 	})
 }
 
+func CountMatchingPairs[A, B any](a []A, b []B, match func(A, B) bool) int {
+	count := 0
+	for _, a := range a {
+		for _, b := range b {
+			if match(a, b) {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
 // Find returns the first element that satisfies the condition.
 func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	for _, hay := range haystack {
@@ -75,6 +88,17 @@ func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	}
 	var empty T
 	return empty, false
+}
+
+// Filter returns all elements that satisfy the condition.
+func Filter[T any](haystack []T, cond func(T) bool) []T {
+	out := make([]T, 0, len(haystack))
+	for _, hay := range haystack {
+		if cond(hay) {
+			out = append(out, hay)
+		}
+	}
+	return out
 }
 
 // Overlap returns if the 2 sets have any overlap (element(s) in common)
