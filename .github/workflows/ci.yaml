@@ -341,6 +341,12 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-${{ runner.os }}-${{ runner.arch }}
+
       - name: Test with Mock Database
         id: test
         shell: bash
@@ -364,6 +370,11 @@ jobs:
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -462,6 +473,12 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/setup-imdisk
 
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-pg-${{ runner.os }}-${{ runner.arch }}
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
@@ -475,6 +492,11 @@ jobs:
           PARALLEL_FLAG=""
 
           make test-postgres
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -514,12 +536,23 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-pg-16-${{ runner.os }}-${{ runner.arch }}
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "16"
           TS_DEBUG_DISCO: "true"
         run: |
           make test-postgres
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -551,6 +584,12 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-race-${{ runner.os }}-${{ runner.arch }}
+
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
       # short timeouts are used.
@@ -558,6 +597,11 @@ jobs:
       - name: Run Tests
         run: |
           gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -589,6 +633,12 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
+
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
       # short timeouts are used.
@@ -599,6 +649,11 @@ jobs:
         run: |
           make test-postgres-docker
           DB=ci gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
