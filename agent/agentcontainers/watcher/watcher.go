@@ -8,6 +8,7 @@ package watcher
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -36,32 +37,91 @@ type Watcher interface {
 
 type fsnotifyWatcher struct {
 	*fsnotify.Watcher
-	closeOnce sync.Once
-	closed    chan struct{}
+
+	mu           sync.Mutex      // Protects following.
+	watchedFiles map[string]bool // Files being watched (absolute path -> bool).
+	watchedDirs  map[string]int  // Refcount of directories being watched (absolute path -> count).
+	closed       bool            // Protects closing of done.
+	done         chan struct{}
 }
 
+// NewFSNotify creates a new file system watcher that watches parent directories
+// instead of individual files for more reliable event detection.
 func NewFSNotify() (Watcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, xerrors.Errorf("create fsnotify watcher: %w", err)
 	}
 	return &fsnotifyWatcher{
-		Watcher: w,
-		closed:  make(chan struct{}),
+		Watcher:      w,
+		done:         make(chan struct{}),
+		watchedFiles: make(map[string]bool),
+		watchedDirs:  make(map[string]int),
 	}, nil
 }
 
-func (f *fsnotifyWatcher) Add(path string) error {
-	if err := f.Watcher.Add(path); err != nil {
-		return xerrors.Errorf("add path to watcher: %w", err)
+func (f *fsnotifyWatcher) Add(file string) error {
+	absPath, err := filepath.Abs(file)
+	if err != nil {
+		return xerrors.Errorf("absolute path: %w", err)
 	}
+
+	dir := filepath.Dir(absPath)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Already watching this file.
+	if f.watchedFiles[absPath] {
+		return nil
+	}
+
+	// Start watching the parent directory if not already watching.
+	if f.watchedDirs[dir] == 0 {
+		if err := f.Watcher.Add(dir); err != nil {
+			return xerrors.Errorf("add directory to watcher: %w", err)
+		}
+	}
+
+	// Increment the reference count for this directory.
+	f.watchedDirs[dir]++
+	// Mark this file as watched.
+	f.watchedFiles[absPath] = true
+
 	return nil
 }
 
-func (f *fsnotifyWatcher) Remove(path string) error {
-	if err := f.Watcher.Remove(path); err != nil {
-		return xerrors.Errorf("remove path from watcher: %w", err)
+func (f *fsnotifyWatcher) Remove(file string) error {
+	absPath, err := filepath.Abs(file)
+	if err != nil {
+		return xerrors.Errorf("absolute path: %w", err)
 	}
+
+	dir := filepath.Dir(absPath)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Not watching this file.
+	if !f.watchedFiles[absPath] {
+		return nil
+	}
+
+	// Remove the file from our watch list.
+	delete(f.watchedFiles, absPath)
+
+	// Decrement the reference count for this directory.
+	f.watchedDirs[dir]--
+
+	// If no more files in this directory are being watched, stop
+	// watching the directory.
+	if f.watchedDirs[dir] <= 0 {
+		if err := f.Watcher.Remove(dir); err != nil {
+			return xerrors.Errorf("remove directory from watcher: %w", err)
+		}
+		delete(f.watchedDirs, dir)
+	}
+
 	return nil
 }
 
@@ -73,31 +133,57 @@ func (f *fsnotifyWatcher) Next(ctx context.Context) (event *fsnotify.Event, err 
 		}
 	}()
 
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case event, ok := <-f.Events:
-		if !ok {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case evt, ok := <-f.Events:
+			if !ok {
+				return nil, ErrWatcherClosed
+			}
+
+			// Get the absolute path to match against our watched files.
+			absPath, err := filepath.Abs(evt.Name)
+			if err != nil {
+				continue
+			}
+
+			f.mu.Lock()
+			isWatched := f.watchedFiles[absPath]
+			f.mu.Unlock()
+			if isWatched {
+				return &evt, nil
+			}
+
+			continue // Ignore events for files not being watched.
+
+		case err, ok := <-f.Errors:
+			if !ok {
+				return nil, ErrWatcherClosed
+			}
+			return nil, xerrors.Errorf("watcher error: %w", err)
+		case <-f.done:
 			return nil, ErrWatcherClosed
 		}
-		return &event, nil
-	case err, ok := <-f.Errors:
-		if !ok {
-			return nil, ErrWatcherClosed
-		}
-		return nil, xerrors.Errorf("watcher error: %w", err)
-	case <-f.closed:
-		return nil, ErrWatcherClosed
 	}
 }
 
 func (f *fsnotifyWatcher) Close() (err error) {
-	err = ErrWatcherClosed
-	f.closeOnce.Do(func() {
-		if err = f.Watcher.Close(); err != nil {
-			err = xerrors.Errorf("close watcher: %w", err)
-		}
-		close(f.closed)
-	})
-	return err
+	f.mu.Lock()
+	f.watchedFiles = nil
+	f.watchedDirs = nil
+	closed := f.closed
+	f.mu.Unlock()
+
+	if closed {
+		return ErrWatcherClosed
+	}
+
+	close(f.done)
+
+	if err := f.Watcher.Close(); err != nil {
+		return xerrors.Errorf("close watcher: %w", err)
+	}
+
+	return nil
 }
