@@ -116,6 +116,7 @@ func (f *fsnotifyWatcher) Remove(file string) error {
 	// If no more files in this directory are being watched, stop
 	// watching the directory.
 	if f.watchedDirs[dir] <= 0 {
+		f.watchedDirs[dir] = 0 // Ensure non-negative count.
 		if err := f.Watcher.Remove(dir); err != nil {
 			return xerrors.Errorf("remove directory from watcher: %w", err)
 		}
