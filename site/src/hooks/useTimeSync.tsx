@@ -3,6 +3,8 @@
  * 1. Finish up the interval reconciliation method
  * 2. Update the class to respect the resyncOnNewSubscription option
  * 3. Add tests
+ * 4. See if there's a way to make sure that if you provide a type parameter to
+ *    the hook, you must also provide a select function
  */
 import {
 	createContext,
