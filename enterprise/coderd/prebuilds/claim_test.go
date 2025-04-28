@@ -30,34 +30,30 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-type storeType int
-
-const (
-	spyStoreType storeType = iota
-	errorStoreType
-)
-
 type storeSpy struct {
 	database.Store
 
 	claims           *atomic.Int32
 	claimParams      *atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]
 	claimedWorkspace *atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]
+
+	claimingErr error
 }
 
-func newStoreSpy(db database.Store) *storeSpy {
+func newStoreSpy(db database.Store, claimingErr error) *storeSpy {
 	return &storeSpy{
 		Store:            db,
 		claims:           &atomic.Int32{},
 		claimParams:      &atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]{},
 		claimedWorkspace: &atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]{},
+		claimingErr:      claimingErr,
 	}
 }
 
 func (m *storeSpy) InTx(fn func(store database.Store) error, opts *database.TxOptions) error {
 	// Pass spy down into transaction store.
 	return m.Store.InTx(func(store database.Store) error {
-		spy := newStoreSpy(store)
+		spy := newStoreSpy(store, m.claimingErr)
 		spy.claims = m.claims
 		spy.claimParams = m.claimParams
 		spy.claimedWorkspace = m.claimedWorkspace
@@ -67,6 +63,10 @@ func (m *storeSpy) InTx(fn func(store database.Store) error, opts *database.TxOp
 }
 
 func (m *storeSpy) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	if m.claimingErr != nil {
+		return database.ClaimPrebuiltWorkspaceRow{}, m.claimingErr
+	}
+
 	m.claims.Add(1)
 	m.claimParams.Store(&arg)
 	result, err := m.Store.ClaimPrebuiltWorkspace(ctx, arg)
@@ -74,32 +74,6 @@ func (m *storeSpy) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Clai
 		m.claimedWorkspace.Store(&result)
 	}
 	return result, err
-}
-
-type errorStore struct {
-	claimingErr error
-
-	database.Store
-}
-
-func newErrorStore(db database.Store, claimingErr error) *errorStore {
-	return &errorStore{
-		Store:       db,
-		claimingErr: claimingErr,
-	}
-}
-
-func (es *errorStore) InTx(fn func(store database.Store) error, opts *database.TxOptions) error {
-	// Pass failure store down into transaction store.
-	return es.Store.InTx(func(store database.Store) error {
-		newES := newErrorStore(store, es.claimingErr)
-
-		return fn(newES)
-	}, opts)
-}
-
-func (es *errorStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
-	return database.ClaimPrebuiltWorkspaceRow{}, es.claimingErr
 }
 
 func TestClaimPrebuild(t *testing.T) {
@@ -119,30 +93,25 @@ func TestClaimPrebuild(t *testing.T) {
 	cases := map[string]struct {
 		expectPrebuildClaimed  bool
 		markPrebuildsClaimable bool
-		storeType              storeType
 		storeError             error // should be set only for errorStoreType
 	}{
 		"no eligible prebuilds to claim": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: false,
-			storeType:              spyStoreType,
 		},
 		"claiming an eligible prebuild should succeed": {
 			expectPrebuildClaimed:  true,
 			markPrebuildsClaimable: true,
-			storeType:              spyStoreType,
 		},
 
 		"no claimable prebuilt workspaces error is returned": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: true,
-			storeType:              errorStoreType,
 			storeError:             agplprebuilds.ErrNoClaimablePrebuiltWorkspaces,
 		},
 		"unexpected claiming error is returned": {
 			expectPrebuildClaimed:  false,
 			markPrebuildsClaimable: true,
-			storeType:              errorStoreType,
 			storeError:             unexpectedClaimingError,
 		},
 	}
@@ -157,15 +126,7 @@ func TestClaimPrebuild(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			db, pubsub := dbtestutil.NewDB(t)
 
-			var wrappedStore database.Store
-			switch tc.storeType {
-			case spyStoreType:
-				wrappedStore = newStoreSpy(db)
-			case errorStoreType:
-				wrappedStore = newErrorStore(db, tc.storeError)
-			default:
-				t.Fatal("unknown store type")
-			}
+			wrappedStore := newStoreSpy(db, tc.storeError)
 			expectedPrebuildsCount := desiredInstances * presetCount
 
 			logger := testutil.Logger(t)
@@ -262,7 +223,7 @@ func TestClaimPrebuild(t *testing.T) {
 			})
 
 			switch {
-			case tc.storeType == errorStoreType && errors.Is(tc.storeError, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces):
+			case tc.storeError != nil && errors.Is(tc.storeError, agplprebuilds.ErrNoClaimablePrebuiltWorkspaces):
 				require.NoError(t, err)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
@@ -272,7 +233,7 @@ func TestClaimPrebuild(t *testing.T) {
 				require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
 				return
 
-			case tc.storeType == errorStoreType && errors.Is(tc.storeError, unexpectedClaimingError):
+			case tc.storeError != nil && errors.Is(tc.storeError, unexpectedClaimingError):
 				// Then: unexpected error happened and was propagated all the way to the caller
 				require.Error(t, err)
 				require.ErrorContains(t, err, unexpectedClaimingError.Error())
@@ -290,7 +251,7 @@ func TestClaimPrebuild(t *testing.T) {
 			}
 
 			// at this point we know that wrappedStore has *storeSpy type
-			spy := wrappedStore.(*storeSpy)
+			spy := wrappedStore
 
 			// Then: a prebuild should have been claimed.
 			require.EqualValues(t, spy.claims.Load(), 1)
