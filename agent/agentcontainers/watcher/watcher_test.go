@@ -39,12 +39,19 @@ func TestFSNotifyWatcher(t *testing.T) {
 	require.NoError(t, err, "modify test file failed")
 
 	// Verify that we receive the event we want.
-	event, err := wut.Next(ctx)
-	require.NoError(t, err, "next event failed")
+	for {
+		event, err := wut.Next(ctx)
+		require.NoError(t, err, "next event failed")
 
-	require.NotNil(t, event, "want non-nil event")
-	require.True(t, event.Has(fsnotify.Write), "want write event", event.String())
-	require.Equal(t, event.Name, testFile, "want event for test file")
+		require.NotNil(t, event, "want non-nil event")
+		if event.Has(fsnotify.Chmod) && !event.Has(fsnotify.Write) {
+			// Ignore plain chmod events.
+			continue
+		}
+		require.Truef(t, event.Has(fsnotify.Write), "want write event: %s", event.String())
+		require.Equal(t, event.Name, testFile, "want event for test file")
+		break
+	}
 
 	// Test removing the file from the watcher.
 	err = wut.Remove(testFile)
