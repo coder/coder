@@ -72,7 +72,7 @@ func (f *fsnotifyWatcher) Add(file string) error {
 	defer f.mu.Unlock()
 
 	// Already watching this file.
-	if f.watchedFiles[absPath] {
+	if f.closed || f.watchedFiles[absPath] {
 		return nil
 	}
 
@@ -103,7 +103,7 @@ func (f *fsnotifyWatcher) Remove(file string) error {
 	defer f.mu.Unlock()
 
 	// Not watching this file.
-	if !f.watchedFiles[absPath] {
+	if f.closed || !f.watchedFiles[absPath] {
 		return nil
 	}
 
@@ -150,6 +150,10 @@ func (f *fsnotifyWatcher) Next(ctx context.Context) (event *fsnotify.Event, err 
 			}
 
 			f.mu.Lock()
+			if f.closed {
+				f.mu.Unlock()
+				return nil, ErrClosed
+			}
 			isWatched := f.watchedFiles[absPath]
 			f.mu.Unlock()
 			if !isWatched {
