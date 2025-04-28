@@ -15,7 +15,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var ErrWatcherClosed = xerrors.New("watcher closed")
+var ErrClosed = xerrors.New("watcher closed")
 
 // Watcher defines an interface for monitoring file system changes.
 // Implementations track file modifications and provide an event stream
@@ -140,7 +140,7 @@ func (f *fsnotifyWatcher) Next(ctx context.Context) (event *fsnotify.Event, err 
 			return nil, ctx.Err()
 		case evt, ok := <-f.Events:
 			if !ok {
-				return nil, ErrWatcherClosed
+				return nil, ErrClosed
 			}
 
 			// Get the absolute path to match against our watched files.
@@ -160,11 +160,11 @@ func (f *fsnotifyWatcher) Next(ctx context.Context) (event *fsnotify.Event, err 
 
 		case err, ok := <-f.Errors:
 			if !ok {
-				return nil, ErrWatcherClosed
+				return nil, ErrClosed
 			}
 			return nil, xerrors.Errorf("watcher error: %w", err)
 		case <-f.done:
-			return nil, ErrWatcherClosed
+			return nil, ErrClosed
 		}
 	}
 }
@@ -178,7 +178,7 @@ func (f *fsnotifyWatcher) Close() (err error) {
 	f.mu.Unlock()
 
 	if closed {
-		return ErrWatcherClosed
+		return ErrClosed
 	}
 
 	close(f.done)

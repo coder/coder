@@ -32,7 +32,7 @@ func (n *noopWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-n.done:
-		return nil, ErrWatcherClosed
+		return nil, ErrClosed
 	}
 }
 
@@ -40,7 +40,7 @@ func (n *noopWatcher) Close() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
-		return ErrWatcherClosed
+		return ErrClosed
 	}
 	n.closed = true
 	close(n.done)

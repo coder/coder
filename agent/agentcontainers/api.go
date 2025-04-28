@@ -152,7 +152,7 @@ func (api *API) start() {
 	for {
 		event, err := api.watcher.Next(api.ctx)
 		if err != nil {
-			if errors.Is(err, watcher.ErrWatcherClosed) {
+			if errors.Is(err, watcher.ErrClosed) {
 				api.logger.Debug(api.ctx, "watcher closed")
 				return
 			}
