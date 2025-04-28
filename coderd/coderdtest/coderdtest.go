@@ -1105,14 +1105,24 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	return w
 }
 
+// WaitForCriterium represents a boolean assertion to be made against each agent
+// that a given WorkspaceAgentWaited knows about. Each WaitForCriterium should apply
+// the check to a single agent, but it should be named for plural, because `func (w WorkspaceAgentWaiter) WaitFor`
+// applies the check to all agents that it is aware of. This ensures that the public API of the waiter
+// reads correctly. For example:
+//
+// waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+// waiter.WaitFor(coderdtest.AgentsReady)
 type WaitForCriterium func(agent codersdk.WorkspaceAgent) bool
 
-func AgentReady(agent codersdk.WorkspaceAgent) bool {
+// AgentsReady checks that the latest lifecycle state of an agent is "Ready".
+func AgentsReady(agent codersdk.WorkspaceAgent) bool {
 	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
 }
 
-func AgentNotReady(agent codersdk.WorkspaceAgent) bool {
-	return !AgentReady(agent)
+// AgentsReady checks that the latest lifecycle state of an agent is anything except "Ready".
+func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
+	return !AgentsReady(agent)
 }
 
 func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForCriterium) {

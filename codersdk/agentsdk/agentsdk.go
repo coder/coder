@@ -694,7 +694,7 @@ const (
 	ReinitializeReasonPrebuildClaimed ReinitializationReason = "prebuild_claimed"
 )
 
-type ReinitializationResponse struct {
+type ReinitializationEvent struct {
 	Message string                 `json:"message"`
 	Reason  ReinitializationReason `json:"reason"`
 }
@@ -707,7 +707,7 @@ func PrebuildClaimedChannel(id uuid.UUID) string {
 // - ping: ignored, keepalive
 // - prebuild claimed: a prebuilt workspace is claimed, so the agent must reinitialize.
 // NOTE: the caller is responsible for closing the events chan.
-func (c *Client) WaitForReinit(ctx context.Context, events chan<- ReinitializationResponse) error {
+func (c *Client) WaitForReinit(ctx context.Context, events chan<- ReinitializationEvent) error {
 	// TODO: allow configuring httpclient
 	c.SDK.HTTPClient.Timeout = time.Hour * 24
 
@@ -737,19 +737,19 @@ func (c *Client) WaitForReinit(ctx context.Context, events chan<- Reinitializati
 		if sse.Type != codersdk.ServerSentEventTypeData {
 			continue
 		}
-		var reinitResp ReinitializationResponse
+		var reinitEvent ReinitializationEvent
 		b, ok := sse.Data.([]byte)
 		if !ok {
 			return xerrors.Errorf("expected data as []byte, got %T", sse.Data)
 		}
-		err = json.Unmarshal(b, &reinitResp)
+		err = json.Unmarshal(b, &reinitEvent)
 		if err != nil {
 			return xerrors.Errorf("unmarshal reinit response: %w", err)
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case events <- reinitResp:
+		case events <- reinitEvent:
 		}
 	}
 }

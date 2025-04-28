@@ -359,7 +359,7 @@ func TestAgent_Prebuild(t *testing.T) {
 
 	// Check that the agent is in a happy steady state
 	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
-	waiter.WaitFor(coderdtest.AgentReady)
+	waiter.WaitFor(coderdtest.AgentsReady)
 
 	// Trigger reinitialization
 	channel := agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
@@ -367,10 +367,10 @@ func TestAgent_Prebuild(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the agent reinitializes
-	waiter.WaitFor(coderdtest.AgentNotReady)
+	waiter.WaitFor(coderdtest.AgentsNotReady)
 
 	// Check that reinitialization completed
-	waiter.WaitFor(coderdtest.AgentReady)
+	waiter.WaitFor(coderdtest.AgentsReady)
 }
 
 func matchAgentWithVersion(rs []codersdk.WorkspaceResource) bool {

@@ -68,7 +68,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancelCause(inv.Context())
 			defer func() {
-				cancel(xerrors.New("defer"))
+				cancel(xerrors.New("agent exited"))
 			}()
 
 			var (
@@ -335,7 +335,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// TODO: timeout ok?
 			reinitCtx, reinitCancel := context.WithTimeout(context.Background(), time.Hour*24)
 			defer reinitCancel()
-			reinitEvents := make(chan agentsdk.ReinitializationResponse)
+			reinitEvents := make(chan agentsdk.ReinitializationEvent)
 
 			go func() {
 				// Retry to wait for reinit, main context cancels the retrier.

@@ -1771,20 +1771,21 @@ func TestCompleteJob(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Setup starting state:
+				// GIVEN an enqueued provisioner job and its dependencies:
 
 				userID := uuid.New()
 
 				srv, db, ps, pd := setup(t, false, &overrides{})
 
 				buildID := uuid.New()
-				scheduledJobInput := provisionerdserver.WorkspaceProvisionJob{
+				jobInput := provisionerdserver.WorkspaceProvisionJob{
 					WorkspaceBuildID: buildID,
 				}
 				if tc.shouldReinitializeAgent { // This is the key lever in the test
-					scheduledJobInput.PrebuildClaimedByUser = userID
+					// GIVEN the enqueued provisioner job is for a workspace being claimed by a user:
+					jobInput.PrebuildClaimedByUser = userID
 				}
-				input, err := json.Marshal(scheduledJobInput)
+				input, err := json.Marshal(jobInput)
 				require.NoError(t, err)
 
 				ctx := testutil.Context(t, testutil.WaitShort)
@@ -1821,19 +1822,17 @@ func TestCompleteJob(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Subscribe to workspace reinitialization:
+				// GIVEN something is listening to process workspace reinitialization:
 
-				// If the job needs to reinitialize agents for the workspace,
-				// check that the instruction to do so was enqueued
 				eventName := agentsdk.PrebuildClaimedChannel(workspace.ID)
-				gotChan := make(chan []byte, 1)
+				reinitChan := make(chan []byte, 1)
 				cancel, err := ps.Subscribe(eventName, func(inner context.Context, userIDMessage []byte) {
-					gotChan <- userIDMessage
+					reinitChan <- userIDMessage
 				})
 				require.NoError(t, err)
 				defer cancel()
 
-				// Complete the job, optionally triggering workspace agent reinitialization:
+				// WHEN the jop is completed
 
 				completedJob := proto.CompletedJob{
 					JobId: job.ID.String(),
@@ -1845,12 +1844,14 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				select {
-				case userIDMessage := <-gotChan:
+				case userIDMessage := <-reinitChan:
+					// THEN workspace agent reinitialization instruction was received:
 					gotUserID, err := uuid.ParseBytes(userIDMessage)
 					require.NoError(t, err)
 					require.True(t, tc.shouldReinitializeAgent)
 					require.Equal(t, userID, gotUserID)
 				case <-ctx.Done():
+					// THEN workspace agent reinitialization instruction was not received.
 					require.False(t, tc.shouldReinitializeAgent)
 				}
 			})

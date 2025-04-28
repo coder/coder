@@ -1233,7 +1233,6 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		Type: codersdk.ServerSentEventTypePing,
 	})
 
-	// Expand with future use-cases for agent reinitialization.
 	for {
 		select {
 		case <-ctx.Done():
@@ -1241,7 +1240,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		case user := <-prebuildClaims:
 			err = sseSendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeData,
-				Data: agentsdk.ReinitializationResponse{
+				Data: agentsdk.ReinitializationEvent{
 					Message: fmt.Sprintf("prebuild claimed by user: %s", user),
 					Reason:  agentsdk.ReinitializeReasonPrebuildClaimed,
 				},

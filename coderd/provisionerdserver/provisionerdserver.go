@@ -1752,7 +1752,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
 			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimedByUser.String())); err != nil {
-				s.Logger.Error(ctx, "failed to publish message to instruct prebuilt workspace agent reinitialization", slog.Error(err))
+				s.Logger.Error(ctx, "failed to trigger prebuilt workspace agent reinitialization", slog.Error(err))
 			}
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
