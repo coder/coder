@@ -8,6 +8,7 @@
 		"build": "NODE_ENV=production pnpm vite build",
 		"check": "biome check --error-on-warnings .",
 		"check:fix": "biome check --error-on-warnings --fix .",
+		"check:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
 		"check:all": "pnpm check && pnpm test",
 		"chromatic": "chromatic",
 		"dev": "vite",
@@ -171,6 +172,7 @@
 		"@vitejs/plugin-react": "4.3.4",
 		"autoprefixer": "10.4.20",
 		"chromatic": "11.25.2",
+		"dpdm": "3.14.0",
 		"express": "4.21.2",
 		"jest": "29.7.0",
 		"jest-canvas-mock": "2.5.2",
@@ -196,7 +198,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
