@@ -1,7 +1,6 @@
 import { API } from "api/api";
 import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
@@ -14,6 +13,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
+import { useAuthenticated } from "hooks";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
 export type ProxyLatencies = Record<string, ProxyLatencyReport>;

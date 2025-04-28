@@ -27,7 +27,7 @@ export const TemplateVersionStatusBadge: FC<
 	);
 };
 
-export const getStatus = (
+const getStatus = (
 	version: TemplateVersion,
 ): {
 	type?: ThemeRole;

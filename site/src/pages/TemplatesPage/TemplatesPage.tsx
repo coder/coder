@@ -10,7 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
-export const TemplatesPage: FC = () => {
+const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
 

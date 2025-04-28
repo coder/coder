@@ -20,7 +20,7 @@ import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CustomRolesPageView from "./CustomRolesPageView";
 
-export const CustomRolesPage: FC = () => {
+const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();
 	const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();
 	const { organization: organizationName } = useParams() as {
