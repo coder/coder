@@ -82,9 +82,14 @@ func TestReinitializeAgent(t *testing.T) {
 
 	// GIVEN a live enterprise API with the prebuilds feature enabled
 	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
+			}),
+		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				// TODO: enable the prebuilds feature and experiment
+				codersdk.FeatureWorkspacePrebuilds: 1,
 			},
 		},
 	})

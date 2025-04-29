@@ -1159,7 +1159,7 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} agentsdk.ReinitializationResponse
+// @Success 200 {object} agentsdk.ReinitializationEvent
 // @Router /workspaceagents/me/reinit [get]
 func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	// Allow us to interrupt watch via cancel.
