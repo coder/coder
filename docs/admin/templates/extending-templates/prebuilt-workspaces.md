@@ -1,22 +1,21 @@
 # Prebuilt workspaces
 
-Prebuilt workspaces (Prebuilds) allow template administrators to improve the developer experience by reducing workspace
+Prebuilt workspaces allow template administrators to improve the developer experience by reducing workspace
 creation time with an automatically maintained pool of ready-to-use workspaces for specific parameter presets.
 
-The template administrator configures a template to be available with prebuilt workspaces, and then when a developer creates
+The template administrator configures a template to provision prebuilt workspaces in the background, and then when a developer creates
 a new workspace with matching parameters, Coder assigns them an existing prebuilt instance.
 Prebuilt workspaces significantly reduce wait times, especially for templates with complex provisioning or lengthy startup procedures.
 
 Prebuilt workspaces are:
 
 - Created and maintained automatically by Coder to match your specified preset configurations.
-- Claimed transparently when developers request matching workspaces.
+- Claimed transparently when developers create workspaces.
 - Monitored and replaced automatically to maintain your desired pool size.
 
 ## Prerequisites
 
 - [**Premium license**](../../licensing/index.md)
-- [**Template administrator privileges**](../../users/groups-roles.md)
 - **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.3.0-pre2`. (**TODO: update with latest version**)
 - **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
@@ -34,7 +33,7 @@ instances your Coder deployment should maintain:
        memory        = 16
      }
      prebuilds {
-       instances = 3  // Number of prebuilt workspaces to maintain
+       instances = 3  # Number of prebuilt workspaces to maintain
      }
    }
    ```
@@ -67,11 +66,11 @@ Expand each item in this list for more information about the stage:
 
    1. The workspace is provisioned like a regular workspace.
    1. The workspace reaches `running` state.
-   1. The agent connects and reports `ready` status.
-   1. All bootstrap procedures and startup scripts complete successfully.
-   1. The workspace is marked as `eligible` to be claimed.
+   1. The agent connects to coderd.
+   1. The agent starts its bootstrap procedures and startup scripts complete successfully.
+   1. The agent reports `ready` status.
 
-   Prebuilds that fail during provisioning are retried with an exponential backoff to prevent resource waste.
+   Prebuilds that fail during provisioning are retried with an exponential backoff to prevent transient failures.
 
    </details>
 
@@ -112,11 +111,9 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 
 1. Each Prebuild is associated with a specific template preset.
 1. The preset must define all required parameters needed to build the workspace.
-1. Parameters that are not defined in the preset can still be customized by users when they claim a workspace.
 1. The preset parameters define the base configuration and are immutable after they're claimed.
-1. Prebuilds help presets deliver even faster workspace creation.
+1. Parameters that are not defined in the preset can still be customized by users when they claim a workspace.
 
-_Note: In future releases, we will allow operators to invalidate their prebuilt workspaces programmatically._
 
 ## Administration and troubleshooting
 
@@ -127,7 +124,6 @@ Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can
 
 1. Configure quotas for any group that includes this user.
 1. Set appropriate limits to balance Prebuild availability with resource constraints.
-1. Monitor quota utilization through Coder's dashboard.
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
@@ -135,7 +131,7 @@ If a quota is exceeded, the prebuilt workspace will fail provisioning the same w
 
 #### Preventing resource replacement
 
-When a prebuilt workspace is claimed, Terraform runs again with new values for the workspace owner and name.
+When a prebuilt workspace is claimed, another `terraform apply` run occurs with new values for the workspace owner and name.
 
 This can cause issues:
 
@@ -214,5 +210,4 @@ These logs provide information about:
 
 1. Creation and deletion attempts for prebuilds.
 1. Backoff events after failed builds.
-1. Eligibility state changes.
 1. Claiming operations.
