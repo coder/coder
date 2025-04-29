@@ -191,3 +191,13 @@ func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 	}
 	return len(p), nil
 }
+
+// noopDevcontainerCLI is a no-op implementation of the DevcontainerCLI
+// interface. It is used when devcontainers are not enabled.
+type noopDevcontainerCLI struct{}
+
+func (n *noopDevcontainerCLI) Up(context.Context, string, string, ...DevcontainerCLIUpOptions) (string, error) {
+	return "", nil
+}
+
+var _ DevcontainerCLI = &noopDevcontainerCLI{}

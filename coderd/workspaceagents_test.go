@@ -35,7 +35,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
-	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1171,8 +1170,8 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 			return agents
 		}).Do()
-		_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
-			opts.ContainerLister = agentcontainers.NewDocker(agentexec.DefaultExecer)
+		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+			o.ExperimentalDevcontainersEnabled = true
 		})
 		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 		require.Len(t, resources, 1, "expected one resource")
@@ -1273,8 +1272,9 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 					return agents
 				}).Do()
-				_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
-					opts.ContainerLister = mcl
+				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.ExperimentalDevcontainersEnabled = true
+					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 				require.Len(t, resources, 1, "expected one resource")

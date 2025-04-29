@@ -39,6 +39,7 @@ type API struct {
 	watcher watcher.Watcher
 
 	cacheDuration time.Duration
+	execer        agentexec.Execer
 	cl            Lister
 	dccli         DevcontainerCLI
 	clock         quartz.Clock
@@ -51,24 +52,35 @@ type API struct {
 	devcontainerNames       map[string]struct{}                   // Track devcontainer names to avoid duplicates.
 	knownDevcontainers      []codersdk.WorkspaceAgentDevcontainer // Track predefined and runtime-detected devcontainers.
 	configFileModifiedTimes map[string]time.Time                  // Track when config files were last modified.
+
+	// experimentalDevcontainersEnabled indicates if the agent is
+	// running in experimental mode with devcontainers enabled.
+	experimentalDevcontainersEnabled bool
 }
 
 // Option is a functional option for API.
 type Option func(*API)
-
-// WithLister sets the agentcontainers.Lister implementation to use.
-// The default implementation uses the Docker CLI to list containers.
-func WithLister(cl Lister) Option {
-	return func(api *API) {
-		api.cl = cl
-	}
-}
 
 // WithClock sets the quartz.Clock implementation to use.
 // This is primarily used for testing to control time.
 func WithClock(clock quartz.Clock) Option {
 	return func(api *API) {
 		api.clock = clock
+	}
+}
+
+// WithExecer sets the agentexec.Execer implementation to use.
+func WithExecer(execer agentexec.Execer) Option {
+	return func(api *API) {
+		api.execer = execer
+	}
+}
+
+// WithLister sets the agentcontainers.Lister implementation to use.
+// The default implementation uses the Docker CLI to list containers.
+func WithLister(cl Lister) Option {
+	return func(api *API) {
+		api.cl = cl
 	}
 }
 
@@ -105,7 +117,9 @@ func WithWatcher(w watcher.Watcher) Option {
 }
 
 // NewAPI returns a new API with the given options applied.
-func NewAPI(logger slog.Logger, options ...Option) *API {
+//
+//nolint:revive // experimentalDevcontainersEnabled is a control flag.
+func NewAPI(logger slog.Logger, experimentalDevcontainersEnabled bool, options ...Option) *API {
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
 		ctx:                     ctx,
@@ -113,22 +127,36 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		done:                    make(chan struct{}),
 		logger:                  logger,
 		clock:                   quartz.NewReal(),
+		execer:                  agentexec.DefaultExecer,
 		cacheDuration:           defaultGetContainersCacheDuration,
 		lockCh:                  make(chan struct{}, 1),
 		devcontainerNames:       make(map[string]struct{}),
 		knownDevcontainers:      []codersdk.WorkspaceAgentDevcontainer{},
 		configFileModifiedTimes: make(map[string]time.Time),
+
+		experimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 	}
 	for _, opt := range options {
 		opt(api)
 	}
-	if api.cl == nil {
-		api.cl = &DockerCLILister{}
-	}
-	if api.dccli == nil {
-		api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), agentexec.DefaultExecer)
-	}
-	if api.watcher == nil {
+	if api.experimentalDevcontainersEnabled {
+		if api.cl == nil {
+			api.cl = NewDocker(api.execer)
+		}
+		if api.dccli == nil {
+			api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), api.execer)
+		}
+		if api.watcher == nil {
+			var err error
+			api.watcher, err = watcher.NewFSNotify()
+			if err != nil {
+				logger.Error(ctx, "create file watcher service failed", slog.Error(err))
+				api.watcher = watcher.NewNoop()
+			}
+		}
+	} else {
+		api.cl = &NoopLister{}
+		api.dccli = &noopDevcontainerCLI{}
 		api.watcher = watcher.NewNoop()
 	}
 
@@ -187,10 +215,33 @@ func (api *API) start() {
 // Routes returns the HTTP handler for container-related routes.
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
+
+	if !api.experimentalDevcontainersEnabled {
+		r.Get("/", api.handleDisabledEmptyList)
+		r.Get("/devcontainers", api.handleDisabled)
+		r.Post("/{id}/recreate", api.handleDisabled)
+
+		return r
+	}
+
 	r.Get("/", api.handleList)
 	r.Get("/devcontainers", api.handleListDevcontainers)
 	r.Post("/{id}/recreate", api.handleRecreate)
+
 	return r
+}
+
+func (api *API) handleDisabled(w http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), w, http.StatusNotImplemented, codersdk.Response{
+		Message: "Devcontainers are not enabled in this agent.",
+		Detail:  "Devcontainers are not enabled in this agent.",
+	})
+}
+
+func (api *API) handleDisabledEmptyList(w http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), w, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
+		Containers: []codersdk.WorkspaceAgentContainer{},
+	})
 }
 
 // handleList handles the HTTP request to list containers.

@@ -251,6 +251,7 @@ func TestAPI(t *testing.T) {
 				r := chi.NewRouter()
 				api := agentcontainers.NewAPI(
 					logger,
+					true,
 					agentcontainers.WithLister(tt.lister),
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
 				)
@@ -564,7 +565,7 @@ func TestAPI(t *testing.T) {
 					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers))
 				}
 
-				api := agentcontainers.NewAPI(logger, apiOptions...)
+				api := agentcontainers.NewAPI(logger, true, apiOptions...)
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -625,6 +626,7 @@ func TestAPI(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		api := agentcontainers.NewAPI(
 			logger,
+			true,
 			agentcontainers.WithLister(fLister),
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),

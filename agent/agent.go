@@ -89,8 +89,8 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
-	ContainerLister              agentcontainers.Lister
 
+	ContainerAPIOptions              []agentcontainers.Option
 	ExperimentalDevcontainersEnabled bool
 }
 
@@ -154,9 +154,6 @@ func New(options Options) Agent {
 	if options.Execer == nil {
 		options.Execer = agentexec.DefaultExecer
 	}
-	if options.ContainerLister == nil {
-		options.ContainerLister = agentcontainers.NoopLister{}
-	}
 
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
@@ -192,8 +189,8 @@ func New(options Options) Agent {
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
-		lister:             options.ContainerLister,
 
+		containerAPIOptions:              options.ContainerAPIOptions,
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
@@ -276,6 +273,7 @@ type agent struct {
 	execer  agentexec.Execer
 	lister  agentcontainers.Lister
 
+	containerAPIOptions              []agentcontainers.Option
 	experimentalDevcontainersEnabled bool
 }
 

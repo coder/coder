@@ -2029,7 +2029,6 @@ func TestSSH_Container(t *testing.T) {
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -2058,7 +2057,7 @@ func TestSSH_Container(t *testing.T) {
 		mLister := acmock.NewMockLister(ctrl)
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerLister = mLister
+			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
