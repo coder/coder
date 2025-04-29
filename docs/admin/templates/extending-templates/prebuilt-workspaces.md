@@ -92,7 +92,7 @@ You can view available prebuilt workspaces in the **Workspaces** view in the Cod
 
 ![A prebuilt workspace in the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
 
-### Template updates and prebuilt lifecycle
+### Template updates and the prebuilt workspace lifecycle
 
 Prebuilt workspaces have specific behavior when templates are updated:
 
