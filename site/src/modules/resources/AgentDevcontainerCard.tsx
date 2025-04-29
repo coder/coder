@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link";
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import Tooltip from "@mui/material/Tooltip";
 import type {
 	Workspace,
 	WorkspaceAgent,

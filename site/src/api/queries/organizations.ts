@@ -8,7 +8,6 @@ import type {
 	GroupSyncSettings,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
-	ProvisionerJobStatus,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";

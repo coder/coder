@@ -4,7 +4,6 @@ import {
 	selectTemplatesByGroup,
 	systemNotificationTemplates,
 } from "api/queries/notifications";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import {
 	SettingsHeader,

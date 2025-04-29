@@ -1,19 +1,12 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": [
-    "./src/index.tsx"
-  ],
-  "project": [
-    "./src/**/*.ts",
-    "./src/**/*.tsx"
-  ],
-  "ignore": [
-    "**/*Generated.ts"
-  ],
-  // This sets knip not to report unused exports of types and interfaces
-  // as long as they are used within the file.
-  "ignoreExportsUsedInFile": {
-    "interface": true,
-    "type": true
-  }
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": ["./src/index.tsx"],
+	"project": ["./src/**/*.ts", "./src/**/*.tsx"],
+	"ignore": ["**/*Generated.ts"],
+	// This sets knip not to report unused exports of types and interfaces
+	// as long as they are used within the file.
+	"ignoreExportsUsedInFile": {
+		"interface": true,
+		"type": true
+	}
 }
