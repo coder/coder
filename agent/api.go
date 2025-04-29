@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (a *agent) apiHandler() http.Handler {
+func (a *agent) apiHandler() (http.Handler, func() error) {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -63,7 +63,9 @@ func (a *agent) apiHandler() http.Handler {
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
-	return r
+	return r, func() error {
+		return containerAPI.Close()
+	}
 }
 
 type listeningPortsHandler struct {

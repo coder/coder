@@ -408,6 +408,7 @@ type WorkspaceAgentDevcontainer struct {
 
 	// Additional runtime fields.
 	Running   bool                     `json:"running"`
+	Dirty     bool                     `json:"dirty"`
 	Container *WorkspaceAgentContainer `json:"container,omitempty"`
 }
 
