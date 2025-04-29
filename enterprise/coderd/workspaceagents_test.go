@@ -11,7 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -71,6 +75,78 @@ func TestBlockNonBrowser(t *testing.T) {
 		require.NoError(t, err)
 		_ = conn.Close()
 	})
+}
+
+func TestReinitializeAgent(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN a live enterprise API with the prebuilds feature enabled
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				// TODO: enable the prebuilds feature and experiment
+			},
+		},
+	})
+
+	// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
+	presetID := uuid.New()
+	tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+	}).Preset(database.TemplateVersionPreset{
+		ID: presetID,
+	}).Do()
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    prebuilds.SystemUserID,
+		TemplateID: tv.Template.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: tv.TemplateVersion.ID,
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  presetID,
+			Valid: true,
+		},
+	}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+		a[0].Scripts = []*proto.Script{
+			{
+				DisplayName: "Prebuild Test Script",
+				Script:      "sleep 5", // Make reinitialization take long enough to assert that it happened
+				RunOnStart:  true,
+			},
+		}
+		return a
+	}).Do()
+
+	// GIVEN a running agent
+	logDir := t.TempDir()
+	inv, _ := clitest.New(t,
+		"agent",
+		"--auth", "token",
+		"--agent-token", r.AgentToken,
+		"--agent-url", client.URL.String(),
+		"--log-dir", logDir,
+	)
+	clitest.Start(t, inv)
+
+	// GIVEN the agent is in a happy steady state
+	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+	waiter.WaitFor(coderdtest.AgentsReady)
+
+	// WHEN a workspace is created that can benefit from prebuilds
+	ctx := testutil.Context(t, testutil.WaitShort)
+	_, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       tv.TemplateVersion.ID,
+		TemplateVersionPresetID: presetID,
+		Name:                    "claimed-workspace",
+	})
+	require.NoError(t, err)
+
+	// THEN the now claimed workspace agent reinitializes
+	waiter.WaitFor(coderdtest.AgentsNotReady)
+
+	// THEN reinitialization completes
+	waiter.WaitFor(coderdtest.AgentsReady)
 }
 
 type setupResp struct {

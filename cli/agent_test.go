@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -332,14 +333,21 @@ func TestAgent_Prebuild(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	presetID := uuid.New()
+	tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
+		CreatedBy:      user.UserID,
+	}).Preset(database.TemplateVersionPreset{
+		ID: presetID,
+	}).Do()
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    prebuilds.SystemUserID,
+		TemplateID: tv.Template.ID,
 	}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
 		a[0].Scripts = []*proto.Script{
 			{
 				DisplayName: "Prebuild Test Script",
-				Script:      "sleep 5", // Make reinitiazation take long enough to assert that it happened
+				Script:      "sleep 5", // Make reinitialization take long enough to assert that it happened
 				RunOnStart:  true,
 			},
 		}
