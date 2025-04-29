@@ -15,7 +15,7 @@ import {
 	withGlobalSnackbar,
 	withOrganizationSettingsProvider,
 } from "testHelpers/storybook";
-import type { NotificationsPage } from "./NotificationsPage";
+import type NotificationsPage from "./NotificationsPage";
 
 // Extracted from a real API response
 const mockNotificationsDeploymentOptions: SerpentOption[] = [

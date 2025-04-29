@@ -18,7 +18,7 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import CustomRolesPageView from "./CustomRolesPageView";
+import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();

@@ -469,5 +469,3 @@ const AssignDefaultOrgHelpTooltip: FC = () => {
 		</HelpTooltip>
 	);
 };
-
-export default IdpOrgSyncPageView;

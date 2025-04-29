@@ -195,5 +195,3 @@ const styles = {
 		display: "flex",
 	},
 } satisfies Record<string, Interpolation<Theme>>;
-
-export default GroupsPageView;

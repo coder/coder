@@ -8,7 +8,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { Language } from "./SecurityForm";
-import { SecurityPage } from "./SecurityPage";
+import SecurityPage from "./SecurityPage";
 import * as SSO from "./SingleSignOnSection";
 
 const renderPage = async () => {

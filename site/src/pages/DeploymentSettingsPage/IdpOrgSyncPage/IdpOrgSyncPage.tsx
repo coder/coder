@@ -18,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
-import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
+import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
 const IdpOrgSyncPage: FC = () => {
 	const queryClient = useQueryClient();

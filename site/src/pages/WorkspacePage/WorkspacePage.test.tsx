@@ -32,7 +32,7 @@ import {
 	renderWithAuth,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { WorkspacePage } from "./WorkspacePage";
+import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
 

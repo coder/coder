@@ -13,7 +13,7 @@ const Language = {
 	unknownError: "Oops, an unknown error occurred.",
 };
 
-export const CreateUserPage: FC = () => {
+const CreateUserPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));

@@ -9,7 +9,7 @@ import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
-export const AccountPage: FC = () => {
+const AccountPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { updateProfile, updateProfileError, isUpdatingProfile } =
 		useAuthContext();
