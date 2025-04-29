@@ -4335,9 +4335,3 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 		"/mnt/volume1": "/volume1",
 	},
 };
-
-export const MockWorkspaceAgentListContainersResponse: TypesGen.WorkspaceAgentListContainersResponse =
-	{
-		containers: [MockWorkspaceAgentContainer],
-		warnings: ["This is a warning"],
-	};
