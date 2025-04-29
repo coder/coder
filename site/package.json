@@ -30,7 +30,6 @@
 		"test:ci": "jest --selectProjects test --silent",
 		"test:coverage": "jest --selectProjects test --collectCoverage",
 		"test:watch": "jest --selectProjects test --watch",
-		"test:storybook": "test-storybook",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
 		"deadcode": "ts-prune | grep -v \".stories\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\"",
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
@@ -196,7 +195,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
