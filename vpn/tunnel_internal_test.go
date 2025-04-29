@@ -19,6 +19,8 @@ import (
 
 	"github.com/coder/quartz"
 
+	"maps"
+
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -880,9 +882,7 @@ func TestProcessFreshState(t *testing.T) {
 			originalDeletedWorkspacesLen := len(tt.update.DeletedWorkspaces)
 
 			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
-			for k, v := range tt.initialAgents {
-				agentsCopy[k] = v
-			}
+			maps.Copy(agentsCopy, tt.initialAgents)
 
 			processFreshState(tt.update, agentsCopy)
 
