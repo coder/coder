@@ -31,12 +31,12 @@ func TestExpMcpServer(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+		cmdDone := make(chan struct{})
 		cancelCtx, cancel := context.WithCancel(ctx)
-		t.Cleanup(cancel)
 
 		// Given: a running coder deployment
 		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 
 		// Given: we run the exp mcp command with allowed tools set
 		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_get_authenticated_user")
@@ -48,7 +48,6 @@ func TestExpMcpServer(t *testing.T) {
 		// nolint: gocritic // not the focus of this test
 		clitest.SetupConfig(t, client, root)
 
-		cmdDone := make(chan struct{})
 		go func() {
 			defer close(cmdDone)
 			err := inv.Run()
@@ -60,9 +59,6 @@ func TestExpMcpServer(t *testing.T) {
 		pty.WriteLine(toolsPayload)
 		_ = pty.ReadLine(ctx) // ignore echoed output
 		output := pty.ReadLine(ctx)
-
-		cancel()
-		<-cmdDone
 
 		// Then: we should only see the allowed tools in the response
 		var toolsResponse struct {
@@ -81,6 +77,20 @@ func TestExpMcpServer(t *testing.T) {
 		}
 		slices.Sort(foundTools)
 		require.Equal(t, []string{"coder_get_authenticated_user"}, foundTools)
+
+		// Call the tool and ensure it works.
+		toolPayload := `{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_get_authenticated_user", "arguments": {}}}`
+		pty.WriteLine(toolPayload)
+		_ = pty.ReadLine(ctx) // ignore echoed output
+		output = pty.ReadLine(ctx)
+		require.NotEmpty(t, output, "should have received a response from the tool")
+		// Ensure it's valid JSON
+		_, err = json.Marshal(output)
+		require.NoError(t, err, "should have received a valid JSON response from the tool")
+		// Ensure the tool returns the expected user
+		require.Contains(t, output, owner.UserID.String(), "should have received the expected user ID")
+		cancel()
+		<-cmdDone
 	})
 
 	t.Run("OK", func(t *testing.T) {

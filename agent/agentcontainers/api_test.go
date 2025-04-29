@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -253,6 +254,7 @@ func TestAPI(t *testing.T) {
 					logger,
 					agentcontainers.WithLister(tt.lister),
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
 				)
 				defer api.Close()
 				r.Mount("/", api.Routes())
@@ -558,6 +560,7 @@ func TestAPI(t *testing.T) {
 				r := chi.NewRouter()
 				apiOptions := []agentcontainers.Option{
 					agentcontainers.WithLister(tt.lister),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
 
 				if len(tt.knownDevcontainers) > 0 {
@@ -630,6 +633,8 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithClock(mClock),
 		)
 		defer api.Close()
+
+		api.SignalReady()
 
 		r := chi.NewRouter()
 		r.Mount("/", api.Routes())
