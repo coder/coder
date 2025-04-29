@@ -317,13 +317,10 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[timeSync, hookId, idealRefreshIntervalMs],
 	);
 
-	// Unlike subscribe, getNewState doesn't need to be memoized, because React
-	// doesn't actually care about its memory reference. Whenever React gets
-	// notified, it just calls the latest state function it received (whatever
-	// it happens to be). React will only re-render if the value returned by the
-	// function is different from what it got back last time (using === as the
-	// comparison). This function ONLY gets called when the subscription is
-	// first created, or when React gets notified via a subscription update.
+	// This function ONLY gets called when the subscription is first created, or
+	// when React gets notified via a subscription update. It doesn't need to be
+	// memoized – useSyncExternalStore treats it similar to a useEffectEvent
+	// callback, except that unlike with useEffectEvent, it's render-safe.
 	const getNewState = (): T => {
 		const latestDate = timeSync.getLatestDatetimeSnapshot() as T & Date;
 		const selected = (select?.(latestDate) ?? latestDate) as T;
