@@ -4,9 +4,9 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { getTemplatePageTitle } from "../utils";
-import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
+import { TemplateResourcesPageView } from "./TemplateResourcesPageView";
 
-export const TemplateSummaryPage: FC = () => {
+export const TemplateResourcesPage: FC = () => {
 	const { template, activeVersion } = useTemplateLayoutContext();
 	const { data: resources } = useQuery({
 		queryKey: ["templates", template.id, "resources"],
@@ -18,13 +18,9 @@ export const TemplateSummaryPage: FC = () => {
 			<Helmet>
 				<title>{getTemplatePageTitle("Template", template)}</title>
 			</Helmet>
-			<TemplateSummaryPageView
-				resources={resources}
-				template={template}
-				activeVersion={activeVersion}
-			/>
+			<TemplateResourcesPageView resources={resources} template={template} />
 		</>
 	);
 };
 
-export default TemplateSummaryPage;
+export default TemplateResourcesPage;

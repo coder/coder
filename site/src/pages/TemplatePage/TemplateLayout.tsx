@@ -20,6 +20,7 @@ import {
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { TemplatePageHeader } from "./TemplatePageHeader";
+import { TemplateStats } from "./TemplateStats";
 
 const templatePermissions = (
 	templateId: string,
@@ -132,9 +133,6 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 			<Tabs active={activeTab} className="mb-10 -mt-3">
 				<Margins>
 					<TabsList>
-						<TabLink to="" value="summary">
-							Summary
-						</TabLink>
 						<TabLink to="docs" value="docs">
 							Docs
 						</TabLink>
@@ -143,6 +141,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Source Code
 							</TabLink>
 						)}
+						<TabLink to="resources" value="resources">
+							Resources
+						</TabLink>
 						<TabLink to="versions" value="versions">
 							Versions
 						</TabLink>
