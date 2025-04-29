@@ -3,7 +3,7 @@
 	"entry": ["./src/index.tsx"],
 	"project": ["./src/**/*.ts", "./src/**/*.tsx"],
 	"ignoreBinaries": ["protoc"],
-	"ignore": ["**/*Generated.ts"],
+	"ignore": ["**/*Generated.ts", "./src/serviceWorker.ts"],
 	// This sets knip not to report unused exports of types and interfaces
 	// as long as they are used within the file.
 	"ignoreExportsUsedInFile": {
