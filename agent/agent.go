@@ -271,7 +271,6 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
-	lister  agentcontainers.Lister
 
 	containerAPIOptions              []agentcontainers.Option
 	experimentalDevcontainersEnabled bool

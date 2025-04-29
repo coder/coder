@@ -234,14 +234,14 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
-func (api *API) handleDisabled(w http.ResponseWriter, r *http.Request) {
+func (*API) handleDisabled(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), w, http.StatusNotImplemented, codersdk.Response{
 		Message: "Devcontainers are not enabled in this agent.",
 		Detail:  "Devcontainers are not enabled in this agent.",
 	})
 }
 
-func (api *API) handleDisabledEmptyList(w http.ResponseWriter, r *http.Request) {
+func (*API) handleDisabledEmptyList(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), w, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
 		Containers: []codersdk.WorkspaceAgentContainer{},
 	})
