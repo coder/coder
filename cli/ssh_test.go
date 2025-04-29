@@ -2154,28 +2154,57 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
-
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "ssh", workspace.Name, "--force-new-tunnel")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
-			assert.NoError(t, err)
-		})
-		// Shouldn't fail to dial the coder connect host since
-		// `--force-new-tunnel` is passed.
-		pty.ExpectMatch("Waiting")
 
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--force-new-tunnel", "--stdio", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			// Shouldn't fail to dial the Coder Connect host
+			// since `--force-new-tunnel` was passed
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-		pty.WriteLine("exit")
+		err = session.Run("exit")
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
 		<-cmdDone
 	})
 }
