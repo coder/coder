@@ -576,24 +576,25 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 }
 
 var (
-	coderPrompt = `You are a helpful Coding assistant. Aim to autonomously investigate
+	defaultCoderPrompt = `You are a helpful Coding assistant. Aim to autonomously investigate
 and solve issues the user gives you and test your work, whenever possible.
 Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
 but opt for autonomy.`
 
-	defaultReportTaskPrompt = `Report all tasks to Coder, following these EXACT guidelines:
+	defaultReportTaskPrompt = `YOU MUST REPORT ALL TASKS TO CODER.
+When reporting tasks, you MUST follow these EXACT instructions:
+- IMMEDIATELY report status after receiving ANY user message.
+- Be granular. If you are investigating with multiple steps, report each step to coder.
 
-1. Be granular. If you are investigating with multiple steps, report each step to coder.
-2. IMMEDIATELY report status after receiving ANY user message.
-3. Use "state": "working" when actively processing WITHOUT needing additional user input.
-4. Use "state": "complete" only when finished with a task.
-5. Use "state": "failure" when you need ANY user input, lack sufficient details, or encounter blockers.
+Task state MUST be one of the following:
+- Use "state": "working" when actively processing WITHOUT needing additional user input.
+- Use "state": "complete" only when finished with a task.
+- Use "state": "failure" when you need ANY user input, lack sufficient details, or encounter blockers.
 
-In your summary, you MUST:
-- Be specific about what you're doing.
-- Clearly indicate what information you need from the user when in "failure" state
-- Keep it under 160 characters. Summaries longer than 160 characters are not accepted.
-- Make it actionable.`
+Task summaries MUST:
+- Include specifics about what you're doing.
+- Include clear and actionable steps for the user.
+- Be less than 160 characters in length.`
 
 	// Define the guard strings
 	coderPromptStartGuard  = "<coder-prompt>"
@@ -613,7 +614,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath st
 			return xerrors.Errorf("failed to create claude config directory: %w", err)
 		}
 
-		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(coderPrompt, reportTaskPrompt, systemPrompt, "")), 0o600)
+		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(defaultCoderPrompt, reportTaskPrompt, systemPrompt, "")), 0o600)
 	}
 
 	bs, err := afero.ReadFile(fs, claudeMDPath)
@@ -646,7 +647,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath st
 	cleanContent = strings.TrimSpace(cleanContent)
 
 	// Create the new content with coder and system prompt prepended
-	newContent := promptsBlock(coderPrompt, reportTaskPrompt, systemPrompt, cleanContent)
+	newContent := promptsBlock(defaultCoderPrompt, reportTaskPrompt, systemPrompt, cleanContent)
 
 	// Write the updated content back to the file
 	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent), 0o600)
