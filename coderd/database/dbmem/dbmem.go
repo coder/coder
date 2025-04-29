@@ -8487,6 +8487,8 @@ func (q *FakeQuerier) InsertChatMessages(ctx context.Context, arg database.Inser
 			Content:   content,
 		})
 	}
+
+	q.chatMessages = append(q.chatMessages, messages...)
 	return messages, nil
 }
 

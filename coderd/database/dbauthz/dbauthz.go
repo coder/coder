@@ -1270,10 +1270,7 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 }
 
 func (q *querier) DeleteChat(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat.WithID(id)); err != nil {
-		return err
-	}
-	return q.db.DeleteChat(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetChatByID, q.db.DeleteChat)(ctx, id)
 }
 
 func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
@@ -1694,24 +1691,19 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithID(id)); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.GetChatByID(ctx, id)
+	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
 
 func (q *querier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithID(chatID)); err != nil {
+	c, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesByChatID(ctx, chatID)
+	return q.db.GetChatMessagesByChatID(ctx, c.ID)
 }
 
 func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatsByOwnerID(ctx, ownerID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
 }
 
 func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
@@ -3348,7 +3340,14 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 }
 
 func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-	return insert(q.log, q.auth, rbac.ResourceChat.WithID(arg.ChatID), q.db.InsertChatMessages)(ctx, arg)
+	c, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, c); err != nil {
+		return nil, err
+	}
+	return q.db.InsertChatMessages(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -4000,10 +3999,10 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat.WithID(arg.ID)); err != nil {
-		return err
+	fetch := func(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
+		return q.db.GetChatByID(ctx, arg.ID)
 	}
-	return q.db.UpdateChatByID(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UpdateChatByID)(ctx, arg)
 }
 
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {

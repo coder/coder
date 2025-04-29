@@ -154,6 +154,19 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	return chat
 }
 
+func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
+	msg, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		ChatID:    takeFirst(seed.ChatID, uuid.New()),
+		Model:     takeFirst(seed.Model, "train"),
+		Provider:  takeFirst(seed.Provider, "thomas"),
+		Content:   takeFirstSlice(seed.Content, []byte(`[{"text": "Choo choo!"}]`)),
+	})
+	require.NoError(t, err, "insert chat message")
+	require.Len(t, msg, 1, "insert one chat message did not return exactly one message")
+	return msg[0]
+}
+
 func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
 	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
 		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
