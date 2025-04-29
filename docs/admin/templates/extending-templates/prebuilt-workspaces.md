@@ -19,7 +19,7 @@ Prebuilt workspaces are:
 - **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.3.0-pre2`. (**TODO: update with latest version**)
 - **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
-## Enable Prebuilds for template presets
+## Enable prebuilt workspaces for template presets
 
 In your template, add a `prebuilds` block within a `coder_workspace_preset` block to identify how many prebuilt
 instances your Coder deployment should maintain:
@@ -43,20 +43,21 @@ internal reconciliation loop (similar to Kubernetes) to maintain the number of s
 
 Prebuilt workspaces are displayed in the list of workspaces on the Coder dashboard with the owner set to `prebuilds`.
 
-## Prebuild lifecycle
+## Prebuilt workspace lifecycle
 
 Prebuilt workspaces follow a specific lifecycle from creation through eligibility to claiming.
 
 Expand each item in this list for more information about the stage:
 
-1. <details><summary>Prebuilds provisioning and initial state</summary>
+1. <details><summary>The prebuilt workspace is provisioned.</summary>
 
-   After you configure a preset with Prebuilds and publish the template:
+   After you configure a preset with a prebuilt workspace and publish the template:
 
    1. Coder automatically creates prebuilt workspaces up to the specified `instances` count.
    1. Each new prebuild is initially owned by an unprivileged system pseudo-user named `prebuilds`.
       - The `prebuilds` user belongs to the `Everyone` group (you can add it to additional groups if needed).
-   1. Each Prebuild receives a randomly generated name for identification.
+   1. Each prebuilt workspace receives a randomly generated name for identification.
+   1. The workspace is provisioned like a regular workspace.
 
    </details>
 
@@ -64,13 +65,12 @@ Expand each item in this list for more information about the stage:
 
    Before a prebuilt workspace is available to users:
 
-   1. The workspace is provisioned like a regular workspace.
    1. The workspace reaches `running` state.
    1. The agent connects to coderd.
    1. The agent starts its bootstrap procedures and startup scripts complete successfully.
    1. The agent reports `ready` status.
 
-   Prebuilds that fail during provisioning are retried with an exponential backoff to prevent transient failures.
+   Prebuilt workspaces that fail during provisioning are retried with an exponential backoff to prevent transient failures.
 
    </details>
 
@@ -78,7 +78,7 @@ Expand each item in this list for more information about the stage:
 
    When a developer requests a new workspace, the claiming process occurs:
 
-   1. Developer selects a template and preset that has Prebuilds configured.
+   1. Developer selects a template and preset that has prebuilt workspaces configured.
    1. If an eligible prebuilt workspace exists, it's automatically assigned to the user.
    1. Ownership transfers from the `prebuilds` user to the requesting user.
    1. The workspace name changes to the user's requested name.
@@ -96,11 +96,11 @@ You can view available prebuilt workspaces in the **Workspaces** view in the Cod
 
 Prebuilt workspaces have specific behavior when templates are updated:
 
-1. When a template version changes, Prebuilds for old versions are automatically deleted.
-1. New Prebuilds are created for the active template version.
-1. Prebuilds aren't automatically updated after creation.
+1. When a template version changes, prebuilt workspaces for old versions are automatically deleted.
+1. New prebuilt workspaces are created for the active template version.
+1. Prebuilt workspaces aren't automatically updated after creation.
 1. If dependencies change (e.g., an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change, you can:
-   - Delete the existing Prebuilds manually.
+   - Delete the existing prebuilt workspaces manually.
    - Coder will automatically create new prebuilt workspaces with the updated dependencies.
 
 The system always maintains the desired number of prebuilt workspaces for the active template version.
@@ -109,11 +109,10 @@ The system always maintains the desired number of prebuilt workspaces for the ac
 
 Prebuilt workspaces are tightly integrated with [workspace presets](./parameters.md#workspace-presets-beta):
 
-1. Each Prebuild is associated with a specific template preset.
+1. Each prebuilt workspace is associated with a specific template preset.
 1. The preset must define all required parameters needed to build the workspace.
 1. The preset parameters define the base configuration and are immutable after they're claimed.
 1. Parameters that are not defined in the preset can still be customized by users when they claim a workspace.
-
 
 ## Administration and troubleshooting
 
@@ -123,7 +122,7 @@ Prebuilt workspaces can be used in conjunction with [resource quotas](../../user
 Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can:
 
 1. Configure quotas for any group that includes this user.
-1. Set appropriate limits to balance Prebuild availability with resource constraints.
+1. Set appropriate limits to balance prebuilt workspace availability with resource constraints.
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
@@ -208,6 +207,6 @@ Search for `coderd.prebuilds:` in your logs to track the reconciliation loop's b
 
 These logs provide information about:
 
-1. Creation and deletion attempts for prebuilds.
+1. Creation and deletion attempts for prebuilt workspaces.
 1. Backoff events after failed builds.
 1. Claiming operations.
