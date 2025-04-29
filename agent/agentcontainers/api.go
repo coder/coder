@@ -151,9 +151,11 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	return api
 }
 
-// Start watching for devcontainer config file changes and prime the
-// cache with the current list of containers.
-func (api *API) Start() {
+// Ready signals the API that we are ready to begin watching for file
+// changes. This is used to prime the cache with the current list of
+// containers and to start watching the devcontainer config files for
+// changes. It should be called after the agent ready.
+func (api *API) Ready() {
 	// Prime the cache with the current list of containers.
 	_, _ = api.cl.List(api.ctx)
 

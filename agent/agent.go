@@ -1169,9 +1169,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 				if a.containerAPI != nil {
-					// Start the containerAPI service after
-					// devcontainers have been started.
-					a.containerAPI.Start()
+					// Inform the container API that the agent is ready.
+					// This allows us to start watching for changes to
+					// the devcontainer configuration files.
+					a.containerAPI.Ready()
 				}
 			})
 			if err != nil {
