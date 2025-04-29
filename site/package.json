@@ -13,7 +13,7 @@
 		"dev": "vite",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps",
+		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps && knip",
 		"lint:check": " biome lint --error-on-warnings .",
 		"lint:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
 		"lint:fix": " biome lint --error-on-warnings --write .",
@@ -184,15 +184,17 @@
 		"storybook": "8.5.3",
 		"storybook-addon-remix-react-router": "3.1.0",
 		"tailwindcss": "3.4.17",
-		"ts-node": "10.9.2",
-		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
 		"typescript": "5.6.3",
 		"vite": "5.4.18",
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
