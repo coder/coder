@@ -15872,7 +15872,7 @@ INSERT INTO
         external,
         subdomain,
         sharing_level,
-		cors_behavior,
+        cors_behavior,
         healthcheck_url,
         healthcheck_interval,
         healthcheck_threshold,
