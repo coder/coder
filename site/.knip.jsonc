@@ -9,7 +9,10 @@
 		"@types/express",
 		"ssh2",
 		"@types/ssh2",
-		"@types/react-virtualized-auto-sizer"
+		"@types/react-virtualized-auto-sizer",
+		"jest_workaround",
+		"protobufjs",
+		"rxjs"
 	],
 	// This sets knip not to report unused exports of types and interfaces
 	// as long as they are used within the file.
