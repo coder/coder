@@ -49,7 +49,7 @@ type TimeSyncInitOptions = Readonly<{
 	/**
 	 * The function to use when clearing intervals.
 	 *
-	 * (i.e., Clearing a previous interval because the TimeSync needs to make a
+	 * (e.g., Clearing a previous interval because the TimeSync needs to make a
 	 * new interval to increase/decrease its update speed.)
 	 */
 	clearInterval: ClearInterval;
@@ -65,7 +65,7 @@ const defaultOptions: TimeSyncInitOptions = {
 
 type SubscriptionEntry = Readonly<{
 	id: string;
-	maxRefreshIntervalMs: number;
+	idealRefreshIntervalMs: number;
 	onUpdate: (newDatetime: Date) => void;
 }>;
 
@@ -136,15 +136,15 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const prevFastestInterval =
-			this.#subscriptions[0]?.maxRefreshIntervalMs ?? Number.POSITIVE_INFINITY;
+			this.#subscriptions[0]?.idealRefreshIntervalMs ?? Number.POSITIVE_INFINITY;
 		if (this.#subscriptions.length > 1) {
 			this.#subscriptions.sort(
-				(e1, e2) => e1.maxRefreshIntervalMs - e2.maxRefreshIntervalMs,
+				(e1, e2) => e1.idealRefreshIntervalMs - e2.idealRefreshIntervalMs,
 			);
 		}
 
 		const newFastestInterval =
-			this.#subscriptions[0]?.maxRefreshIntervalMs ?? Number.POSITIVE_INFINITY;
+			this.#subscriptions[0]?.idealRefreshIntervalMs ?? Number.POSITIVE_INFINITY;
 		if (prevFastestInterval === newFastestInterval) {
 			return;
 		}
@@ -187,9 +187,9 @@ export class TimeSync implements TimeSyncApi {
 	};
 
 	subscribe = (entry: SubscriptionEntry): (() => void) => {
-		if (entry.maxRefreshIntervalMs <= 0) {
+		if (entry.idealRefreshIntervalMs <= 0) {
 			throw new Error(
-				`Refresh interval ${entry.maxRefreshIntervalMs} must be a positive integer (or Infinity)`,
+				`Refresh interval ${entry.idealRefreshIntervalMs} must be a positive integer (or Infinity)`,
 			);
 		}
 
@@ -207,7 +207,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#subscriptions[subIndex] = entry;
-		if (prev.maxRefreshIntervalMs !== entry.maxRefreshIntervalMs) {
+		if (prev.idealRefreshIntervalMs !== entry.idealRefreshIntervalMs) {
 			this.#reconcileRefreshIntervals();
 		}
 		return unsub;
@@ -246,7 +246,7 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	// Making the TimeSync instance be initialized via React State, so that it's
 	// easy to mock it out for component and story tests. TimeSync itself should
 	// be treated like a pseudo-ref value, where its values can only be used in
-	// very specific, React-approved ways (e.g., not directly in a render path)
+	// very specific, React-approved ways
 	const [readonlySync] = useState(
 		() => new TimeSync(options ?? defaultOptions),
 	);
@@ -259,14 +259,13 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 };
 
 type UseTimeSyncOptions<T = Date> = Readonly<{
-	maxRefreshIntervalMs: number;
+	idealRefreshIntervalMs: number;
 
 	/**
 	 * Allows you to transform any date values received from the TimeSync class.
-	 *
-	 * Note that select functions are not memoized and will run on every render
-	 * (similar to the ones in React Query and Redux Toolkit's default selectors).
-	 * Select functions should be kept cheap to recalculate.
+	 * Select functions work similarly to the selects from React Query and Redux
+	 * Toolkit – you don't need to memoize them, and they will only run when the
+	 * underlying TimeSync state has changed.
 	 *
 	 * Select functions must not be async. The hook will error out at the type
 	 * level if you provide one by mistake.
@@ -292,7 +291,7 @@ type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
  * interval.
  */
 export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
-	const { select, maxRefreshIntervalMs } = options;
+	const { select, idealRefreshIntervalMs } = options;
 
 	// Abusing useId a little bit here. It's mainly meant to be used for
 	// accessibility, but it also gives us a globally unique ID associated with
@@ -300,27 +299,36 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const hookId = useId();
 	const timeSync = useTimeSyncContext();
 
-	// We need to define this callback using useCallback instead of useEffectEvent
-	// because we want the memoization to be invaliated when the refresh interval
-	// changes. (When the subscription callback changes by reference, that causes
-	// useSyncExternalStore to redo the subscription with the new callback). All
-	// other values need to be included in the dependency array for correctness,
-	// but their memory references should always be stable
+	// We need to define this callback using useCallback instead of
+	// useEffectEvent because we want the memoization to be invaliated when the
+	// refresh interval changes. (When the subscription callback changes by
+	// reference, that causes useSyncExternalStore to redo the subscription with
+	// the new callback). All other values need to be included in the dependency
+	// array for correctness, but their memory references should always be
+	// stable
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return timeSync.subscribe({
-				maxRefreshIntervalMs,
+				idealRefreshIntervalMs,
 				onUpdate: notifyReact,
 				id: hookId,
 			});
 		},
-		[timeSync, hookId, maxRefreshIntervalMs],
+		[timeSync, hookId, idealRefreshIntervalMs],
 	);
 
-	const currentTime = useSyncExternalStore(subscribe, () =>
-		timeSync.getLatestDatetimeSnapshot(),
-	);
+	// Unlike subscribe, getNewState doesn't need to be memoized, because React
+	// doesn't actually care about its memory reference. Whenever React gets
+	// notified, it just calls the latest state function it received (whatever
+	// it happens to be). React will only re-render if the value returned by the
+	// function is different from what it got back last time (using === as the
+	// comparison). This function ONLY gets called when the subscription is
+	// first created, or when React gets notified via a subscription update.
+	const getNewState = (): T => {
+		const latestDate = timeSync.getLatestDatetimeSnapshot() as T & Date;
+		const selected = (select?.(latestDate) ?? latestDate) as T;
+		return selected;
+	};
 
-	const recast = currentTime as T & Date;
-	return select?.(recast) ?? recast;
+	return useSyncExternalStore<T>(subscribe, getNewState);
 }

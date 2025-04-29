@@ -71,7 +71,7 @@ export default function TemplateInsightsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const insightsInterval = useTimeSync<InsightsInterval>({
-		maxRefreshIntervalMs: MAX_REFRESH_ONE_DAY,
+		idealRefreshIntervalMs: MAX_REFRESH_ONE_DAY,
 		select: (newDatetime) => {
 			const templateCreateDate = new Date(template.created_at);
 			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDatetime;

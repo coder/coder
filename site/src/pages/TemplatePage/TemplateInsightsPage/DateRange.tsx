@@ -43,7 +43,7 @@ interface DateRangeProps {
 }
 
 export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
-	const currentTime = useTimeSync({ maxRefreshIntervalMs: 60_000 });
+	const currentTime = useTimeSync({ idealRefreshIntervalMs: 60_000 });
 	const selectionStatusRef = useRef<"idle" | "selecting">("idle");
 	const [ranges, setRanges] = useState<RangesState>([
 		{

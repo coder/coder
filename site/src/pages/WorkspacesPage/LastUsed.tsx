@@ -15,7 +15,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 	 * @todo Verify that this is equivalent
 	 */
 	const [circle, message] = useTimeSync({
-		maxRefreshIntervalMs: MAX_REFRESH_ONE_MINUTE,
+		idealRefreshIntervalMs: MAX_REFRESH_ONE_MINUTE,
 		select: (date) => {
 			const t = dayjs(lastUsedAt);
 			const deltaMsg = t.from(dayjs(date));
