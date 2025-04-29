@@ -52,10 +52,6 @@ type API struct {
 	devcontainerNames       map[string]struct{}                   // Track devcontainer names to avoid duplicates.
 	knownDevcontainers      []codersdk.WorkspaceAgentDevcontainer // Track predefined and runtime-detected devcontainers.
 	configFileModifiedTimes map[string]time.Time                  // Track when config files were last modified.
-
-	// experimentalDevcontainersEnabled indicates if the agent is
-	// running in experimental mode with devcontainers enabled.
-	experimentalDevcontainersEnabled bool
 }
 
 // Option is a functional option for API.
@@ -117,9 +113,7 @@ func WithWatcher(w watcher.Watcher) Option {
 }
 
 // NewAPI returns a new API with the given options applied.
-//
-//nolint:revive // experimentalDevcontainersEnabled is a control flag.
-func NewAPI(logger slog.Logger, experimentalDevcontainersEnabled bool, options ...Option) *API {
+func NewAPI(logger slog.Logger, options ...Option) *API {
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
 		ctx:                     ctx,
@@ -133,34 +127,23 @@ func NewAPI(logger slog.Logger, experimentalDevcontainersEnabled bool, options .
 		devcontainerNames:       make(map[string]struct{}),
 		knownDevcontainers:      []codersdk.WorkspaceAgentDevcontainer{},
 		configFileModifiedTimes: make(map[string]time.Time),
-
-		experimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 	}
 	for _, opt := range options {
 		opt(api)
 	}
-	if api.experimentalDevcontainersEnabled {
-		if api.cl == nil {
-			api.cl = NewDocker(api.execer)
+	if api.cl == nil {
+		api.cl = NewDocker(api.execer)
+	}
+	if api.dccli == nil {
+		api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), api.execer)
+	}
+	if api.watcher == nil {
+		var err error
+		api.watcher, err = watcher.NewFSNotify()
+		if err != nil {
+			logger.Error(ctx, "create file watcher service failed", slog.Error(err))
+			api.watcher = watcher.NewNoop()
 		}
-		if api.dccli == nil {
-			api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), api.execer)
-		}
-		if api.watcher == nil {
-			var err error
-			api.watcher, err = watcher.NewFSNotify()
-			if err != nil {
-				logger.Error(ctx, "create file watcher service failed", slog.Error(err))
-				api.watcher = watcher.NewNoop()
-			}
-		}
-	} else {
-		if api.cl != nil || api.dccli != nil || api.watcher != nil {
-			logger.Warn(ctx, "devcontainers are disabled but API is configured with devcontainer services")
-		}
-		api.cl = &NoopLister{}
-		api.dccli = &noopDevcontainerCLI{}
-		api.watcher = watcher.NewNoop()
 	}
 
 	// Make sure we watch the devcontainer config files for changes.
@@ -219,32 +202,11 @@ func (api *API) start() {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
-	if !api.experimentalDevcontainersEnabled {
-		r.Get("/", api.handleDisabledEmptyList)
-		r.Get("/devcontainers", api.handleDisabled)
-		r.Post("/{id}/recreate", api.handleDisabled)
-
-		return r
-	}
-
 	r.Get("/", api.handleList)
 	r.Get("/devcontainers", api.handleListDevcontainers)
 	r.Post("/{id}/recreate", api.handleRecreate)
 
 	return r
-}
-
-func (*API) handleDisabled(w http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), w, http.StatusNotImplemented, codersdk.Response{
-		Message: "Devcontainers are not enabled in this agent.",
-		Detail:  "Devcontainers are not enabled in this agent.",
-	})
-}
-
-func (*API) handleDisabledEmptyList(w http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), w, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
-		Containers: []codersdk.WorkspaceAgentContainer{},
-	})
 }
 
 // handleList handles the HTTP request to list containers.

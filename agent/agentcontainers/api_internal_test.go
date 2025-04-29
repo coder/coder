@@ -101,7 +101,7 @@ func TestAPI(t *testing.T) {
 					mockLister = acmock.NewMockLister(ctrl)
 					now        = time.Now().UTC()
 					logger     = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-					api        = NewAPI(logger, true, WithLister(mockLister))
+					api        = NewAPI(logger, WithLister(mockLister))
 				)
 				defer api.Close()
 

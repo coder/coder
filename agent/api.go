@@ -37,8 +37,11 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 		cacheDuration: cacheDuration,
 	}
 
-	var containerAPIOpts []agentcontainers.Option
+	var containerAPI *agentcontainers.API
 	if a.experimentalDevcontainersEnabled {
+		containerAPIOpts := []agentcontainers.Option{
+			agentcontainers.WithExecer(a.execer),
+		}
 		manifest := a.manifest.Load()
 		if manifest != nil && len(manifest.Devcontainers) > 0 {
 			containerAPIOpts = append(
@@ -46,12 +49,21 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 				agentcontainers.WithDevcontainers(manifest.Devcontainers),
 			)
 		}
+
+		containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+
+		r.Mount("/api/v0/containers", containerAPI.Routes())
+	} else {
+		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+				Message: "Container API is not enabled.",
+				Detail:  "Set the --experimental-devcontainers flag to enable the container API.",
+			})
+		})
 	}
-	containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), a.experimentalDevcontainersEnabled, containerAPIOpts...)
 
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
 
-	r.Mount("/api/v0/containers", containerAPI.Routes())
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Post("/api/v0/list-directory", a.HandleLS)
@@ -62,7 +74,10 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
 	return r, func() error {
-		return containerAPI.Close()
+		if containerAPI != nil {
+			return containerAPI.Close()
+		}
+		return nil
 	}
 }
 
