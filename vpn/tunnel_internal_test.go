@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"net/url"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -496,6 +497,7 @@ func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
 	wID1 := uuid.UUID{1}
 	aID1 := uuid.UUID{2}
 	aID2 := uuid.UUID{3}
+
 	hsTime := time.Now().Add(-time.Minute).UTC()
 
 	client := newFakeClient(ctx, t)
@@ -584,6 +586,112 @@ func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
 	require.Equal(t, aID1[:], peerUpdate.DeletedAgents[0].Id)
 }
 
+func TestTunnel_sendAgentUpdateWorkspaceReconnect(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	mClock := quartz.NewMock(t)
+
+	wID1 := uuid.UUID{1}
+	wID2 := uuid.UUID{2}
+	aID1 := uuid.UUID{3}
+	aID3 := uuid.UUID{4}
+
+	hsTime := time.Now().Add(-time.Minute).UTC()
+
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, hsTime)
+
+	tun, mgr := setupTunnel(t, ctx, client, mClock)
+	errCh := make(chan error, 1)
+	var resp *TunnelMessage
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok := resp.Msg.(*TunnelMessage_Start)
+	require.True(t, ok)
+
+	// Inform the tunnel of the initial state
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID1,
+				Name:        "agent1",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent1.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	require.NotNil(t, req.msg.GetPeerUpdate())
+	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
+	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
+
+	// Upsert a new agent with a new workspace while simulating a reconnect
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID2, Name: "w2", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID3,
+				Name:        "agent3",
+				WorkspaceID: wID2,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent3.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+		FreshState: true,
+	})
+	require.NoError(t, err)
+
+	// The new update only contains the new agent
+	mClock.AdvanceNext()
+	req = testutil.TryReceive(ctx, t, mgr.requests)
+	mClock.AdvanceNext()
+
+	require.Nil(t, req.msg.Rpc)
+	peerUpdate := req.msg.GetPeerUpdate()
+	require.NotNil(t, peerUpdate)
+	require.Len(t, peerUpdate.UpsertedWorkspaces, 1)
+	require.Len(t, peerUpdate.UpsertedAgents, 1)
+	require.Len(t, peerUpdate.DeletedAgents, 1)
+	require.Len(t, peerUpdate.DeletedWorkspaces, 1)
+
+	require.Equal(t, wID2[:], peerUpdate.UpsertedWorkspaces[0].Id)
+	require.Equal(t, aID3[:], peerUpdate.UpsertedAgents[0].Id)
+	require.Equal(t, hsTime, peerUpdate.UpsertedAgents[0].LastHandshake.AsTime())
+
+	require.Equal(t, aID1[:], peerUpdate.DeletedAgents[0].Id)
+	require.Equal(t, wID1[:], peerUpdate.DeletedWorkspaces[0].Id)
+}
+
 //nolint:revive // t takes precedence
 func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock quartz.Clock) (*Tunnel, *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]) {
 	mp, tp := net.Pipe()
@@ -610,4 +718,200 @@ func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock q
 	require.NoError(t, err)
 	mgr.start()
 	return tun, mgr
+}
+
+func TestProcessFreshState(t *testing.T) {
+	t.Parallel()
+
+	wsID1 := uuid.New()
+	wsID2 := uuid.New()
+	wsID3 := uuid.New()
+
+	agentID1 := uuid.New()
+	agentID2 := uuid.New()
+	agentID3 := uuid.New()
+	agentID4 := uuid.New() // Belongs to wsID1
+
+	agent1 := tailnet.Agent{ID: agentID1, Name: "agent1", WorkspaceID: wsID1}
+	agent2 := tailnet.Agent{ID: agentID2, Name: "agent2", WorkspaceID: wsID2}
+	agent3 := tailnet.Agent{ID: agentID3, Name: "agent3", WorkspaceID: wsID3}
+	agent4 := tailnet.Agent{ID: agentID4, Name: "agent4", WorkspaceID: wsID1} // Same workspace as agent1
+
+	ws1 := tailnet.Workspace{ID: wsID1, Name: "ws1"}
+	ws2 := tailnet.Workspace{ID: wsID2, Name: "ws2"}
+	ws3 := tailnet.Workspace{ID: wsID3, Name: "ws3"}
+
+	initialAgents := map[uuid.UUID]tailnet.Agent{
+		agentID1: agent1,
+		agentID2: agent2,
+		agentID4: agent4, // agent 4 is initially present
+	}
+
+	tests := []struct {
+		name           string
+		initialAgents  map[uuid.UUID]tailnet.Agent
+		update         *tailnet.WorkspaceUpdate
+		expectedDelete *tailnet.WorkspaceUpdate // We only care about deletions added by the function
+	}{
+		{
+			name:          "NoChange",
+			initialAgents: initialAgents,
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2, &agent4},
+				DeletedWorkspaces:  []*tailnet.Workspace{}, // Input deletions
+				DeletedAgents:      []*tailnet.Agent{},     // Input deletions
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{ // Expect no *additional* deletions
+				DeletedWorkspaces: []*tailnet.Workspace{},
+				DeletedAgents:     []*tailnet.Agent{},
+			},
+		},
+		{
+			name:          "AgentAdded", // Agent 3 added in update
+			initialAgents: initialAgents,
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2, &ws3},
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2, &agent3, &agent4},
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{
+				DeletedWorkspaces: []*tailnet.Workspace{},
+				DeletedAgents:     []*tailnet.Agent{},
+			},
+		},
+		{
+			name:          "AgentRemovedWorkspaceAlsoRemoved", // Agent 2 removed, ws2 also removed
+			initialAgents: initialAgents,
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1},         // ws2 not present
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent4}, // agent2 not present
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{
+				DeletedWorkspaces: []*tailnet.Workspace{{ID: wsID2}}, // Expect ws2 to be deleted
+				DeletedAgents: []*tailnet.Agent{ // Expect agent2 to be deleted
+					{ID: agentID2, Name: "agent2", WorkspaceID: wsID2},
+				},
+			},
+		},
+		{
+			name:          "AgentRemovedWorkspaceStays", // Agent 4 removed, but ws1 stays (due to agent1)
+			initialAgents: initialAgents,
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},   // ws1 still present
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2}, // agent4 not present
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{
+				DeletedWorkspaces: []*tailnet.Workspace{}, // ws1 should NOT be deleted
+				DeletedAgents: []*tailnet.Agent{ // Expect agent4 to be deleted
+					{ID: agentID4, Name: "agent4", WorkspaceID: wsID1},
+				},
+			},
+		},
+		{
+			name:          "InitialAgentsEmpty",
+			initialAgents: map[uuid.UUID]tailnet.Agent{}, // Start with no agents known
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2},
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{ // Expect no deletions added
+				DeletedWorkspaces: []*tailnet.Workspace{},
+				DeletedAgents:     []*tailnet.Agent{},
+			},
+		},
+		{
+			name:          "UpdateEmpty", // Fresh state says nothing exists
+			initialAgents: initialAgents,
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{},
+				UpsertedAgents:     []*tailnet.Agent{},
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{ // Expect all initial agents/workspaces to be deleted
+				DeletedWorkspaces: []*tailnet.Workspace{{ID: wsID1}, {ID: wsID2}}, // ws1 and ws2 deleted
+				DeletedAgents: []*tailnet.Agent{ // agent1, agent2, agent4 deleted
+					{ID: agentID1, Name: "agent1", WorkspaceID: wsID1},
+					{ID: agentID2, Name: "agent2", WorkspaceID: wsID2},
+					{ID: agentID4, Name: "agent4", WorkspaceID: wsID1},
+				},
+			},
+		},
+		{
+			name:          "UpdateWithExistingDeletions", // Agent 2 removed, ws2 also removed, but update already contains some deletions
+			initialAgents: initialAgents,
+			update: &tailnet.WorkspaceUpdate{
+				FreshState:         true,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1},             // ws2 not present
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent4},     // agent2 not present
+				DeletedWorkspaces:  []*tailnet.Workspace{{ID: uuid.New()}}, // Pre-existing deletion
+				DeletedAgents:      []*tailnet.Agent{{ID: uuid.New()}},     // Pre-existing deletion
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{
+				DeletedWorkspaces: []*tailnet.Workspace{{ID: wsID2}}, // Expect ws2 to be added to deletions
+				DeletedAgents: []*tailnet.Agent{ // Expect agent2 to be added to deletions
+					{ID: agentID2, Name: "agent2", WorkspaceID: wsID2},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Keep track of original lengths to compare only the added elements
+			originalDeletedAgentsLen := len(tt.update.DeletedAgents)
+			originalDeletedWorkspacesLen := len(tt.update.DeletedWorkspaces)
+
+			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
+			for k, v := range tt.initialAgents {
+				agentsCopy[k] = v
+			}
+
+			processFreshState(tt.update, agentsCopy)
+
+			// Extract only the elements added by processFreshState
+			addedDeletedAgents := tt.update.DeletedAgents[originalDeletedAgentsLen:]
+			addedDeletedWorkspaces := tt.update.DeletedWorkspaces[originalDeletedWorkspacesLen:]
+
+			// Sort slices for consistent comparison
+			sortAgents(addedDeletedAgents)
+			sortAgents(tt.expectedDelete.DeletedAgents)
+			sortWorkspaces(addedDeletedWorkspaces)
+			sortWorkspaces(tt.expectedDelete.DeletedWorkspaces)
+
+			require.ElementsMatch(t, tt.expectedDelete.DeletedAgents, addedDeletedAgents, "DeletedAgents mismatch")
+			require.ElementsMatch(t, tt.expectedDelete.DeletedWorkspaces, addedDeletedWorkspaces, "DeletedWorkspaces mismatch")
+		})
+	}
+}
+
+// sortAgents sorts a slice of Agents by ID for consistent comparison.
+func sortAgents(agents []*tailnet.Agent) {
+	sort.Slice(agents, func(i, j int) bool {
+		return agents[i].ID.String() < agents[j].ID.String()
+	})
+}
+
+// sortWorkspaces sorts a slice of Workspaces by ID for consistent comparison.
+func sortWorkspaces(workspaces []*tailnet.Workspace) {
+	sort.Slice(workspaces, func(i, j int) bool {
+		return workspaces[i].ID.String() < workspaces[j].ID.String()
+	})
 }

@@ -394,48 +394,12 @@ func (u *updater) sendUpdateResponse(req *request[*TunnelMessage, *ManagerMessag
 	return nil
 }
 
-// processFreshState handles the logic for when a fresh state update is received.
-func (u *updater) processFreshState(update *tailnet.WorkspaceUpdate) {
-	// ignoredWorkspaces is initially populated with the workspaces that are
-	// in the current update. Later on we populate it with the deleted workspaces too
-	// so that we don't send duplicate updates. Same applies to ignoredAgents.
-	ignoredWorkspaces := make(map[uuid.UUID]struct{}, len(update.UpsertedWorkspaces))
-	ignoredAgents := make(map[uuid.UUID]struct{}, len(update.UpsertedAgents))
-
-	for _, workspace := range update.UpsertedWorkspaces {
-		ignoredWorkspaces[workspace.ID] = struct{}{}
-	}
-	for _, agent := range update.UpsertedAgents {
-		ignoredAgents[agent.ID] = struct{}{}
-	}
-	for _, agent := range u.agents {
-		if _, ok := ignoredAgents[agent.ID]; !ok {
-			// delete any current agents that are not in the new update
-			update.DeletedAgents = append(update.DeletedAgents, &tailnet.Agent{
-				ID:          agent.ID,
-				Name:        agent.Name,
-				WorkspaceID: agent.WorkspaceID,
-			})
-			// if the workspace connected to an agent we're deleting,
-			// is not present in the fresh state, add it to the deleted workspaces
-			if _, ok := ignoredWorkspaces[agent.WorkspaceID]; !ok {
-				update.DeletedWorkspaces = append(update.DeletedWorkspaces, &tailnet.Workspace{
-					// other fields cannot be populated because the tunnel
-					// only stores agents and corresponding workspaceIDs
-					ID: agent.WorkspaceID,
-				})
-				ignoredWorkspaces[agent.WorkspaceID] = struct{}{}
-			}
-		}
-	}
-}
-
 // createPeerUpdateLocked creates a PeerUpdate message from a workspace update, populating
 // the network status of the agents.
 func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUpdate {
 	// this flag is true on the first update after a reconnect
 	if update.FreshState {
-		u.processFreshState(&update)
+		processFreshState(&update, u.agents)
 	}
 
 	out := &PeerUpdate{
@@ -586,6 +550,42 @@ func (u *updater) netStatusLoop() {
 			return
 		case <-ticker.C:
 			u.sendAgentUpdate()
+		}
+	}
+}
+
+// processFreshState handles the logic for when a fresh state update is received.
+func processFreshState(update *tailnet.WorkspaceUpdate, agents map[uuid.UUID]tailnet.Agent) {
+	// ignoredWorkspaces is initially populated with the workspaces that are
+	// in the current update. Later on we populate it with the deleted workspaces too
+	// so that we don't send duplicate updates. Same applies to ignoredAgents.
+	ignoredWorkspaces := make(map[uuid.UUID]struct{}, len(update.UpsertedWorkspaces))
+	ignoredAgents := make(map[uuid.UUID]struct{}, len(update.UpsertedAgents))
+
+	for _, workspace := range update.UpsertedWorkspaces {
+		ignoredWorkspaces[workspace.ID] = struct{}{}
+	}
+	for _, agent := range update.UpsertedAgents {
+		ignoredAgents[agent.ID] = struct{}{}
+	}
+	for _, agent := range agents {
+		if _, ok := ignoredAgents[agent.ID]; !ok {
+			// delete any current agents that are not in the new update
+			update.DeletedAgents = append(update.DeletedAgents, &tailnet.Agent{
+				ID:          agent.ID,
+				Name:        agent.Name,
+				WorkspaceID: agent.WorkspaceID,
+			})
+			// if the workspace connected to an agent we're deleting,
+			// is not present in the fresh state, add it to the deleted workspaces
+			if _, ok := ignoredWorkspaces[agent.WorkspaceID]; !ok {
+				update.DeletedWorkspaces = append(update.DeletedWorkspaces, &tailnet.Workspace{
+					// other fields cannot be populated because the tunnel
+					// only stores agents and corresponding workspaceIDs
+					ID: agent.WorkspaceID,
+				})
+				ignoredWorkspaces[agent.WorkspaceID] = struct{}{}
+			}
 		}
 	}
 }
