@@ -2029,7 +2029,6 @@ func TestSSH_Container(t *testing.T) {
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -2058,7 +2057,7 @@ func TestSSH_Container(t *testing.T) {
 		mLister := acmock.NewMockLister(ctrl)
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerLister = mLister
+			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -2097,16 +2096,9 @@ func TestSSH_Container(t *testing.T) {
 
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
 		clitest.SetupConfig(t, client, root)
-		ptty := ptytest.New(t).Attach(inv)
 
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		ptty.ExpectMatch("No containers found!")
-		ptty.ExpectMatch("Tip: Agent container integration is experimental and not enabled by default.")
-		<-cmdDone
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "The agent dev containers feature is experimental and not enabled by default.")
 	})
 }
 

@@ -2447,11 +2447,20 @@ class ApiMethods {
 			labels?.map((label) => ["label", label]),
 		);
 
-		const res =
-			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
-				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
-			);
-		return res.data;
+		try {
+			const res =
+				await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
+					`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
+				);
+			return res.data;
+		} catch (err) {
+			// If the error is a 403, it means that experimental
+			// containers are not enabled on the agent.
+			if (isAxiosError(err) && err.response?.status === 403) {
+				return { containers: [] };
+			}
+			throw err;
+		}
 	};
 
 	getInboxNotifications = async (startingBeforeId?: string) => {

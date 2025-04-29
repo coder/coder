@@ -848,6 +848,11 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
+		// If the agent returns a codersdk.Error, we can return that directly.
+		if cerr, ok := codersdk.AsError(err); ok {
+			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching containers.",
 			Detail:  err.Error(),

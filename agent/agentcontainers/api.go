@@ -39,6 +39,7 @@ type API struct {
 	watcher watcher.Watcher
 
 	cacheDuration time.Duration
+	execer        agentexec.Execer
 	cl            Lister
 	dccli         DevcontainerCLI
 	clock         quartz.Clock
@@ -56,19 +57,26 @@ type API struct {
 // Option is a functional option for API.
 type Option func(*API)
 
-// WithLister sets the agentcontainers.Lister implementation to use.
-// The default implementation uses the Docker CLI to list containers.
-func WithLister(cl Lister) Option {
-	return func(api *API) {
-		api.cl = cl
-	}
-}
-
 // WithClock sets the quartz.Clock implementation to use.
 // This is primarily used for testing to control time.
 func WithClock(clock quartz.Clock) Option {
 	return func(api *API) {
 		api.clock = clock
+	}
+}
+
+// WithExecer sets the agentexec.Execer implementation to use.
+func WithExecer(execer agentexec.Execer) Option {
+	return func(api *API) {
+		api.execer = execer
+	}
+}
+
+// WithLister sets the agentcontainers.Lister implementation to use.
+// The default implementation uses the Docker CLI to list containers.
+func WithLister(cl Lister) Option {
+	return func(api *API) {
+		api.cl = cl
 	}
 }
 
@@ -113,6 +121,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		done:                    make(chan struct{}),
 		logger:                  logger,
 		clock:                   quartz.NewReal(),
+		execer:                  agentexec.DefaultExecer,
 		cacheDuration:           defaultGetContainersCacheDuration,
 		lockCh:                  make(chan struct{}, 1),
 		devcontainerNames:       make(map[string]struct{}),
@@ -123,30 +132,46 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		opt(api)
 	}
 	if api.cl == nil {
-		api.cl = &DockerCLILister{}
+		api.cl = NewDocker(api.execer)
 	}
 	if api.dccli == nil {
-		api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), agentexec.DefaultExecer)
+		api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), api.execer)
 	}
 	if api.watcher == nil {
-		api.watcher = watcher.NewNoop()
-	}
-
-	// Make sure we watch the devcontainer config files for changes.
-	for _, devcontainer := range api.knownDevcontainers {
-		if devcontainer.ConfigPath != "" {
-			if err := api.watcher.Add(devcontainer.ConfigPath); err != nil {
-				api.logger.Error(ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", devcontainer.ConfigPath))
-			}
+		var err error
+		api.watcher, err = watcher.NewFSNotify()
+		if err != nil {
+			logger.Error(ctx, "create file watcher service failed", slog.Error(err))
+			api.watcher = watcher.NewNoop()
 		}
 	}
 
-	go api.start()
+	go api.loop()
 
 	return api
 }
 
-func (api *API) start() {
+// SignalReady signals the API that we are ready to begin watching for
+// file changes. This is used to prime the cache with the current list
+// of containers and to start watching the devcontainer config files for
+// changes. It should be called after the agent ready.
+func (api *API) SignalReady() {
+	// Prime the cache with the current list of containers.
+	_, _ = api.cl.List(api.ctx)
+
+	// Make sure we watch the devcontainer config files for changes.
+	for _, devcontainer := range api.knownDevcontainers {
+		if devcontainer.ConfigPath == "" {
+			continue
+		}
+
+		if err := api.watcher.Add(devcontainer.ConfigPath); err != nil {
+			api.logger.Error(api.ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", devcontainer.ConfigPath))
+		}
+	}
+}
+
+func (api *API) loop() {
 	defer close(api.done)
 
 	for {
@@ -187,9 +212,11 @@ func (api *API) start() {
 // Routes returns the HTTP handler for container-related routes.
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
+
 	r.Get("/", api.handleList)
 	r.Get("/devcontainers", api.handleListDevcontainers)
 	r.Post("/{id}/recreate", api.handleRecreate)
+
 	return r
 }
 
