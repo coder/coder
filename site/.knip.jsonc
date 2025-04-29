@@ -9,5 +9,11 @@
   ],
   "ignore": [
     "**/*Generated.ts"
-  ]
+  ],
+  // This sets knip not to report unused exports of types and interfaces
+  // as long as they are used within the file.
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  }
 }
