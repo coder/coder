@@ -5,7 +5,7 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";

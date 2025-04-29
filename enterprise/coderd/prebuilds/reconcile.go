@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/quartz"
 
@@ -31,37 +32,49 @@ import (
 )
 
 type StoreReconciler struct {
-	store  database.Store
-	cfg    codersdk.PrebuildsConfig
-	pubsub pubsub.Pubsub
-	logger slog.Logger
-	clock  quartz.Clock
+	store      database.Store
+	cfg        codersdk.PrebuildsConfig
+	pubsub     pubsub.Pubsub
+	logger     slog.Logger
+	clock      quartz.Clock
+	registerer prometheus.Registerer
+	metrics    *MetricsCollector
 
 	cancelFn context.CancelCauseFunc
+	running  atomic.Bool
 	stopped  atomic.Bool
 	done     chan struct{}
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
-func NewStoreReconciler(
-	store database.Store,
+func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
 	cfg codersdk.PrebuildsConfig,
 	logger slog.Logger,
 	clock quartz.Clock,
+	registerer prometheus.Registerer,
 ) *StoreReconciler {
-	return &StoreReconciler{
-		store:  store,
-		pubsub: ps,
-		logger: logger,
-		cfg:    cfg,
-		clock:  clock,
-		done:   make(chan struct{}, 1),
+	reconciler := &StoreReconciler{
+		store:      store,
+		pubsub:     ps,
+		logger:     logger,
+		cfg:        cfg,
+		clock:      clock,
+		registerer: registerer,
+		done:       make(chan struct{}, 1),
 	}
+
+	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
+	if err := registerer.Register(reconciler.metrics); err != nil {
+		// If the registerer fails to register the metrics collector, it's not fatal.
+		logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
+	}
+
+	return reconciler
 }
 
-func (c *StoreReconciler) RunLoop(ctx context.Context) {
+func (c *StoreReconciler) Run(ctx context.Context) {
 	reconciliationInterval := c.cfg.ReconciliationInterval.Value()
 	if reconciliationInterval <= 0 { // avoids a panic
 		reconciliationInterval = 5 * time.Minute
@@ -81,6 +94,11 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 	// nolint:gocritic // Reconciliation Loop needs Prebuilds Orchestrator permissions.
 	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 	c.cancelFn = cancel
+
+	// Everything is in place, reconciler can now be considered as running.
+	//
+	// NOTE: without this atomic bool, Stop might race with Run for the c.cancelFn above.
+	c.running.Store(true)
 
 	for {
 		select {
@@ -107,16 +125,37 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 }
 
 func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
+	defer c.running.Store(false)
+
 	if cause != nil {
 		c.logger.Error(context.Background(), "stopping reconciler due to an error", slog.Error(cause))
 	} else {
 		c.logger.Info(context.Background(), "gracefully stopping reconciler")
 	}
 
-	if c.isStopped() {
+	// If previously stopped (Swap returns previous value), then short-circuit.
+	//
+	// NOTE: we need to *prospectively* mark this as stopped to prevent Stop being called multiple times and causing problems.
+	if c.stopped.Swap(true) {
 		return
 	}
-	c.stopped.Store(true)
+
+	// Unregister the metrics collector.
+	if c.metrics != nil && c.registerer != nil {
+		if !c.registerer.Unregister(c.metrics) {
+			// The API doesn't allow us to know why the de-registration failed, but it's not very consequential.
+			// The only time this would be an issue is if the premium license is removed, leading to the feature being
+			// disabled (and consequently this Stop method being called), and then adding a new license which enables the
+			// feature again. If the metrics cannot be registered, it'll log an error from NewStoreReconciler.
+			c.logger.Warn(context.Background(), "failed to unregister metrics collector")
+		}
+	}
+
+	// If the reconciler is not running, there's nothing else to do.
+	if !c.running.Load() {
+		return
+	}
+
 	if c.cancelFn != nil {
 		c.cancelFn(cause)
 	}
@@ -136,10 +175,6 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	case <-c.done:
 		c.logger.Info(context.Background(), "reconciler stopped")
 	}
-}
-
-func (c *StoreReconciler) isStopped() bool {
-	return c.stopped.Load()
 }
 
 // ReconcileAll will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.

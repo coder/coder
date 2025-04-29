@@ -443,7 +443,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
 	readonly transition: WorkspaceTransition;
 	readonly dry_run?: boolean;
-	readonly state?: readonly string[];
+	readonly state?: string;
 	readonly orphan?: boolean;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
@@ -691,6 +691,7 @@ export interface DeploymentValues {
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
+	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -773,6 +774,7 @@ export type Experiment =
 	| "example"
 	| "notifications"
 	| "web-push"
+	| "workspace-prebuilds"
 	| "workspace-usage";
 
 // From codersdk/deployment.go
@@ -887,6 +889,7 @@ export type FeatureName =
 	| "user_limit"
 	| "user_role_management"
 	| "workspace_batch_actions"
+	| "workspace_prebuilds"
 	| "workspace_proxy";
 
 export const FeatureNames: FeatureName[] = [
@@ -907,6 +910,7 @@ export const FeatureNames: FeatureName[] = [
 	"user_limit",
 	"user_role_management",
 	"workspace_batch_actions",
+	"workspace_prebuilds",
 	"workspace_proxy",
 ];
 
@@ -3248,6 +3252,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly workspace_folder: string;
 	readonly config_path?: string;
 	readonly running: boolean;
+	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 }
 

@@ -7,7 +7,7 @@ import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
-import { Language } from "./SignInForm";
+import { Language } from "./Language";
 
 type PasswordSignInFormProps = {
 	onSubmit: (credentials: { email: string; password: string }) => void;

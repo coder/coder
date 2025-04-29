@@ -14,7 +14,7 @@ import type {
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
