@@ -2,6 +2,7 @@ package vpn
 
 import (
 	"context"
+	"maps"
 	"net"
 	"net/netip"
 	"net/url"
@@ -18,8 +19,6 @@ import (
 	"tailscale.com/util/dnsname"
 
 	"github.com/coder/quartz"
-
-	"maps"
 
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
