@@ -10,7 +10,6 @@ import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
 export const LoginPage: FC = () => {
 	const location = useLocation();
