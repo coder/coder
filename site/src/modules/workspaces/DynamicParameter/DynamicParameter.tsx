@@ -32,7 +32,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { Info, Settings, TriangleAlert } from "lucide-react";
-import { type FC, useId } from "react";
+import { type FC, useId, useState, useEffect } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
@@ -164,14 +164,18 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	id,
 }) => {
 	const value = validValue(parameter.value);
-	const defaultValue = validValue(parameter.default_value);
+	const [localValue, setLocalValue] = useState(value);
+
+	useEffect(() => {
+		setLocalValue(value);
+	}, [value]);
 
 	switch (parameter.form_type) {
 		case "dropdown":
 			return (
 				<Select
 					onValueChange={onChange}
-					defaultValue={defaultValue}
+					value={value}
 					disabled={disabled}
 					required={parameter.required}
 				>
@@ -195,13 +199,13 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 		case "multi-select": {
 			// Map parameter options to MultiSelectCombobox options format
-			const comboboxOptions: Option[] = parameter.options.map((opt) => ({
+			const options: Option[] = parameter.options.map((opt) => ({
 				value: opt.value.value,
 				label: opt.name,
 				disable: false,
 			}));
 
-			const defaultOptions: Option[] = JSON.parse(defaultValue).map(
+			const selectedOptions: Option[] = JSON.parse(value).map(
 				(val: string) => {
 					const option = parameter.options.find((o) => o.value.value === val);
 					return {
@@ -217,8 +221,8 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					inputProps={{
 						id: `${id}-${parameter.name}`,
 					}}
-					options={comboboxOptions}
-					defaultOptions={defaultOptions}
+					options={options}
+					defaultOptions={selectedOptions}
 					onChange={(newValues) => {
 						const values = newValues.map((option) => option.value);
 						onChange(JSON.stringify(values));
@@ -254,7 +258,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				<RadioGroup
 					onValueChange={onChange}
 					disabled={disabled}
-					defaultValue={defaultValue}
+					value={value}
 				>
 					{parameter.options.map((option) => (
 						<div
@@ -282,7 +286,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					<Checkbox
 						id={parameter.name}
 						checked={value === "true"}
-						defaultChecked={defaultValue === "true"} // TODO: defaultChecked is always overridden by checked
 						onCheckedChange={(checked) => {
 							onChange(checked ? "true" : "false");
 						}}
@@ -299,14 +302,11 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				<div className="flex flex-row items-baseline gap-3">
 					<Slider
 						className="mt-2"
-						defaultValue={[
-							Number(
-								parameter.default_value.valid
-									? parameter.default_value.value
-									: 0,
-							),
-						]}
-						onValueChange={([value]) => onChange(value.toString())}
+						value={[Number(localValue ?? 0)]}
+						onValueChange={([value]) => {
+							setLocalValue(value.toString());
+							onChange(value.toString());
+						}}
 						min={parameter.validations[0]?.validation_min ?? 0}
 						max={parameter.validations[0]?.validation_max ?? 100}
 						disabled={disabled}
@@ -319,8 +319,11 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<Textarea
 					className="max-w-2xl"
-					defaultValue={defaultValue}
-					onChange={(e) => onChange(e.target.value)}
+					value={localValue}
+					onChange={(e) => {
+						setLocalValue(e.target.value);
+						onChange(e.target.value);
+					}}
 					onInput={(e) => {
 						const target = e.currentTarget;
 						target.style.maxHeight = "700px";
@@ -354,8 +357,11 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<Input
 					type={inputType}
-					defaultValue={defaultValue}
-					onChange={(e) => onChange(e.target.value)}
+					value={localValue}
+					onChange={(e) => {
+						setLocalValue(e.target.value);
+						onChange(e.target.value);
+					}}
 					disabled={disabled}
 					required={parameter.required}
 					placeholder={

@@ -217,12 +217,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs = Object.fromEntries(
-			form.values.rich_parameter_values?.map((value) => {
-				return [value.name, value.value];
-			}) ?? [],
-		);
-		// Update the input for the changed parameter
+		const formInputs: {[k:string]:string} = {};
 		formInputs[parameter.name] = value;
 
 		sendMessage(formInputs);
