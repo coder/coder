@@ -16,7 +16,7 @@ Prebuilt workspaces are:
 ## Prerequisites
 
 - [**Premium license**](../../licensing/index.md)
-- **Template administrator privileges**: User must have permissions to create or modify templates.
+- [**Template administrator privileges**](../../users/groups-roles.md)
 - **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.3.0-pre2`. (**TODO: update with latest version**)
 - **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
@@ -203,7 +203,7 @@ Coder provides several metrics to monitor your prebuilt workspaces:
 - `coderd_prebuilt_workspaces_failed_total` (counter): Total number of prebuilt workspaces that failed to build.
 - `coderd_prebuilt_workspaces_claimed_total` (counter): Total number of prebuilt workspaces claimed by users.
 - `coderd_prebuilt_workspaces_desired` (gauge): Target number of prebuilt workspaces that should be available.
-- `coderd_prebuilt_workspaces_running` (gauge): Current number of prebuilt workspaces in running state.
+- `coderd_prebuilt_workspaces_running` (gauge): Current number of prebuilt workspaces in a `running` state.
 - `coderd_prebuilt_workspaces_eligible` (gauge): Current number of prebuilt workspaces eligible to be claimed.
 
 #### Logs
