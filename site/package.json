@@ -16,6 +16,7 @@
 		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps",
 		"lint:check": " biome lint --error-on-warnings .",
 		"lint:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
+		"lint:knip": "knip",
 		"lint:fix": " biome lint --error-on-warnings --write .",
 		"lint:types": "tsc -p .",
 		"playwright:install": "playwright install --with-deps chromium",
@@ -181,6 +182,7 @@
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
+		"knip": "5.51.0",
 		"msw": "2.4.8",
 		"postcss": "8.5.1",
 		"protobufjs": "7.4.0",
@@ -198,7 +200,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"

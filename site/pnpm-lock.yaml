@@ -449,6 +449,9 @@ importers:
       jest_workaround:
         specifier: 0.1.14
         version: 0.1.14(@swc/core@1.3.38)(@swc/jest@0.2.37(@swc/core@1.3.38))
+      knip:
+        specifier: 5.51.0
+        version: 5.51.0(@types/node@20.17.16)(typescript@5.6.3)
       msw:
         specifier: 2.4.8
         version: 2.4.8(typescript@5.6.3)
@@ -3606,6 +3609,9 @@ packages:
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==, tarball: https://registry.npmjs.org/eastasianwidth/-/eastasianwidth-0.2.0.tgz}
 
+  easy-table@1.2.0:
+    resolution: {integrity: sha512-OFzVOv03YpvtcWGe5AayU5G2hgybsg3iqA6drU8UaoZyB9jLGMTrz9+asnLp/E+6qPh88yEI1gvyZFZ41dmgww==, tarball: https://registry.npmjs.org/easy-table/-/easy-table-1.2.0.tgz}
+
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==, tarball: https://registry.npmjs.org/ee-first/-/ee-first-1.1.1.tgz}
 
@@ -3641,6 +3647,10 @@ packages:
 
   end-of-stream@1.4.4:
     resolution: {integrity: sha512-+uw1inIHVPQoaVuHzRyXd21icM+cnt4CzD5rW+NC1wjOUSTOs+Te7FOv7AhN7vS9x/oIyhLP5PR1H+phQAHu5Q==, tarball: https://registry.npmjs.org/end-of-stream/-/end-of-stream-1.4.4.tgz}
+
+  enhanced-resolve@5.18.1:
+    resolution: {integrity: sha512-ZSW3ma5GkcQBIpwZTSRAI8N71Uuwgs93IezB7mf7R60tC8ZbJideoDNKjHn2O9KIlx6rkGTTEk1xUCK2E1Y2Yg==, tarball: https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.18.1.tgz}
+    engines: {node: '>=10.13.0'}
 
   entities@2.2.0:
     resolution: {integrity: sha512-p92if5Nz619I0w+akJrLZH0MX0Pb5DX39XOwQTtXSdQQOaYH03S1uIQp4mhOZtAXrxq4ViO67YTiLBo2638o9A==, tarball: https://registry.npmjs.org/entities/-/entities-2.2.0.tgz}
@@ -4525,6 +4535,10 @@ packages:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==, tarball: https://registry.npmjs.org/jiti/-/jiti-1.21.7.tgz}
     hasBin: true
 
+  jiti@2.4.2:
+    resolution: {integrity: sha512-rg9zJN+G4n2nfJl5MW3BMygZX56zKPNVEYYqq7adpmMh4Jn2QNEwhvQlFy6jPVdcod7txZtKHWnyZiA3a0zP7A==, tarball: https://registry.npmjs.org/jiti/-/jiti-2.4.2.tgz}
+    hasBin: true
+
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==, tarball: https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz}
 
@@ -4586,6 +4600,14 @@ packages:
   kleur@3.0.3:
     resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==, tarball: https://registry.npmjs.org/kleur/-/kleur-3.0.3.tgz}
     engines: {node: '>=6'}
+
+  knip@5.51.0:
+    resolution: {integrity: sha512-gw5TzLt9FikIk1oPWDc7jPRb/+L3Aw1ia25hWUQBb+hXS/Rbdki/0rrzQygjU5/CVYnRWYqc1kgdNi60Jm1lPg==, tarball: https://registry.npmjs.org/knip/-/knip-5.51.0.tgz}
+    engines: {node: '>=18.18.0'}
+    hasBin: true
+    peerDependencies:
+      '@types/node': '>=18'
+      typescript: '>=5.0.4'
 
   leven@3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==, tarball: https://registry.npmjs.org/leven/-/leven-3.1.0.tgz}
@@ -5143,6 +5165,10 @@ packages:
     resolution: {integrity: sha512-ayCKvm/phCGxOkYRSCM82iDwct8/EonSEgCSxWxD7ve6jHggsFl4fZVQBPRNgQoKiuV/odhFrGzQXZwbifC8Rg==, tarball: https://registry.npmjs.org/parse-json/-/parse-json-5.2.0.tgz}
     engines: {node: '>=8'}
 
+  parse-ms@4.0.0:
+    resolution: {integrity: sha512-TXfryirbmq34y8QBwgqCVLi+8oA3oWx2eAnSn62ITyEhEYaWRlVZ2DvMM9eZbMs/RfxPu/PK/aBLyGj4IrqMHw==, tarball: https://registry.npmjs.org/parse-ms/-/parse-ms-4.0.0.tgz}
+    engines: {node: '>=18'}
+
   parse5@7.1.2:
     resolution: {integrity: sha512-Czj1WaSVpaoj0wbhMzLmWD69anp2WH7FXMB9n1Sy8/ZFF9jolSQVMu1Ij5WIyGmcBmhk7EOndpO4mIpihVqAXw==, tarball: https://registry.npmjs.org/parse5/-/parse5-7.1.2.tgz}
 
@@ -5297,6 +5323,10 @@ packages:
   pretty-format@29.7.0:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==, tarball: https://registry.npmjs.org/pretty-format/-/pretty-format-29.7.0.tgz}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
+
+  pretty-ms@9.2.0:
+    resolution: {integrity: sha512-4yf0QO/sllf/1zbZWYnvWw3NxCQwLXKzIj0G849LSufP15BXKM0rbD2Z3wVnkMfjdn/CB0Dpp444gYAACdsplg==, tarball: https://registry.npmjs.org/pretty-ms/-/pretty-ms-9.2.0.tgz}
+    engines: {node: '>=18'}
 
   prismjs@1.30.0:
     resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==, tarball: https://registry.npmjs.org/prismjs/-/prismjs-1.30.0.tgz}
@@ -5778,6 +5808,10 @@ packages:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==, tarball: https://registry.npmjs.org/slash/-/slash-3.0.0.tgz}
     engines: {node: '>=8'}
 
+  smol-toml@1.3.4:
+    resolution: {integrity: sha512-UOPtVuYkzYGee0Bd2Szz8d2G3RfMfJ2t3qVdZUAozZyAk+a0Sxa+QKix0YCwjL/A1RR0ar44nCxaoN9FxdJGwA==, tarball: https://registry.npmjs.org/smol-toml/-/smol-toml-1.3.4.tgz}
+    engines: {node: '>= 18'}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==, tarball: https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz}
     engines: {node: '>=0.10.0'}
@@ -5919,6 +5953,10 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==, tarball: https://registry.npmjs.org/strip-json-comments/-/strip-json-comments-3.1.1.tgz}
     engines: {node: '>=8'}
 
+  strip-json-comments@5.0.1:
+    resolution: {integrity: sha512-0fk9zBqO67Nq5M/m45qHCJxylV/DhBlIOVExqgOMiCCrzrhU6tCibRXNqE3jwJLftzE9SNuZtYbpzcO+i9FiKw==, tarball: https://registry.npmjs.org/strip-json-comments/-/strip-json-comments-5.0.1.tgz}
+    engines: {node: '>=14.16'}
+
   style-to-object@1.0.8:
     resolution: {integrity: sha512-xT47I/Eo0rwJmaXC4oilDGDWLohVhR6o/xAQcPQN8q6QBuZVL8qMYL85kLmST5cPjAorwvqIA4qXTRQoYHaL6g==, tarball: https://registry.npmjs.org/style-to-object/-/style-to-object-1.0.8.tgz}
 
@@ -5965,6 +6003,10 @@ packages:
     resolution: {integrity: sha512-w33E2aCvSDP0tW9RZuNXadXlkHXqFzSkQew/aIa2i/Sj8fThxwovwlXHSPXTbAHwEIhBFXAedUhP2tueAKP8Og==, tarball: https://registry.npmjs.org/tailwindcss/-/tailwindcss-3.4.17.tgz}
     engines: {node: '>=14.0.0'}
     hasBin: true
+
+  tapable@2.2.1:
+    resolution: {integrity: sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==, tarball: https://registry.npmjs.org/tapable/-/tapable-2.2.1.tgz}
+    engines: {node: '>=6'}
 
   tar-fs@2.1.2:
     resolution: {integrity: sha512-EsaAXwxmx8UB7FRKqeozqEPop69DXcmYwTQwXvyAPF352HJsPdkVhvTaDPYqfNgruveJIJy3TA2l+2zj8LJIJA==, tarball: https://registry.npmjs.org/tar-fs/-/tar-fs-2.1.2.tgz}
@@ -6520,6 +6562,15 @@ packages:
 
   yup@1.6.1:
     resolution: {integrity: sha512-JED8pB50qbA4FOkDol0bYF/p60qSEDQqBD0/qeIrUCG1KbPBIQ776fCUNb9ldbPcSTxA69g/47XTo4TqWiuXOA==, tarball: https://registry.npmjs.org/yup/-/yup-1.6.1.tgz}
+
+  zod-validation-error@3.4.0:
+    resolution: {integrity: sha512-ZOPR9SVY6Pb2qqO5XHt+MkkTRxGXb4EVtnjc9JpXUOtUB1T9Ru7mZOT361AN3MsetVe7R0a1KZshJDZdgp9miQ==, tarball: https://registry.npmjs.org/zod-validation-error/-/zod-validation-error-3.4.0.tgz}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^3.18.0
+
+  zod@3.24.3:
+    resolution: {integrity: sha512-HhY1oqzWCQWuUqvBFnsyrtZRhyPeR7SUGv+C4+MsisMuVfSPx8HpwWqH8tRahSlt6M3PiFAcoeFhZAqIXTxoSg==, tarball: https://registry.npmjs.org/zod/-/zod-3.24.3.tgz}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==, tarball: https://registry.npmjs.org/zwitch/-/zwitch-2.0.4.tgz}
@@ -9135,8 +9186,7 @@ snapshots:
     dependencies:
       sprintf-js: 1.0.3
 
-  argparse@2.0.1:
-    optional: true
+  argparse@2.0.1: {}
 
   aria-hidden@1.2.4:
     dependencies:
@@ -9811,6 +9861,12 @@ snapshots:
 
   eastasianwidth@0.2.0: {}
 
+  easy-table@1.2.0:
+    dependencies:
+      ansi-regex: 5.0.1
+    optionalDependencies:
+      wcwidth: 1.0.1
+
   ee-first@1.1.1: {}
 
   electron-to-chromium@1.5.50: {}
@@ -9834,6 +9890,11 @@ snapshots:
   end-of-stream@1.4.4:
     dependencies:
       once: 1.4.0
+
+  enhanced-resolve@5.18.1:
+    dependencies:
+      graceful-fs: 4.2.11
+      tapable: 2.2.1
 
   entities@2.2.0: {}
 
@@ -11047,6 +11108,8 @@ snapshots:
 
   jiti@1.21.7: {}
 
+  jiti@2.4.2: {}
+
   js-tokens@4.0.0: {}
 
   js-yaml@3.14.1:
@@ -11057,7 +11120,6 @@ snapshots:
   js-yaml@4.1.0:
     dependencies:
       argparse: 2.0.1
-    optional: true
 
   jsdoc-type-pratt-parser@4.1.0: {}
 
@@ -11132,6 +11194,25 @@ snapshots:
     optional: true
 
   kleur@3.0.3: {}
+
+  knip@5.51.0(@types/node@20.17.16)(typescript@5.6.3):
+    dependencies:
+      '@nodelib/fs.walk': 1.2.8
+      '@types/node': 20.17.16
+      easy-table: 1.2.0
+      enhanced-resolve: 5.18.1
+      fast-glob: 3.3.3
+      jiti: 2.4.2
+      js-yaml: 4.1.0
+      minimist: 1.2.8
+      picocolors: 1.1.1
+      picomatch: 4.0.2
+      pretty-ms: 9.2.0
+      smol-toml: 1.3.4
+      strip-json-comments: 5.0.1
+      typescript: 5.6.3
+      zod: 3.24.3
+      zod-validation-error: 3.4.0(zod@3.24.3)
 
   leven@3.1.0: {}
 
@@ -11971,6 +12052,8 @@ snapshots:
       json-parse-even-better-errors: 2.3.1
       lines-and-columns: 1.2.4
 
+  parse-ms@4.0.0: {}
+
   parse5@7.1.2:
     dependencies:
       entities: 4.5.0
@@ -12105,6 +12188,10 @@ snapshots:
       '@jest/schemas': 29.6.3
       ansi-styles: 5.2.0
       react-is: 18.3.1
+
+  pretty-ms@9.2.0:
+    dependencies:
+      parse-ms: 4.0.0
 
   prismjs@1.30.0: {}
 
@@ -12706,6 +12793,8 @@ snapshots:
 
   slash@3.0.0: {}
 
+  smol-toml@1.3.4: {}
+
   source-map-js@1.2.1: {}
 
   source-map-support@0.5.13:
@@ -12837,6 +12926,8 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
+  strip-json-comments@5.0.1: {}
+
   style-to-object@1.0.8:
     dependencies:
       inline-style-parser: 0.2.4
@@ -12905,6 +12996,8 @@ snapshots:
       sucrase: 3.35.0
     transitivePeerDependencies:
       - ts-node
+
+  tapable@2.2.1: {}
 
   tar-fs@2.1.2:
     dependencies:
@@ -13442,5 +13535,11 @@ snapshots:
       tiny-case: 1.0.3
       toposort: 2.0.2
       type-fest: 2.19.0
+
+  zod-validation-error@3.4.0(zod@3.24.3):
+    dependencies:
+      zod: 3.24.3
+
+  zod@3.24.3: {}
 
   zwitch@2.0.4: {}
