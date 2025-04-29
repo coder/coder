@@ -57,8 +57,8 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
-				Message: "Container API is not enabled.",
-				Detail:  "Set the CODER_AGENT_DEVCONTAINERS_ENABLE environment variable or use the --devcontainers-enable flag on the agent to enable the container API.",
+				Message: "The agent dev containers feature is not enabled.",
+				Detail:  "Set the CODER_AGENT_DEVCONTAINERS_ENABLE environment variable or use the --devcontainers-enable flag to enable this feature.",
 			})
 		})
 	}
