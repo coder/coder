@@ -2103,8 +2103,7 @@ func TestSSH_Container(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		ptty.ExpectMatch("No containers found!")
-		ptty.ExpectMatch("Tip: Agent container integration is experimental and not enabled by default.")
+		ptty.ExpectMatch("The agent dev containers feature is experimental and not enabled by default.")
 		<-cmdDone
 	})
 }

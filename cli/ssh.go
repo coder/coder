@@ -299,8 +299,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				if len(cts.Containers) == 0 {
 					cliui.Info(inv.Stderr, "No containers found!")
-					cliui.Info(inv.Stderr, "Tip: Agent container integration is experimental and not enabled by default.")
-					cliui.Info(inv.Stderr, "     To enable it, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
 					return nil
 				}
 				var found bool
