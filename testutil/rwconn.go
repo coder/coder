@@ -1,4 +1,4 @@
-package cliutil
+package testutil
 
 import (
 	"io"

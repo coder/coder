@@ -1504,11 +1504,20 @@ func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, std
 		return err
 	}
 
-	agentssh.Bicopy(ctx, conn, &cliutil.ReaderWriterConn{
+	agentssh.Bicopy(ctx, conn, &StdioRwc{
 		Reader: stdin,
 		Writer: stdout,
 	})
 
+	return nil
+}
+
+type StdioRwc struct {
+	io.Reader
+	io.Writer
+}
+
+func (*StdioRwc) Close() error {
 	return nil
 }
 

@@ -43,7 +43,6 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -474,7 +473,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -543,7 +542,7 @@ func TestSSH(t *testing.T) {
 		signer, err := agentssh.CoderSigner(keySeed)
 		assert.NoError(t, err)
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -606,7 +605,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -774,7 +773,7 @@ func TestSSH(t *testing.T) {
 		// have access to the shell.
 		_ = agenttest.New(t, client.URL, authToken)
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: proxyCommandStdoutR,
 			Writer: clientStdinW,
 		}, "", &ssh.ClientConfig{
@@ -836,7 +835,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -895,7 +894,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -1083,7 +1082,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -1742,7 +1741,7 @@ func TestSSH(t *testing.T) {
 					assert.NoError(t, err)
 				})
 
-				conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+				conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 					Reader: serverOutput,
 					Writer: clientInput,
 				}, "", &ssh.ClientConfig{

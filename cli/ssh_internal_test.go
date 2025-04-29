@@ -20,7 +20,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 
-	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -258,7 +257,7 @@ func TestCoderConnectStdio(t *testing.T) {
 		close(stdioDone)
 	}()
 
-	conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
+	conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
 		Reader: serverOutput,
 		Writer: clientInput,
 	}, "", &ssh.ClientConfig{
