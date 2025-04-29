@@ -72,12 +72,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
-		tb := toolsdk.Deps{
-			CoderClient:   memberClient,
-			AgentClient:   agentClient,
-			AppStatusSlug: "some-agent-app",
-		}
-		_, err := testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
+		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithAgentClient(agentClient), toolsdk.WithAppStatusSlug("some-agent-app"))
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
 			Summary: "test summary",
 			State:   "complete",
 			Link:    "https://example.com",
@@ -86,7 +83,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspace", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
 			WorkspaceID: r.Workspace.ID.String(),
 		})
@@ -96,7 +94,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		// Get the templates directly for comparison
 		expected, err := memberClient.Templates(context.Background(), codersdk.TemplateFilter{})
 		require.NoError(t, err)
@@ -119,7 +118,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("Whoami", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		result, err := testTool(t, toolsdk.GetAuthenticatedUser, tb, toolsdk.NoArgs{})
 
 		require.NoError(t, err)
@@ -128,7 +128,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ListWorkspaces", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		result, err := testTool(t, toolsdk.ListWorkspaces, tb, toolsdk.ListWorkspacesArgs{})
 
 		require.NoError(t, err)
@@ -140,7 +141,8 @@ func TestTools(t *testing.T) {
 	t.Run("CreateWorkspaceBuild", func(t *testing.T) {
 		t.Run("Stop", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tb := toolsdk.Deps{CoderClient: memberClient}
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
 			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
 				WorkspaceID: r.Workspace.ID.String(),
 				Transition:  "stop",
@@ -159,7 +161,8 @@ func TestTools(t *testing.T) {
 
 		t.Run("Start", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tb := toolsdk.Deps{CoderClient: memberClient}
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
 			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
 				WorkspaceID: r.Workspace.ID.String(),
 				Transition:  "start",
@@ -178,7 +181,8 @@ func TestTools(t *testing.T) {
 
 		t.Run("TemplateVersionChange", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tb := toolsdk.Deps{CoderClient: memberClient}
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
 			// Get the current template version ID before updating
 			workspace, err := memberClient.Workspace(ctx, r.Workspace.ID)
 			require.NoError(t, err)
@@ -222,7 +226,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ListTemplateVersionParameters", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		params, err := testTool(t, toolsdk.ListTemplateVersionParameters, tb, toolsdk.ListTemplateVersionParametersArgs{
 			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
@@ -232,7 +237,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: client}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
 			WorkspaceAgentID: agentID.String(),
 		})
@@ -242,7 +248,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceBuildLogs", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		logs, err := testTool(t, toolsdk.GetWorkspaceBuildLogs, tb, toolsdk.GetWorkspaceBuildLogsArgs{
 			WorkspaceBuildID: r.Build.ID.String(),
 		})
@@ -252,7 +259,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetTemplateVersionLogs", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 		logs, err := testTool(t, toolsdk.GetTemplateVersionLogs, tb, toolsdk.GetTemplateVersionLogsArgs{
 			TemplateVersionID: r.TemplateVersion.ID.String(),
 		})
@@ -262,7 +270,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("UpdateTemplateActiveVersion", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: client}
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
 		result, err := testTool(t, toolsdk.UpdateTemplateActiveVersion, tb, toolsdk.UpdateTemplateActiveVersionArgs{
 			TemplateID:        r.Template.ID.String(),
 			TemplateVersionID: r.TemplateVersion.ID.String(),
@@ -273,8 +282,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("DeleteTemplate", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: client}
-		_, err := testTool(t, toolsdk.DeleteTemplate, tb, toolsdk.DeleteTemplateArgs{
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.DeleteTemplate, tb, toolsdk.DeleteTemplateArgs{
 			TemplateID: r.Template.ID.String(),
 		})
 
@@ -283,10 +293,11 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("UploadTarFile", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: client}
 		files := map[string]string{
 			"main.tf": `resource "null_resource" "example" {}`,
 		}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
 
 		result, err := testTool(t, toolsdk.UploadTarFile, tb, toolsdk.UploadTarFileArgs{
 			Files: files,
@@ -297,7 +308,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("CreateTemplateVersion", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: client}
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
 		// nolint:gocritic // This is in a test package and does not end up in the build
 		file := dbgen.File(t, store, database.File{})
 		t.Run("WithoutTemplateID", func(t *testing.T) {
@@ -308,7 +320,6 @@ func TestTools(t *testing.T) {
 			require.NotEmpty(t, tv)
 		})
 		t.Run("WithTemplateID", func(t *testing.T) {
-			tb := toolsdk.Deps{CoderClient: client}
 			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
 				FileID:     file.ID.String(),
 				TemplateID: r.Template.ID.String(),
@@ -319,7 +330,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("CreateTemplate", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: client}
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
 		// Create a new template version for use here.
 		tv := dbfake.TemplateVersion(t, store).
 			// nolint:gocritic // This is in a test package and does not end up in the build
@@ -327,7 +339,7 @@ func TestTools(t *testing.T) {
 			SkipCreateTemplate().Do()
 
 		// We're going to re-use the pre-existing template version
-		_, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+		_, err = testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
 			Name:        testutil.GetRandomNameHyphenated(t),
 			DisplayName: "Test Template",
 			Description: "This is a test template",
@@ -338,7 +350,8 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
-		tb := toolsdk.Deps{CoderClient: memberClient}
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
 		// We need a template version ID to create a workspace
 		res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
 			User:              "me",

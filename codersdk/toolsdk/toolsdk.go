@@ -15,6 +15,31 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
+func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
+	d := Deps{
+		CoderClient: client,
+	}
+	for _, opt := range opts {
+		opt(&d)
+	}
+	if d.CoderClient == nil {
+		return Deps{}, xerrors.New("developer error: coder client may not be nil")
+	}
+	return d, nil
+}
+
+func WithAgentClient(client *agentsdk.Client) func(*Deps) {
+	return func(d *Deps) {
+		d.AgentClient = client
+	}
+}
+
+func WithAppStatusSlug(slug string) func(*Deps) {
+	return func(d *Deps) {
+		d.AppStatusSlug = slug
+	}
+}
+
 // Deps provides access to tool dependencies.
 type Deps struct {
 	CoderClient   *codersdk.Client
@@ -175,7 +200,7 @@ var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
 		}
 		if deps.AppStatusSlug == "" {
-			return codersdk.Response{}, xerrors.New("workspace app status slug not found in toolbox")
+			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_MCP_APP_STATUS_SLUG is not set")
 		}
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")

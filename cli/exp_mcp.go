@@ -400,24 +400,27 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		server.WithInstructions(instructions),
 	)
 
-	// Create a new context for the tools with all relevant information.
-	tb := toolsdk.Deps{
-		CoderClient: client,
-	}
 	// Get the workspace agent token from the environment.
+	toolOpts := make([]func(*toolsdk.Deps), 0)
 	var hasAgentClient bool
 	if agentToken, err := getAgentToken(fs); err == nil && agentToken != "" {
 		hasAgentClient = true
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
-		tb.AgentClient = agentClient
+		toolOpts = append(toolOpts, toolsdk.WithAgentClient(agentClient))
 	} else {
 		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
 	}
-	if appStatusSlug == "" {
-		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
+
+	if appStatusSlug != "" {
+		toolOpts = append(toolOpts, toolsdk.WithAppStatusSlug(appStatusSlug))
 	} else {
-		tb.AppStatusSlug = appStatusSlug
+		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
+	}
+
+	toolDeps, err := toolsdk.NewDeps(client, toolOpts...)
+	if err != nil {
+		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
 
 	// Register tools based on the allowlist (if specified)
@@ -430,7 +433,7 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		if len(allowedTools) == 0 || slices.ContainsFunc(allowedTools, func(t string) bool {
 			return t == tool.Tool.Name
 		}) {
-			mcpSrv.AddTools(mcpFromSDK(tool, tb))
+			mcpSrv.AddTools(mcpFromSDK(tool, toolDeps))
 		}
 	}
 
