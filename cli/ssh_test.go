@@ -2096,15 +2096,9 @@ func TestSSH_Container(t *testing.T) {
 
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
 		clitest.SetupConfig(t, client, root)
-		ptty := ptytest.New(t).Attach(inv)
 
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		ptty.ExpectMatch("The agent dev containers feature is experimental and not enabled by default.")
-		<-cmdDone
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "The agent dev containers feature is experimental and not enabled by default.")
 	})
 }
 
