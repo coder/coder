@@ -2167,8 +2167,8 @@ func TestSSH_CoderConnect(t *testing.T) {
 			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
 			assert.NoError(t, err)
 		})
-		// Shouldn't fail to dial the coder connect host `--force-new-tunnel`
-		// is passed.
+		// Shouldn't fail to dial the coder connect host since
+		// `--force-new-tunnel` is passed.
 		pty.ExpectMatch("Waiting")
 
 		_ = agenttest.New(t, client.URL, agentToken)
