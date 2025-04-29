@@ -90,8 +90,8 @@ type Options struct {
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
 
-	ContainerAPIOptions              []agentcontainers.Option
 	ExperimentalDevcontainersEnabled bool
+	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
 }
 
 type Client interface {
@@ -190,8 +190,8 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		containerAPIOptions:              options.ContainerAPIOptions,
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
+		containerAPIOptions:              options.ContainerAPIOptions,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -274,7 +274,7 @@ type agent struct {
 
 	experimentalDevcontainersEnabled bool
 	containerAPIOptions              []agentcontainers.Option
-	containerAPI                     *agentcontainers.API
+	containerAPI                     atomic.Pointer[agentcontainers.API] // Set by apiHandler.
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1168,11 +1168,11 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
-				if a.containerAPI != nil {
+				if containerAPI := a.containerAPI.Load(); containerAPI != nil {
 					// Inform the container API that the agent is ready.
 					// This allows us to start watching for changes to
 					// the devcontainer configuration files.
-					a.containerAPI.SignalReady()
+					containerAPI.SignalReady()
 				}
 			})
 			if err != nil {

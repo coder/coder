@@ -52,8 +52,9 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 		// Append after to allow the agent options to override the default options.
 		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
 
-		a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
-		r.Mount("/api/v0/containers", a.containerAPI.Routes())
+		containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+		r.Mount("/api/v0/containers", containerAPI.Routes())
+		a.containerAPI.Store(containerAPI)
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
@@ -75,8 +76,8 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
 	return r, func() error {
-		if a.containerAPI != nil {
-			return a.containerAPI.Close()
+		if containerAPI := a.containerAPI.Load(); containerAPI != nil {
+			return containerAPI.Close()
 		}
 		return nil
 	}
