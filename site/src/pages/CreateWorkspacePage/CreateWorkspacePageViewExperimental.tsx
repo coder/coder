@@ -217,7 +217,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs: {[k:string]:string} = {};
+		const formInputs: { [k: string]: string } = {};
 		formInputs[parameter.name] = value;
 
 		sendMessage(formInputs);

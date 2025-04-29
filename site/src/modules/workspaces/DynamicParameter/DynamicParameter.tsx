@@ -32,7 +32,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { Info, Settings, TriangleAlert } from "lucide-react";
-import { type FC, useId, useState, useEffect } from "react";
+import { type FC, useEffect, useId, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
@@ -205,16 +205,14 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				disable: false,
 			}));
 
-			const selectedOptions: Option[] = JSON.parse(value).map(
-				(val: string) => {
-					const option = parameter.options.find((o) => o.value.value === val);
-					return {
-						value: val,
-						label: option?.name || val,
-						disable: false,
-					};
-				},
-			);
+			const selectedOptions: Option[] = JSON.parse(value).map((val: string) => {
+				const option = parameter.options.find((o) => o.value.value === val);
+				return {
+					value: val,
+					label: option?.name || val,
+					disable: false,
+				};
+			});
 
 			return (
 				<MultiSelectCombobox
@@ -255,11 +253,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 		case "radio":
 			return (
-				<RadioGroup
-					onValueChange={onChange}
-					disabled={disabled}
-					value={value}
-				>
+				<RadioGroup onValueChange={onChange} disabled={disabled} value={value}>
 					{parameter.options.map((option) => (
 						<div
 							key={option.value.value}
