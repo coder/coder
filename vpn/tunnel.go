@@ -397,6 +397,42 @@ func (u *updater) sendUpdateResponse(req *request[*TunnelMessage, *ManagerMessag
 // createPeerUpdateLocked creates a PeerUpdate message from a workspace update, populating
 // the network status of the agents.
 func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUpdate {
+	// this flag is true on the first update after a reconnect
+	if update.FreshState {
+		// ignoredWorkspaces is initially populated with the workspaces that are
+		// in the current update. Later on we populate it with the deleted workspaces too
+		// so that we don't send duplicate updates. Same applies to ignoredAgents.
+		ignoredWorkspaces := make(map[uuid.UUID]struct{}, len(update.UpsertedWorkspaces))
+		ignoredAgents := make(map[uuid.UUID]struct{}, len(update.UpsertedAgents))
+
+		for _, workspace := range update.UpsertedWorkspaces {
+			ignoredWorkspaces[workspace.ID] = struct{}{}
+		}
+		for _, agent := range update.UpsertedAgents {
+			ignoredAgents[agent.ID] = struct{}{}
+		}
+		for _, agent := range u.agents {
+			if _, ok := ignoredAgents[agent.ID]; !ok {
+				// delete any current agents that are not in the new update
+				update.DeletedAgents = append(update.DeletedAgents, &tailnet.Agent{
+					ID:          agent.ID,
+					Name:        agent.Name,
+					WorkspaceID: agent.WorkspaceID,
+				})
+				// if the workspace connected to an agent we're deleting,
+				// is not present in the fresh state, add it to the deleted workspaces
+				if _, ok := ignoredWorkspaces[agent.WorkspaceID]; !ok {
+					update.DeletedWorkspaces = append(update.DeletedWorkspaces, &tailnet.Workspace{
+						// other fields cannot be populated because the tunnel
+						// only stores agents and corresponding workspaceIDs
+						ID: agent.WorkspaceID,
+					})
+					ignoredWorkspaces[agent.WorkspaceID] = struct{}{}
+				}
+			}
+		}
+	}
+
 	out := &PeerUpdate{
 		UpsertedWorkspaces: make([]*Workspace, len(update.UpsertedWorkspaces)),
 		UpsertedAgents:     make([]*Agent, len(update.UpsertedAgents)),
@@ -404,7 +440,14 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 		DeletedAgents:      make([]*Agent, len(update.DeletedAgents)),
 	}
 
-	u.saveUpdateLocked(update)
+	// save the workspace update to the tunnel's state, such that it can
+	// be used to populate automated peer updates.
+	for _, agent := range update.UpsertedAgents {
+		u.agents[agent.ID] = agent.Clone()
+	}
+	for _, agent := range update.DeletedAgents {
+		delete(u.agents, agent.ID)
+	}
 
 	for i, ws := range update.UpsertedWorkspaces {
 		out.UpsertedWorkspaces[i] = &Workspace{
@@ -413,6 +456,7 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 			Status: Workspace_Status(ws.Status),
 		}
 	}
+
 	upsertedAgents := u.convertAgentsLocked(update.UpsertedAgents)
 	out.UpsertedAgents = upsertedAgents
 	for i, ws := range update.DeletedWorkspaces {
@@ -470,17 +514,6 @@ func (u *updater) convertAgentsLocked(agents []*tailnet.Agent) []*Agent {
 	}
 
 	return out
-}
-
-// saveUpdateLocked saves the workspace update to the tunnel's state, such that it can
-// be used to populate automated peer updates.
-func (u *updater) saveUpdateLocked(update tailnet.WorkspaceUpdate) {
-	for _, agent := range update.UpsertedAgents {
-		u.agents[agent.ID] = agent.Clone()
-	}
-	for _, agent := range update.DeletedAgents {
-		delete(u.agents, agent.ID)
-	}
 }
 
 // setConn sets the `conn` and returns false if there's already a connection set.

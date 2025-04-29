@@ -1049,6 +1049,7 @@ func (t *tunnelUpdater) recvLoop() {
 	t.logger.Debug(context.Background(), "tunnel updater recvLoop started")
 	defer t.logger.Debug(context.Background(), "tunnel updater recvLoop done")
 	defer close(t.recvLoopDone)
+	freshState := true
 	for {
 		update, err := t.client.Recv()
 		if err != nil {
@@ -1061,8 +1062,10 @@ func (t *tunnelUpdater) recvLoop() {
 		}
 		t.logger.Debug(context.Background(), "got workspace update",
 			slog.F("workspace_update", update),
+			slog.F("fresh_state", freshState),
 		)
-		err = t.handleUpdate(update)
+		err = t.handleUpdate(update, freshState)
+		freshState = false
 		if err != nil {
 			t.logger.Critical(context.Background(), "failed to handle workspace Update", slog.Error(err))
 			cErr := t.client.Close()
@@ -1083,6 +1086,7 @@ type WorkspaceUpdate struct {
 	UpsertedAgents     []*Agent
 	DeletedWorkspaces  []*Workspace
 	DeletedAgents      []*Agent
+	FreshState         bool
 }
 
 func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
@@ -1091,6 +1095,7 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 		UpsertedAgents:     make([]*Agent, len(w.UpsertedAgents)),
 		DeletedWorkspaces:  make([]*Workspace, len(w.DeletedWorkspaces)),
 		DeletedAgents:      make([]*Agent, len(w.DeletedAgents)),
+		FreshState:         w.FreshState,
 	}
 	for i, ws := range w.UpsertedWorkspaces {
 		clone.UpsertedWorkspaces[i] = &Workspace{
@@ -1115,7 +1120,7 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 	return clone
 }
 
-func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
+func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate, freshState bool) error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -1124,6 +1129,7 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 		UpsertedAgents:     []*Agent{},
 		DeletedWorkspaces:  []*Workspace{},
 		DeletedAgents:      []*Agent{},
+		FreshState:         freshState,
 	}
 
 	for _, uw := range update.UpsertedWorkspaces {

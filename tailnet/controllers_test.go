@@ -1611,13 +1611,15 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
+		FreshState:        true,
 	}
 
 	// And the callback
 	cbUpdate := testutil.TryReceive(ctx, t, fUH.ch)
 	require.Equal(t, currentState, cbUpdate)
 
-	// Current recvState should match
+	// Current recvState should match but shouldn't be a fresh state
+	currentState.FreshState = false
 	recvState, err := updateCtrl.CurrentState()
 	require.NoError(t, err)
 	slices.SortFunc(recvState.UpsertedWorkspaces, func(a, b *tailnet.Workspace) int {
@@ -1692,12 +1694,14 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
+		FreshState:        true,
 	}
 
 	cbUpdate := testutil.TryReceive(ctx, t, fUH.ch)
 	require.Equal(t, initRecvUp, cbUpdate)
 
-	// Current state should match initial
+	// Current state should match initial but shouldn't be a fresh state
+	initRecvUp.FreshState = false
 	state, err := updateCtrl.CurrentState()
 	require.NoError(t, err)
 	require.Equal(t, initRecvUp, state)
@@ -1753,6 +1757,7 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 				"w1.coder.":            {ws1a1IP},
 			}},
 		},
+		FreshState: false,
 	}
 	require.Equal(t, sndRecvUpdate, cbUpdate)
 
@@ -1771,6 +1776,7 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
+		FreshState:        false,
 	}, state)
 }
 

@@ -486,6 +486,104 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
 }
 
+func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	mClock := quartz.NewMock(t)
+
+	wID1 := uuid.UUID{1}
+	aID1 := uuid.UUID{2}
+	aID2 := uuid.UUID{3}
+	hsTime := time.Now().Add(-time.Minute).UTC()
+
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, hsTime)
+
+	tun, mgr := setupTunnel(t, ctx, client, mClock)
+	errCh := make(chan error, 1)
+	var resp *TunnelMessage
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok := resp.Msg.(*TunnelMessage_Start)
+	require.True(t, ok)
+
+	// Inform the tunnel of the initial state
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID1,
+				Name:        "agent1",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent1.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	require.NotNil(t, req.msg.GetPeerUpdate())
+	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
+	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
+
+	// Upsert a new agent simulating a reconnect
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID2,
+				Name:        "agent2",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent2.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+		FreshState: true,
+	})
+	require.NoError(t, err)
+
+	// The new update only contains the new agent
+	mClock.AdvanceNext()
+	req = testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	peerUpdate := req.msg.GetPeerUpdate()
+	require.NotNil(t, peerUpdate)
+	require.Len(t, peerUpdate.UpsertedAgents, 1)
+	require.Len(t, peerUpdate.DeletedAgents, 1)
+
+	require.Equal(t, aID2[:], peerUpdate.UpsertedAgents[0].Id)
+	require.Equal(t, hsTime, peerUpdate.UpsertedAgents[0].LastHandshake.AsTime())
+
+	require.Equal(t, aID1[:], peerUpdate.DeletedAgents[0].Id)
+}
+
 //nolint:revive // t takes precedence
 func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock quartz.Clock) (*Tunnel, *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]) {
 	mp, tp := net.Pipe()
