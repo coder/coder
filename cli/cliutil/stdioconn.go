@@ -6,31 +6,31 @@ import (
 	"time"
 )
 
-type StdioConn struct {
+type ReaderWriterConn struct {
 	io.Reader
 	io.Writer
 }
 
-func (*StdioConn) Close() (err error) {
+func (*ReaderWriterConn) Close() (err error) {
 	return nil
 }
 
-func (*StdioConn) LocalAddr() net.Addr {
+func (*ReaderWriterConn) LocalAddr() net.Addr {
 	return nil
 }
 
-func (*StdioConn) RemoteAddr() net.Addr {
+func (*ReaderWriterConn) RemoteAddr() net.Addr {
 	return nil
 }
 
-func (*StdioConn) SetDeadline(_ time.Time) error {
+func (*ReaderWriterConn) SetDeadline(_ time.Time) error {
 	return nil
 }
 
-func (*StdioConn) SetReadDeadline(_ time.Time) error {
+func (*ReaderWriterConn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 
-func (*StdioConn) SetWriteDeadline(_ time.Time) error {
+func (*ReaderWriterConn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }

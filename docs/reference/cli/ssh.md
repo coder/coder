@@ -138,14 +138,6 @@ Specifies a directory to write network information periodically.
 
 Specifies the interval to update network information.
 
-### --force-new-tunnel
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Force the creation of a new tunnel to the workspace, even if the Coder Connect tunnel is available.
-
 ### --disable-autostart
 
 |             |                                           |

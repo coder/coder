@@ -67,7 +67,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		stdio               bool
 		hostPrefix          string
 		hostnameSuffix      string
-		forceTunnel         bool
+		forceNewTunnel      bool
 		forwardAgent        bool
 		forwardGPG          bool
 		identityAgent       string
@@ -278,27 +278,38 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return err
 			}
 
-			// See if we can use the Coder Connect tunnel
-			if !forceTunnel {
+			// If we're in stdio mode, check to see if we can use Coder Connect.
+			// We don't support Coder Connect over non-stdio coder ssh yet.
+			if stdio && !forceNewTunnel {
 				connInfo, err := wsClient.AgentConnectionInfoGeneric(ctx)
 				if err != nil {
 					return xerrors.Errorf("get agent connection info: %w", err)
 				}
-
 				coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
 					workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
 				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost)
 				if exists {
 					_, _ = fmt.Fprintln(inv.Stderr, "Connecting to workspace via Coder Connect...")
 					defer cancel()
-					addr := fmt.Sprintf("%s:22", coderConnectHost)
-					if stdio {
+
+					if networkInfoDir != "" {
 						if err := writeCoderConnectNetInfo(ctx, networkInfoDir); err != nil {
 							logger.Error(ctx, "failed to write coder connect net info file", slog.Error(err))
 						}
-						return runCoderConnectStdio(ctx, addr, stdioReader, stdioWriter, stack)
 					}
-					return runCoderConnectPTY(ctx, addr, inv.Stdin, inv.Stdout, inv.Stderr, stack)
+
+					stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
+					defer stopPolling()
+
+					usageAppName := getUsageAppName(usageApp)
+					if usageAppName != "" {
+						closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+							AgentID: workspaceAgent.ID,
+							AppName: usageAppName,
+						})
+						defer closeUsage()
+					}
+					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack)
 				}
 			}
 
@@ -481,11 +492,36 @@ func (r *RootCmd) ssh() *serpent.Command {
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
 			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
-				restorePtyFn, err := configurePTY(ctx, stdinFile, stdoutFile, sshSession)
-				defer restorePtyFn()
+				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
-					return xerrors.Errorf("configure pty: %w", err)
+					return err
 				}
+				defer func() {
+					_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
+				}()
+				outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
+				if err != nil {
+					return err
+				}
+				defer func() {
+					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
+				}()
+
+				windowChange := listenWindowSize(ctx)
+				go func() {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case <-windowChange:
+						}
+						width, height, err := term.GetSize(int(stdoutFile.Fd()))
+						if err != nil {
+							continue
+						}
+						_ = sshSession.WindowChange(height, width)
+					}
+				}()
 			}
 
 			for _, kv := range parsedEnv {
@@ -667,46 +703,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 		{
 			Flag:        "force-new-tunnel",
 			Description: "Force the creation of a new tunnel to the workspace, even if the Coder Connect tunnel is available.",
-			Value:       serpent.BoolOf(&forceTunnel),
+			Value:       serpent.BoolOf(&forceNewTunnel),
+			Hidden:      true,
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 	return cmd
-}
-
-func configurePTY(ctx context.Context, stdinFile *os.File, stdoutFile *os.File, sshSession *gossh.Session) (restoreFn func(), err error) {
-	inState, err := pty.MakeInputRaw(stdinFile.Fd())
-	if err != nil {
-		return restoreFn, err
-	}
-	restoreFn = func() {
-		_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
-	}
-	outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
-	if err != nil {
-		return restoreFn, err
-	}
-	restoreFn = func() {
-		_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
-		_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
-	}
-
-	windowChange := listenWindowSize(ctx)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-windowChange:
-			}
-			width, height, err := term.GetSize(int(stdoutFile.Fd()))
-			if err != nil {
-				continue
-			}
-			_ = sshSession.WindowChange(height, width)
-		}
-	}()
-	return restoreFn, nil
 }
 
 // findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it
@@ -1502,83 +1504,10 @@ func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, std
 		return err
 	}
 
-	agentssh.Bicopy(ctx, conn, &cliutil.StdioConn{
+	agentssh.Bicopy(ctx, conn, &cliutil.ReaderWriterConn{
 		Reader: stdin,
 		Writer: stdout,
 	})
-
-	return nil
-}
-
-func runCoderConnectPTY(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stderr io.Writer, stack *closerStack) error {
-	client, err := gossh.Dial("tcp", addr, &gossh.ClientConfig{
-		// We've already checked the agent's address
-		// is within the Coder service prefix.
-		// #nosec
-		HostKeyCallback: gossh.InsecureIgnoreHostKey(),
-	})
-	if err != nil {
-		return xerrors.Errorf("dial coder connect host: %w", err)
-	}
-	if err := stack.push("ssh client", client); err != nil {
-		return err
-	}
-
-	session, err := client.NewSession()
-	if err != nil {
-		return xerrors.Errorf("create ssh session: %w", err)
-	}
-	if err := stack.push("ssh session", session); err != nil {
-		return err
-	}
-
-	stdinFile, validIn := stdin.(*os.File)
-	stdoutFile, validOut := stdout.(*os.File)
-	if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
-		restorePtyFn, err := configurePTY(ctx, stdinFile, stdoutFile, session)
-		defer restorePtyFn()
-		if err != nil {
-			return xerrors.Errorf("configure pty: %w", err)
-		}
-	}
-
-	session.Stdin = stdin
-	session.Stdout = stdout
-	session.Stderr = stderr
-
-	err = session.RequestPty("xterm-256color", 80, 24, gossh.TerminalModes{})
-	if err != nil {
-		return xerrors.Errorf("request pty: %w", err)
-	}
-
-	err = session.Shell()
-	if err != nil {
-		return xerrors.Errorf("start shell: %w", err)
-	}
-
-	if validOut {
-		// Set initial window size.
-		width, height, err := term.GetSize(int(stdoutFile.Fd()))
-		if err == nil {
-			_ = session.WindowChange(height, width)
-		}
-	}
-
-	err = session.Wait()
-	if err != nil {
-		if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
-			// Clear the error since it's not useful beyond
-			// reporting status.
-			return ExitError(exitErr.ExitStatus(), nil)
-		}
-		// If the connection drops unexpectedly, we get an
-		// ExitMissingError but no other error details, so try to at
-		// least give the user a better message
-		if errors.Is(err, &gossh.ExitMissingError{}) {
-			return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
-		}
-		return xerrors.Errorf("session ended: %w", err)
-	}
 
 	return nil
 }

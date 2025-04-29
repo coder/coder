@@ -474,7 +474,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -543,7 +543,7 @@ func TestSSH(t *testing.T) {
 		signer, err := agentssh.CoderSigner(keySeed)
 		assert.NoError(t, err)
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -606,7 +606,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -774,7 +774,7 @@ func TestSSH(t *testing.T) {
 		// have access to the shell.
 		_ = agenttest.New(t, client.URL, authToken)
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: proxyCommandStdoutR,
 			Writer: clientStdinW,
 		}, "", &ssh.ClientConfig{
@@ -836,7 +836,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -895,7 +895,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -1083,7 +1083,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+		conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 			Reader: serverOutput,
 			Writer: clientInput,
 		}, "", &ssh.ClientConfig{
@@ -1742,7 +1742,7 @@ func TestSSH(t *testing.T) {
 					assert.NoError(t, err)
 				})
 
-				conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+				conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 					Reader: serverOutput,
 					Writer: clientInput,
 				}, "", &ssh.ClientConfig{

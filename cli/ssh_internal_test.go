@@ -22,7 +22,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -226,37 +225,6 @@ func TestCloserStack_Timeout(t *testing.T) {
 	testutil.TryReceive(ctx, t, closed)
 }
 
-func TestCoderConnectPTY(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	stack := newCloserStack(ctx, logger, quartz.NewMock(t))
-
-	server := newSSHServer("127.0.0.1:0")
-	ln, err := net.Listen("tcp", server.server.Addr)
-	require.NoError(t, err)
-
-	go func() {
-		_ = server.Serve(ln)
-	}()
-	t.Cleanup(func() {
-		_ = server.Close()
-	})
-
-	ptty := ptytest.New(t)
-	ptyDone := make(chan struct{})
-	go func() {
-		err := runCoderConnectPTY(ctx, ln.Addr().String(), ptty.Output(), ptty.Input(), ptty.Output(), stack)
-		assert.NoError(t, err)
-		close(ptyDone)
-	}()
-	ptty.ExpectMatch("Connected!")
-	// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-	ptty.WriteLine("exit")
-	<-ptyDone
-}
-
 func TestCoderConnectStdio(t *testing.T) {
 	t.Parallel()
 
@@ -290,7 +258,7 @@ func TestCoderConnectStdio(t *testing.T) {
 		close(stdioDone)
 	}()
 
-	conn, channels, requests, err := ssh.NewClientConn(&cliutil.StdioConn{
+	conn, channels, requests, err := ssh.NewClientConn(&cliutil.ReaderWriterConn{
 		Reader: serverOutput,
 		Writer: clientInput,
 	}, "", &ssh.ClientConfig{
