@@ -62,7 +62,7 @@ import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { lastWeeks } from "./utils";
-import { MAX_REFRESH_ONE_DAY, useTimeSync } from "hooks/useTimeSync";
+import { IDEAL_REFRESH_ONE_DAY, useTimeSync } from "hooks/useTimeSync";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -71,7 +71,7 @@ export default function TemplateInsightsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const insightsInterval = useTimeSync<InsightsInterval>({
-		idealRefreshIntervalMs: MAX_REFRESH_ONE_DAY,
+		idealRefreshIntervalMs: IDEAL_REFRESH_ONE_DAY,
 		select: (newDatetime) => {
 			const templateCreateDate = new Date(template.created_at);
 			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDatetime;

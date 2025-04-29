@@ -1,8 +1,11 @@
 /**
  * @todo Things that still need to be done before this can be called done:
+ *
  * 1. Finish up the interval reconciliation method
  * 2. Update the class to respect the resyncOnNewSubscription option
- * 3. Add tests
+ * 3. Make it so that if you provide an explicit type parameter to the hook
+ *    call, you must provide a runtime select function
+ * 4. Add tests
  */
 import {
 	createContext,
@@ -15,18 +18,18 @@ import {
 	type PropsWithChildren,
 } from "react";
 
-export const MAX_REFRESH_ONE_SECOND = 1_000;
-export const MAX_REFRESH_ONE_MINUTE = 60 * 1_000;
-export const MAX_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
-export const MAX_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
+export const IDEAL_REFRESH_ONE_SECOND = 1_000;
+export const IDEAL_REFRESH_ONE_MINUTE = 60 * 1_000;
+export const IDEAL_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
+export const IDEAL_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 
 type SetInterval = (fn: () => void, intervalMs: number) => number;
 type ClearInterval = (id: number | undefined) => void;
 
 type TimeSyncInitOptions = Readonly<{
 	/**
-	 * Configures whether adding a new subscription will immediately create a new
-	 * time snapshot and use it to update all other subscriptions.
+	 * Configures whether adding a new subscription will immediately create a
+	 * new time snapshot and use it to update all other subscriptions.
 	 */
 	resyncOnNewSubscription: boolean;
 
@@ -216,15 +219,6 @@ export class TimeSync implements TimeSyncApi {
 
 const timeSyncContext = createContext<TimeSync | null>(null);
 
-function useTimeSyncContext(): TimeSync {
-	const timeSync = useContext(timeSyncContext);
-	if (timeSync === null) {
-		throw new Error("Cannot call useTimeSync outside of a TimeSyncProvider");
-	}
-
-	return timeSync;
-}
-
 type TimeSyncProviderProps = Readonly<
 	PropsWithChildren<{
 		options?: Partial<TimeSyncInitOptions>;
@@ -297,7 +291,10 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// accessibility, but it also gives us a globally unique ID associated with
 	// whichever component instance is consuming this hook
 	const hookId = useId();
-	const timeSync = useTimeSyncContext();
+	const timeSync = useContext(timeSyncContext);
+	if (timeSync === null) {
+		throw new Error("Cannot call useTimeSync outside of a TimeSyncProvider");
+	}
 
 	// We need to define this callback using useCallback instead of
 	// useEffectEvent because we want the memoization to be invaliated when the
@@ -322,8 +319,8 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// memoized – useSyncExternalStore treats it similar to a useEffectEvent
 	// callback, except that unlike with useEffectEvent, it's render-safe.
 	const getNewState = (): T => {
-		const latestDate = timeSync.getLatestDatetimeSnapshot() as T & Date;
-		const selected = (select?.(latestDate) ?? latestDate) as T;
+		const newSnapshot = timeSync.getLatestDatetimeSnapshot() as T & Date;
+		const selected = (select?.(newSnapshot) ?? newSnapshot) as T;
 		return selected;
 	};
 
