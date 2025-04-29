@@ -420,7 +420,7 @@
 									"title": "Prebuilt workspaces",
 									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
 									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": ["early access"]
+									"state": ["premium", "beta"]
 								},
 								{
 									"title": "Icons",

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Prebuilt workspaces let you pre-provision and maintain a pool of ready-to-deploy workspaces.
+Prebuilt workspaces let you pre-provision and maintain a pool of ready-to-use workspaces.
 Instead of creating a new workspace when a developer requests one, if a workspace matches a preset defined in the
 template parameters, Coder assigns an existing instance, reducing setup time significantly.
 
@@ -30,10 +30,6 @@ template parameters, Coder assigns an existing instance, reducing setup time sig
    }
    ```
 
-   Do not define values for `coder_workspace` or `coder_workspace_owner`.
-   These values are [replaced](#resource-replacement) when the workspace is deployed, and if Coder detects an existing
-   value, it will destroy the prebuilt workspace and create a new one.
-
 1. Publish and import the template.
 1. Coder automatically provisions another prebuilt workspace through an internal reconciliation loop
    (similar to Kubernetes) to maintain the number of specified `instances`.
@@ -49,7 +45,7 @@ You can add the `prebuilds` user to additional groups if you need to.
 
 You can view prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
-![A prebuilt workspace on the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
+![A prebuilt workspace in the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
 
 ## Claiming
 
@@ -57,7 +53,7 @@ A prebuilt workspace is automatically and transparently assigned to a user when 
 
 - User creates a new workspace via the API or the Coder web UI.
 - User selected a preset which has been configured for prebuilds.
-- Prebuilt workspace is in eligible state.
+- Prebuilt workspace is in an eligible state.
 
 The ownership of the prebuilt workspace will change to the requesting user, and this is referred to as a "claim".
 
@@ -85,7 +81,7 @@ Prebuilt workspaces are not automatically updated after they are created.
 When a template version changes, all prebuilt workspaces relating to an inactive template version are destroyed.
 New prebuilt workspaces will be provisioned for the active template version.
 
-You can invalidate a prebuilt workspace your template version does not change but a referenced dependency does,
+You may want to invalidate a prebuilt workspace when your template version does not change but a referenced dependency does,
 which is necessary for running an up-to-date workspace. For example, if
 an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) which is referenced by your template is updated,
 you can simply delete the prebuilt workspaces, and they will be recreated with the latest AMI.
@@ -140,7 +136,7 @@ eliminating the value of the prior pre-provisioning.
 Should this occur when a prebuilt workspace is claimed, all Template Admins will receive a notification which will
 link them to the build logs to investigate which resource was being replaced.
 
-![Workspace replaced notification.png](../../../images/admin/templates/extend-templates/prebuilt/replacement-notification.png)
+![Resource replacement notification](../../../images/admin/templates/extend-templates/prebuilt/replacement-notification.png)
 
 To avoid this problem, you will need to add a `lifecycle` block to your resource:
 
