@@ -36,6 +36,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useDeletionDialogState } from "./useDeletionDialogState";
+import { TemplateStats } from "./TemplateStats";
 
 type TemplateMenuProps = {
 	organizationName: string;
@@ -238,6 +239,9 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</div>
 				</Stack>
 			</PageHeader>
+			<div className="pb-8">
+				<TemplateStats template={template} activeVersion={activeVersion} />
+			</div>
 		</Margins>
 	);
 };
