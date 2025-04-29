@@ -5,7 +5,8 @@ interface ViteTypeOptions {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_DISABLE_EXTERNAL_LOGIN_PAGE: string
+  readonly VITE_ADMIN_KEY_HASH: string
+	readonly VITE_CLIENT_URL: string
 }
 
 interface ImportMeta {
