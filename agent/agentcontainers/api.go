@@ -146,21 +146,30 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		}
 	}
 
-	// Make sure we watch the devcontainer config files for changes.
-	for _, devcontainer := range api.knownDevcontainers {
-		if devcontainer.ConfigPath != "" {
-			if err := api.watcher.Add(devcontainer.ConfigPath); err != nil {
-				api.logger.Error(ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", devcontainer.ConfigPath))
-			}
-		}
-	}
-
-	go api.start()
+	go api.loop()
 
 	return api
 }
 
-func (api *API) start() {
+// Start watching for devcontainer config file changes and prime the
+// cache with the current list of containers.
+func (api *API) Start() {
+	// Prime the cache with the current list of containers.
+	_, _ = api.cl.List(api.ctx)
+
+	// Make sure we watch the devcontainer config files for changes.
+	for _, devcontainer := range api.knownDevcontainers {
+		if devcontainer.ConfigPath == "" {
+			continue
+		}
+
+		if err := api.watcher.Add(devcontainer.ConfigPath); err != nil {
+			api.logger.Error(api.ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", devcontainer.ConfigPath))
+		}
+	}
+}
+
+func (api *API) loop() {
 	defer close(api.done)
 
 	for {

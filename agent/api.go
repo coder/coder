@@ -37,7 +37,6 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 		cacheDuration: cacheDuration,
 	}
 
-	var containerAPI *agentcontainers.API
 	if a.experimentalDevcontainersEnabled {
 		containerAPIOpts := []agentcontainers.Option{
 			agentcontainers.WithExecer(a.execer),
@@ -53,9 +52,8 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 		// Append after to allow the agent options to override the default options.
 		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
 
-		containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
-
-		r.Mount("/api/v0/containers", containerAPI.Routes())
+		a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+		r.Mount("/api/v0/containers", a.containerAPI.Routes())
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
@@ -77,8 +75,8 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
 	return r, func() error {
-		if containerAPI != nil {
-			return containerAPI.Close()
+		if a.containerAPI != nil {
+			return a.containerAPI.Close()
 		}
 		return nil
 	}

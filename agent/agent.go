@@ -272,8 +272,9 @@ type agent struct {
 	metrics *agentMetrics
 	execer  agentexec.Execer
 
-	containerAPIOptions              []agentcontainers.Option
 	experimentalDevcontainersEnabled bool
+	containerAPIOptions              []agentcontainers.Option
+	containerAPI                     *agentcontainers.API
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1167,6 +1168,11 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+				if a.containerAPI != nil {
+					// Start the containerAPI service after
+					// devcontainers have been started.
+					a.containerAPI.Start()
+				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)
