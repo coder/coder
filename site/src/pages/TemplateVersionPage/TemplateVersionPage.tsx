@@ -13,7 +13,7 @@ import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
-export const TemplateVersionPage: FC = () => {
+const TemplateVersionPage: FC = () => {
 	const getLink = useLinks();
 	const {
 		organization: organizationName = "default",
