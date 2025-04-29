@@ -13,6 +13,7 @@ import (
 	"github.com/kylecarbs/aisdk-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -457,12 +458,14 @@ func TestWithCleanContext(t *testing.T) {
 		t.Parallel()
 
 		// This test is to ensure that the context is canceled properly.
+		callCh := make(chan struct{})
 		ctxTool := toolsdk.GenericTool{
 			Tool: aisdk.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
 			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				defer close(callCh)
 				// Wait for the context to be canceled
 				<-toolCtx.Done()
 				return nil, toolCtx.Err()
@@ -471,6 +474,7 @@ func TestWithCleanContext(t *testing.T) {
 		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
 		errCh := make(chan error, 1)
 
+		tCtx := testutil.Context(t, testutil.WaitShort)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		go func() {
@@ -479,12 +483,21 @@ func TestWithCleanContext(t *testing.T) {
 		}()
 
 		cancel()
+
+		// Ensure the tool is called
 		select {
-		case <-t.Context().Done():
+		case <-callCh:
+		case <-tCtx.Done():
+			require.Fail(t, "test timed out before handler was called")
+		}
+
+		// Ensure the correct error is returned
+		select {
+		case <-tCtx.Done():
 			require.Fail(t, "test timed out")
 		case err := <-errCh:
-			require.ErrorIs(t, err, context.Canceled)
 			// Context was canceled and the done channel was closed
+			require.ErrorIs(t, err, context.Canceled)
 		}
 	})
 
@@ -506,7 +519,7 @@ func TestWithCleanContext(t *testing.T) {
 		}
 
 		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
-		parent, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		parent, cancel := context.WithTimeout(context.Background(), testutil.IntervalFast)
 		t.Cleanup(cancel)
 		_, err := wrapped(parent, toolsdk.Deps{}, []byte(`{}`))
 		require.NoError(t, err)
@@ -532,6 +545,7 @@ func TestMain(m *testing.M) {
 	}
 
 	if len(untested) > 0 && code == 0 {
+		code = 1
 		println("The following tools were not tested:")
 		for _, tool := range untested {
 			println(" - " + tool)
@@ -539,7 +553,14 @@ func TestMain(m *testing.M) {
 		println("Please ensure that all tools are tested using testTool().")
 		println("If you just added a new tool, please add a test for it.")
 		println("NOTE: if you just ran an individual test, this is expected.")
-		os.Exit(1)
+	}
+
+	// Check for goroutine leaks. Below is adapted from goleak.VerifyTestMain:
+	if code == 0 {
+		if err := goleak.Find(testutil.GoleakOptions...); err != nil {
+			println("goleak: Errors on successful test run: ", err.Error())
+			code = 1
+		}
 	}
 
 	os.Exit(code)
