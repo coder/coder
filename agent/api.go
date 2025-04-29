@@ -50,6 +50,9 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 			)
 		}
 
+		// Append after to allow the agent options to override the default options.
+		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+
 		containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 		r.Mount("/api/v0/containers", containerAPI.Routes())
