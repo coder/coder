@@ -35,8 +35,8 @@ import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { useDeletionDialogState } from "./useDeletionDialogState";
 import { TemplateStats } from "./TemplateStats";
+import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
 	organizationName: string;
