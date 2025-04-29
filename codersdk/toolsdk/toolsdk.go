@@ -17,12 +17,12 @@ import (
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	d := Deps{
-		CoderClient: client,
+		coderClient: client,
 	}
 	for _, opt := range opts {
 		opt(&d)
 	}
-	if d.CoderClient == nil {
+	if d.coderClient == nil {
 		return Deps{}, xerrors.New("developer error: coder client may not be nil")
 	}
 	return d, nil
@@ -30,21 +30,21 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 
 func WithAgentClient(client *agentsdk.Client) func(*Deps) {
 	return func(d *Deps) {
-		d.AgentClient = client
+		d.agentClient = client
 	}
 }
 
 func WithAppStatusSlug(slug string) func(*Deps) {
 	return func(d *Deps) {
-		d.AppStatusSlug = slug
+		d.appStatusSlug = slug
 	}
 }
 
 // Deps provides access to tool dependencies.
 type Deps struct {
-	CoderClient   *codersdk.Client
-	AgentClient   *agentsdk.Client
-	AppStatusSlug string
+	coderClient   *codersdk.Client
+	agentClient   *agentsdk.Client
+	appStatusSlug string
 }
 
 // HandlerFunc is a typed function that handles a tool call.
@@ -196,17 +196,17 @@ var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
-		if deps.AgentClient == nil {
+		if deps.agentClient == nil {
 			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
 		}
-		if deps.AppStatusSlug == "" {
+		if deps.appStatusSlug == "" {
 			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_MCP_APP_STATUS_SLUG is not set")
 		}
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
 		}
-		if err := deps.AgentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-			AppSlug: deps.AppStatusSlug,
+		if err := deps.agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: deps.appStatusSlug,
 			Message: args.Summary,
 			URI:     args.Link,
 			State:   codersdk.WorkspaceAppStatusState(args.State),
@@ -243,7 +243,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 		if err != nil {
 			return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
 		}
-		return deps.CoderClient.Workspace(ctx, wsID)
+		return deps.coderClient.Workspace(ctx, wsID)
 	},
 }
 
@@ -300,7 +300,7 @@ is provisioned correctly and the agent can connect to the control plane.
 				Value: v,
 			})
 		}
-		workspace, err := deps.CoderClient.CreateUserWorkspace(ctx, args.User, codersdk.CreateWorkspaceRequest{
+		workspace, err := deps.coderClient.CreateUserWorkspace(ctx, args.User, codersdk.CreateWorkspaceRequest{
 			TemplateVersionID:   tvID,
 			Name:                args.Name,
 			RichParameterValues: buildParams,
@@ -334,7 +334,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 		if owner == "" {
 			owner = codersdk.Me
 		}
-		workspaces, err := deps.CoderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+		workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: owner,
 		})
 		if err != nil {
@@ -367,7 +367,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, _ NoArgs) ([]MinimalTemplate, error) {
-		templates, err := deps.CoderClient.Templates(ctx, codersdk.TemplateFilter{})
+		templates, err := deps.coderClient.Templates(ctx, codersdk.TemplateFilter{})
 		if err != nil {
 			return nil, err
 		}
@@ -408,7 +408,7 @@ var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []co
 		if err != nil {
 			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 		}
-		parameters, err := deps.CoderClient.TemplateVersionRichParameters(ctx, templateVersionID)
+		parameters, err := deps.coderClient.TemplateVersionRichParameters(ctx, templateVersionID)
 		if err != nil {
 			return nil, err
 		}
@@ -426,7 +426,7 @@ var GetAuthenticatedUser = Tool[NoArgs, codersdk.User]{
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, _ NoArgs) (codersdk.User, error) {
-		return deps.CoderClient.User(ctx, "me")
+		return deps.coderClient.User(ctx, "me")
 	},
 }
 
@@ -477,7 +477,7 @@ var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuil
 		if templateVersionID != uuid.Nil {
 			cbr.TemplateVersionID = templateVersionID
 		}
-		return deps.CoderClient.CreateWorkspaceBuild(ctx, workspaceID, cbr)
+		return deps.coderClient.CreateWorkspaceBuild(ctx, workspaceID, cbr)
 	},
 }
 
@@ -945,7 +945,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
-		me, err := deps.CoderClient.User(ctx, "me")
+		me, err := deps.coderClient.User(ctx, "me")
 		if err != nil {
 			return codersdk.TemplateVersion{}, err
 		}
@@ -961,7 +961,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			}
 			templateID = tid
 		}
-		templateVersion, err := deps.CoderClient.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
+		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
 			Message:       "Created by AI",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			FileID:        fileID,
@@ -999,7 +999,7 @@ var GetWorkspaceAgentLogs = Tool[GetWorkspaceAgentLogsArgs, []string]{
 		if err != nil {
 			return nil, xerrors.Errorf("workspace_agent_id must be a valid UUID: %w", err)
 		}
-		logs, closer, err := deps.CoderClient.WorkspaceAgentLogsAfter(ctx, workspaceAgentID, 0, false)
+		logs, closer, err := deps.coderClient.WorkspaceAgentLogsAfter(ctx, workspaceAgentID, 0, false)
 		if err != nil {
 			return nil, err
 		}
@@ -1038,7 +1038,7 @@ var GetWorkspaceBuildLogs = Tool[GetWorkspaceBuildLogsArgs, []string]{
 		if err != nil {
 			return nil, xerrors.Errorf("workspace_build_id must be a valid UUID: %w", err)
 		}
-		logs, closer, err := deps.CoderClient.WorkspaceBuildLogsAfter(ctx, workspaceBuildID, 0)
+		logs, closer, err := deps.coderClient.WorkspaceBuildLogsAfter(ctx, workspaceBuildID, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1074,7 +1074,7 @@ var GetTemplateVersionLogs = Tool[GetTemplateVersionLogsArgs, []string]{
 			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 		}
 
-		logs, closer, err := deps.CoderClient.TemplateVersionLogsAfter(ctx, templateVersionID, 0)
+		logs, closer, err := deps.coderClient.TemplateVersionLogsAfter(ctx, templateVersionID, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1117,7 +1117,7 @@ var UpdateTemplateActiveVersion = Tool[UpdateTemplateActiveVersionArgs, string]{
 		if err != nil {
 			return "", xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 		}
-		err = deps.CoderClient.UpdateActiveTemplateVersion(ctx, templateID, codersdk.UpdateActiveTemplateVersion{
+		err = deps.coderClient.UpdateActiveTemplateVersion(ctx, templateID, codersdk.UpdateActiveTemplateVersion{
 			ID: templateVersionID,
 		})
 		if err != nil {
@@ -1174,7 +1174,7 @@ var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 			}
 		}()
 
-		resp, err := deps.CoderClient.Upload(ctx, codersdk.ContentTypeTar, pipeReader)
+		resp, err := deps.coderClient.Upload(ctx, codersdk.ContentTypeTar, pipeReader)
 		if err != nil {
 			_ = pipeReader.CloseWithError(err)
 			<-done
@@ -1221,7 +1221,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateArgs) (codersdk.Template, error) {
-		me, err := deps.CoderClient.User(ctx, "me")
+		me, err := deps.coderClient.User(ctx, "me")
 		if err != nil {
 			return codersdk.Template{}, err
 		}
@@ -1229,7 +1229,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		if err != nil {
 			return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
 		}
-		template, err := deps.CoderClient.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
+		template, err := deps.coderClient.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
 			Name:        args.Name,
 			DisplayName: args.DisplayName,
 			Description: args.Description,
@@ -1263,7 +1263,7 @@ var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 		}
-		err = deps.CoderClient.DeleteTemplate(ctx, templateID)
+		err = deps.coderClient.DeleteTemplate(ctx, templateID)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
