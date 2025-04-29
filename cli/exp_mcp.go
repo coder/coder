@@ -114,6 +114,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		claudeConfigPath string
 		claudeMDPath     string
 		systemPrompt     string
+		coderPrompt      string
 		appStatusSlug    string
 		testBinaryName   string
 
@@ -185,8 +186,18 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				reportTaskPrompt = defaultReportTaskPrompt
 			}
 
+			// If a user overrides the coder prompt, we don't want to append
+			// the report task prompt, as it then becomes the responsibility
+			// of the user.
+			actualCoderPrompt := defaultCoderPrompt
+			if coderPrompt != "" {
+				actualCoderPrompt = coderPrompt
+			} else if reportTaskPrompt != "" {
+				actualCoderPrompt += "\n\n" + reportTaskPrompt
+			}
+
 			// We also write the system prompt to the CLAUDE.md file.
-			if err := injectClaudeMD(fs, systemPrompt, reportTaskPrompt, claudeMDPath); err != nil {
+			if err := injectClaudeMD(fs, actualCoderPrompt, systemPrompt, claudeMDPath); err != nil {
 				return xerrors.Errorf("failed to modify CLAUDE.md: %w", err)
 			}
 			cliui.Infof(inv.Stderr, "Wrote CLAUDE.md to %s", claudeMDPath)
@@ -230,6 +241,14 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Flag:        "claude-system-prompt",
 				Value:       serpent.StringOf(&systemPrompt),
 				Default:     "Send a task status update to notify the user that you are ready for input, and then wait for user input.",
+			},
+			{
+				Name:        "coder-prompt",
+				Description: "The coder prompt to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_CODER_PROMPT",
+				Flag:        "claude-coder-prompt",
+				Value:       serpent.StringOf(&coderPrompt),
+				Default:     "", // Empty default means we'll use defaultCoderPrompt from the variable
 			},
 			{
 				Name:        "app-status-slug",
@@ -603,7 +622,7 @@ Task summaries MUST:
 	systemPromptEndGuard   = "</system-prompt>"
 )
 
-func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath string) error {
+func injectClaudeMD(fs afero.Fs, coderPrompt, systemPrompt, claudeMDPath string) error {
 	_, err := fs.Stat(claudeMDPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -614,7 +633,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath st
 			return xerrors.Errorf("failed to create claude config directory: %w", err)
 		}
 
-		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(defaultCoderPrompt, reportTaskPrompt, systemPrompt, "")), 0o600)
+		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(coderPrompt, systemPrompt, "")), 0o600)
 	}
 
 	bs, err := afero.ReadFile(fs, claudeMDPath)
@@ -647,7 +666,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath st
 	cleanContent = strings.TrimSpace(cleanContent)
 
 	// Create the new content with coder and system prompt prepended
-	newContent := promptsBlock(defaultCoderPrompt, reportTaskPrompt, systemPrompt, cleanContent)
+	newContent := promptsBlock(coderPrompt, systemPrompt, cleanContent)
 
 	// Write the updated content back to the file
 	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent), 0o600)
@@ -658,19 +677,11 @@ func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath st
 	return nil
 }
 
-func promptsBlock(coderPrompt, reportTaskPrompt, systemPrompt, existingContent string) string {
+func promptsBlock(coderPrompt, systemPrompt, existingContent string) string {
 	var newContent strings.Builder
 	_, _ = newContent.WriteString(coderPromptStartGuard)
 	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(coderPrompt)
-
-	// Only include the report task prompt if it's provided
-	if reportTaskPrompt != "" {
-		_, _ = newContent.WriteRune('\n')
-		_, _ = newContent.WriteRune('\n')
-		_, _ = newContent.WriteString(reportTaskPrompt)
-	}
-
 	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(coderPromptEndGuard)
 	_, _ = newContent.WriteRune('\n')

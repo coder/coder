@@ -192,6 +192,52 @@ test-system-prompt
 		}
 	})
 
+	t.Run("CustomCoderPrompt", func(t *testing.T) {
+		t.Setenv("CODER_AGENT_TOKEN", "test-agent-token")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cancelCtx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tmpDir := t.TempDir()
+		claudeConfigPath := filepath.Join(tmpDir, "claude.json")
+		claudeMDPath := filepath.Join(tmpDir, "CLAUDE.md")
+
+		customCoderPrompt := "This is a custom coder prompt from flag."
+
+		// This should include the custom coderPrompt and reportTaskPrompt
+		expectedClaudeMD := `<coder-prompt>
+This is a custom coder prompt from flag.
+</coder-prompt>
+<system-prompt>
+test-system-prompt
+</system-prompt>
+`
+
+		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code", "/path/to/project",
+			"--claude-api-key=test-api-key",
+			"--claude-config-path="+claudeConfigPath,
+			"--claude-md-path="+claudeMDPath,
+			"--claude-system-prompt=test-system-prompt",
+			"--claude-app-status-slug=some-app-name",
+			"--claude-test-binary-name=pathtothecoderbinary",
+			"--claude-coder-prompt="+customCoderPrompt,
+		)
+		clitest.SetupConfig(t, client, root)
+
+		err := inv.WithContext(cancelCtx).Run()
+		require.NoError(t, err, "failed to configure claude code")
+
+		require.FileExists(t, claudeMDPath, "claude md file should exist")
+		claudeMD, err := os.ReadFile(claudeMDPath)
+		require.NoError(t, err, "failed to read claude md path")
+		if diff := cmp.Diff(expectedClaudeMD, string(claudeMD)); diff != "" {
+			t.Fatalf("claude md file content mismatch (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("NoReportTaskWhenNoAppSlug", func(t *testing.T) {
 		t.Setenv("CODER_AGENT_TOKEN", "test-agent-token")
 		ctx := testutil.Context(t, testutil.WaitShort)
