@@ -176,8 +176,17 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			}
 			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
 
+			// Determine if we should include the reportTaskPrompt
+			var reportTaskPrompt string
+			if agentToken != "" && appStatusSlug != "" {
+				// Only include the report task prompt if both agent token and app
+				// status slug are defined. Otherwise, reporting a task will fail
+				// and confuse the agent (and by extension, the user).
+				reportTaskPrompt = defaultReportTaskPrompt
+			}
+
 			// We also write the system prompt to the CLAUDE.md file.
-			if err := injectClaudeMD(fs, systemPrompt, claudeMDPath); err != nil {
+			if err := injectClaudeMD(fs, systemPrompt, reportTaskPrompt, claudeMDPath); err != nil {
 				return xerrors.Errorf("failed to modify CLAUDE.md: %w", err)
 			}
 			cliui.Infof(inv.Stderr, "Wrote CLAUDE.md to %s", claudeMDPath)
@@ -567,22 +576,24 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 }
 
 var (
-	coderPrompt = `YOU MUST REPORT YOUR STATUS IMMEDIATELY AFTER EACH USER MESSAGE.
-INTERRUPT READING FILES OR ANY OTHER TOOL CALL IF YOU HAVE NOT REPORTED A STATUS YET.
-You MUST use the mcp__coder__coder_report_task function with all required parameters:
-- summary: Short description of what you're doing
-- link: A relevant link for the status
-- done: Boolean indicating if the task is complete (true/false)
-- emoji: Relevant emoji for the status
-- need_user_attention: Boolean indicating if the task needs user attention (true/false)
-WHEN TO REPORT (MANDATORY):
-1. IMMEDIATELY after receiving ANY user message, before any other actions
-2. After completing any task
-3. When making significant progress
-4. When encountering roadblocks
-5. When asking questions
-6. Before and after using search tools or making code changes
-FAILING TO REPORT STATUS PROPERLY WILL RESULT IN INCORRECT BEHAVIOR.`
+	coderPrompt = `You are a helpful Coding assistant. Aim to autonomously investigate
+and solve issues the user gives you and test your work, whenever possible.
+Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
+but opt for autonomy.`
+
+	defaultReportTaskPrompt = `Report all tasks to Coder, following these EXACT guidelines:
+
+1. Be granular. If you are investigating with multiple steps, report each step to coder.
+2. IMMEDIATELY report status after receiving ANY user message.
+3. Use "state": "working" when actively processing WITHOUT needing additional user input.
+4. Use "state": "complete" only when finished with a task.
+5. Use "state": "failure" when you need ANY user input, lack sufficient details, or encounter blockers.
+
+In your summary, you MUST:
+- Be specific about what you're doing.
+- Clearly indicate what information you need from the user when in "failure" state
+- Keep it under 160 characters. Summaries longer than 160 characters are not accepted.
+- Make it actionable.`
 
 	// Define the guard strings
 	coderPromptStartGuard  = "<coder-prompt>"
@@ -591,7 +602,7 @@ FAILING TO REPORT STATUS PROPERLY WILL RESULT IN INCORRECT BEHAVIOR.`
 	systemPromptEndGuard   = "</system-prompt>"
 )
 
-func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error {
+func injectClaudeMD(fs afero.Fs, systemPrompt, reportTaskPrompt, claudeMDPath string) error {
 	_, err := fs.Stat(claudeMDPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -602,7 +613,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error
 			return xerrors.Errorf("failed to create claude config directory: %w", err)
 		}
 
-		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(coderPrompt, systemPrompt, "")), 0o600)
+		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(coderPrompt, reportTaskPrompt, systemPrompt, "")), 0o600)
 	}
 
 	bs, err := afero.ReadFile(fs, claudeMDPath)
@@ -635,7 +646,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error
 	cleanContent = strings.TrimSpace(cleanContent)
 
 	// Create the new content with coder and system prompt prepended
-	newContent := promptsBlock(coderPrompt, systemPrompt, cleanContent)
+	newContent := promptsBlock(coderPrompt, reportTaskPrompt, systemPrompt, cleanContent)
 
 	// Write the updated content back to the file
 	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent), 0o600)
@@ -646,11 +657,19 @@ func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error
 	return nil
 }
 
-func promptsBlock(coderPrompt, systemPrompt, existingContent string) string {
+func promptsBlock(coderPrompt, reportTaskPrompt, systemPrompt, existingContent string) string {
 	var newContent strings.Builder
 	_, _ = newContent.WriteString(coderPromptStartGuard)
 	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(coderPrompt)
+
+	// Only include the report task prompt if it's provided
+	if reportTaskPrompt != "" {
+		_, _ = newContent.WriteRune('\n')
+		_, _ = newContent.WriteRune('\n')
+		_, _ = newContent.WriteString(reportTaskPrompt)
+	}
+
 	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(coderPromptEndGuard)
 	_, _ = newContent.WriteRune('\n')
