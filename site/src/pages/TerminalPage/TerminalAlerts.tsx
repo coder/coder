@@ -104,7 +104,7 @@ const ErrorScriptAlert: FC = () => {
 	);
 };
 
-export const LoadingScriptsAlert: FC = () => {
+const LoadingScriptsAlert: FC = () => {
 	return (
 		<TerminalAlert
 			dismissible

@@ -1,6 +1,6 @@
 import type { CSSObject } from "@emotion/react";
 
-export type ExternalImageMode = keyof ExternalImageModeStyles;
+type ExternalImageMode = keyof ExternalImageModeStyles;
 
 export interface ExternalImageModeStyles {
 	/**

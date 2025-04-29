@@ -456,7 +456,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-export const AssignDefaultOrgHelpTooltip: FC = () => {
+const AssignDefaultOrgHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
 			<HelpTooltipTrigger />

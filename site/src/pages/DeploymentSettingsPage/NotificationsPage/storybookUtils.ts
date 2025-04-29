@@ -18,7 +18,7 @@ import {
 import type { NotificationsPage } from "./NotificationsPage";
 
 // Extracted from a real API response
-export const mockNotificationsDeploymentOptions: SerpentOption[] = [
+const mockNotificationsDeploymentOptions: SerpentOption[] = [
 	{
 		name: "Notifications: Dispatch Timeout",
 		description:

@@ -20,7 +20,7 @@ import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
 
-export const IdpOrgSyncPage: FC = () => {
+const IdpOrgSyncPage: FC = () => {
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();

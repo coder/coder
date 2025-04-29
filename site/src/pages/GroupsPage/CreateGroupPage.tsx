@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CreateGroupPageView from "./CreateGroupPageView";
 
-export const CreateGroupPage: FC = () => {
+const CreateGroupPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { organization } = useParams() as { organization: string };
