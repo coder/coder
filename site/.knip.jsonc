@@ -12,7 +12,8 @@
 		"@types/react-virtualized-auto-sizer",
 		"jest_workaround",
 		"protobufjs",
-		"rxjs"
+		"rxjs",
+		"ts-proto"
 	],
 	// This sets knip not to report unused exports of types and interfaces
 	// as long as they are used within the file.

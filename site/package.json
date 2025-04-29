@@ -184,6 +184,7 @@
 		"storybook": "8.5.3",
 		"storybook-addon-remix-react-router": "3.1.0",
 		"tailwindcss": "3.4.17",
+		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
 		"typescript": "5.6.3",
 		"vite": "5.4.18",

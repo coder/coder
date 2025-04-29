@@ -461,6 +461,9 @@ importers:
       tailwindcss:
         specifier: 3.4.17
         version: 3.4.17(ts-node@10.9.2(@swc/core@1.3.38)(@types/node@20.17.16)(typescript@5.6.3))
+      ts-proto:
+        specifier: 1.164.0
+        version: 1.164.0
       ts-prune:
         specifier: 0.10.3
         version: 0.10.3
@@ -3070,6 +3073,10 @@ packages:
   caniuse-lite@1.0.30001690:
     resolution: {integrity: sha512-5ExiE3qQN6oF8Clf8ifIDcMRCRE/dMGcETG/XGMD8/XiXm6HXQgQTh1yZYLXXpSOsEUlJm1Xr7kGULZTuGtP/w==, tarball: https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001690.tgz}
 
+  case-anything@2.1.13:
+    resolution: {integrity: sha512-zlOQ80VrQ2Ue+ymH5OuM/DlDq64mEm+B9UTdHULv5osUMD6HalNTblf2b1u/m6QecjsnOkBpqVZ+XPwIVsy7Ng==, tarball: https://registry.npmjs.org/case-anything/-/case-anything-2.1.13.tgz}
+    engines: {node: '>=12.13'}
+
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==, tarball: https://registry.npmjs.org/ccount/-/ccount-2.0.1.tgz}
 
@@ -3467,6 +3474,11 @@ packages:
     resolution: {integrity: sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==, tarball: https://registry.npmjs.org/destroy/-/destroy-1.2.0.tgz}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
 
+  detect-libc@1.0.3:
+    resolution: {integrity: sha512-pGjwhsmsp4kL2RTz08wcOlGN83otlqHeD/Z5T8GXZB+/YcpQ/dgo+lbU8ZsGxV0HIvqqxo9l7mqYwyYMD9bKDg==, tarball: https://registry.npmjs.org/detect-libc/-/detect-libc-1.0.3.tgz}
+    engines: {node: '>=0.10'}
+    hasBin: true
+
   detect-newline@3.1.0:
     resolution: {integrity: sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==, tarball: https://registry.npmjs.org/detect-newline/-/detect-newline-3.1.0.tgz}
     engines: {node: '>=8'}
@@ -3512,6 +3524,9 @@ packages:
   dpdm@3.14.0:
     resolution: {integrity: sha512-YJzsFSyEtj88q5eTELg3UWU7TVZkG1dpbF4JDQ3t1b07xuzXmdoGeSz9TKOke1mUuOpWlk4q+pBh+aHzD6GBTg==, tarball: https://registry.npmjs.org/dpdm/-/dpdm-3.14.0.tgz}
     hasBin: true
+
+  dprint-node@1.0.8:
+    resolution: {integrity: sha512-iVKnUtYfGrYcW1ZAlfR/F59cUVL8QIhWoBJoSjkkdua/dkWIgjZfiLMeTjiB06X0ZLkQ0M2C1VbUj/CxkIf1zg==, tarball: https://registry.npmjs.org/dprint-node/-/dprint-node-1.0.8.tgz}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==, tarball: https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz}
@@ -5948,6 +5963,16 @@ packages:
         optional: true
       '@swc/wasm':
         optional: true
+
+  ts-poet@6.11.0:
+    resolution: {integrity: sha512-r5AGF8vvb+GjBsnqiTqbLhN1/U2FJt6BI+k0dfCrkKzWvUhNlwMmq9nDHuucHs45LomgHjZPvYj96dD3JawjJA==, tarball: https://registry.npmjs.org/ts-poet/-/ts-poet-6.11.0.tgz}
+
+  ts-proto-descriptors@1.15.0:
+    resolution: {integrity: sha512-TYyJ7+H+7Jsqawdv+mfsEpZPTIj9siDHS6EMCzG/z3b/PZiphsX+mWtqFfFVe5/N0Th6V3elK9lQqjnrgTOfrg==, tarball: https://registry.npmjs.org/ts-proto-descriptors/-/ts-proto-descriptors-1.15.0.tgz}
+
+  ts-proto@1.164.0:
+    resolution: {integrity: sha512-yIyMucjcozS7Vxtyy5mH6C8ltbY4gEBVNW4ymZ0kWiKlyMxsvhyUZ63CbxcF7dCKQVjHR+fLJ3SiorfgyhQ+AQ==, tarball: https://registry.npmjs.org/ts-proto/-/ts-proto-1.164.0.tgz}
+    hasBin: true
 
   ts-prune@0.10.3:
     resolution: {integrity: sha512-iS47YTbdIcvN8Nh/1BFyziyUqmjXz7GVzWu02RaZXqb+e/3Qe1B7IQ4860krOeCGUeJmterAlaM2FRH0Ue0hjw==, tarball: https://registry.npmjs.org/ts-prune/-/ts-prune-0.10.3.tgz}
@@ -9235,6 +9260,8 @@ snapshots:
 
   caniuse-lite@1.0.30001690: {}
 
+  case-anything@2.1.13: {}
+
   ccount@2.0.1: {}
 
   chai@5.1.2:
@@ -9594,6 +9621,8 @@ snapshots:
 
   destroy@1.2.0: {}
 
+  detect-libc@1.0.3: {}
+
   detect-newline@3.1.0: {}
 
   detect-node-es@1.1.0: {}
@@ -9637,6 +9666,10 @@ snapshots:
       tslib: 2.8.1
       typescript: 5.6.3
       yargs: 17.7.2
+
+  dprint-node@1.0.8:
+    dependencies:
+      detect-libc: 1.0.3
 
   dunder-proto@1.0.1:
     dependencies:
@@ -12803,6 +12836,22 @@ snapshots:
     optionalDependencies:
       '@swc/core': 1.3.38
     optional: true
+
+  ts-poet@6.11.0:
+    dependencies:
+      dprint-node: 1.0.8
+
+  ts-proto-descriptors@1.15.0:
+    dependencies:
+      long: 5.2.3
+      protobufjs: 7.4.0
+
+  ts-proto@1.164.0:
+    dependencies:
+      case-anything: 2.1.13
+      protobufjs: 7.4.0
+      ts-poet: 6.11.0
+      ts-proto-descriptors: 1.15.0
 
   ts-prune@0.10.3:
     dependencies:
