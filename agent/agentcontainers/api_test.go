@@ -634,7 +634,7 @@ func TestAPI(t *testing.T) {
 		)
 		defer api.Close()
 
-		api.Ready()
+		api.SignalReady()
 
 		r := chi.NewRouter()
 		r.Mount("/", api.Routes())

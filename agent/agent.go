@@ -1172,7 +1172,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 					// Inform the container API that the agent is ready.
 					// This allows us to start watching for changes to
 					// the devcontainer configuration files.
-					a.containerAPI.Ready()
+					a.containerAPI.SignalReady()
 				}
 			})
 			if err != nil {
