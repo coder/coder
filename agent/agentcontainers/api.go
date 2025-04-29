@@ -155,6 +155,9 @@ func NewAPI(logger slog.Logger, experimentalDevcontainersEnabled bool, options .
 			}
 		}
 	} else {
+		if api.cl != nil || api.dccli != nil || api.watcher != nil {
+			logger.Warn(ctx, "devcontainers are disabled but API is configured with devcontainer services")
+		}
 		api.cl = &NoopLister{}
 		api.dccli = &noopDevcontainerCLI{}
 		api.watcher = watcher.NewNoop()
