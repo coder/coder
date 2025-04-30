@@ -7,8 +7,7 @@ These are intended for end-user flows only. If you are an administrator, please
 refer to our docs on configuring [templates](../admin/index.md) or the
 [control plane](../admin/index.md).
 
-Check out our [early access features](../early-access/index.md) for upcoming
-functionality, including the new
-[Dev Containers integration](../early-access/devcontainers.md).
+Check out our [early access features](../install/releases/feature-stages.md) for upcoming
+functionality, including [Dev Containers integration](../user-guides/devcontainers/index.md).
 
 <children></children>

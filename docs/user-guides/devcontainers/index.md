@@ -1,4 +1,10 @@
-# Dev Containers Integration (Early Access)
+# Dev Containers Integration
+
+> [!NOTE]
+>
+> The Coder dev containers integration is an [early access](../../install/releases/feature-stages.md) feature.
+>
+> While functional for testing and feedback, it may change significantly before general availability.
 
 The dev containers integration is an early access feature that enables seamless
 creation and management of dev containers in Coder workspaces. This feature
@@ -6,11 +12,9 @@ leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and
 [Docker](https://www.docker.com) to provide a streamlined development
 experience.
 
-> [!NOTE]
->
-> This implementation is different from the existing
-> [Envbuilder-based dev containers](../admin/templates/managing-templates/devcontainers/index.md)
-> offering.
+This implementation is different from the existing
+[Envbuilder-based dev containers](../../admin/templates/managing-templates/devcontainers/index.md)
+offering.
 
 ## Contents
 
@@ -195,7 +199,7 @@ resource "docker_container" "workspace" {
 The dev container integration appears in your Coder dashboard, providing a
 visual representation of the running environment:
 
-![Dev container integration in Coder dashboard](../images/early-access/devcontainer-agent-ports.png)
+![Dev container integration in Coder dashboard](../../images/user-guides/devcontainers/devcontainer-agent-ports.png)
 
 ### SSH Access
 
@@ -216,7 +220,7 @@ coder ssh --container keen_dijkstra my-workspace
 Once your workspace and dev container are running, you can use the web terminal
 in the Coder interface to execute commands directly inside the dev container.
 
-![Coder web terminal with dev container](../images/early-access/devcontainer-web-terminal.png)
+![Coder web terminal with dev container](../../images/user-guides/devcontainers/devcontainer-web-terminal.png)
 
 ### IDE Integration (VS Code)
 

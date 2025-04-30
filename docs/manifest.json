@@ -214,6 +214,13 @@
 					"icon_path": "./images/icons/circle-dot.svg"
 				},
 				{
+					"title": "Dev Containers Integration",
+					"description": "",
+					"path": "./user-guides/devcontainers/index.md",
+					"icon_path": "./images/icons/container.svg",
+					"state": ["early access"]
+				},
+				{
 					"title": "Dotfiles",
 					"description": "Personalize your environment with dotfiles",
 					"path": "./user-guides/workspace-dotfiles.md",
