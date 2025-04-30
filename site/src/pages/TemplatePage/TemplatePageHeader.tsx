@@ -35,6 +35,7 @@ import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
@@ -238,6 +239,9 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</div>
 				</Stack>
 			</PageHeader>
+			<div className="pb-8">
+				<TemplateStats template={template} activeVersion={activeVersion} />
+			</div>
 		</Margins>
 	);
 };
