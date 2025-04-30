@@ -28,6 +28,7 @@ import {
 	useContext,
 	useEffect,
 	useId,
+	useRef,
 	useState,
 } from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
@@ -103,6 +104,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	);
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
+	const workspaceNameInputRef = useRef<HTMLInputElement>(null);
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
@@ -142,14 +144,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	useEffect(() => {
 		if (form.submitCount > 0 && form.errors) {
-			const fieldId = `${id}-workspace-name`;
-			const el = document.getElementById(fieldId);
-			if (el) {
-				el.scrollIntoView({ behavior: "smooth", block: "center" });
-				(el as HTMLElement).focus?.();
-			}
+			workspaceNameInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+			workspaceNameInputRef.current?.focus();
 		}
-	}, [form.submitCount, form.errors, id]);
+	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
 		{ label: "None", value: "" },
@@ -342,6 +340,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<div className="flex flex-col">
 										<Input
 											id={`${id}-workspace-name`}
+											ref={workspaceNameInputRef}
 											value={form.values.name}
 											onChange={(e) => {
 												form.setFieldValue("name", e.target.value.trim());
