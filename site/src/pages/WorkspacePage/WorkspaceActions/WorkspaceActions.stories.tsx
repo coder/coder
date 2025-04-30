@@ -202,7 +202,9 @@ export const OpenDownloadLogs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Workspace actions" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
 		const screen = within(document.body);
 		await userEvent.click(screen.getByText("Download logs…"));
 		await expect(screen.getByTestId("dialog")).toBeInTheDocument();
@@ -215,7 +217,9 @@ export const CanDeleteDormantWorkspace: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Workspace actions" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
 		const screen = within(document.body);
 		const deleteButton = screen.getByText("Delete…");
 		await expect(deleteButton).toBeEnabled();

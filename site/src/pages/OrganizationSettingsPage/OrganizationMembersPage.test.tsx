@@ -6,6 +6,8 @@ import {
 	MockEntitlementsWithMultiOrg,
 	MockOrganization,
 	MockOrganizationAuditorRole,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockOrganizationPermissions,
 	MockUser,
 } from "testHelpers/entities";
@@ -46,20 +48,19 @@ const renderPage = async () => {
 
 const removeMember = async () => {
 	const user = userEvent.setup();
-	// Click on the "Open menu" button to display the "Remove" option
-	const menuButtons = await screen.findAllByRole("button", { name: "Open menu" });
-	// get MockUser2
-	const selectedMenuButton = menuButtons[0];
 
-	await user.click(selectedMenuButton);
-
-	// Wait for the dropdown menu to be visible and find the remove button
-	const menuItems = await screen.findAllByRole("menuitem");
-	const removeButton = menuItems.find(item => item.textContent === "Remove");
-	if (!removeButton) {
-		throw new Error("Remove button not found");
+	const users = await screen.findAllByText(/.*@coder.com/);
+	const userRow = users[1].closest("tr");
+	if (!userRow) {
+		throw new Error("Error on get the first user row");
 	}
-	await user.click(removeButton);
+	const menuButton = await within(userRow).findByRole("button", {
+		name: "Open menu",
+	});
+	await user.click(menuButton);
+
+	const removeOption = await screen.findByRole("menuitem", { name: "Remove" });
+	await user.click(removeOption);
 
 	const dialog = await within(document.body).findByRole("dialog");
 	await user.click(within(dialog).getByRole("button", { name: "Remove" }));
