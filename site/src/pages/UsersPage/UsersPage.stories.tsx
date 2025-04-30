@@ -268,7 +268,9 @@ export const ResetUserPasswordSuccess: Story = {
 		spyOn(API, "updateUserPassword").mockResolvedValue();
 
 		await user.click(within(userRow).getByLabelText("Open menu"));
-		const resetPasswordButton = await within(document.body).findByText("Reset password…");
+		const resetPasswordButton = await within(document.body).findByText(
+			"Reset password…",
+		);
 		await user.click(resetPasswordButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -292,7 +294,9 @@ export const ResetUserPasswordError: Story = {
 		spyOn(API, "updateUserPassword").mockRejectedValue({});
 
 		await user.click(within(userRow).getByLabelText("Open menu"));
-		const resetPasswordButton = await within(document.body).findByText("Reset password…");
+		const resetPasswordButton = await within(document.body).findByText(
+			"Reset password…",
+		);
 		await user.click(resetPasswordButton);
 
 		const dialog = await within(document.body).findByRole("dialog");

@@ -46,14 +46,14 @@ const renderPage = async () => {
 
 const removeMember = async () => {
 	const user = userEvent.setup();
-	// Click on the "More options" button to display the "Remove" option
-	const moreButtons = await screen.findAllByLabelText("More options");
+	// Click on the "Open menu" button to display the "Remove" option
+	const menuButtons = await screen.findAllByLabelText("Open menu");
 	// get MockUser2
-	const selectedMoreButton = moreButtons[0];
+	const selectedMenuButton = menuButtons[0];
 
-	await user.click(selectedMoreButton);
+	await user.click(selectedMenuButton);
 
-	const removeButton = screen.getByText(/Remove/);
+	const removeButton = await within(document.body).findByText("Remove…");
 	await user.click(removeButton);
 
 	const dialog = await within(document.body).findByRole("dialog");
