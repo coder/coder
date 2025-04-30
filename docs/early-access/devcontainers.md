@@ -295,7 +295,7 @@ These limitations will be addressed in future updates as the feature matures.
 ## Comparison with Envbuilder-based Dev Containers
 
 | Feature        | Dev Containers (Early Access)          | Envbuilder Dev Containers                    |
-| -------------- | -------------------------------------- | -------------------------------------------- |
+|----------------|----------------------------------------|----------------------------------------------|
 | Implementation | Direct `@devcontainers/cli` and Docker | Coder's Envbuilder                           |
 | Target users   | Individual developers                  | Platform teams and administrators            |
 | Configuration  | Standard `devcontainer.json`           | Terraform templates with Envbuilder          |
