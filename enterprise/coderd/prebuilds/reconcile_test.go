@@ -901,6 +901,15 @@ func setupTestDBTemplateVersion(
 		ID:              templateID,
 		ActiveVersionID: templateVersion.ID,
 	}))
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: templateVersion.ID,
+		Name:              "test",
+		Description:       "required & immutable param",
+		Type:              "string",
+		DefaultValue:      "",
+		Required:          true,
+		Mutable:           false,
+	})
 	return templateVersion.ID
 }
 
@@ -999,7 +1008,7 @@ func setupTestDBWorkspace(
 		OrganizationID: orgID,
 		Error:          buildError,
 	})
-	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+	workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:             workspace.ID,
 		InitiatorID:             initiatorID,
 		TemplateVersionID:       templateVersionID,
@@ -1007,6 +1016,13 @@ func setupTestDBWorkspace(
 		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
 		Transition:              transition,
 		CreatedAt:               clock.Now(),
+	})
+	dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+		{
+			WorkspaceBuildID: workspaceBuild.ID,
+			Name:             "test",
+			Value:            "test",
+		},
 	})
 
 	return workspace
