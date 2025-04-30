@@ -31,7 +31,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { getFormHelpers, nameValidator } from "utils/formUtils";
+import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 import type {
