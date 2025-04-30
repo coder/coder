@@ -192,6 +192,11 @@ resource "docker_container" "workspace" {
 
 ## Working with Dev Containers
 
+The dev container integration appears in your Coder dashboard, providing a
+visual representation of the running environment:
+
+![Dev container integration in Coder dashboard](../images/early-access/devcontainer-agent-ports.png)
+
 ### SSH Access
 
 You can SSH into your dev container directly using the Coder CLI:
@@ -210,6 +215,8 @@ coder ssh --container keen_dijkstra my-workspace
 
 Once your workspace and dev container are running, you can use the web terminal
 in the Coder interface to execute commands directly inside the dev container.
+
+![Coder web terminal with dev container](../images/early-access/devcontainer-web-terminal.png)
 
 ### IDE Integration (VS Code)
 
@@ -240,7 +247,7 @@ For example, with this `devcontainer.json` configuration:
 
 ```json
 {
-    "appPort": ["8080:8080", "4000:3000"]
+	"appPort": ["8080:8080", "4000:3000"]
 }
 ```
 
@@ -268,13 +275,13 @@ To use the code-server feature, add the following to your `devcontainer.json`:
 
 ```json
 {
-    "features": {
-        "ghcr.io/coder/devcontainer-features/code-server:1": {
-            "port": 13337,
-            "host": "0.0.0.0"
-        }
-    },
-    "appPort": ["13337:13337"]
+	"features": {
+		"ghcr.io/coder/devcontainer-features/code-server:1": {
+			"port": 13337,
+			"host": "0.0.0.0"
+		}
+	},
+	"appPort": ["13337:13337"]
 }
 ```
 
