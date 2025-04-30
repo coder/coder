@@ -10,6 +10,7 @@ import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
@@ -198,33 +199,32 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 												data-testid="suspend-button"
 												onClick={() => onSuspendUser(user)}
 											>
-												<HideSourceOutlined />
 												Suspend&hellip;
 											</DropdownMenuItem>
 										) : (
 											<DropdownMenuItem onClick={() => onActivateUser(user)}>
-												<ShieldOutlined />
 												Activate&hellip;
 											</DropdownMenuItem>
 										)}
 
 										<DropdownMenuItem onClick={() => onListWorkspaces(user)}>
-											<KeyOutlined />
-											List workspaces&hellip;
+											View workspaces
 										</DropdownMenuItem>
 
 										{canViewActivity && (
-											<DropdownMenuItem onClick={() => onViewActivity(user)}>
-												<GitHub />
-												View activity&hellip;
+											<DropdownMenuItem
+												onClick={() => onViewActivity(user)}
+												disabled={!canViewActivity}
+											>
+												View activity {!canViewActivity && <PremiumBadge />}
 											</DropdownMenuItem>
 										)}
 
 										{user.login_type === "password" && (
 											<DropdownMenuItem
 												onClick={() => onResetUserPassword(user)}
+												disabled={user.login_type !== "password"}
 											>
-												<PasswordOutlined />
 												Reset password&hellip;
 											</DropdownMenuItem>
 										)}
@@ -234,6 +234,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 										<DropdownMenuItem
 											className="text-content-destructive focus:text-content-destructive"
 											onClick={() => onDeleteUser(user)}
+											disabled={user.id === actorID}
 										>
 											<DeleteIcon />
 											Delete&hellip;

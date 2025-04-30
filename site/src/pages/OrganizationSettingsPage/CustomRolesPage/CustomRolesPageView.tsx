@@ -226,9 +226,11 @@ const RoleRow: FC<RoleRowProps> = ({
 							</ShadcnButton>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem onClick={() => navigate(role.name)}>
-								Edit
-							</DropdownMenuItem>
+							{canUpdateOrgRole && (
+								<DropdownMenuItem onClick={() => navigate(role.name)}>
+									Edit
+								</DropdownMenuItem>
+							)}
 							{canDeleteOrgRole && (
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
