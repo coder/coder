@@ -47,13 +47,18 @@ const renderPage = async () => {
 const removeMember = async () => {
 	const user = userEvent.setup();
 	// Click on the "Open menu" button to display the "Remove" option
-	const menuButtons = await screen.findAllByLabelText("Open menu");
+	const menuButtons = await screen.findAllByRole("button", { name: "Open menu" });
 	// get MockUser2
 	const selectedMenuButton = menuButtons[0];
 
 	await user.click(selectedMenuButton);
 
-	const removeButton = await within(document.body).findByText("Remove…");
+	// Wait for the dropdown menu to be visible and find the remove button
+	const menuItems = await screen.findAllByRole("menuitem");
+	const removeButton = menuItems.find(item => item.textContent === "Remove");
+	if (!removeButton) {
+		throw new Error("Remove button not found");
+	}
 	await user.click(removeButton);
 
 	const dialog = await within(document.body).findByRole("dialog");

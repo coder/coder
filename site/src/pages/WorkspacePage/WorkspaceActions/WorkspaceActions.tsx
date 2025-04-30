@@ -182,13 +182,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 					<Button
 						size="icon-lg"
 						variant="subtle"
-						aria-label="More options"
+						aria-label="Workspace actions"
 						data-testid="workspace-options-button"
 						aria-controls="workspace-options"
 						disabled={!canAcceptJobs}
 					>
 						<EllipsisVertical aria-hidden="true" />
-						<span className="sr-only">More options</span>
+						<span className="sr-only">Workspace actions</span>
 					</Button>
 				</DropdownMenuTrigger>
 
