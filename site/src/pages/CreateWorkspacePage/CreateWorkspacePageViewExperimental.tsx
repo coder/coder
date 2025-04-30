@@ -340,27 +340,29 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 										Workspace name
 									</Label>
-									<Input
-										id={`${id}-workspace-name`}
-										value={form.values.name}
-										onChange={(e) => {
-											form.setFieldValue("name", e.target.value.trim());
-											resetMutation();
-										}}
-										disabled={creatingWorkspace}
-									/>
-									<div className="flex gap-2 text-xs text-content-secondary items-center">
-										Need a suggestion?
-										<Button
-											variant="subtle"
-											size="sm"
-											onClick={async () => {
-												await form.setFieldValue("name", suggestedName);
-												rerollSuggestedName();
+									<div>
+										<Input
+											id={`${id}-workspace-name`}
+											value={form.values.name}
+											onChange={(e) => {
+												form.setFieldValue("name", e.target.value.trim());
+												resetMutation();
 											}}
-										>
-											{suggestedName}
-										</Button>
+											disabled={creatingWorkspace}
+										/>
+										<div className="flex gap-2 text-xs text-content-secondary items-center">
+											Need a suggestion?
+											<Button
+												variant="subtle"
+												size="sm"
+												onClick={async () => {
+													await form.setFieldValue("name", suggestedName);
+													rerollSuggestedName();
+												}}
+											>
+												{suggestedName}
+											</Button>
+										</div>
 									</div>
 								</div>
 								{permissions.createWorkspaceForAny && (
@@ -482,6 +484,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 									return (
 										<DynamicParameter
+											fieldHelpers={getFieldHelpers}
 											key={parameter.name}
 											parameter={parameter}
 											onChange={(value) =>
