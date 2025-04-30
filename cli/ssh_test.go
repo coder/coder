@@ -2148,7 +2148,6 @@ func TestSSH_CoderConnect(t *testing.T) {
 		entries, err := afero.ReadDir(fs, "/net")
 		require.NoError(t, err)
 		require.True(t, len(entries) > 0)
-
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
