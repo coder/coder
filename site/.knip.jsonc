@@ -1,8 +1,8 @@
 {
 	"$schema": "https://unpkg.com/knip@5/schema.json",
-	"entry": ["./src/index.tsx"],
+	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
 	"project": ["./src/**/*.ts", "./src/**/*.tsx"],
-	"ignore": ["**/*Generated.ts", "./src/serviceWorker.ts"],
+	"ignore": ["**/*Generated.ts"],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"express",

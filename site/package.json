@@ -16,7 +16,8 @@
 		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps && knip",
 		"lint:check": " biome lint --error-on-warnings .",
 		"lint:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
-		"lint:fix": " biome lint --error-on-warnings --write .",
+		"lint:knip": "knip",
+		"lint:fix": " biome lint --error-on-warnings --write . && knip --fix",
 		"lint:types": "tsc -p .",
 		"playwright:install": "playwright install --with-deps chromium",
 		"playwright:test": "playwright test --config=e2e/playwright.config.ts",
@@ -191,7 +192,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
