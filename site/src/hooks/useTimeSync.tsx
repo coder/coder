@@ -171,13 +171,25 @@ export class TimeSync implements TimeSyncApi {
 			this.#latestDateSnapshot = this.#createNewDatetime(
 				this.#latestDateSnapshot,
 			);
-			this.#notifySubscriptions();
+			this.#flushUpdateToSubscriptions();
 		}, newFastestInterval);
 	}
 
-	#notifySubscriptions(): void {
+	#flushUpdateToSubscriptions(): void {
 		for (const subEntry of this.#subscriptions) {
-			subEntry.onUpdate(this.#latestDateSnapshot);
+			if (subEntry.select === undefined) {
+				subEntry.onUpdate(this.#latestDateSnapshot);
+				continue;
+			}
+
+			// Keeping things simple by only comparing values React-style with ===.
+			// If that becomes a problem down the line, we can beef the class up
+			const prevSelection = this.#selectionCache.get(subEntry.id);
+			const newSelection = subEntry.select(this.#latestDateSnapshot);
+			if (prevSelection !== newSelection) {
+				this.#selectionCache.set(subEntry.id, newSelection);
+				subEntry.onUpdate(this.#latestDateSnapshot);
+			}
 		}
 	}
 
