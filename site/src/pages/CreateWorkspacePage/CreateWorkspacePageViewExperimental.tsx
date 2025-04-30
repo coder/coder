@@ -224,7 +224,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
 			if (isTouched && fieldName !== parameter.name) {
-				const param = parameters.find(p => p.name === fieldName);
+				const param = parameters.find((p) => p.name === fieldName);
 				if (param?.value) {
 					formInputs[fieldName] = param.value;
 				}
