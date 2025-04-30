@@ -144,7 +144,6 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
-		ID:        takeFirst(seed.ID, uuid.New()),
 		OwnerID:   takeFirst(seed.OwnerID, uuid.New()),
 		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
 		UpdatedAt: takeFirst(seed.UpdatedAt, dbtime.Now()),

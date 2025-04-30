@@ -796,7 +796,7 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT id, chat_id, created_at, model, provider, content FROM chat_messages
 WHERE chat_id = $1
-ORDER BY id ASC
+ORDER BY created_at ASC
 `
 
 func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
@@ -865,13 +865,12 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) (
 }
 
 const insertChat = `-- name: InsertChat :one
-INSERT INTO chats (id, owner_id, created_at, updated_at, title)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO chats (owner_id, created_at, updated_at, title)
+VALUES ($1, $2, $3, $4)
 RETURNING id, owner_id, created_at, updated_at, title
 `
 
 type InsertChatParams struct {
-	ID        uuid.UUID `db:"id" json:"id"`
 	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
@@ -880,7 +879,6 @@ type InsertChatParams struct {
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, insertChat,
-		arg.ID,
 		arg.OwnerID,
 		arg.CreatedAt,
 		arg.UpdatedAt,

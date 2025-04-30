@@ -2916,6 +2916,9 @@ func (q *FakeQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) 
 			chats = append(chats, chat)
 		}
 	}
+	sort.Slice(chats, func(i, j int) bool {
+		return chats[i].CreatedAt.After(chats[j].CreatedAt)
+	})
 	return chats, nil
 }
 
@@ -8447,7 +8450,13 @@ func (q *FakeQuerier) InsertChat(ctx context.Context, arg database.InsertChatPar
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	chat := database.Chat(arg)
+	chat := database.Chat{
+		ID:        uuid.New(),
+		CreatedAt: arg.CreatedAt,
+		UpdatedAt: arg.UpdatedAt,
+		OwnerID:   arg.OwnerID,
+		Title:     arg.Title,
+	}
 	q.chats = append(q.chats, chat)
 
 	return chat, nil

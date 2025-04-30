@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/kylecarbs/aisdk-go"
 
 	"github.com/coder/coder/v2/coderd/ai"
@@ -33,7 +32,6 @@ func (api *API) postChats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	chat, err := api.Database.InsertChat(ctx, database.InsertChatParams{
-		ID:        uuid.New(),
 		OwnerID:   apiKey.UserID,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

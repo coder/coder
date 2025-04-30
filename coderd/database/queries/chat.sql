@@ -1,6 +1,6 @@
 -- name: InsertChat :one
-INSERT INTO chats (id, owner_id, created_at, updated_at, title)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO chats (owner_id, created_at, updated_at, title)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: UpdateChatByID :exec
@@ -30,7 +30,7 @@ RETURNING chat_messages.*;
 -- name: GetChatMessagesByChatID :many
 SELECT * FROM chat_messages
 WHERE chat_id = $1
-ORDER BY id ASC;
+ORDER BY created_at ASC;
 
 -- name: DeleteChat :exec
 DELETE FROM chats WHERE id = $1;

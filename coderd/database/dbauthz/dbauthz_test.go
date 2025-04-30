@@ -5341,10 +5341,11 @@ func (s *MethodTestSuite) TestChat() {
 	s.Run("GetChatsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
 		u1, u1c1, _ := createChat(s.T(), db)
 		u1c2 := dbgen.Chat(s.T(), db, database.Chat{
-			OwnerID: u1.ID,
+			OwnerID:   u1.ID,
+			CreatedAt: u1c1.CreatedAt.Add(time.Hour),
 		})
 		_, _, _ = createChat(s.T(), db) // other user's chat
-		check.Args(u1.ID).Asserts(u1c2, policy.ActionRead, u1c1, policy.ActionRead).Returns([]database.Chat{u1c1, u1c2})
+		check.Args(u1.ID).Asserts(u1c2, policy.ActionRead, u1c1, policy.ActionRead).Returns([]database.Chat{u1c2, u1c1})
 	}))
 
 	s.Run("InsertChat", s.Subtest(func(db database.Store, check *expects) {
