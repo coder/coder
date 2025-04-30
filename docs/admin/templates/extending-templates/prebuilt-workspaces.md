@@ -49,9 +49,8 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
 
 Expand each item in this list for more information about the stage:
 
-1. <details><summary>The prebuilt workspace is provisioned.</summary>
-
-   After you configure a preset with a prebuilt workspace and publish the template:
+1. <details><summary>After you configure a preset with a prebuilt workspace and publish the template, Coder provisions
+   the prebuilt workspace(s).</summary>
 
    1. Coder automatically creates prebuilt workspaces up to the specified `instances` count.
    1. Each new prebuild is initially owned by an unprivileged system pseudo-user named `prebuilds`.
@@ -61,7 +60,7 @@ Expand each item in this list for more information about the stage:
 
    </details>
 
-1. <details><summary>Eligibility process</summary>
+1. <details><summary>Coder prepares the prebuilt workspace to be claimed by a developer.</summary>
 
    Before a prebuilt workspace is available to users:
 
@@ -74,9 +73,7 @@ Expand each item in this list for more information about the stage:
 
    </details>
 
-1. <details><summary>Claiming process</summary>
-
-   When a developer requests a new workspace, the claiming process occurs:
+1. <details><summary>When a developer selects requests a new workspace, the claiming process occurs:</summary>
 
    1. Developer selects a template and preset that has prebuilt workspaces configured.
    1. If an eligible prebuilt workspace exists, it's automatically assigned to the user.
