@@ -28,6 +28,7 @@ import {
 	useContext,
 	useEffect,
 	useId,
+	useRef,
 	useState,
 } from "react";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
@@ -103,6 +104,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	);
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
+	const workspaceNameInputRef = useRef<HTMLInputElement>(null);
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
@@ -140,10 +142,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 		}
 	}, [error]);
 
-	const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
-		form,
-		error,
-	);
+	useEffect(() => {
+		if (form.submitCount > 0 && form.errors) {
+			workspaceNameInputRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			workspaceNameInputRef.current?.focus();
+		}
+	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
 		{ label: "None", value: "" },
@@ -333,9 +340,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 										Workspace name
 									</Label>
-									<div>
+									<div className="flex flex-col">
 										<Input
 											id={`${id}-workspace-name`}
+											ref={workspaceNameInputRef}
 											value={form.values.name}
 											onChange={(e) => {
 												form.setFieldValue("name", e.target.value.trim());
@@ -343,6 +351,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}}
 											disabled={creatingWorkspace}
 										/>
+										{form.touched.name && form.errors.name && (
+											<div className="text-content-destructive text-xs mt-2">
+												{form.errors.name}
+											</div>
+										)}
 										<div className="flex gap-2 text-xs text-content-secondary items-center">
 											Need a suggestion?
 											<Button
@@ -477,7 +490,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 									return (
 										<DynamicParameter
-											{...getFieldHelpers(parameterInputName)}
 											key={parameter.name}
 											parameter={parameter}
 											onChange={(value) =>
