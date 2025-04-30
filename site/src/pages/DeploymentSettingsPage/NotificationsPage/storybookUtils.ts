@@ -14,6 +14,7 @@ import {
 	withDashboardProvider,
 	withGlobalSnackbar,
 	withOrganizationSettingsProvider,
+	withTimeSyncProvider,
 } from "testHelpers/storybook";
 import type { NotificationsPage } from "./NotificationsPage";
 
@@ -214,5 +215,6 @@ export const baseMeta = {
 		withAuthProvider,
 		withDashboardProvider,
 		withOrganizationSettingsProvider,
+		withTimeSyncProvider,
 	],
 } satisfies Meta<typeof NotificationsPage>;

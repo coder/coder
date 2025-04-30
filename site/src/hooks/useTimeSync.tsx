@@ -111,10 +111,10 @@ export class TimeSync implements TimeSyncApi {
 	readonly #createNewDatetime: (prev: Date) => Date;
 	readonly #setInterval: SetInterval;
 	readonly #clearInterval: ClearInterval;
+	readonly #selectionCache: Map<string, unknown>;
 
 	#latestDateSnapshot: Date;
 	#subscriptions: SubscriptionEntry[];
-	#selectionCache: Map<string, unknown>;
 	#latestIntervalId: number | undefined;
 
 	constructor(options: Partial<TimeSyncInitOptions>) {
