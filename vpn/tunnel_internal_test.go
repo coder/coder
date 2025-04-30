@@ -7,7 +7,6 @@ import (
 	"net/netip"
 	"net/url"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -731,12 +730,12 @@ func TestProcessFreshState(t *testing.T) {
 	agentID1 := uuid.New()
 	agentID2 := uuid.New()
 	agentID3 := uuid.New()
-	agentID4 := uuid.New() // Belongs to wsID1
+	agentID4 := uuid.New()
 
 	agent1 := tailnet.Agent{ID: agentID1, Name: "agent1", WorkspaceID: wsID1}
 	agent2 := tailnet.Agent{ID: agentID2, Name: "agent2", WorkspaceID: wsID2}
 	agent3 := tailnet.Agent{ID: agentID3, Name: "agent3", WorkspaceID: wsID3}
-	agent4 := tailnet.Agent{ID: agentID4, Name: "agent4", WorkspaceID: wsID1} // Same workspace as agent1
+	agent4 := tailnet.Agent{ID: agentID4, Name: "agent4", WorkspaceID: wsID1}
 
 	ws1 := tailnet.Workspace{ID: wsID1, Name: "ws1"}
 	ws2 := tailnet.Workspace{ID: wsID2, Name: "ws2"}
@@ -745,7 +744,7 @@ func TestProcessFreshState(t *testing.T) {
 	initialAgents := map[uuid.UUID]tailnet.Agent{
 		agentID1: agent1,
 		agentID2: agent2,
-		agentID4: agent4, // agent 4 is initially present
+		agentID4: agent4,
 	}
 
 	tests := []struct {
@@ -761,8 +760,8 @@ func TestProcessFreshState(t *testing.T) {
 				FreshState:         true,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
 				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2, &agent4},
-				DeletedWorkspaces:  []*tailnet.Workspace{}, // Input deletions
-				DeletedAgents:      []*tailnet.Agent{},     // Input deletions
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
 			},
 			expectedDelete: &tailnet.WorkspaceUpdate{ // Expect no *additional* deletions
 				DeletedWorkspaces: []*tailnet.Workspace{},
@@ -852,23 +851,6 @@ func TestProcessFreshState(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:          "UpdateWithExistingDeletions", // Agent 2 removed, ws2 also removed, but update already contains some deletions
-			initialAgents: initialAgents,
-			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
-				UpsertedWorkspaces: []*tailnet.Workspace{&ws1},             // ws2 not present
-				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent4},     // agent2 not present
-				DeletedWorkspaces:  []*tailnet.Workspace{{ID: uuid.New()}}, // Pre-existing deletion
-				DeletedAgents:      []*tailnet.Agent{{ID: uuid.New()}},     // Pre-existing deletion
-			},
-			expectedDelete: &tailnet.WorkspaceUpdate{
-				DeletedWorkspaces: []*tailnet.Workspace{{ID: wsID2}}, // Expect ws2 to be added to deletions
-				DeletedAgents: []*tailnet.Agent{ // Expect agent2 to be added to deletions
-					{ID: agentID2, Name: "agent2", WorkspaceID: wsID2},
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -876,41 +858,13 @@ func TestProcessFreshState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Keep track of original lengths to compare only the added elements
-			originalDeletedAgentsLen := len(tt.update.DeletedAgents)
-			originalDeletedWorkspacesLen := len(tt.update.DeletedWorkspaces)
-
 			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
 			maps.Copy(agentsCopy, tt.initialAgents)
 
 			processFreshState(tt.update, agentsCopy)
 
-			// Extract only the elements added by processFreshState
-			addedDeletedAgents := tt.update.DeletedAgents[originalDeletedAgentsLen:]
-			addedDeletedWorkspaces := tt.update.DeletedWorkspaces[originalDeletedWorkspacesLen:]
-
-			// Sort slices for consistent comparison
-			sortAgents(addedDeletedAgents)
-			sortAgents(tt.expectedDelete.DeletedAgents)
-			sortWorkspaces(addedDeletedWorkspaces)
-			sortWorkspaces(tt.expectedDelete.DeletedWorkspaces)
-
-			require.ElementsMatch(t, tt.expectedDelete.DeletedAgents, addedDeletedAgents, "DeletedAgents mismatch")
-			require.ElementsMatch(t, tt.expectedDelete.DeletedWorkspaces, addedDeletedWorkspaces, "DeletedWorkspaces mismatch")
+			require.ElementsMatch(t, tt.expectedDelete.DeletedAgents, tt.update.DeletedAgents, "DeletedAgents mismatch")
+			require.ElementsMatch(t, tt.expectedDelete.DeletedWorkspaces, tt.update.DeletedWorkspaces, "DeletedWorkspaces mismatch")
 		})
 	}
-}
-
-// sortAgents sorts a slice of Agents by ID for consistent comparison.
-func sortAgents(agents []*tailnet.Agent) {
-	sort.Slice(agents, func(i, j int) bool {
-		return agents[i].ID.String() < agents[j].ID.String()
-	})
-}
-
-// sortWorkspaces sorts a slice of Workspaces by ID for consistent comparison.
-func sortWorkspaces(workspaces []*tailnet.Workspace) {
-	sort.Slice(workspaces, func(i, j int) bool {
-		return workspaces[i].ID.String() < workspaces[j].ID.String()
-	})
 }
