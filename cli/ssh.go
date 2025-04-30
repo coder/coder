@@ -1494,8 +1494,27 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	}, nil
 }
 
+type coderConnectDialerContextKey struct{}
+
+type coderConnectDialer interface {
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func WithTestOnlyCoderConnectDialer(ctx context.Context, dialer coderConnectDialer) context.Context {
+	return context.WithValue(ctx, coderConnectDialerContextKey{}, dialer)
+}
+
+func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
+	dialer, ok := ctx.Value(coderConnectDialerContextKey{}).(coderConnectDialer)
+	if !ok || dialer == nil {
+		return &net.Dialer{}
+	}
+	return dialer
+}
+
 func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stack *closerStack) error {
-	conn, err := net.Dial("tcp", addr)
+	dialer := testOrDefaultDialer(ctx)
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return xerrors.Errorf("dial coder connect host: %w", err)
 	}

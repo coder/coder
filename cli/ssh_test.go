@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -2127,9 +2128,12 @@ func TestSSH_CoderConnect(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		_ = ptytest.New(t).Attach(inv)
 
+		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
+		ctx = withCoderConnectRunning(ctx)
+
 		errCh := make(chan error, 1)
 		tGo(t, func() {
-			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
+			err := inv.WithContext(ctx).Run()
 			errCh <- err
 		})
 
@@ -2137,19 +2141,14 @@ func TestSSH_CoderConnect(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		err := testutil.TryReceive(ctx, t, errCh)
-		// Making an SSH server available here is difficult, so we'll just check
-		// the command attempts to dial it.
-		require.ErrorContains(t, err, "dial coder connect host")
-		require.ErrorContains(t, err, "dev.myworkspace.myuser.coder")
+		// Our mock dialer will always fail with this error, if it was called
+		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:22\" over tcp")
 
 		// The network info file should be created since we passed `--stdio`
-		assert.Eventually(t, func() bool {
-			entries, err := afero.ReadDir(fs, "/net")
-			if err != nil {
-				return false
-			}
-			return len(entries) > 0
-		}, testutil.WaitLong, testutil.IntervalFast)
+		entries, err := afero.ReadDir(fs, "/net")
+		require.NoError(t, err)
+		require.True(t, len(entries) > 0)
+
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -2176,8 +2175,11 @@ func TestSSH_CoderConnect(t *testing.T) {
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
 
+		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
+		ctx = withCoderConnectRunning(ctx)
+
 		cmdDone := tGo(t, func() {
-			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
+			err := inv.WithContext(ctx).Run()
 			// Shouldn't fail to dial the Coder Connect host
 			// since `--force-new-tunnel` was passed
 			assert.NoError(t, err)
@@ -2207,6 +2209,12 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 		<-cmdDone
 	})
+}
+
+type fakeCoderConnectDialer struct{}
+
+func (*fakeCoderConnectDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return nil, xerrors.Errorf("dial coder connect host %q over %s", addr, network)
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be

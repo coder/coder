@@ -272,8 +272,8 @@ func TestCoderConnectStdio(t *testing.T) {
 	require.NoError(t, err)
 	defer session.Close()
 
-	// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-	err = session.Run("exit")
+	// We're not connected to a real shell
+	err = session.Run("")
 	require.NoError(t, err)
 	err = sshClient.Close()
 	require.NoError(t, err)
