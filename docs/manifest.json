@@ -215,7 +215,6 @@
 				},
 				{
 					"title": "Dev Containers Integration",
-					"description": "",
 					"path": "./user-guides/devcontainers/index.md",
 					"icon_path": "./images/icons/container.svg",
 					"state": ["early access"]
