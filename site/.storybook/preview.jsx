@@ -32,11 +32,18 @@ import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import themes from "../src/theme";
+import { TimeSyncProvider } from "../src/hooks/useTimeSync";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 /** @type {readonly Decorator[]} */
-export const decorators = [withRouter, withQuery, withHelmet, withTheme];
+export const decorators = [
+	withRouter,
+	withQuery,
+	withHelmet,
+	withTheme,
+	withTimeSyncProvider,
+];
 
 /** @type {Preview["parameters"]} */
 export const parameters = {
@@ -98,6 +105,20 @@ function withHelmet(Story) {
 		<SafeHelmetProvider>
 			<Story />
 		</SafeHelmetProvider>
+	);
+}
+
+const storyDate = new Date("March 15, 2022");
+function withTimeSyncProvider(Story) {
+	return (
+		<TimeSyncProvider
+			options={{
+				initialDatetime: storyDate,
+				resyncOnNewSubscription: false,
+			}}
+		>
+			<Story />
+		</TimeSyncProvider>
 	);
 }
 

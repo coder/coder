@@ -215,6 +215,5 @@ export const baseMeta = {
 		withAuthProvider,
 		withDashboardProvider,
 		withOrganizationSettingsProvider,
-		withTimeSyncProvider,
 	],
 } satisfies Meta<typeof NotificationsPage>;

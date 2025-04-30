@@ -6,12 +6,11 @@ import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { TimeSyncProvider } from "hooks/useTimeSync";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
 import { permissionChecks } from "modules/permissions";
-import type { FC, ReactElement } from "react";
+import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
 	MockAppearanceConfig,
@@ -156,20 +155,6 @@ export const withGlobalSnackbar = (Story: FC) => (
 		<GlobalSnackbar />
 	</>
 );
-
-const storyDate = new Date("March 15, 2022");
-export const withTimeSyncProvider = (Story: FC): ReactElement => {
-	return (
-		<TimeSyncProvider
-			options={{
-				initialDatetime: storyDate,
-				resyncOnNewSubscription: false,
-			}}
-		>
-			<Story />
-		</TimeSyncProvider>
-	);
-};
 
 export const withOrganizationSettingsProvider = (Story: FC) => {
 	return (
