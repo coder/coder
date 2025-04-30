@@ -705,7 +705,7 @@
 			"description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
-			"state": ["early access"],
+			"state": ["beta"],
 			"children": [
 				{
 					"title": "Learn about coding agents",
@@ -716,37 +716,37 @@
 					"title": "Create a Coder template for agents",
 					"description": "Create a purpose-built template for your AI agents",
 					"path": "./ai-coder/create-template.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Integrate with your issue tracker",
 					"description": "Assign tickets to AI agents and interact via code reviews",
 					"path": "./ai-coder/issue-tracker.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Model Context Protocols (MCP) and adding AI tools",
 					"description": "Improve results by adding tools to your AI agents",
 					"path": "./ai-coder/best-practices.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Supervise agents via Coder UI",
 					"description": "Interact with agents via the Coder UI",
 					"path": "./ai-coder/coder-dashboard.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Supervise agents via the IDE",
 					"description": "Interact with agents via VS Code or Cursor",
 					"path": "./ai-coder/ide-integration.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Programmatically manage agents",
 					"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
 					"path": "./ai-coder/headless.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Securing agents in Coder",
@@ -758,7 +758,7 @@
 					"title": "Custom agents",
 					"description": "Learn how to use custom agents with Coder",
 					"path": "./ai-coder/custom-agents.md",
-					"state": ["early access"]
+					"state": ["beta"]
 				}
 			]
 		},
