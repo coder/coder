@@ -776,8 +776,8 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 			reinitEvent, err := client.WaitForReinit(ctx)
 			if err != nil {
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
+				continue
 			}
-			reinitEvents <- *reinitEvent
 			select {
 			case <-ctx.Done():
 				close(reinitEvents)

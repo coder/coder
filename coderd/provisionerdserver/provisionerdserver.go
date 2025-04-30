@@ -16,8 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/codersdk/agentsdk"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
@@ -39,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -1750,9 +1749,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				slog.F("user", input.PrebuildClaimedByUser.String()),
 				slog.F("workspace_id", workspace.ID))
 
-			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
-			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimedByUser.String())); err != nil {
-				s.Logger.Error(ctx, "failed to trigger prebuilt workspace agent reinitialization", slog.Error(err))
+			if err := prebuilds.PublishWorkspaceClaim(ctx, s.Pubsub, workspace.ID, input.PrebuildClaimedByUser); err != nil {
+				s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
 			}
 		}
 	case *proto.CompletedJob_TemplateDryRun_:

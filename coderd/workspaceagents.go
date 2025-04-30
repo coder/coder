@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -1180,76 +1181,14 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 	log.Info(ctx, "agent waiting for reinit instruction")
 
-	prebuildClaims := make(chan uuid.UUID, 1)
-	cancelSub, err := api.Pubsub.Subscribe(agentsdk.PrebuildClaimedChannel(workspace.ID), func(inner context.Context, id []byte) {
-		select {
-		case <-ctx.Done():
-			return
-		case <-inner.Done():
-			return
-		default:
-		}
-
-		parsed, err := uuid.ParseBytes(id)
-		if err != nil {
-			log.Error(ctx, "invalid prebuild claimed channel payload", slog.F("input", string(id)))
-			return
-		}
-		prebuildClaims <- parsed
-	})
+	cancel, reinitEvents, err := prebuilds.ListenForWorkspaceClaims(ctx, log, api.Pubsub, workspace.ID)
 	if err != nil {
 		log.Error(ctx, "failed to subscribe to prebuild claimed channel", slog.Error(err))
 		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
 		return
 	}
-	defer cancelSub()
-
-	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error setting up server-sent events.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Prevent handler from returning until the sender is closed.
-	defer func() {
-		cancel()
-		<-sseSenderClosed
-	}()
-	// Synchronize cancellation from SSE -> context, this lets us simplify the
-	// cancellation logic.
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-sseSenderClosed:
-			cancel()
-		}
-	}()
-
-	// An initial ping signals to the request that the server is now ready
-	// and the client can begin servicing a channel with data.
-	_ = sseSendEvent(codersdk.ServerSentEvent{
-		Type: codersdk.ServerSentEventTypePing,
-	})
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case user := <-prebuildClaims:
-			err = sseSendEvent(codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeData,
-				Data: agentsdk.ReinitializationEvent{
-					Message: fmt.Sprintf("prebuild claimed by user: %s", user),
-					Reason:  agentsdk.ReinitializeReasonPrebuildClaimed,
-				},
-			})
-			if err != nil {
-				log.Warn(ctx, "failed to send SSE response to trigger reinit", slog.Error(err))
-			}
-		}
-	}
+	defer cancel()
+	prebuilds.StreamAgentReinitEvents(ctx, log, rw, r, reinitEvents)
 }
 
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
