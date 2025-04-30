@@ -1,6 +1,4 @@
-import type { GetProvisionerJobsParams } from "api/api";
 import { provisionerJobs } from "api/queries/organizations";
-import type { ProvisionerJobStatus } from "api/typesGenerated";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";

@@ -58,7 +58,7 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
-export const GroupPage: FC = () => {
+const GroupPage: FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;

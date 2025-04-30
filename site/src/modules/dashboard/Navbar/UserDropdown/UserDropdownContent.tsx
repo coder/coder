@@ -170,7 +170,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	);
 };
 
-export const GithubStar: FC<SvgIconProps> = (props) => (
+const GithubStar: FC<SvgIconProps> = (props) => (
 	<svg
 		aria-hidden="true"
 		height="16"

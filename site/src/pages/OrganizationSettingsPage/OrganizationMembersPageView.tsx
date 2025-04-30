@@ -33,7 +33,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { TriangleAlert } from "lucide-react";

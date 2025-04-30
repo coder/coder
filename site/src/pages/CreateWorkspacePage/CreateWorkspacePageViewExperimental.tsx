@@ -511,7 +511,7 @@ interface DiagnosticsProps {
 	diagnostics: PreviewParameter["diagnostics"];
 }
 
-export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
+const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">
 			{diagnostics.map((diagnostic, index) => (

@@ -81,7 +81,7 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
 
-export function currentUser(page: Page): LoginOptions {
+function currentUser(page: Page): LoginOptions {
 	const ctx = page.context();
 	// biome-ignore lint/suspicious/noExplicitAny: get the current user
 	const user = (ctx as any)[Symbol.for("currentUser")];
@@ -875,7 +875,7 @@ export const echoResponsesWithExternalAuth = (
 	};
 };
 
-export const fillParameters = async (
+const fillParameters = async (
 	page: Page,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
