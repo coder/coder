@@ -2,8 +2,8 @@
 >
 > This functionality is in beta and is evolving rapidly.
 >
-> For now, we recommend testing it in a demo or staging environment,
-> rather than deploying to production.
+> When using any AI tool for development, exercise a level of caution appropriate to your use case and environment.
+> Always review AI-generated content before using it in critical systems.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
 > [contact us](https://coder.com/contact) to get help or share feedback.
