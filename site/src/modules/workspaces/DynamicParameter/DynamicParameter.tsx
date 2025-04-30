@@ -435,7 +435,7 @@ export const getInitialParameterValues = (
 		if (parameter.ephemeral) {
 			return {
 				name: parameter.name,
-				value: validValue(parameter.default_value),
+				value: validValue(parameter.value),
 			};
 		}
 
@@ -450,7 +450,7 @@ export const getInitialParameterValues = (
 				isValidParameterOption(parameter, autofillParam) &&
 				autofillParam.value
 					? autofillParam.value
-					: validValue(parameter.default_value),
+					: validValue(parameter.value),
 		};
 	});
 };
