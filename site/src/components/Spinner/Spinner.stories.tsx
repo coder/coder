@@ -6,7 +6,7 @@ const meta: Meta<typeof Spinner> = {
 	title: "components/Spinner",
 	component: Spinner,
 	args: {
-		children: <PlusIcon className="size-icon-md" />,
+		children: <PlusIcon className="size-icon-lg" />,
 	},
 };
 

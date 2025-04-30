@@ -135,7 +135,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 						size="icon"
 						className="text-content-secondary hover:text-content-primary"
 					>
-						<EditSquare className="size-icon-sm" />
+						<EditSquare />
 					</Button>
 				</Tooltip>
 			</PopoverTrigger>

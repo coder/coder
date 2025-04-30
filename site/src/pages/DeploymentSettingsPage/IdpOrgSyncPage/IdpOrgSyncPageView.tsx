@@ -448,7 +448,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>
-					<Trash className="size-icon-sm" />
+					<Trash />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>

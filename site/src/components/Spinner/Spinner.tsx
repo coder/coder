@@ -14,7 +14,7 @@ const leaves = 8;
 const spinnerVariants = cva("", {
 	variants: {
 		size: {
-			lg: "size-icon-md",
+			lg: "size-icon-lg",
 			sm: "size-icon-sm",
 		},
 	},
