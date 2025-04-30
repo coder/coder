@@ -185,14 +185,12 @@ func (c *AgentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 	return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
 }
 
-// SSHClient calls SSH to create a client that uses a weak cipher
-// to improve throughput.
+// SSHClient calls SSH to create a client
 func (c *AgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 	return c.SSHClientOnPort(ctx, AgentSSHPort)
 }
 
 // SSHClientOnPort calls SSH to create a client on a specific port
-// that uses a weak cipher to improve throughput.
 func (c *AgentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
