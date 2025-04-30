@@ -3622,7 +3622,6 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 		// cannot delete organization: organization has 1 members that must be deleted first
 		require.ErrorContains(t, err, "cannot delete organization")
 		require.ErrorContains(t, err, "has 1 members")
-
 	})
 }
 
