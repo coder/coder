@@ -484,7 +484,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 									return (
 										<DynamicParameter
-											fieldHelpers={getFieldHelpers}
+											{...getFieldHelpers(parameterInputName)}
 											key={parameter.name}
 											parameter={parameter}
 											onChange={(value) =>
