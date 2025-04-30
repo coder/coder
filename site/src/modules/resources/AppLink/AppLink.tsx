@@ -7,7 +7,6 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
-import { useEffect } from "react";
 import { type FC, type MouseEvent, useState } from "react";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";

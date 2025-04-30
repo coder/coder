@@ -3,7 +3,7 @@ import type { Workspace } from "api/typesGenerated";
 /**
  * An iterable of all action types supported by the workspace UI
  */
-export const actionTypes = [
+const actionTypes = [
 	"start",
 	"starting",
 	// Replaces start when an update is required.

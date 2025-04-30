@@ -272,5 +272,3 @@ const styles = {
 		lineHeight: "160%",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
-
-export default CustomRolesPageView;

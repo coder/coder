@@ -6,7 +6,7 @@ import { useQuery } from "react-query";
 import { getTemplatePageTitle } from "../utils";
 import { TemplateResourcesPageView } from "./TemplateResourcesPageView";
 
-export const TemplateResourcesPage: FC = () => {
+const TemplateResourcesPage: FC = () => {
 	const { template, activeVersion } = useTemplateLayoutContext();
 	const { data: resources } = useQuery({
 		queryKey: ["templates", template.id, "resources"],

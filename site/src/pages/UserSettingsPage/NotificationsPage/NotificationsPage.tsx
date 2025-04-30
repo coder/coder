@@ -36,7 +36,7 @@ import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
-export const NotificationsPage: FC = () => {
+const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
 	const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
 		queries: [

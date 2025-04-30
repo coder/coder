@@ -16,6 +16,9 @@
 				"useButtonType": { "level": "off" },
 				"useSemanticElements": { "level": "off" }
 			},
+			"correctness": {
+				"noUnusedImports": "warn"
+			},
 			"style": {
 				"noNonNullAssertion": { "level": "off" },
 				"noParameterAssign": { "level": "off" },

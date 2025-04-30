@@ -7,7 +7,7 @@ import { type VariantProps, cva } from "class-variance-authority";
 import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
-export const badgeVariants = cva(
+const badgeVariants = cva(
 	`inline-flex items-center rounded-md border px-2 py-1 transition-colors
 	focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
 	[&_svg]:pointer-events-none [&_svg]:pr-0.5 [&_svg]:py-0.5 [&_svg]:mr-0.5`,

@@ -37,7 +37,7 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
-export const bannerHeight = 36;
+const bannerHeight = 36;
 
 export interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;

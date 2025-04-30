@@ -275,13 +275,11 @@ const hasAutoStart = (workspace: Workspace): boolean => {
 	return Boolean(workspace.autostart_schedule);
 };
 
-export const canEditDeadline = (workspace: Workspace): boolean => {
+const canEditDeadline = (workspace: Workspace): boolean => {
 	return isWorkspaceOn(workspace) && hasDeadline(workspace);
 };
 
-export const shouldDisplayScheduleControls = (
-	workspace: Workspace,
-): boolean => {
+const shouldDisplayScheduleControls = (workspace: Workspace): boolean => {
 	const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
 	const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
 	return willAutoStop || willAutoStart;
