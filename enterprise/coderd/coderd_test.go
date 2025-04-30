@@ -331,7 +331,7 @@ func TestEntitlements_Prebuilds(t *testing.T) {
 
 			if tc.expectedEnabled {
 				require.IsType(t, &prebuilds.StoreReconciler{}, *reconciler)
-				require.IsType(t, prebuilds.EnterpriseClaimer{}, *claimer)
+				require.IsType(t, &prebuilds.EnterpriseClaimer{}, *claimer)
 			} else {
 				require.Equal(t, &agplprebuilds.DefaultReconciler, reconciler)
 				require.Equal(t, &agplprebuilds.DefaultClaimer, claimer)
