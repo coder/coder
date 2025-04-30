@@ -8271,7 +8271,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.ReinitializationResponse"
+                            "$ref": "#/definitions/agentsdk.ReinitializationEvent"
                         }
                     }
                 }
@@ -10322,16 +10322,7 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.ReinitializationReason": {
-            "type": "string",
-            "enum": [
-                "prebuild_claimed"
-            ],
-            "x-enum-varnames": [
-                "ReinitializeReasonPrebuildClaimed"
-            ]
-        },
-        "agentsdk.ReinitializationResponse": {
+        "agentsdk.ReinitializationEvent": {
             "type": "object",
             "properties": {
                 "message": {
@@ -10341,6 +10332,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 }
             }
+        },
+        "agentsdk.ReinitializationReason": {
+            "type": "string",
+            "enum": [
+                "prebuild_claimed"
+            ],
+            "x-enum-varnames": [
+                "ReinitializeReasonPrebuildClaimed"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",

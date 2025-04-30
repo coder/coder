@@ -1,1706 +1,1658 @@
 {
-  "versions": [
-    "main"
-  ],
-  "routes": [
-    {
-      "title": "About",
-      "description": "Coder docs",
-      "path": "./README.md",
-      "icon_path": "./images/icons/home.svg",
-      "children": [
-        {
-          "title": "Quickstart",
-          "description": "Learn how to install and run Coder quickly",
-          "path": "./tutorials/quickstart.md"
-        },
-        {
-          "title": "Screenshots",
-          "description": "View screenshots of the Coder platform",
-          "path": "./start/screenshots.md"
-        }
-      ]
-    },
-    {
-      "title": "Install",
-      "description": "Installing Coder",
-      "path": "./install/index.md",
-      "icon_path": "./images/icons/download.svg",
-      "children": [
-        {
-          "title": "Coder CLI",
-          "description": "Install the standalone binary",
-          "path": "./install/cli.md",
-          "icon_path": "./images/icons/terminal.svg"
-        },
-        {
-          "title": "Docker",
-          "description": "Install Coder using Docker",
-          "path": "./install/docker.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
-        {
-          "title": "Kubernetes",
-          "description": "Install Coder on Kubernetes",
-          "path": "./install/kubernetes.md",
-          "icon_path": "./images/icons/kubernetes.svg"
-        },
-        {
-          "title": "Rancher",
-          "description": "Deploy Coder on Rancher",
-          "path": "./install/rancher.md",
-          "icon_path": "./images/icons/rancher.svg"
-        },
-        {
-          "title": "OpenShift",
-          "description": "Install Coder on OpenShift",
-          "path": "./install/openshift.md",
-          "icon_path": "./images/icons/openshift.svg"
-        },
-        {
-          "title": "Cloud Providers",
-          "description": "Install Coder on cloud providers",
-          "path": "./install/cloud/index.md",
-          "icon_path": "./images/icons/cloud.svg",
-          "children": [
-            {
-              "title": "AWS EC2",
-              "description": "Install Coder on AWS EC2",
-              "path": "./install/cloud/ec2.md"
-            },
-            {
-              "title": "GCP Compute Engine",
-              "description": "Install Coder on GCP Compute Engine",
-              "path": "./install/cloud/compute-engine.md"
-            },
-            {
-              "title": "Azure VM",
-              "description": "Install Coder on an Azure VM",
-              "path": "./install/cloud/azure-vm.md"
-            }
-          ]
-        },
-        {
-          "title": "Offline Deployments",
-          "description": "Run Coder in offline / air-gapped environments",
-          "path": "./install/offline.md",
-          "icon_path": "./images/icons/lan.svg"
-        },
-        {
-          "title": "Unofficial Install Methods",
-          "description": "Other installation methods",
-          "path": "./install/other/index.md",
-          "icon_path": "./images/icons/generic.svg"
-        },
-        {
-          "title": "Upgrading",
-          "description": "Learn how to upgrade Coder",
-          "path": "./install/upgrade.md",
-          "icon_path": "./images/icons/upgrade.svg"
-        },
-        {
-          "title": "Uninstall",
-          "description": "Learn how to uninstall Coder",
-          "path": "./install/uninstall.md",
-          "icon_path": "./images/icons/trash.svg"
-        },
-        {
-          "title": "Releases",
-          "description": "Learn about the Coder release channels and schedule",
-          "path": "./install/releases/index.md",
-          "icon_path": "./images/icons/star.svg",
-          "children": [
-            {
-              "title": "Feature stages",
-              "description": "Information about pre-GA stages.",
-              "path": "./install/releases/feature-stages.md"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "User Guides",
-      "description": "Guides for end-users of Coder",
-      "path": "./user-guides/index.md",
-      "icon_path": "./images/icons/users.svg",
-      "children": [
-        {
-          "title": "Access Workspaces",
-          "description": "Connect to your Coder workspaces",
-          "path": "./user-guides/workspace-access/index.md",
-          "icon_path": "./images/icons/access.svg",
-          "children": [
-            {
-              "title": "Visual Studio Code",
-              "description": "Use VSCode with Coder in the desktop or browser",
-              "path": "./user-guides/workspace-access/vscode.md"
-            },
-            {
-              "title": "JetBrains IDEs",
-              "description": "Use JetBrains IDEs with Gateway",
-              "path": "./user-guides/workspace-access/jetbrains/index.md",
-              "children": [
-                {
-                  "title": "JetBrains Gateway in an air-gapped environment",
-                  "description": "Use JetBrains Gateway in an air-gapped offline environment",
-                  "path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
-                }
-              ]
-            },
-            {
-              "title": "Remote Desktop",
-              "description": "Use RDP in Coder",
-              "path": "./user-guides/workspace-access/remote-desktops.md"
-            },
-            {
-              "title": "Emacs TRAMP",
-              "description": "Use Emacs TRAMP in Coder",
-              "path": "./user-guides/workspace-access/emacs-tramp.md"
-            },
-            {
-              "title": "Port Forwarding",
-              "description": "Access ports on your workspace",
-              "path": "./user-guides/workspace-access/port-forwarding.md"
-            },
-            {
-              "title": "Filebrowser",
-              "description": "Access your workspace files",
-              "path": "./user-guides/workspace-access/filebrowser.md"
-            },
-            {
-              "title": "Web IDEs and Coder Apps",
-              "description": "Access your workspace with IDEs in the browser",
-              "path": "./user-guides/workspace-access/web-ides.md"
-            },
-            {
-              "title": "Zed",
-              "description": "Access your workspace with Zed",
-              "path": "./user-guides/workspace-access/zed.md"
-            },
-            {
-              "title": "Cursor",
-              "description": "Access your workspace with Cursor",
-              "path": "./user-guides/workspace-access/cursor.md"
-            },
-            {
-              "title": "Windsurf",
-              "description": "Access your workspace with Windsurf",
-              "path": "./user-guides/workspace-access/windsurf.md"
-            }
-          ]
-        },
-        {
-          "title": "Coder Desktop",
-          "description": "Use Coder Desktop to access your workspace like it's a local machine",
-          "path": "./user-guides/desktop/index.md",
-          "icon_path": "./images/icons/computer-code.svg",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Workspace Management",
-          "description": "Manage workspaces",
-          "path": "./user-guides/workspace-management.md",
-          "icon_path": "./images/icons/generic.svg"
-        },
-        {
-          "title": "Workspace Scheduling",
-          "description": "Cost control with workspace schedules",
-          "path": "./user-guides/workspace-scheduling.md",
-          "icon_path": "./images/icons/stopwatch.svg"
-        },
-        {
-          "title": "Workspace Lifecycle",
-          "description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
-          "path": "./user-guides/workspace-lifecycle.md",
-          "icon_path": "./images/icons/circle-dot.svg"
-        },
-        {
-          "title": "Dotfiles",
-          "description": "Personalize your environment with dotfiles",
-          "path": "./user-guides/workspace-dotfiles.md",
-          "icon_path": "./images/icons/art-pad.svg"
-        }
-      ]
-    },
-    {
-      "title": "Administration",
-      "description": "Guides for template and deployment administrators",
-      "path": "./admin/index.md",
-      "icon_path": "./images/icons/wrench.svg",
-      "children": [
-        {
-          "title": "Setup",
-          "description": "Configure user access to your control plane.",
-          "path": "./admin/setup/index.md",
-          "icon_path": "./images/icons/toggle_on.svg",
-          "children": [
-            {
-              "title": "Appearance",
-              "description": "Learn how to configure the appearance of Coder",
-              "path": "./admin/setup/appearance.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Telemetry",
-              "description": "Learn what usage telemetry Coder collects",
-              "path": "./admin/setup/telemetry.md"
-            }
-          ]
-        },
-        {
-          "title": "Infrastructure",
-          "description": "How to integrate Coder with your organization's compute",
-          "path": "./admin/infrastructure/index.md",
-          "icon_path": "./images/icons/container.svg",
-          "children": [
-            {
-              "title": "Architecture",
-              "description": "Learn about Coder's architecture",
-              "path": "./admin/infrastructure/architecture.md"
-            },
-            {
-              "title": "Validated Architectures",
-              "description": "Architectures for large Coder deployments",
-              "path": "./admin/infrastructure/validated-architectures/index.md",
-              "children": [
-                {
-                  "title": "Up to 1,000 Users",
-                  "path": "./admin/infrastructure/validated-architectures/1k-users.md"
-                },
-                {
-                  "title": "Up to 2,000 Users",
-                  "path": "./admin/infrastructure/validated-architectures/2k-users.md"
-                },
-                {
-                  "title": "Up to 3,000 Users",
-                  "path": "./admin/infrastructure/validated-architectures/3k-users.md"
-                }
-              ]
-            },
-            {
-              "title": "Scale Testing",
-              "description": "Ensure your deployment can handle your organization's needs",
-              "path": "./admin/infrastructure/scale-testing.md"
-            },
-            {
-              "title": "Scaling Utilities",
-              "description": "Tools to help you scale your deployment",
-              "path": "./admin/infrastructure/scale-utility.md"
-            },
-            {
-              "title": "Scaling best practices",
-              "description": "How to prepare a Coder deployment for scale",
-              "path": "./tutorials/best-practices/scale-coder.md"
-            }
-          ]
-        },
-        {
-          "title": "Users",
-          "description": "Learn how to manage and audit users",
-          "path": "./admin/users/index.md",
-          "icon_path": "./images/icons/users.svg",
-          "children": [
-            {
-              "title": "OIDC Authentication",
-              "path": "./admin/users/oidc-auth.md"
-            },
-            {
-              "title": "GitHub Authentication",
-              "path": "./admin/users/github-auth.md"
-            },
-            {
-              "title": "Password Authentication",
-              "path": "./admin/users/password-auth.md"
-            },
-            {
-              "title": "Headless Authentication",
-              "path": "./admin/users/headless-auth.md"
-            },
-            {
-              "title": "Groups \u0026 Roles",
-              "path": "./admin/users/groups-roles.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "IdP Sync",
-              "path": "./admin/users/idp-sync.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Organizations",
-              "path": "./admin/users/organizations.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Quotas",
-              "path": "./admin/users/quotas.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Sessions \u0026 API Tokens",
-              "path": "./admin/users/sessions-tokens.md"
-            }
-          ]
-        },
-        {
-          "title": "Templates",
-          "description": "Learn how to author and maintain Coder templates",
-          "path": "./admin/templates/index.md",
-          "icon_path": "./images/icons/picture.svg",
-          "children": [
-            {
-              "title": "Creating Templates",
-              "description": "Learn how to create templates with Terraform",
-              "path": "./admin/templates/creating-templates.md"
-            },
-            {
-              "title": "Managing Templates",
-              "description": "Learn how to manage templates and best practices",
-              "path": "./admin/templates/managing-templates/index.md",
-              "children": [
-                {
-                  "title": "Image Management",
-                  "description": "Learn about template image management",
-                  "path": "./admin/templates/managing-templates/image-management.md"
-                },
-                {
-                  "title": "Change Management",
-                  "description": "Learn about template change management and versioning",
-                  "path": "./admin/templates/managing-templates/change-management.md"
-                },
-                {
-                  "title": "Dev containers",
-                  "description": "Learn about using development containers in templates",
-                  "path": "./admin/templates/managing-templates/devcontainers/index.md",
-                  "children": [
-                    {
-                      "title": "Add a dev container template",
-                      "description": "How to add a dev container template to Coder",
-                      "path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
-                    },
-                    {
-                      "title": "Dev container security and caching",
-                      "description": "Configure dev container authentication and caching",
-                      "path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
-                    },
-                    {
-                      "title": "Dev container releases and known issues",
-                      "description": "Dev container releases and known issues",
-                      "path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
-                    }
-                  ]
-                },
-                {
-                  "title": "Template Dependencies",
-                  "description": "Learn how to manage template dependencies",
-                  "path": "./admin/templates/managing-templates/dependencies.md"
-                },
-                {
-                  "title": "Workspace Scheduling",
-                  "description": "Learn how to control how workspaces are started and stopped",
-                  "path": "./admin/templates/managing-templates/schedule.md"
-                }
-              ]
-            },
-            {
-              "title": "Extending Templates",
-              "description": "Learn best practices in extending templates",
-              "path": "./admin/templates/extending-templates/index.md",
-              "children": [
-                {
-                  "title": "Agent Metadata",
-                  "description": "Retrieve real-time stats from the workspace agent",
-                  "path": "./admin/templates/extending-templates/agent-metadata.md"
-                },
-                {
-                  "title": "Build Parameters",
-                  "description": "Use parameters to customize workspaces at build",
-                  "path": "./admin/templates/extending-templates/parameters.md"
-                },
-                {
-                  "title": "Icons",
-                  "description": "Customize your template with built-in icons",
-                  "path": "./admin/templates/extending-templates/icons.md"
-                },
-                {
-                  "title": "Resource Metadata",
-                  "description": "Display resource state in the workspace dashboard",
-                  "path": "./admin/templates/extending-templates/resource-metadata.md"
-                },
-                {
-                  "title": "Resource Monitoring",
-                  "description": "Monitor resources in the workspace dashboard",
-                  "path": "./admin/templates/extending-templates/resource-monitoring.md"
-                },
-                {
-                  "title": "Resource Ordering",
-                  "description": "Design the UI of workspaces",
-                  "path": "./admin/templates/extending-templates/resource-ordering.md"
-                },
-                {
-                  "title": "Resource Persistence",
-                  "description": "Control resource persistence",
-                  "path": "./admin/templates/extending-templates/resource-persistence.md"
-                },
-                {
-                  "title": "Terraform Variables",
-                  "description": "Use variables to manage template state",
-                  "path": "./admin/templates/extending-templates/variables.md"
-                },
-                {
-                  "title": "Terraform Modules",
-                  "description": "Reuse terraform code across templates",
-                  "path": "./admin/templates/extending-templates/modules.md"
-                },
-                {
-                  "title": "Web IDEs and Coder Apps",
-                  "description": "Add and configure Web IDEs in your templates as coder apps",
-                  "path": "./admin/templates/extending-templates/web-ides.md"
-                },
-                {
-                  "title": "Pre-install JetBrains Gateway",
-                  "description": "Pre-install JetBrains Gateway in a template for faster IDE startup",
-                  "path": "./admin/templates/extending-templates/jetbrains-gateway.md"
-                },
-                {
-                  "title": "Docker in Workspaces",
-                  "description": "Use Docker in your workspaces",
-                  "path": "./admin/templates/extending-templates/docker-in-workspaces.md"
-                },
-                {
-                  "title": "Workspace Tags",
-                  "description": "Control provisioning using Workspace Tags and Parameters",
-                  "path": "./admin/templates/extending-templates/workspace-tags.md"
-                },
-                {
-                  "title": "Provider Authentication",
-                  "description": "Authenticate with provider APIs to provision workspaces",
-                  "path": "./admin/templates/extending-templates/provider-authentication.md"
-                },
-                {
-                  "title": "Process Logging",
-                  "description": "Log workspace processes",
-                  "path": "./admin/templates/extending-templates/process-logging.md",
-                  "state": [
-                    "premium"
-                  ]
-                }
-              ]
-            },
-            {
-              "title": "Open in Coder",
-              "description": "Open workspaces in Coder",
-              "path": "./admin/templates/open-in-coder.md"
-            },
-            {
-              "title": "Permissions \u0026 Policies",
-              "description": "Learn how to create templates with Terraform",
-              "path": "./admin/templates/template-permissions.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Troubleshooting Templates",
-              "description": "Learn how to troubleshoot template issues",
-              "path": "./admin/templates/troubleshooting.md"
-            }
-          ]
-        },
-        {
-          "title": "External Provisioners",
-          "description": "Learn how to run external provisioners with Coder",
-          "path": "./admin/provisioners/index.md",
-          "icon_path": "./images/icons/key.svg",
-          "state": [
-            "premium"
-          ],
-          "children": [
-            {
-              "title": "Manage Provisioner Jobs",
-              "description": "Learn how to run external provisioners with Coder",
-              "path": "./admin/provisioners/manage-provisioner-jobs.md",
-              "state": [
-                "premium"
-              ]
-            }
-          ]
-        },
-        {
-          "title": "External Auth",
-          "description": "Learn how to configure external authentication",
-          "path": "./admin/external-auth.md",
-          "icon_path": "./images/icons/plug.svg"
-        },
-        {
-          "title": "Integrations",
-          "description": "Use integrations to extend Coder",
-          "path": "./admin/integrations/index.md",
-          "icon_path": "./images/icons/puzzle.svg",
-          "children": [
-            {
-              "title": "Prometheus",
-              "description": "Collect deployment metrics with Prometheus",
-              "path": "./admin/integrations/prometheus.md"
-            },
-            {
-              "title": "Kubernetes Logging",
-              "description": "Stream K8s event logs on workspace startup",
-              "path": "./admin/integrations/kubernetes-logs.md"
-            },
-            {
-              "title": "Additional Kubernetes Clusters",
-              "description": "Deploy workspaces on additional Kubernetes clusters",
-              "path": "./admin/integrations/multiple-kube-clusters.md"
-            },
-            {
-              "title": "JFrog Artifactory",
-              "description": "Integrate Coder with JFrog Artifactory",
-              "path": "./admin/integrations/jfrog-artifactory.md"
-            },
-            {
-              "title": "JFrog Xray",
-              "description": "Integrate Coder with JFrog Xray",
-              "path": "./admin/integrations/jfrog-xray.md"
-            },
-            {
-              "title": "Island Secure Browser",
-              "description": "Integrate Coder with Island's Secure Browser",
-              "path": "./admin/integrations/island.md"
-            },
-            {
-              "title": "DX PlatformX",
-              "description": "Integrate Coder with DX PlatformX",
-              "path": "./admin/integrations/platformx.md"
-            },
-            {
-              "title": "Hashicorp Vault",
-              "description": "Integrate Coder with Hashicorp Vault",
-              "path": "./admin/integrations/vault.md"
-            }
-          ]
-        },
-        {
-          "title": "Networking",
-          "description": "Understand Coder's networking layer",
-          "path": "./admin/networking/index.md",
-          "icon_path": "./images/icons/networking.svg",
-          "children": [
-            {
-              "title": "Port Forwarding",
-              "description": "Learn how to forward ports in Coder",
-              "path": "./admin/networking/port-forwarding.md"
-            },
-            {
-              "title": "STUN and NAT",
-              "description": "Learn how to forward ports in Coder",
-              "path": "./admin/networking/stun.md"
-            },
-            {
-              "title": "Workspace Proxies",
-              "description": "Run geo distributed workspace proxies",
-              "path": "./admin/networking/workspace-proxies.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "High Availability",
-              "description": "Learn how to configure Coder for High Availability",
-              "path": "./admin/networking/high-availability.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Troubleshooting",
-              "description": "Troubleshoot networking issues in Coder",
-              "path": "./admin/networking/troubleshooting.md"
-            }
-          ]
-        },
-        {
-          "title": "Monitoring",
-          "description": "Configure security policy and audit your deployment",
-          "path": "./admin/monitoring/index.md",
-          "icon_path": "./images/icons/speed.svg",
-          "children": [
-            {
-              "title": "Logs",
-              "description": "Learn about Coder's logs",
-              "path": "./admin/monitoring/logs.md"
-            },
-            {
-              "title": "Metrics",
-              "description": "Learn about Coder's logs",
-              "path": "./admin/monitoring/metrics.md"
-            },
-            {
-              "title": "Health Check",
-              "description": "Learn about Coder's automated health checks",
-              "path": "./admin/monitoring/health-check.md"
-            },
-            {
-              "title": "Notifications",
-              "description": "Configure notifications for your deployment",
-              "path": "./admin/monitoring/notifications/index.md",
-              "children": [
-                {
-                  "title": "Slack Notifications",
-                  "description": "Learn how to setup Slack notifications",
-                  "path": "./admin/monitoring/notifications/slack.md"
-                },
-                {
-                  "title": "Microsoft Teams Notifications",
-                  "description": "Learn how to setup Microsoft Teams notifications",
-                  "path": "./admin/monitoring/notifications/teams.md"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "title": "Security",
-          "description": "Configure security policy and audit your deployment",
-          "path": "./admin/security/index.md",
-          "icon_path": "./images/icons/lock.svg",
-          "children": [
-            {
-              "title": "Audit Logs",
-              "description": "Audit actions taken inside Coder",
-              "path": "./admin/security/audit-logs.md",
-              "state": [
-                "premium"
-              ]
-            },
-            {
-              "title": "Secrets",
-              "description": "Use sensitive variables in your workspaces",
-              "path": "./admin/security/secrets.md"
-            },
-            {
-              "title": "Database Encryption",
-              "description": "Encrypt the database to prevent unauthorized access",
-              "path": "./admin/security/database-encryption.md",
-              "state": [
-                "premium"
-              ]
-            }
-          ]
-        },
-        {
-          "title": "Licensing",
-          "description": "Configure licensing for your deployment",
-          "path": "./admin/licensing/index.md",
-          "icon_path": "./images/icons/licensing.svg"
-        }
-      ]
-    },
-    {
-      "title": "Run AI Coding Agents in Coder",
-      "description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
-      "path": "./ai-coder/index.md",
-      "icon_path": "./images/icons/wand.svg",
-      "state": [
-        "early access"
-      ],
-      "children": [
-        {
-          "title": "Learn about coding agents",
-          "description": "Learn about the different AI agents and their tradeoffs",
-          "path": "./ai-coder/agents.md"
-        },
-        {
-          "title": "Create a Coder template for agents",
-          "description": "Create a purpose-built template for your AI agents",
-          "path": "./ai-coder/create-template.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Integrate with your issue tracker",
-          "description": "Assign tickets to AI agents and interact via code reviews",
-          "path": "./ai-coder/issue-tracker.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Model Context Protocols (MCP) and adding AI tools",
-          "description": "Improve results by adding tools to your AI agents",
-          "path": "./ai-coder/best-practices.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Supervise agents via Coder UI",
-          "description": "Interact with agents via the Coder UI",
-          "path": "./ai-coder/coder-dashboard.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Supervise agents via the IDE",
-          "description": "Interact with agents via VS Code or Cursor",
-          "path": "./ai-coder/ide-integration.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Programmatically manage agents",
-          "description": "Manage agents via MCP, the Coder CLI, and/or REST API",
-          "path": "./ai-coder/headless.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Securing agents in Coder",
-          "description": "Learn how to secure agents with boundaries",
-          "path": "./ai-coder/securing.md",
-          "state": [
-            "early access"
-          ]
-        },
-        {
-          "title": "Custom agents",
-          "description": "Learn how to use custom agents with Coder",
-          "path": "./ai-coder/custom-agents.md",
-          "state": [
-            "early access"
-          ]
-        }
-      ]
-    },
-    {
-      "title": "Contributing",
-      "description": "Learn how to contribute to Coder",
-      "path": "./CONTRIBUTING.md",
-      "icon_path": "./images/icons/contributing.svg",
-      "children": [
-        {
-          "title": "Code of Conduct",
-          "description": "See the code of conduct for contributing to Coder",
-          "path": "./contributing/CODE_OF_CONDUCT.md",
-          "icon_path": "./images/icons/circle-dot.svg"
-        },
-        {
-          "title": "Documentation",
-          "description": "Our style guide for use when authoring documentation",
-          "path": "./contributing/documentation.md",
-          "icon_path": "./images/icons/document.svg"
-        },
-        {
-          "title": "Frontend",
-          "description": "Our guide for frontend development",
-          "path": "./contributing/frontend.md",
-          "icon_path": "./images/icons/frontend.svg"
-        },
-        {
-          "title": "Security",
-          "description": "Our guide for security",
-          "path": "./contributing/SECURITY.md",
-          "icon_path": "./images/icons/lock.svg"
-        }
-      ]
-    },
-    {
-      "title": "Tutorials",
-      "description": "Coder knowledgebase for administrating your deployment",
-      "path": "./tutorials/index.md",
-      "icon_path": "./images/icons/generic.svg",
-      "children": [
-        {
-          "title": "Quickstart",
-          "description": "Learn how to install and run Coder quickly",
-          "path": "./tutorials/quickstart.md"
-        },
-        {
-          "title": "Write a Template from Scratch",
-          "description": "Learn how to author Coder templates",
-          "path": "./tutorials/template-from-scratch.md"
-        },
-        {
-          "title": "Using an External Database",
-          "description": "Use Coder with an external database",
-          "path": "./tutorials/external-database.md"
-        },
-        {
-          "title": "Image Management",
-          "description": "Learn about image management with Coder",
-          "path": "./admin/templates/managing-templates/image-management.md"
-        },
-        {
-          "title": "Generate a Support Bundle",
-          "description": "Generate and upload a Support Bundle to Coder Support",
-          "path": "./tutorials/support-bundle.md"
-        },
-        {
-          "title": "Configuring Okta",
-          "description": "Custom claims/scopes with Okta for group/role sync",
-          "path": "./tutorials/configuring-okta.md"
-        },
-        {
-          "title": "Google to AWS Federation",
-          "description": "Federating a Google Cloud service account to AWS",
-          "path": "./tutorials/gcp-to-aws.md"
-        },
-        {
-          "title": "JFrog Artifactory Integration",
-          "description": "Integrate Coder with JFrog Artifactory",
-          "path": "./admin/integrations/jfrog-artifactory.md"
-        },
-        {
-          "title": "Istio Integration",
-          "description": "Integrate Coder with Istio",
-          "path": "./admin/integrations/istio.md"
-        },
-        {
-          "title": "Island Secure Browser Integration",
-          "description": "Integrate Coder with Island's Secure Browser",
-          "path": "./admin/integrations/island.md"
-        },
-        {
-          "title": "Template ImagePullSecrets",
-          "description": "Creating ImagePullSecrets for private registries",
-          "path": "./tutorials/image-pull-secret.md"
-        },
-        {
-          "title": "Postgres SSL",
-          "description": "Configure Coder to connect to Postgres over SSL",
-          "path": "./tutorials/postgres-ssl.md"
-        },
-        {
-          "title": "Azure Federation",
-          "description": "Federating Coder to Azure",
-          "path": "./tutorials/azure-federation.md"
-        },
-        {
-          "title": "Scanning Workspaces with JFrog Xray",
-          "description": "Integrate Coder with JFrog Xray",
-          "path": "./admin/integrations/jfrog-xray.md"
-        },
-        {
-          "title": "Cloning Git Repositories",
-          "description": "Learn how to clone Git repositories in Coder",
-          "path": "./tutorials/cloning-git-repositories.md"
-        },
-        {
-          "title": "Test Templates Through CI/CD",
-          "description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
-          "path": "./tutorials/testing-templates.md"
-        },
-        {
-          "title": "Use Apache as a Reverse Proxy",
-          "description": "Learn how to use Apache as a reverse proxy",
-          "path": "./tutorials/reverse-proxy-apache.md"
-        },
-        {
-          "title": "Use Caddy as a Reverse Proxy",
-          "description": "Learn how to use Caddy as a reverse proxy",
-          "path": "./tutorials/reverse-proxy-caddy.md"
-        },
-        {
-          "title": "Use NGINX as a Reverse Proxy",
-          "description": "Learn how to use NGINX as a reverse proxy",
-          "path": "./tutorials/reverse-proxy-nginx.md"
-        },
-        {
-          "title": "FAQs",
-          "description": "Miscellaneous FAQs from our community",
-          "path": "./tutorials/faqs.md"
-        },
-        {
-          "title": "Best practices",
-          "description": "Guides to help you make the most of your Coder experience",
-          "path": "./tutorials/best-practices/index.md",
-          "children": [
-            {
-              "title": "Organizations - best practices",
-              "description": "How to make the best use of Coder Organizations",
-              "path": "./tutorials/best-practices/organizations.md"
-            },
-            {
-              "title": "Scale Coder",
-              "description": "How to prepare a Coder deployment for scale",
-              "path": "./tutorials/best-practices/scale-coder.md"
-            },
-            {
-              "title": "Security - best practices",
-              "description": "Make your Coder deployment more secure",
-              "path": "./tutorials/best-practices/security-best-practices.md"
-            },
-            {
-              "title": "Speed up your workspaces",
-              "description": "Speed up your Coder templates and workspaces",
-              "path": "./tutorials/best-practices/speed-up-templates.md"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "title": "Reference",
-      "description": "Reference",
-      "path": "./reference/index.md",
-      "icon_path": "./images/icons/notes.svg",
-      "children": [
-        {
-          "title": "REST API",
-          "description": "Learn how to use Coderd API",
-          "path": "./reference/api/index.md",
-          "icon_path": "./images/icons/api.svg",
-          "children": [
-            {
-              "title": "General",
-              "path": "./reference/api/general.md"
-            },
-            {
-              "title": "Agents",
-              "path": "./reference/api/agents.md"
-            },
-            {
-              "title": "Applications",
-              "path": "./reference/api/applications.md"
-            },
-            {
-              "title": "Audit",
-              "path": "./reference/api/audit.md"
-            },
-            {
-              "title": "Authentication",
-              "path": "./reference/api/authentication.md"
-            },
-            {
-              "title": "Authorization",
-              "path": "./reference/api/authorization.md"
-            },
-            {
-              "title": "Builds",
-              "path": "./reference/api/builds.md"
-            },
-            {
-              "title": "Debug",
-              "path": "./reference/api/debug.md"
-            },
-            {
-              "title": "Enterprise",
-              "path": "./reference/api/enterprise.md"
-            },
-            {
-              "title": "Files",
-              "path": "./reference/api/files.md"
-            },
-            {
-              "title": "Git",
-              "path": "./reference/api/git.md"
-            },
-            {
-              "title": "Insights",
-              "path": "./reference/api/insights.md"
-            },
-            {
-              "title": "Members",
-              "path": "./reference/api/members.md"
-            },
-            {
-              "title": "Organizations",
-              "path": "./reference/api/organizations.md"
-            },
-            {
-              "title": "PortSharing",
-              "path": "./reference/api/portsharing.md"
-            },
-            {
-              "title": "Schemas",
-              "path": "./reference/api/schemas.md"
-            },
-            {
-              "title": "Templates",
-              "path": "./reference/api/templates.md"
-            },
-            {
-              "title": "Users",
-              "path": "./reference/api/users.md"
-            },
-            {
-              "title": "WorkspaceProxies",
-              "path": "./reference/api/workspaceproxies.md"
-            },
-            {
-              "title": "Workspaces",
-              "path": "./reference/api/workspaces.md"
-            }
-          ]
-        },
-        {
-          "title": "Command Line",
-          "description": "Learn how to use Coder CLI",
-          "path": "./reference/cli/index.md",
-          "icon_path": "./images/icons/terminal.svg",
-          "children": [
-            {
-              "title": "autoupdate",
-              "description": "Toggle auto-update policy for a workspace",
-              "path": "reference/cli/autoupdate.md"
-            },
-            {
-              "title": "coder",
-              "path": "reference/cli/index.md"
-            },
-            {
-              "title": "completion",
-              "description": "Install or update shell completion scripts for the detected or chosen shell.",
-              "path": "reference/cli/completion.md"
-            },
-            {
-              "title": "config-ssh",
-              "description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
-              "path": "reference/cli/config-ssh.md"
-            },
-            {
-              "title": "create",
-              "description": "Create a workspace",
-              "path": "reference/cli/create.md"
-            },
-            {
-              "title": "delete",
-              "description": "Delete a workspace",
-              "path": "reference/cli/delete.md"
-            },
-            {
-              "title": "dotfiles",
-              "description": "Personalize your workspace by applying a canonical dotfiles repository",
-              "path": "reference/cli/dotfiles.md"
-            },
-            {
-              "title": "external-auth",
-              "description": "Manage external authentication",
-              "path": "reference/cli/external-auth.md"
-            },
-            {
-              "title": "external-auth access-token",
-              "description": "Print auth for an external provider",
-              "path": "reference/cli/external-auth_access-token.md"
-            },
-            {
-              "title": "favorite",
-              "description": "Add a workspace to your favorites",
-              "path": "reference/cli/favorite.md"
-            },
-            {
-              "title": "features",
-              "description": "List Enterprise features",
-              "path": "reference/cli/features.md"
-            },
-            {
-              "title": "features list",
-              "path": "reference/cli/features_list.md"
-            },
-            {
-              "title": "groups",
-              "description": "Manage groups",
-              "path": "reference/cli/groups.md"
-            },
-            {
-              "title": "groups create",
-              "description": "Create a user group",
-              "path": "reference/cli/groups_create.md"
-            },
-            {
-              "title": "groups delete",
-              "description": "Delete a user group",
-              "path": "reference/cli/groups_delete.md"
-            },
-            {
-              "title": "groups edit",
-              "description": "Edit a user group",
-              "path": "reference/cli/groups_edit.md"
-            },
-            {
-              "title": "groups list",
-              "description": "List user groups",
-              "path": "reference/cli/groups_list.md"
-            },
-            {
-              "title": "licenses",
-              "description": "Add, delete, and list licenses",
-              "path": "reference/cli/licenses.md"
-            },
-            {
-              "title": "licenses add",
-              "description": "Add license to Coder deployment",
-              "path": "reference/cli/licenses_add.md"
-            },
-            {
-              "title": "licenses delete",
-              "description": "Delete license by ID",
-              "path": "reference/cli/licenses_delete.md"
-            },
-            {
-              "title": "licenses list",
-              "description": "List licenses (including expired)",
-              "path": "reference/cli/licenses_list.md"
-            },
-            {
-              "title": "list",
-              "description": "List workspaces",
-              "path": "reference/cli/list.md"
-            },
-            {
-              "title": "login",
-              "description": "Authenticate with Coder deployment",
-              "path": "reference/cli/login.md"
-            },
-            {
-              "title": "logout",
-              "description": "Unauthenticate your local session",
-              "path": "reference/cli/logout.md"
-            },
-            {
-              "title": "netcheck",
-              "description": "Print network debug information for DERP and STUN",
-              "path": "reference/cli/netcheck.md"
-            },
-            {
-              "title": "notifications",
-              "description": "Manage Coder notifications",
-              "path": "reference/cli/notifications.md"
-            },
-            {
-              "title": "notifications pause",
-              "description": "Pause notifications",
-              "path": "reference/cli/notifications_pause.md"
-            },
-            {
-              "title": "notifications resume",
-              "description": "Resume notifications",
-              "path": "reference/cli/notifications_resume.md"
-            },
-            {
-              "title": "notifications test",
-              "description": "Send a test notification",
-              "path": "reference/cli/notifications_test.md"
-            },
-            {
-              "title": "open",
-              "description": "Open a workspace",
-              "path": "reference/cli/open.md"
-            },
-            {
-              "title": "open app",
-              "description": "Open a workspace application.",
-              "path": "reference/cli/open_app.md"
-            },
-            {
-              "title": "open vscode",
-              "description": "Open a workspace in VS Code Desktop",
-              "path": "reference/cli/open_vscode.md"
-            },
-            {
-              "title": "organizations",
-              "description": "Organization related commands",
-              "path": "reference/cli/organizations.md"
-            },
-            {
-              "title": "organizations create",
-              "description": "Create a new organization.",
-              "path": "reference/cli/organizations_create.md"
-            },
-            {
-              "title": "organizations members",
-              "description": "Manage organization members",
-              "path": "reference/cli/organizations_members.md"
-            },
-            {
-              "title": "organizations members add",
-              "description": "Add a new member to the current organization",
-              "path": "reference/cli/organizations_members_add.md"
-            },
-            {
-              "title": "organizations members edit-roles",
-              "description": "Edit organization member's roles",
-              "path": "reference/cli/organizations_members_edit-roles.md"
-            },
-            {
-              "title": "organizations members list",
-              "description": "List all organization members",
-              "path": "reference/cli/organizations_members_list.md"
-            },
-            {
-              "title": "organizations members remove",
-              "description": "Remove a new member to the current organization",
-              "path": "reference/cli/organizations_members_remove.md"
-            },
-            {
-              "title": "organizations roles",
-              "description": "Manage organization roles.",
-              "path": "reference/cli/organizations_roles.md"
-            },
-            {
-              "title": "organizations roles create",
-              "description": "Create a new organization custom role",
-              "path": "reference/cli/organizations_roles_create.md"
-            },
-            {
-              "title": "organizations roles show",
-              "description": "Show role(s)",
-              "path": "reference/cli/organizations_roles_show.md"
-            },
-            {
-              "title": "organizations roles update",
-              "description": "Update an organization custom role",
-              "path": "reference/cli/organizations_roles_update.md"
-            },
-            {
-              "title": "organizations settings",
-              "description": "Manage organization settings.",
-              "path": "reference/cli/organizations_settings.md"
-            },
-            {
-              "title": "organizations settings set",
-              "description": "Update specified organization setting.",
-              "path": "reference/cli/organizations_settings_set.md"
-            },
-            {
-              "title": "organizations settings set group-sync",
-              "description": "Group sync settings to sync groups from an IdP.",
-              "path": "reference/cli/organizations_settings_set_group-sync.md"
-            },
-            {
-              "title": "organizations settings set organization-sync",
-              "description": "Organization sync settings to sync organization memberships from an IdP.",
-              "path": "reference/cli/organizations_settings_set_organization-sync.md"
-            },
-            {
-              "title": "organizations settings set role-sync",
-              "description": "Role sync settings to sync organization roles from an IdP.",
-              "path": "reference/cli/organizations_settings_set_role-sync.md"
-            },
-            {
-              "title": "organizations settings show",
-              "description": "Outputs specified organization setting.",
-              "path": "reference/cli/organizations_settings_show.md"
-            },
-            {
-              "title": "organizations settings show group-sync",
-              "description": "Group sync settings to sync groups from an IdP.",
-              "path": "reference/cli/organizations_settings_show_group-sync.md"
-            },
-            {
-              "title": "organizations settings show organization-sync",
-              "description": "Organization sync settings to sync organization memberships from an IdP.",
-              "path": "reference/cli/organizations_settings_show_organization-sync.md"
-            },
-            {
-              "title": "organizations settings show role-sync",
-              "description": "Role sync settings to sync organization roles from an IdP.",
-              "path": "reference/cli/organizations_settings_show_role-sync.md"
-            },
-            {
-              "title": "organizations show",
-              "description": "Show the organization. Using \"selected\" will show the selected organization from the \"--org\" flag. Using \"me\" will show all organizations you are a member of.",
-              "path": "reference/cli/organizations_show.md"
-            },
-            {
-              "title": "ping",
-              "description": "Ping a workspace",
-              "path": "reference/cli/ping.md"
-            },
-            {
-              "title": "port-forward",
-              "description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
-              "path": "reference/cli/port-forward.md"
-            },
-            {
-              "title": "provisioner",
-              "description": "View and manage provisioner daemons and jobs",
-              "path": "reference/cli/provisioner.md"
-            },
-            {
-              "title": "provisioner jobs",
-              "description": "View and manage provisioner jobs",
-              "path": "reference/cli/provisioner_jobs.md"
-            },
-            {
-              "title": "provisioner jobs cancel",
-              "description": "Cancel a provisioner job",
-              "path": "reference/cli/provisioner_jobs_cancel.md"
-            },
-            {
-              "title": "provisioner jobs list",
-              "description": "List provisioner jobs",
-              "path": "reference/cli/provisioner_jobs_list.md"
-            },
-            {
-              "title": "provisioner keys",
-              "description": "Manage provisioner keys",
-              "path": "reference/cli/provisioner_keys.md"
-            },
-            {
-              "title": "provisioner keys create",
-              "description": "Create a new provisioner key",
-              "path": "reference/cli/provisioner_keys_create.md"
-            },
-            {
-              "title": "provisioner keys delete",
-              "description": "Delete a provisioner key",
-              "path": "reference/cli/provisioner_keys_delete.md"
-            },
-            {
-              "title": "provisioner keys list",
-              "description": "List provisioner keys in an organization",
-              "path": "reference/cli/provisioner_keys_list.md"
-            },
-            {
-              "title": "provisioner list",
-              "description": "List provisioner daemons in an organization",
-              "path": "reference/cli/provisioner_list.md"
-            },
-            {
-              "title": "provisioner start",
-              "description": "Run a provisioner daemon",
-              "path": "reference/cli/provisioner_start.md"
-            },
-            {
-              "title": "publickey",
-              "description": "Output your Coder public key used for Git operations",
-              "path": "reference/cli/publickey.md"
-            },
-            {
-              "title": "rename",
-              "description": "Rename a workspace",
-              "path": "reference/cli/rename.md"
-            },
-            {
-              "title": "reset-password",
-              "description": "Directly connect to the database to reset a user's password",
-              "path": "reference/cli/reset-password.md"
-            },
-            {
-              "title": "restart",
-              "description": "Restart a workspace",
-              "path": "reference/cli/restart.md"
-            },
-            {
-              "title": "schedule",
-              "description": "Schedule automated start and stop times for workspaces",
-              "path": "reference/cli/schedule.md"
-            },
-            {
-              "title": "schedule extend",
-              "description": "Extend the stop time of a currently running workspace instance.",
-              "path": "reference/cli/schedule_extend.md"
-            },
-            {
-              "title": "schedule show",
-              "description": "Show workspace schedules",
-              "path": "reference/cli/schedule_show.md"
-            },
-            {
-              "title": "schedule start",
-              "description": "Edit workspace start schedule",
-              "path": "reference/cli/schedule_start.md"
-            },
-            {
-              "title": "schedule stop",
-              "description": "Edit workspace stop schedule",
-              "path": "reference/cli/schedule_stop.md"
-            },
-            {
-              "title": "server",
-              "description": "Start a Coder server",
-              "path": "reference/cli/server.md"
-            },
-            {
-              "title": "server create-admin-user",
-              "description": "Create a new admin user with the given username, email and password and adds it to every organization.",
-              "path": "reference/cli/server_create-admin-user.md"
-            },
-            {
-              "title": "server dbcrypt",
-              "description": "Manage database encryption.",
-              "path": "reference/cli/server_dbcrypt.md"
-            },
-            {
-              "title": "server dbcrypt decrypt",
-              "description": "Decrypt a previously encrypted database.",
-              "path": "reference/cli/server_dbcrypt_decrypt.md"
-            },
-            {
-              "title": "server dbcrypt delete",
-              "description": "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
-              "path": "reference/cli/server_dbcrypt_delete.md"
-            },
-            {
-              "title": "server dbcrypt rotate",
-              "description": "Rotate database encryption keys.",
-              "path": "reference/cli/server_dbcrypt_rotate.md"
-            },
-            {
-              "title": "server postgres-builtin-serve",
-              "description": "Run the built-in PostgreSQL deployment.",
-              "path": "reference/cli/server_postgres-builtin-serve.md"
-            },
-            {
-              "title": "server postgres-builtin-url",
-              "description": "Output the connection URL for the built-in PostgreSQL deployment.",
-              "path": "reference/cli/server_postgres-builtin-url.md"
-            },
-            {
-              "title": "show",
-              "description": "Display details of a workspace's resources and agents",
-              "path": "reference/cli/show.md"
-            },
-            {
-              "title": "speedtest",
-              "description": "Run upload and download tests from your machine to a workspace",
-              "path": "reference/cli/speedtest.md"
-            },
-            {
-              "title": "ssh",
-              "description": "Start a shell into a workspace",
-              "path": "reference/cli/ssh.md"
-            },
-            {
-              "title": "start",
-              "description": "Start a workspace",
-              "path": "reference/cli/start.md"
-            },
-            {
-              "title": "stat",
-              "description": "Show resource usage for the current workspace.",
-              "path": "reference/cli/stat.md"
-            },
-            {
-              "title": "stat cpu",
-              "description": "Show CPU usage, in cores.",
-              "path": "reference/cli/stat_cpu.md"
-            },
-            {
-              "title": "stat disk",
-              "description": "Show disk usage, in gigabytes.",
-              "path": "reference/cli/stat_disk.md"
-            },
-            {
-              "title": "stat mem",
-              "description": "Show memory usage, in gigabytes.",
-              "path": "reference/cli/stat_mem.md"
-            },
-            {
-              "title": "state",
-              "description": "Manually manage Terraform state to fix broken workspaces",
-              "path": "reference/cli/state.md"
-            },
-            {
-              "title": "state pull",
-              "description": "Pull a Terraform state file from a workspace.",
-              "path": "reference/cli/state_pull.md"
-            },
-            {
-              "title": "state push",
-              "description": "Push a Terraform state file to a workspace.",
-              "path": "reference/cli/state_push.md"
-            },
-            {
-              "title": "stop",
-              "description": "Stop a workspace",
-              "path": "reference/cli/stop.md"
-            },
-            {
-              "title": "support",
-              "description": "Commands for troubleshooting issues with a Coder deployment.",
-              "path": "reference/cli/support.md"
-            },
-            {
-              "title": "support bundle",
-              "description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
-              "path": "reference/cli/support_bundle.md"
-            },
-            {
-              "title": "templates",
-              "description": "Manage templates",
-              "path": "reference/cli/templates.md"
-            },
-            {
-              "title": "templates archive",
-              "description": "Archive unused or failed template versions from a given template(s)",
-              "path": "reference/cli/templates_archive.md"
-            },
-            {
-              "title": "templates create",
-              "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
-              "path": "reference/cli/templates_create.md"
-            },
-            {
-              "title": "templates delete",
-              "description": "Delete templates",
-              "path": "reference/cli/templates_delete.md"
-            },
-            {
-              "title": "templates edit",
-              "description": "Edit the metadata of a template by name.",
-              "path": "reference/cli/templates_edit.md"
-            },
-            {
-              "title": "templates init",
-              "description": "Get started with a templated template.",
-              "path": "reference/cli/templates_init.md"
-            },
-            {
-              "title": "templates list",
-              "description": "List all the templates available for the organization",
-              "path": "reference/cli/templates_list.md"
-            },
-            {
-              "title": "templates pull",
-              "description": "Download the active, latest, or specified version of a template to a path.",
-              "path": "reference/cli/templates_pull.md"
-            },
-            {
-              "title": "templates push",
-              "description": "Create or update a template from the current directory or as specified by flag",
-              "path": "reference/cli/templates_push.md"
-            },
-            {
-              "title": "templates versions",
-              "description": "Manage different versions of the specified template",
-              "path": "reference/cli/templates_versions.md"
-            },
-            {
-              "title": "templates versions archive",
-              "description": "Archive a template version(s).",
-              "path": "reference/cli/templates_versions_archive.md"
-            },
-            {
-              "title": "templates versions list",
-              "description": "List all the versions of the specified template",
-              "path": "reference/cli/templates_versions_list.md"
-            },
-            {
-              "title": "templates versions promote",
-              "description": "Promote a template version to active.",
-              "path": "reference/cli/templates_versions_promote.md"
-            },
-            {
-              "title": "templates versions unarchive",
-              "description": "Unarchive a template version(s).",
-              "path": "reference/cli/templates_versions_unarchive.md"
-            },
-            {
-              "title": "tokens",
-              "description": "Manage personal access tokens",
-              "path": "reference/cli/tokens.md"
-            },
-            {
-              "title": "tokens create",
-              "description": "Create a token",
-              "path": "reference/cli/tokens_create.md"
-            },
-            {
-              "title": "tokens list",
-              "description": "List tokens",
-              "path": "reference/cli/tokens_list.md"
-            },
-            {
-              "title": "tokens remove",
-              "description": "Delete a token",
-              "path": "reference/cli/tokens_remove.md"
-            },
-            {
-              "title": "unfavorite",
-              "description": "Remove a workspace from your favorites",
-              "path": "reference/cli/unfavorite.md"
-            },
-            {
-              "title": "update",
-              "description": "Will update and start a given workspace if it is out of date",
-              "path": "reference/cli/update.md"
-            },
-            {
-              "title": "users",
-              "description": "Manage users",
-              "path": "reference/cli/users.md"
-            },
-            {
-              "title": "users activate",
-              "description": "Update a user's status to 'active'. Active users can fully interact with the platform",
-              "path": "reference/cli/users_activate.md"
-            },
-            {
-              "title": "users create",
-              "path": "reference/cli/users_create.md"
-            },
-            {
-              "title": "users delete",
-              "description": "Delete a user by username or user_id.",
-              "path": "reference/cli/users_delete.md"
-            },
-            {
-              "title": "users edit-roles",
-              "description": "Edit a user's roles by username or id",
-              "path": "reference/cli/users_edit-roles.md"
-            },
-            {
-              "title": "users list",
-              "path": "reference/cli/users_list.md"
-            },
-            {
-              "title": "users show",
-              "description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
-              "path": "reference/cli/users_show.md"
-            },
-            {
-              "title": "users suspend",
-              "description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
-              "path": "reference/cli/users_suspend.md"
-            },
-            {
-              "title": "version",
-              "description": "Show coder version",
-              "path": "reference/cli/version.md"
-            },
-            {
-              "title": "whoami",
-              "description": "Fetch authenticated user info for Coder deployment",
-              "path": "reference/cli/whoami.md"
-            }
-          ]
-        },
-        {
-          "title": "Agent API",
-          "description": "Learn how to use Coder Agent API",
-          "path": "./reference/agent-api/index.md",
-          "icon_path": "./images/icons/api.svg",
-          "children": [
-            {
-              "title": "Debug",
-              "path": "./reference/agent-api/debug.md"
-            },
-            {
-              "title": "Schemas",
-              "path": "./reference/agent-api/schemas.md"
-            }
-          ]
-        }
-      ]
-    }
-  ]
+	"versions": ["main"],
+	"routes": [
+		{
+			"title": "About",
+			"description": "Coder docs",
+			"path": "./README.md",
+			"icon_path": "./images/icons/home.svg",
+			"children": [
+				{
+					"title": "Quickstart",
+					"description": "Learn how to install and run Coder quickly",
+					"path": "./tutorials/quickstart.md"
+				},
+				{
+					"title": "Screenshots",
+					"description": "View screenshots of the Coder platform",
+					"path": "./start/screenshots.md"
+				}
+			]
+		},
+		{
+			"title": "Install",
+			"description": "Installing Coder",
+			"path": "./install/index.md",
+			"icon_path": "./images/icons/download.svg",
+			"children": [
+				{
+					"title": "Coder CLI",
+					"description": "Install the standalone binary",
+					"path": "./install/cli.md",
+					"icon_path": "./images/icons/terminal.svg"
+				},
+				{
+					"title": "Docker",
+					"description": "Install Coder using Docker",
+					"path": "./install/docker.md",
+					"icon_path": "./images/icons/docker.svg"
+				},
+				{
+					"title": "Kubernetes",
+					"description": "Install Coder on Kubernetes",
+					"path": "./install/kubernetes.md",
+					"icon_path": "./images/icons/kubernetes.svg"
+				},
+				{
+					"title": "Rancher",
+					"description": "Deploy Coder on Rancher",
+					"path": "./install/rancher.md",
+					"icon_path": "./images/icons/rancher.svg"
+				},
+				{
+					"title": "OpenShift",
+					"description": "Install Coder on OpenShift",
+					"path": "./install/openshift.md",
+					"icon_path": "./images/icons/openshift.svg"
+				},
+				{
+					"title": "Cloud Providers",
+					"description": "Install Coder on cloud providers",
+					"path": "./install/cloud/index.md",
+					"icon_path": "./images/icons/cloud.svg",
+					"children": [
+						{
+							"title": "AWS EC2",
+							"description": "Install Coder on AWS EC2",
+							"path": "./install/cloud/ec2.md"
+						},
+						{
+							"title": "GCP Compute Engine",
+							"description": "Install Coder on GCP Compute Engine",
+							"path": "./install/cloud/compute-engine.md"
+						},
+						{
+							"title": "Azure VM",
+							"description": "Install Coder on an Azure VM",
+							"path": "./install/cloud/azure-vm.md"
+						}
+					]
+				},
+				{
+					"title": "Offline Deployments",
+					"description": "Run Coder in offline / air-gapped environments",
+					"path": "./install/offline.md",
+					"icon_path": "./images/icons/lan.svg"
+				},
+				{
+					"title": "Unofficial Install Methods",
+					"description": "Other installation methods",
+					"path": "./install/other/index.md",
+					"icon_path": "./images/icons/generic.svg"
+				},
+				{
+					"title": "Upgrading",
+					"description": "Learn how to upgrade Coder",
+					"path": "./install/upgrade.md",
+					"icon_path": "./images/icons/upgrade.svg"
+				},
+				{
+					"title": "Uninstall",
+					"description": "Learn how to uninstall Coder",
+					"path": "./install/uninstall.md",
+					"icon_path": "./images/icons/trash.svg"
+				},
+				{
+					"title": "Releases",
+					"description": "Learn about the Coder release channels and schedule",
+					"path": "./install/releases/index.md",
+					"icon_path": "./images/icons/star.svg",
+					"children": [
+						{
+							"title": "Feature stages",
+							"description": "Information about pre-GA stages.",
+							"path": "./install/releases/feature-stages.md"
+						}
+					]
+				}
+			]
+		},
+		{
+			"title": "User Guides",
+			"description": "Guides for end-users of Coder",
+			"path": "./user-guides/index.md",
+			"icon_path": "./images/icons/users.svg",
+			"children": [
+				{
+					"title": "Access Workspaces",
+					"description": "Connect to your Coder workspaces",
+					"path": "./user-guides/workspace-access/index.md",
+					"icon_path": "./images/icons/access.svg",
+					"children": [
+						{
+							"title": "Visual Studio Code",
+							"description": "Use VSCode with Coder in the desktop or browser",
+							"path": "./user-guides/workspace-access/vscode.md"
+						},
+						{
+							"title": "JetBrains IDEs",
+							"description": "Use JetBrains IDEs with Gateway",
+							"path": "./user-guides/workspace-access/jetbrains/index.md",
+							"children": [
+								{
+									"title": "JetBrains Gateway in an air-gapped environment",
+									"description": "Use JetBrains Gateway in an air-gapped offline environment",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+								}
+							]
+						},
+						{
+							"title": "Remote Desktop",
+							"description": "Use RDP in Coder",
+							"path": "./user-guides/workspace-access/remote-desktops.md"
+						},
+						{
+							"title": "Emacs TRAMP",
+							"description": "Use Emacs TRAMP in Coder",
+							"path": "./user-guides/workspace-access/emacs-tramp.md"
+						},
+						{
+							"title": "Port Forwarding",
+							"description": "Access ports on your workspace",
+							"path": "./user-guides/workspace-access/port-forwarding.md"
+						},
+						{
+							"title": "Filebrowser",
+							"description": "Access your workspace files",
+							"path": "./user-guides/workspace-access/filebrowser.md"
+						},
+						{
+							"title": "Web IDEs and Coder Apps",
+							"description": "Access your workspace with IDEs in the browser",
+							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Access your workspace with Zed",
+							"path": "./user-guides/workspace-access/zed.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Access your workspace with Cursor",
+							"path": "./user-guides/workspace-access/cursor.md"
+						},
+						{
+							"title": "Windsurf",
+							"description": "Access your workspace with Windsurf",
+							"path": "./user-guides/workspace-access/windsurf.md"
+						}
+					]
+				},
+				{
+					"title": "Coder Desktop",
+					"description": "Use Coder Desktop to access your workspace like it's a local machine",
+					"path": "./user-guides/desktop/index.md",
+					"icon_path": "./images/icons/computer-code.svg",
+					"state": ["early access"]
+				},
+				{
+					"title": "Workspace Management",
+					"description": "Manage workspaces",
+					"path": "./user-guides/workspace-management.md",
+					"icon_path": "./images/icons/generic.svg"
+				},
+				{
+					"title": "Workspace Scheduling",
+					"description": "Cost control with workspace schedules",
+					"path": "./user-guides/workspace-scheduling.md",
+					"icon_path": "./images/icons/stopwatch.svg"
+				},
+				{
+					"title": "Workspace Lifecycle",
+					"description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
+					"path": "./user-guides/workspace-lifecycle.md",
+					"icon_path": "./images/icons/circle-dot.svg"
+				},
+				{
+					"title": "Dotfiles",
+					"description": "Personalize your environment with dotfiles",
+					"path": "./user-guides/workspace-dotfiles.md",
+					"icon_path": "./images/icons/art-pad.svg"
+				}
+			]
+		},
+		{
+			"title": "Administration",
+			"description": "Guides for template and deployment administrators",
+			"path": "./admin/index.md",
+			"icon_path": "./images/icons/wrench.svg",
+			"children": [
+				{
+					"title": "Setup",
+					"description": "Configure user access to your control plane.",
+					"path": "./admin/setup/index.md",
+					"icon_path": "./images/icons/toggle_on.svg",
+					"children": [
+						{
+							"title": "Appearance",
+							"description": "Learn how to configure the appearance of Coder",
+							"path": "./admin/setup/appearance.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Telemetry",
+							"description": "Learn what usage telemetry Coder collects",
+							"path": "./admin/setup/telemetry.md"
+						}
+					]
+				},
+				{
+					"title": "Infrastructure",
+					"description": "How to integrate Coder with your organization's compute",
+					"path": "./admin/infrastructure/index.md",
+					"icon_path": "./images/icons/container.svg",
+					"children": [
+						{
+							"title": "Architecture",
+							"description": "Learn about Coder's architecture",
+							"path": "./admin/infrastructure/architecture.md"
+						},
+						{
+							"title": "Validated Architectures",
+							"description": "Architectures for large Coder deployments",
+							"path": "./admin/infrastructure/validated-architectures/index.md",
+							"children": [
+								{
+									"title": "Up to 1,000 Users",
+									"path": "./admin/infrastructure/validated-architectures/1k-users.md"
+								},
+								{
+									"title": "Up to 2,000 Users",
+									"path": "./admin/infrastructure/validated-architectures/2k-users.md"
+								},
+								{
+									"title": "Up to 3,000 Users",
+									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
+								}
+							]
+						},
+						{
+							"title": "Scale Testing",
+							"description": "Ensure your deployment can handle your organization's needs",
+							"path": "./admin/infrastructure/scale-testing.md"
+						},
+						{
+							"title": "Scaling Utilities",
+							"description": "Tools to help you scale your deployment",
+							"path": "./admin/infrastructure/scale-utility.md"
+						},
+						{
+							"title": "Scaling best practices",
+							"description": "How to prepare a Coder deployment for scale",
+							"path": "./tutorials/best-practices/scale-coder.md"
+						}
+					]
+				},
+				{
+					"title": "Users",
+					"description": "Learn how to manage and audit users",
+					"path": "./admin/users/index.md",
+					"icon_path": "./images/icons/users.svg",
+					"children": [
+						{
+							"title": "OIDC Authentication",
+							"path": "./admin/users/oidc-auth.md"
+						},
+						{
+							"title": "GitHub Authentication",
+							"path": "./admin/users/github-auth.md"
+						},
+						{
+							"title": "Password Authentication",
+							"path": "./admin/users/password-auth.md"
+						},
+						{
+							"title": "Headless Authentication",
+							"path": "./admin/users/headless-auth.md"
+						},
+						{
+							"title": "Groups \u0026 Roles",
+							"path": "./admin/users/groups-roles.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "IdP Sync",
+							"path": "./admin/users/idp-sync.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Organizations",
+							"path": "./admin/users/organizations.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Quotas",
+							"path": "./admin/users/quotas.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Sessions \u0026 API Tokens",
+							"path": "./admin/users/sessions-tokens.md"
+						}
+					]
+				},
+				{
+					"title": "Templates",
+					"description": "Learn how to author and maintain Coder templates",
+					"path": "./admin/templates/index.md",
+					"icon_path": "./images/icons/picture.svg",
+					"children": [
+						{
+							"title": "Creating Templates",
+							"description": "Learn how to create templates with Terraform",
+							"path": "./admin/templates/creating-templates.md"
+						},
+						{
+							"title": "Managing Templates",
+							"description": "Learn how to manage templates and best practices",
+							"path": "./admin/templates/managing-templates/index.md",
+							"children": [
+								{
+									"title": "Image Management",
+									"description": "Learn about template image management",
+									"path": "./admin/templates/managing-templates/image-management.md"
+								},
+								{
+									"title": "Change Management",
+									"description": "Learn about template change management and versioning",
+									"path": "./admin/templates/managing-templates/change-management.md"
+								},
+								{
+									"title": "Dev containers",
+									"description": "Learn about using development containers in templates",
+									"path": "./admin/templates/managing-templates/devcontainers/index.md",
+									"children": [
+										{
+											"title": "Add a dev container template",
+											"description": "How to add a dev container template to Coder",
+											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
+										},
+										{
+											"title": "Dev container security and caching",
+											"description": "Configure dev container authentication and caching",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
+										},
+										{
+											"title": "Dev container releases and known issues",
+											"description": "Dev container releases and known issues",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
+										}
+									]
+								},
+								{
+									"title": "Template Dependencies",
+									"description": "Learn how to manage template dependencies",
+									"path": "./admin/templates/managing-templates/dependencies.md"
+								},
+								{
+									"title": "Workspace Scheduling",
+									"description": "Learn how to control how workspaces are started and stopped",
+									"path": "./admin/templates/managing-templates/schedule.md"
+								}
+							]
+						},
+						{
+							"title": "Extending Templates",
+							"description": "Learn best practices in extending templates",
+							"path": "./admin/templates/extending-templates/index.md",
+							"children": [
+								{
+									"title": "Agent Metadata",
+									"description": "Retrieve real-time stats from the workspace agent",
+									"path": "./admin/templates/extending-templates/agent-metadata.md"
+								},
+								{
+									"title": "Build Parameters",
+									"description": "Use parameters to customize workspaces at build",
+									"path": "./admin/templates/extending-templates/parameters.md"
+								},
+								{
+									"title": "Icons",
+									"description": "Customize your template with built-in icons",
+									"path": "./admin/templates/extending-templates/icons.md"
+								},
+								{
+									"title": "Resource Metadata",
+									"description": "Display resource state in the workspace dashboard",
+									"path": "./admin/templates/extending-templates/resource-metadata.md"
+								},
+								{
+									"title": "Resource Monitoring",
+									"description": "Monitor resources in the workspace dashboard",
+									"path": "./admin/templates/extending-templates/resource-monitoring.md"
+								},
+								{
+									"title": "Resource Ordering",
+									"description": "Design the UI of workspaces",
+									"path": "./admin/templates/extending-templates/resource-ordering.md"
+								},
+								{
+									"title": "Resource Persistence",
+									"description": "Control resource persistence",
+									"path": "./admin/templates/extending-templates/resource-persistence.md"
+								},
+								{
+									"title": "Terraform Variables",
+									"description": "Use variables to manage template state",
+									"path": "./admin/templates/extending-templates/variables.md"
+								},
+								{
+									"title": "Terraform Modules",
+									"description": "Reuse terraform code across templates",
+									"path": "./admin/templates/extending-templates/modules.md"
+								},
+								{
+									"title": "Web IDEs and Coder Apps",
+									"description": "Add and configure Web IDEs in your templates as coder apps",
+									"path": "./admin/templates/extending-templates/web-ides.md"
+								},
+								{
+									"title": "Pre-install JetBrains Gateway",
+									"description": "Pre-install JetBrains Gateway in a template for faster IDE startup",
+									"path": "./admin/templates/extending-templates/jetbrains-gateway.md"
+								},
+								{
+									"title": "Docker in Workspaces",
+									"description": "Use Docker in your workspaces",
+									"path": "./admin/templates/extending-templates/docker-in-workspaces.md"
+								},
+								{
+									"title": "Workspace Tags",
+									"description": "Control provisioning using Workspace Tags and Parameters",
+									"path": "./admin/templates/extending-templates/workspace-tags.md"
+								},
+								{
+									"title": "Provider Authentication",
+									"description": "Authenticate with provider APIs to provision workspaces",
+									"path": "./admin/templates/extending-templates/provider-authentication.md"
+								},
+								{
+									"title": "Process Logging",
+									"description": "Log workspace processes",
+									"path": "./admin/templates/extending-templates/process-logging.md",
+									"state": ["premium"]
+								}
+							]
+						},
+						{
+							"title": "Open in Coder",
+							"description": "Open workspaces in Coder",
+							"path": "./admin/templates/open-in-coder.md"
+						},
+						{
+							"title": "Permissions \u0026 Policies",
+							"description": "Learn how to create templates with Terraform",
+							"path": "./admin/templates/template-permissions.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Troubleshooting Templates",
+							"description": "Learn how to troubleshoot template issues",
+							"path": "./admin/templates/troubleshooting.md"
+						}
+					]
+				},
+				{
+					"title": "External Provisioners",
+					"description": "Learn how to run external provisioners with Coder",
+					"path": "./admin/provisioners/index.md",
+					"icon_path": "./images/icons/key.svg",
+					"state": ["premium"],
+					"children": [
+						{
+							"title": "Manage Provisioner Jobs",
+							"description": "Learn how to run external provisioners with Coder",
+							"path": "./admin/provisioners/manage-provisioner-jobs.md",
+							"state": ["premium"]
+						}
+					]
+				},
+				{
+					"title": "External Auth",
+					"description": "Learn how to configure external authentication",
+					"path": "./admin/external-auth.md",
+					"icon_path": "./images/icons/plug.svg"
+				},
+				{
+					"title": "Integrations",
+					"description": "Use integrations to extend Coder",
+					"path": "./admin/integrations/index.md",
+					"icon_path": "./images/icons/puzzle.svg",
+					"children": [
+						{
+							"title": "Prometheus",
+							"description": "Collect deployment metrics with Prometheus",
+							"path": "./admin/integrations/prometheus.md"
+						},
+						{
+							"title": "Kubernetes Logging",
+							"description": "Stream K8s event logs on workspace startup",
+							"path": "./admin/integrations/kubernetes-logs.md"
+						},
+						{
+							"title": "Additional Kubernetes Clusters",
+							"description": "Deploy workspaces on additional Kubernetes clusters",
+							"path": "./admin/integrations/multiple-kube-clusters.md"
+						},
+						{
+							"title": "JFrog Artifactory",
+							"description": "Integrate Coder with JFrog Artifactory",
+							"path": "./admin/integrations/jfrog-artifactory.md"
+						},
+						{
+							"title": "JFrog Xray",
+							"description": "Integrate Coder with JFrog Xray",
+							"path": "./admin/integrations/jfrog-xray.md"
+						},
+						{
+							"title": "Island Secure Browser",
+							"description": "Integrate Coder with Island's Secure Browser",
+							"path": "./admin/integrations/island.md"
+						},
+						{
+							"title": "DX PlatformX",
+							"description": "Integrate Coder with DX PlatformX",
+							"path": "./admin/integrations/platformx.md"
+						},
+						{
+							"title": "Hashicorp Vault",
+							"description": "Integrate Coder with Hashicorp Vault",
+							"path": "./admin/integrations/vault.md"
+						}
+					]
+				},
+				{
+					"title": "Networking",
+					"description": "Understand Coder's networking layer",
+					"path": "./admin/networking/index.md",
+					"icon_path": "./images/icons/networking.svg",
+					"children": [
+						{
+							"title": "Port Forwarding",
+							"description": "Learn how to forward ports in Coder",
+							"path": "./admin/networking/port-forwarding.md"
+						},
+						{
+							"title": "STUN and NAT",
+							"description": "Learn how to forward ports in Coder",
+							"path": "./admin/networking/stun.md"
+						},
+						{
+							"title": "Workspace Proxies",
+							"description": "Run geo distributed workspace proxies",
+							"path": "./admin/networking/workspace-proxies.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "High Availability",
+							"description": "Learn how to configure Coder for High Availability",
+							"path": "./admin/networking/high-availability.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Troubleshooting",
+							"description": "Troubleshoot networking issues in Coder",
+							"path": "./admin/networking/troubleshooting.md"
+						}
+					]
+				},
+				{
+					"title": "Monitoring",
+					"description": "Configure security policy and audit your deployment",
+					"path": "./admin/monitoring/index.md",
+					"icon_path": "./images/icons/speed.svg",
+					"children": [
+						{
+							"title": "Logs",
+							"description": "Learn about Coder's logs",
+							"path": "./admin/monitoring/logs.md"
+						},
+						{
+							"title": "Metrics",
+							"description": "Learn about Coder's logs",
+							"path": "./admin/monitoring/metrics.md"
+						},
+						{
+							"title": "Health Check",
+							"description": "Learn about Coder's automated health checks",
+							"path": "./admin/monitoring/health-check.md"
+						},
+						{
+							"title": "Notifications",
+							"description": "Configure notifications for your deployment",
+							"path": "./admin/monitoring/notifications/index.md",
+							"children": [
+								{
+									"title": "Slack Notifications",
+									"description": "Learn how to setup Slack notifications",
+									"path": "./admin/monitoring/notifications/slack.md"
+								},
+								{
+									"title": "Microsoft Teams Notifications",
+									"description": "Learn how to setup Microsoft Teams notifications",
+									"path": "./admin/monitoring/notifications/teams.md"
+								}
+							]
+						}
+					]
+				},
+				{
+					"title": "Security",
+					"description": "Configure security policy and audit your deployment",
+					"path": "./admin/security/index.md",
+					"icon_path": "./images/icons/lock.svg",
+					"children": [
+						{
+							"title": "Audit Logs",
+							"description": "Audit actions taken inside Coder",
+							"path": "./admin/security/audit-logs.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Secrets",
+							"description": "Use sensitive variables in your workspaces",
+							"path": "./admin/security/secrets.md"
+						},
+						{
+							"title": "Database Encryption",
+							"description": "Encrypt the database to prevent unauthorized access",
+							"path": "./admin/security/database-encryption.md",
+							"state": ["premium"]
+						}
+					]
+				},
+				{
+					"title": "Licensing",
+					"description": "Configure licensing for your deployment",
+					"path": "./admin/licensing/index.md",
+					"icon_path": "./images/icons/licensing.svg"
+				}
+			]
+		},
+		{
+			"title": "Run AI Coding Agents in Coder",
+			"description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
+			"path": "./ai-coder/index.md",
+			"icon_path": "./images/icons/wand.svg",
+			"state": ["early access"],
+			"children": [
+				{
+					"title": "Learn about coding agents",
+					"description": "Learn about the different AI agents and their tradeoffs",
+					"path": "./ai-coder/agents.md"
+				},
+				{
+					"title": "Create a Coder template for agents",
+					"description": "Create a purpose-built template for your AI agents",
+					"path": "./ai-coder/create-template.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Integrate with your issue tracker",
+					"description": "Assign tickets to AI agents and interact via code reviews",
+					"path": "./ai-coder/issue-tracker.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Model Context Protocols (MCP) and adding AI tools",
+					"description": "Improve results by adding tools to your AI agents",
+					"path": "./ai-coder/best-practices.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Supervise agents via Coder UI",
+					"description": "Interact with agents via the Coder UI",
+					"path": "./ai-coder/coder-dashboard.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Supervise agents via the IDE",
+					"description": "Interact with agents via VS Code or Cursor",
+					"path": "./ai-coder/ide-integration.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Programmatically manage agents",
+					"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
+					"path": "./ai-coder/headless.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Securing agents in Coder",
+					"description": "Learn how to secure agents with boundaries",
+					"path": "./ai-coder/securing.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Custom agents",
+					"description": "Learn how to use custom agents with Coder",
+					"path": "./ai-coder/custom-agents.md",
+					"state": ["early access"]
+				}
+			]
+		},
+		{
+			"title": "Contributing",
+			"description": "Learn how to contribute to Coder",
+			"path": "./CONTRIBUTING.md",
+			"icon_path": "./images/icons/contributing.svg",
+			"children": [
+				{
+					"title": "Code of Conduct",
+					"description": "See the code of conduct for contributing to Coder",
+					"path": "./contributing/CODE_OF_CONDUCT.md",
+					"icon_path": "./images/icons/circle-dot.svg"
+				},
+				{
+					"title": "Documentation",
+					"description": "Our style guide for use when authoring documentation",
+					"path": "./contributing/documentation.md",
+					"icon_path": "./images/icons/document.svg"
+				},
+				{
+					"title": "Frontend",
+					"description": "Our guide for frontend development",
+					"path": "./contributing/frontend.md",
+					"icon_path": "./images/icons/frontend.svg"
+				},
+				{
+					"title": "Security",
+					"description": "Our guide for security",
+					"path": "./contributing/SECURITY.md",
+					"icon_path": "./images/icons/lock.svg"
+				}
+			]
+		},
+		{
+			"title": "Tutorials",
+			"description": "Coder knowledgebase for administrating your deployment",
+			"path": "./tutorials/index.md",
+			"icon_path": "./images/icons/generic.svg",
+			"children": [
+				{
+					"title": "Quickstart",
+					"description": "Learn how to install and run Coder quickly",
+					"path": "./tutorials/quickstart.md"
+				},
+				{
+					"title": "Write a Template from Scratch",
+					"description": "Learn how to author Coder templates",
+					"path": "./tutorials/template-from-scratch.md"
+				},
+				{
+					"title": "Using an External Database",
+					"description": "Use Coder with an external database",
+					"path": "./tutorials/external-database.md"
+				},
+				{
+					"title": "Image Management",
+					"description": "Learn about image management with Coder",
+					"path": "./admin/templates/managing-templates/image-management.md"
+				},
+				{
+					"title": "Generate a Support Bundle",
+					"description": "Generate and upload a Support Bundle to Coder Support",
+					"path": "./tutorials/support-bundle.md"
+				},
+				{
+					"title": "Configuring Okta",
+					"description": "Custom claims/scopes with Okta for group/role sync",
+					"path": "./tutorials/configuring-okta.md"
+				},
+				{
+					"title": "Google to AWS Federation",
+					"description": "Federating a Google Cloud service account to AWS",
+					"path": "./tutorials/gcp-to-aws.md"
+				},
+				{
+					"title": "JFrog Artifactory Integration",
+					"description": "Integrate Coder with JFrog Artifactory",
+					"path": "./admin/integrations/jfrog-artifactory.md"
+				},
+				{
+					"title": "Istio Integration",
+					"description": "Integrate Coder with Istio",
+					"path": "./admin/integrations/istio.md"
+				},
+				{
+					"title": "Island Secure Browser Integration",
+					"description": "Integrate Coder with Island's Secure Browser",
+					"path": "./admin/integrations/island.md"
+				},
+				{
+					"title": "Template ImagePullSecrets",
+					"description": "Creating ImagePullSecrets for private registries",
+					"path": "./tutorials/image-pull-secret.md"
+				},
+				{
+					"title": "Postgres SSL",
+					"description": "Configure Coder to connect to Postgres over SSL",
+					"path": "./tutorials/postgres-ssl.md"
+				},
+				{
+					"title": "Azure Federation",
+					"description": "Federating Coder to Azure",
+					"path": "./tutorials/azure-federation.md"
+				},
+				{
+					"title": "Scanning Workspaces with JFrog Xray",
+					"description": "Integrate Coder with JFrog Xray",
+					"path": "./admin/integrations/jfrog-xray.md"
+				},
+				{
+					"title": "Cloning Git Repositories",
+					"description": "Learn how to clone Git repositories in Coder",
+					"path": "./tutorials/cloning-git-repositories.md"
+				},
+				{
+					"title": "Test Templates Through CI/CD",
+					"description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
+					"path": "./tutorials/testing-templates.md"
+				},
+				{
+					"title": "Use Apache as a Reverse Proxy",
+					"description": "Learn how to use Apache as a reverse proxy",
+					"path": "./tutorials/reverse-proxy-apache.md"
+				},
+				{
+					"title": "Use Caddy as a Reverse Proxy",
+					"description": "Learn how to use Caddy as a reverse proxy",
+					"path": "./tutorials/reverse-proxy-caddy.md"
+				},
+				{
+					"title": "Use NGINX as a Reverse Proxy",
+					"description": "Learn how to use NGINX as a reverse proxy",
+					"path": "./tutorials/reverse-proxy-nginx.md"
+				},
+				{
+					"title": "FAQs",
+					"description": "Miscellaneous FAQs from our community",
+					"path": "./tutorials/faqs.md"
+				},
+				{
+					"title": "Best practices",
+					"description": "Guides to help you make the most of your Coder experience",
+					"path": "./tutorials/best-practices/index.md",
+					"children": [
+						{
+							"title": "Organizations - best practices",
+							"description": "How to make the best use of Coder Organizations",
+							"path": "./tutorials/best-practices/organizations.md"
+						},
+						{
+							"title": "Scale Coder",
+							"description": "How to prepare a Coder deployment for scale",
+							"path": "./tutorials/best-practices/scale-coder.md"
+						},
+						{
+							"title": "Security - best practices",
+							"description": "Make your Coder deployment more secure",
+							"path": "./tutorials/best-practices/security-best-practices.md"
+						},
+						{
+							"title": "Speed up your workspaces",
+							"description": "Speed up your Coder templates and workspaces",
+							"path": "./tutorials/best-practices/speed-up-templates.md"
+						}
+					]
+				}
+			]
+		},
+		{
+			"title": "Reference",
+			"description": "Reference",
+			"path": "./reference/index.md",
+			"icon_path": "./images/icons/notes.svg",
+			"children": [
+				{
+					"title": "REST API",
+					"description": "Learn how to use Coderd API",
+					"path": "./reference/api/index.md",
+					"icon_path": "./images/icons/api.svg",
+					"children": [
+						{
+							"title": "General",
+							"path": "./reference/api/general.md"
+						},
+						{
+							"title": "Agents",
+							"path": "./reference/api/agents.md"
+						},
+						{
+							"title": "Applications",
+							"path": "./reference/api/applications.md"
+						},
+						{
+							"title": "Audit",
+							"path": "./reference/api/audit.md"
+						},
+						{
+							"title": "Authentication",
+							"path": "./reference/api/authentication.md"
+						},
+						{
+							"title": "Authorization",
+							"path": "./reference/api/authorization.md"
+						},
+						{
+							"title": "Builds",
+							"path": "./reference/api/builds.md"
+						},
+						{
+							"title": "Debug",
+							"path": "./reference/api/debug.md"
+						},
+						{
+							"title": "Enterprise",
+							"path": "./reference/api/enterprise.md"
+						},
+						{
+							"title": "Files",
+							"path": "./reference/api/files.md"
+						},
+						{
+							"title": "Git",
+							"path": "./reference/api/git.md"
+						},
+						{
+							"title": "Insights",
+							"path": "./reference/api/insights.md"
+						},
+						{
+							"title": "Members",
+							"path": "./reference/api/members.md"
+						},
+						{
+							"title": "Organizations",
+							"path": "./reference/api/organizations.md"
+						},
+						{
+							"title": "PortSharing",
+							"path": "./reference/api/portsharing.md"
+						},
+						{
+							"title": "Schemas",
+							"path": "./reference/api/schemas.md"
+						},
+						{
+							"title": "Templates",
+							"path": "./reference/api/templates.md"
+						},
+						{
+							"title": "Users",
+							"path": "./reference/api/users.md"
+						},
+						{
+							"title": "WorkspaceProxies",
+							"path": "./reference/api/workspaceproxies.md"
+						},
+						{
+							"title": "Workspaces",
+							"path": "./reference/api/workspaces.md"
+						}
+					]
+				},
+				{
+					"title": "Command Line",
+					"description": "Learn how to use Coder CLI",
+					"path": "./reference/cli/index.md",
+					"icon_path": "./images/icons/terminal.svg",
+					"children": [
+						{
+							"title": "autoupdate",
+							"description": "Toggle auto-update policy for a workspace",
+							"path": "reference/cli/autoupdate.md"
+						},
+						{
+							"title": "coder",
+							"path": "reference/cli/index.md"
+						},
+						{
+							"title": "completion",
+							"description": "Install or update shell completion scripts for the detected or chosen shell.",
+							"path": "reference/cli/completion.md"
+						},
+						{
+							"title": "config-ssh",
+							"description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+							"path": "reference/cli/config-ssh.md"
+						},
+						{
+							"title": "create",
+							"description": "Create a workspace",
+							"path": "reference/cli/create.md"
+						},
+						{
+							"title": "delete",
+							"description": "Delete a workspace",
+							"path": "reference/cli/delete.md"
+						},
+						{
+							"title": "dotfiles",
+							"description": "Personalize your workspace by applying a canonical dotfiles repository",
+							"path": "reference/cli/dotfiles.md"
+						},
+						{
+							"title": "external-auth",
+							"description": "Manage external authentication",
+							"path": "reference/cli/external-auth.md"
+						},
+						{
+							"title": "external-auth access-token",
+							"description": "Print auth for an external provider",
+							"path": "reference/cli/external-auth_access-token.md"
+						},
+						{
+							"title": "favorite",
+							"description": "Add a workspace to your favorites",
+							"path": "reference/cli/favorite.md"
+						},
+						{
+							"title": "features",
+							"description": "List Enterprise features",
+							"path": "reference/cli/features.md"
+						},
+						{
+							"title": "features list",
+							"path": "reference/cli/features_list.md"
+						},
+						{
+							"title": "groups",
+							"description": "Manage groups",
+							"path": "reference/cli/groups.md"
+						},
+						{
+							"title": "groups create",
+							"description": "Create a user group",
+							"path": "reference/cli/groups_create.md"
+						},
+						{
+							"title": "groups delete",
+							"description": "Delete a user group",
+							"path": "reference/cli/groups_delete.md"
+						},
+						{
+							"title": "groups edit",
+							"description": "Edit a user group",
+							"path": "reference/cli/groups_edit.md"
+						},
+						{
+							"title": "groups list",
+							"description": "List user groups",
+							"path": "reference/cli/groups_list.md"
+						},
+						{
+							"title": "licenses",
+							"description": "Add, delete, and list licenses",
+							"path": "reference/cli/licenses.md"
+						},
+						{
+							"title": "licenses add",
+							"description": "Add license to Coder deployment",
+							"path": "reference/cli/licenses_add.md"
+						},
+						{
+							"title": "licenses delete",
+							"description": "Delete license by ID",
+							"path": "reference/cli/licenses_delete.md"
+						},
+						{
+							"title": "licenses list",
+							"description": "List licenses (including expired)",
+							"path": "reference/cli/licenses_list.md"
+						},
+						{
+							"title": "list",
+							"description": "List workspaces",
+							"path": "reference/cli/list.md"
+						},
+						{
+							"title": "login",
+							"description": "Authenticate with Coder deployment",
+							"path": "reference/cli/login.md"
+						},
+						{
+							"title": "logout",
+							"description": "Unauthenticate your local session",
+							"path": "reference/cli/logout.md"
+						},
+						{
+							"title": "netcheck",
+							"description": "Print network debug information for DERP and STUN",
+							"path": "reference/cli/netcheck.md"
+						},
+						{
+							"title": "notifications",
+							"description": "Manage Coder notifications",
+							"path": "reference/cli/notifications.md"
+						},
+						{
+							"title": "notifications pause",
+							"description": "Pause notifications",
+							"path": "reference/cli/notifications_pause.md"
+						},
+						{
+							"title": "notifications resume",
+							"description": "Resume notifications",
+							"path": "reference/cli/notifications_resume.md"
+						},
+						{
+							"title": "notifications test",
+							"description": "Send a test notification",
+							"path": "reference/cli/notifications_test.md"
+						},
+						{
+							"title": "open",
+							"description": "Open a workspace",
+							"path": "reference/cli/open.md"
+						},
+						{
+							"title": "open app",
+							"description": "Open a workspace application.",
+							"path": "reference/cli/open_app.md"
+						},
+						{
+							"title": "open vscode",
+							"description": "Open a workspace in VS Code Desktop",
+							"path": "reference/cli/open_vscode.md"
+						},
+						{
+							"title": "organizations",
+							"description": "Organization related commands",
+							"path": "reference/cli/organizations.md"
+						},
+						{
+							"title": "organizations create",
+							"description": "Create a new organization.",
+							"path": "reference/cli/organizations_create.md"
+						},
+						{
+							"title": "organizations members",
+							"description": "Manage organization members",
+							"path": "reference/cli/organizations_members.md"
+						},
+						{
+							"title": "organizations members add",
+							"description": "Add a new member to the current organization",
+							"path": "reference/cli/organizations_members_add.md"
+						},
+						{
+							"title": "organizations members edit-roles",
+							"description": "Edit organization member's roles",
+							"path": "reference/cli/organizations_members_edit-roles.md"
+						},
+						{
+							"title": "organizations members list",
+							"description": "List all organization members",
+							"path": "reference/cli/organizations_members_list.md"
+						},
+						{
+							"title": "organizations members remove",
+							"description": "Remove a new member to the current organization",
+							"path": "reference/cli/organizations_members_remove.md"
+						},
+						{
+							"title": "organizations roles",
+							"description": "Manage organization roles.",
+							"path": "reference/cli/organizations_roles.md"
+						},
+						{
+							"title": "organizations roles create",
+							"description": "Create a new organization custom role",
+							"path": "reference/cli/organizations_roles_create.md"
+						},
+						{
+							"title": "organizations roles show",
+							"description": "Show role(s)",
+							"path": "reference/cli/organizations_roles_show.md"
+						},
+						{
+							"title": "organizations roles update",
+							"description": "Update an organization custom role",
+							"path": "reference/cli/organizations_roles_update.md"
+						},
+						{
+							"title": "organizations settings",
+							"description": "Manage organization settings.",
+							"path": "reference/cli/organizations_settings.md"
+						},
+						{
+							"title": "organizations settings set",
+							"description": "Update specified organization setting.",
+							"path": "reference/cli/organizations_settings_set.md"
+						},
+						{
+							"title": "organizations settings set group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_set_group-sync.md"
+						},
+						{
+							"title": "organizations settings set organization-sync",
+							"description": "Organization sync settings to sync organization memberships from an IdP.",
+							"path": "reference/cli/organizations_settings_set_organization-sync.md"
+						},
+						{
+							"title": "organizations settings set role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_set_role-sync.md"
+						},
+						{
+							"title": "organizations settings show",
+							"description": "Outputs specified organization setting.",
+							"path": "reference/cli/organizations_settings_show.md"
+						},
+						{
+							"title": "organizations settings show group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_show_group-sync.md"
+						},
+						{
+							"title": "organizations settings show organization-sync",
+							"description": "Organization sync settings to sync organization memberships from an IdP.",
+							"path": "reference/cli/organizations_settings_show_organization-sync.md"
+						},
+						{
+							"title": "organizations settings show role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
+							"title": "organizations show",
+							"description": "Show the organization. Using \"selected\" will show the selected organization from the \"--org\" flag. Using \"me\" will show all organizations you are a member of.",
+							"path": "reference/cli/organizations_show.md"
+						},
+						{
+							"title": "ping",
+							"description": "Ping a workspace",
+							"path": "reference/cli/ping.md"
+						},
+						{
+							"title": "port-forward",
+							"description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
+							"path": "reference/cli/port-forward.md"
+						},
+						{
+							"title": "provisioner",
+							"description": "View and manage provisioner daemons and jobs",
+							"path": "reference/cli/provisioner.md"
+						},
+						{
+							"title": "provisioner jobs",
+							"description": "View and manage provisioner jobs",
+							"path": "reference/cli/provisioner_jobs.md"
+						},
+						{
+							"title": "provisioner jobs cancel",
+							"description": "Cancel a provisioner job",
+							"path": "reference/cli/provisioner_jobs_cancel.md"
+						},
+						{
+							"title": "provisioner jobs list",
+							"description": "List provisioner jobs",
+							"path": "reference/cli/provisioner_jobs_list.md"
+						},
+						{
+							"title": "provisioner keys",
+							"description": "Manage provisioner keys",
+							"path": "reference/cli/provisioner_keys.md"
+						},
+						{
+							"title": "provisioner keys create",
+							"description": "Create a new provisioner key",
+							"path": "reference/cli/provisioner_keys_create.md"
+						},
+						{
+							"title": "provisioner keys delete",
+							"description": "Delete a provisioner key",
+							"path": "reference/cli/provisioner_keys_delete.md"
+						},
+						{
+							"title": "provisioner keys list",
+							"description": "List provisioner keys in an organization",
+							"path": "reference/cli/provisioner_keys_list.md"
+						},
+						{
+							"title": "provisioner list",
+							"description": "List provisioner daemons in an organization",
+							"path": "reference/cli/provisioner_list.md"
+						},
+						{
+							"title": "provisioner start",
+							"description": "Run a provisioner daemon",
+							"path": "reference/cli/provisioner_start.md"
+						},
+						{
+							"title": "publickey",
+							"description": "Output your Coder public key used for Git operations",
+							"path": "reference/cli/publickey.md"
+						},
+						{
+							"title": "rename",
+							"description": "Rename a workspace",
+							"path": "reference/cli/rename.md"
+						},
+						{
+							"title": "reset-password",
+							"description": "Directly connect to the database to reset a user's password",
+							"path": "reference/cli/reset-password.md"
+						},
+						{
+							"title": "restart",
+							"description": "Restart a workspace",
+							"path": "reference/cli/restart.md"
+						},
+						{
+							"title": "schedule",
+							"description": "Schedule automated start and stop times for workspaces",
+							"path": "reference/cli/schedule.md"
+						},
+						{
+							"title": "schedule extend",
+							"description": "Extend the stop time of a currently running workspace instance.",
+							"path": "reference/cli/schedule_extend.md"
+						},
+						{
+							"title": "schedule show",
+							"description": "Show workspace schedules",
+							"path": "reference/cli/schedule_show.md"
+						},
+						{
+							"title": "schedule start",
+							"description": "Edit workspace start schedule",
+							"path": "reference/cli/schedule_start.md"
+						},
+						{
+							"title": "schedule stop",
+							"description": "Edit workspace stop schedule",
+							"path": "reference/cli/schedule_stop.md"
+						},
+						{
+							"title": "server",
+							"description": "Start a Coder server",
+							"path": "reference/cli/server.md"
+						},
+						{
+							"title": "server create-admin-user",
+							"description": "Create a new admin user with the given username, email and password and adds it to every organization.",
+							"path": "reference/cli/server_create-admin-user.md"
+						},
+						{
+							"title": "server dbcrypt",
+							"description": "Manage database encryption.",
+							"path": "reference/cli/server_dbcrypt.md"
+						},
+						{
+							"title": "server dbcrypt decrypt",
+							"description": "Decrypt a previously encrypted database.",
+							"path": "reference/cli/server_dbcrypt_decrypt.md"
+						},
+						{
+							"title": "server dbcrypt delete",
+							"description": "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
+							"path": "reference/cli/server_dbcrypt_delete.md"
+						},
+						{
+							"title": "server dbcrypt rotate",
+							"description": "Rotate database encryption keys.",
+							"path": "reference/cli/server_dbcrypt_rotate.md"
+						},
+						{
+							"title": "server postgres-builtin-serve",
+							"description": "Run the built-in PostgreSQL deployment.",
+							"path": "reference/cli/server_postgres-builtin-serve.md"
+						},
+						{
+							"title": "server postgres-builtin-url",
+							"description": "Output the connection URL for the built-in PostgreSQL deployment.",
+							"path": "reference/cli/server_postgres-builtin-url.md"
+						},
+						{
+							"title": "show",
+							"description": "Display details of a workspace's resources and agents",
+							"path": "reference/cli/show.md"
+						},
+						{
+							"title": "speedtest",
+							"description": "Run upload and download tests from your machine to a workspace",
+							"path": "reference/cli/speedtest.md"
+						},
+						{
+							"title": "ssh",
+							"description": "Start a shell into a workspace",
+							"path": "reference/cli/ssh.md"
+						},
+						{
+							"title": "start",
+							"description": "Start a workspace",
+							"path": "reference/cli/start.md"
+						},
+						{
+							"title": "stat",
+							"description": "Show resource usage for the current workspace.",
+							"path": "reference/cli/stat.md"
+						},
+						{
+							"title": "stat cpu",
+							"description": "Show CPU usage, in cores.",
+							"path": "reference/cli/stat_cpu.md"
+						},
+						{
+							"title": "stat disk",
+							"description": "Show disk usage, in gigabytes.",
+							"path": "reference/cli/stat_disk.md"
+						},
+						{
+							"title": "stat mem",
+							"description": "Show memory usage, in gigabytes.",
+							"path": "reference/cli/stat_mem.md"
+						},
+						{
+							"title": "state",
+							"description": "Manually manage Terraform state to fix broken workspaces",
+							"path": "reference/cli/state.md"
+						},
+						{
+							"title": "state pull",
+							"description": "Pull a Terraform state file from a workspace.",
+							"path": "reference/cli/state_pull.md"
+						},
+						{
+							"title": "state push",
+							"description": "Push a Terraform state file to a workspace.",
+							"path": "reference/cli/state_push.md"
+						},
+						{
+							"title": "stop",
+							"description": "Stop a workspace",
+							"path": "reference/cli/stop.md"
+						},
+						{
+							"title": "support",
+							"description": "Commands for troubleshooting issues with a Coder deployment.",
+							"path": "reference/cli/support.md"
+						},
+						{
+							"title": "support bundle",
+							"description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
+							"path": "reference/cli/support_bundle.md"
+						},
+						{
+							"title": "templates",
+							"description": "Manage templates",
+							"path": "reference/cli/templates.md"
+						},
+						{
+							"title": "templates archive",
+							"description": "Archive unused or failed template versions from a given template(s)",
+							"path": "reference/cli/templates_archive.md"
+						},
+						{
+							"title": "templates create",
+							"description": "DEPRECATED: Create a template from the current directory or as specified by flag",
+							"path": "reference/cli/templates_create.md"
+						},
+						{
+							"title": "templates delete",
+							"description": "Delete templates",
+							"path": "reference/cli/templates_delete.md"
+						},
+						{
+							"title": "templates edit",
+							"description": "Edit the metadata of a template by name.",
+							"path": "reference/cli/templates_edit.md"
+						},
+						{
+							"title": "templates init",
+							"description": "Get started with a templated template.",
+							"path": "reference/cli/templates_init.md"
+						},
+						{
+							"title": "templates list",
+							"description": "List all the templates available for the organization",
+							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates pull",
+							"description": "Download the active, latest, or specified version of a template to a path.",
+							"path": "reference/cli/templates_pull.md"
+						},
+						{
+							"title": "templates push",
+							"description": "Create or update a template from the current directory or as specified by flag",
+							"path": "reference/cli/templates_push.md"
+						},
+						{
+							"title": "templates versions",
+							"description": "Manage different versions of the specified template",
+							"path": "reference/cli/templates_versions.md"
+						},
+						{
+							"title": "templates versions archive",
+							"description": "Archive a template version(s).",
+							"path": "reference/cli/templates_versions_archive.md"
+						},
+						{
+							"title": "templates versions list",
+							"description": "List all the versions of the specified template",
+							"path": "reference/cli/templates_versions_list.md"
+						},
+						{
+							"title": "templates versions promote",
+							"description": "Promote a template version to active.",
+							"path": "reference/cli/templates_versions_promote.md"
+						},
+						{
+							"title": "templates versions unarchive",
+							"description": "Unarchive a template version(s).",
+							"path": "reference/cli/templates_versions_unarchive.md"
+						},
+						{
+							"title": "tokens",
+							"description": "Manage personal access tokens",
+							"path": "reference/cli/tokens.md"
+						},
+						{
+							"title": "tokens create",
+							"description": "Create a token",
+							"path": "reference/cli/tokens_create.md"
+						},
+						{
+							"title": "tokens list",
+							"description": "List tokens",
+							"path": "reference/cli/tokens_list.md"
+						},
+						{
+							"title": "tokens remove",
+							"description": "Delete a token",
+							"path": "reference/cli/tokens_remove.md"
+						},
+						{
+							"title": "unfavorite",
+							"description": "Remove a workspace from your favorites",
+							"path": "reference/cli/unfavorite.md"
+						},
+						{
+							"title": "update",
+							"description": "Will update and start a given workspace if it is out of date",
+							"path": "reference/cli/update.md"
+						},
+						{
+							"title": "users",
+							"description": "Manage users",
+							"path": "reference/cli/users.md"
+						},
+						{
+							"title": "users activate",
+							"description": "Update a user's status to 'active'. Active users can fully interact with the platform",
+							"path": "reference/cli/users_activate.md"
+						},
+						{
+							"title": "users create",
+							"path": "reference/cli/users_create.md"
+						},
+						{
+							"title": "users delete",
+							"description": "Delete a user by username or user_id.",
+							"path": "reference/cli/users_delete.md"
+						},
+						{
+							"title": "users edit-roles",
+							"description": "Edit a user's roles by username or id",
+							"path": "reference/cli/users_edit-roles.md"
+						},
+						{
+							"title": "users list",
+							"path": "reference/cli/users_list.md"
+						},
+						{
+							"title": "users show",
+							"description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
+							"path": "reference/cli/users_show.md"
+						},
+						{
+							"title": "users suspend",
+							"description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
+							"path": "reference/cli/users_suspend.md"
+						},
+						{
+							"title": "version",
+							"description": "Show coder version",
+							"path": "reference/cli/version.md"
+						},
+						{
+							"title": "whoami",
+							"description": "Fetch authenticated user info for Coder deployment",
+							"path": "reference/cli/whoami.md"
+						}
+					]
+				},
+				{
+					"title": "Agent API",
+					"description": "Learn how to use Coder Agent API",
+					"path": "./reference/agent-api/index.md",
+					"icon_path": "./images/icons/api.svg",
+					"children": [
+						{
+							"title": "Debug",
+							"path": "./reference/agent-api/debug.md"
+						},
+						{
+							"title": "Schemas",
+							"path": "./reference/agent-api/schemas.md"
+						}
+					]
+				}
+			]
+		}
+	]
 }

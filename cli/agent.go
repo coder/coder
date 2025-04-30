@@ -19,8 +19,6 @@ import (
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/coder/retry"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
@@ -332,27 +330,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				containerLister = agentcontainers.NewDocker(execer)
 			}
 
-			// TODO: timeout ok?
-			reinitCtx, reinitCancel := context.WithTimeout(context.Background(), time.Hour*24)
-			defer reinitCancel()
-			reinitEvents := make(chan agentsdk.ReinitializationEvent)
-
-			go func() {
-				// Retry to wait for reinit, main context cancels the retrier.
-				for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-					select {
-					case <-reinitCtx.Done():
-						return
-					default:
-					}
-
-					err := client.WaitForReinit(reinitCtx, reinitEvents)
-					if err != nil {
-						logger.Error(ctx, "failed to wait for reinit instructions, will retry", slog.Error(err))
-					}
-				}
-			}()
-
+			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
 			var (
 				lastErr  error
 				mustExit bool
@@ -409,7 +387,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				prometheusSrvClose()
 
 				if mustExit {
-					reinitCancel()
 					break
 				}
 

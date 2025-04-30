@@ -19,6 +19,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/retry"
 	"github.com/coder/websocket"
 
 	"github.com/coder/coder/v2/agent/proto"
@@ -707,32 +708,43 @@ func PrebuildClaimedChannel(id uuid.UUID) string {
 // - ping: ignored, keepalive
 // - prebuild claimed: a prebuilt workspace is claimed, so the agent must reinitialize.
 // NOTE: the caller is responsible for closing the events chan.
-func (c *Client) WaitForReinit(ctx context.Context, events chan<- ReinitializationEvent) error {
+func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, error) {
 	// TODO: allow configuring httpclient
 	c.SDK.HTTPClient.Timeout = time.Hour * 24
 
+	// TODO (sasswart): tried the following to fix the above, it won't work. The shorter timeout wins.
+	// I also considered cloning c.SDK.HTTPClient and setting the timeout on the cloned client.
+	// That won't work because we can't pass the cloned HTTPClient into s.SDK.Request.
+	// Looks like we're going to need a separate client to be able to have a longer timeout.
+	//
+	// timeoutCtx, cancelTimeoutCtx := context.WithTimeout(ctx, 24*time.Hour)
+	// defer cancelTimeoutCtx()
+
 	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/reinit", nil)
 	if err != nil {
-		return xerrors.Errorf("execute request: %w", err)
+		return nil, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 
 	nextEvent := codersdk.ServerSentEventReader(ctx, res.Body)
 
 	for {
+		// TODO (Sasswart): I don't like that we do this select at the start and at the end.
+		// nextEvent should return an error if the context is canceled, but that feels like a larger refactor.
+		// if it did, we'd only have the select at the end of the loop.
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		default:
 		}
 
 		sse, err := nextEvent()
 		if err != nil {
-			return xerrors.Errorf("failed to read server-sent event: %w", err)
+			return nil, xerrors.Errorf("failed to read server-sent event: %w", err)
 		}
 		if sse.Type != codersdk.ServerSentEventTypeData {
 			continue
@@ -740,16 +752,40 @@ func (c *Client) WaitForReinit(ctx context.Context, events chan<- Reinitializati
 		var reinitEvent ReinitializationEvent
 		b, ok := sse.Data.([]byte)
 		if !ok {
-			return xerrors.Errorf("expected data as []byte, got %T", sse.Data)
+			return nil, xerrors.Errorf("expected data as []byte, got %T", sse.Data)
 		}
 		err = json.Unmarshal(b, &reinitEvent)
 		if err != nil {
-			return xerrors.Errorf("unmarshal reinit response: %w", err)
+			return nil, xerrors.Errorf("unmarshal reinit response: %w", err)
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case events <- reinitEvent:
+			return nil, ctx.Err()
+		default:
+			return &reinitEvent, nil
 		}
 	}
+}
+
+func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) <-chan ReinitializationEvent {
+	reinitEvents := make(chan ReinitializationEvent)
+
+	go func() {
+		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+			logger.Debug(ctx, "waiting for agent reinitialization instructions")
+			reinitEvent, err := client.WaitForReinit(ctx)
+			if err != nil {
+				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
+			}
+			reinitEvents <- *reinitEvent
+			select {
+			case <-ctx.Done():
+				close(reinitEvents)
+				return
+			case reinitEvents <- *reinitEvent:
+			}
+		}
+	}()
+
+	return reinitEvents
 }

@@ -496,9 +496,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                           |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ReinitializationResponse](schemas.md#agentsdkreinitializationresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                     |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ReinitializationEvent](schemas.md#agentsdkreinitializationevent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
