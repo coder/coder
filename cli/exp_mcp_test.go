@@ -158,6 +158,7 @@ func TestExpMcpServer(t *testing.T) {
 //nolint:tparallel,paralleltest
 func TestExpMcpConfigureClaudeCode(t *testing.T) {
 	t.Run("NoReportTaskWhenNoAgentToken", func(t *testing.T) {
+		t.Setenv("CODER_AGENT_TOKEN", "")
 		ctx := testutil.Context(t, testutil.WaitShort)
 		cancelCtx, cancel := context.WithCancel(ctx)
 		t.Cleanup(cancel)
