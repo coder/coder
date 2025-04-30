@@ -6,8 +6,6 @@ import {
 	MockEntitlementsWithMultiOrg,
 	MockOrganization,
 	MockOrganizationAuditorRole,
-	MockOrganizationMember,
-	MockOrganizationMember2,
 	MockOrganizationPermissions,
 	MockUser,
 } from "testHelpers/entities";
