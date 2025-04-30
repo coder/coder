@@ -16,13 +16,13 @@
  * Storybook decorator function used to inject baseline data dependencies into
  * our React components during testing.
  */
+import React from "react";
 import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
-	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
@@ -109,6 +109,8 @@ function withHelmet(Story) {
 }
 
 const storyDate = new Date("March 15, 2022");
+
+/** @type {Decorator} */
 function withTimeSyncProvider(Story) {
 	return (
 		<TimeSyncProvider
