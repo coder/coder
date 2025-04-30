@@ -2177,7 +2177,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 		inv.Stderr = io.Discard
 
 		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
+			err := inv.WithContext(withCoderConnectRunning(ctx)).Run()
 			// Shouldn't fail to dial the Coder Connect host
 			// since `--force-new-tunnel` was passed
 			assert.NoError(t, err)

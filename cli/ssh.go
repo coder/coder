@@ -289,7 +289,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 					workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
 				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost)
 				if exists {
-					_, _ = fmt.Fprintln(inv.Stderr, "Connecting to workspace via Coder Connect...")
 					defer cancel()
 
 					if networkInfoDir != "" {
