@@ -14,7 +14,6 @@ import {
 	withDashboardProvider,
 	withGlobalSnackbar,
 	withOrganizationSettingsProvider,
-	withTimeSyncProvider,
 } from "testHelpers/storybook";
 import type { NotificationsPage } from "./NotificationsPage";
 

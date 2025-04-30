@@ -31,8 +31,8 @@ import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
-import themes from "../src/theme";
 import { TimeSyncProvider } from "../src/hooks/useTimeSync";
+import themes from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
