@@ -400,7 +400,7 @@ const GroupRow: FC<GroupRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpGroup)}
 				>
-					<Trash className="size-icon-sm" />
+					<Trash />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>

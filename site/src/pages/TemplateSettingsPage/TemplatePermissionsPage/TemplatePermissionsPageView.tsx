@@ -293,14 +293,11 @@ export const TemplatePermissionsPageView: FC<
 													<DropdownMenu>
 														<DropdownMenuTrigger asChild>
 															<Button
-																size="icon"
+																size="icon-lg"
 																variant="subtle"
 																aria-label="Open menu"
 															>
-																<EllipsisVertical
-																	className="size-icon-md"
-																	aria-hidden="true"
-																/>
+																<EllipsisVertical aria-hidden="true" />
 																<span className="sr-only">Open menu</span>
 															</Button>
 														</DropdownMenuTrigger>
@@ -352,14 +349,11 @@ export const TemplatePermissionsPageView: FC<
 													<DropdownMenu>
 														<DropdownMenuTrigger asChild>
 															<Button
-																size="icon"
+																size="icon-lg"
 																variant="subtle"
 																aria-label="Open menu"
 															>
-																<EllipsisVertical
-																	className="size-icon-md"
-																	aria-hidden="true"
-																/>
+																<EllipsisVertical aria-hidden="true" />
 																<span className="sr-only">Open menu</span>
 															</Button>
 														</DropdownMenuTrigger>

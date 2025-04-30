@@ -10,13 +10,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
-import {
-	SettingsHeader,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -24,6 +17,13 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
+import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -35,7 +35,7 @@ import {
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { TriangleAlert, EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
@@ -166,14 +166,11 @@ export const OrganizationMembersPageView: FC<
 												<DropdownMenu>
 													<DropdownMenuTrigger asChild>
 														<Button
-															size="icon"
+															size="icon-lg"
 															variant="subtle"
 															aria-label="Open menu"
 														>
-															<EllipsisVertical
-																className="size-icon-md"
-																aria-hidden="true"
-															/>
+															<EllipsisVertical aria-hidden="true" />
 															<span className="sr-only">Open menu</span>
 														</Button>
 													</DropdownMenuTrigger>
@@ -187,7 +184,7 @@ export const OrganizationMembersPageView: FC<
 													</DropdownMenuContent>
 												</DropdownMenu>
 											)}
-								</TableCell>
+										</TableCell>
 									</TableRow>
 								))
 							) : (

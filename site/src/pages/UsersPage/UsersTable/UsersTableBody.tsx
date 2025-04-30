@@ -183,11 +183,12 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 							<TableCell>
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
-										<Button size="icon" variant="subtle" aria-label="Open menu">
-											<EllipsisVertical
-												className="size-icon-md"
-												aria-hidden="true"
-											/>
+										<Button
+											size="icon-lg"
+											variant="subtle"
+											aria-label="Open menu"
+										>
+											<EllipsisVertical aria-hidden="true" />
 											<span className="sr-only">Open menu</span>
 										</Button>
 									</DropdownMenuTrigger>

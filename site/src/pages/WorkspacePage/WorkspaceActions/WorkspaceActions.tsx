@@ -180,14 +180,14 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
-						size="icon"
+						size="icon-lg"
 						variant="subtle"
 						aria-label="More options"
 						data-testid="workspace-options-button"
 						aria-controls="workspace-options"
 						disabled={!canAcceptJobs}
 					>
-						<EllipsisVertical className="size-icon-md" aria-hidden="true" />
+						<EllipsisVertical aria-hidden="true" />
 						<span className="sr-only">More options</span>
 					</Button>
 				</DropdownMenuTrigger>

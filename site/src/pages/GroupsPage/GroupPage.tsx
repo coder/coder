@@ -333,8 +333,12 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<ShadcnButton size="icon" variant="subtle" aria-label="Open menu">
-								<EllipsisVertical className="size-icon-md" aria-hidden="true" />
+							<ShadcnButton
+								size="icon-lg"
+								variant="subtle"
+								aria-label="Open menu"
+							>
+								<EllipsisVertical aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
 							</ShadcnButton>
 						</DropdownMenuTrigger>
