@@ -247,7 +247,7 @@ For example, with this `devcontainer.json` configuration:
 
 ```json
 {
-	"appPort": ["8080:8080", "4000:3000"]
+    "appPort": ["8080:8080", "4000:3000"]
 }
 ```
 
@@ -275,13 +275,13 @@ To use the code-server feature, add the following to your `devcontainer.json`:
 
 ```json
 {
-	"features": {
-		"ghcr.io/coder/devcontainer-features/code-server:1": {
-			"port": 13337,
-			"host": "0.0.0.0"
-		}
-	},
-	"appPort": ["13337:13337"]
+    "features": {
+        "ghcr.io/coder/devcontainer-features/code-server:1": {
+            "port": 13337,
+            "host": "0.0.0.0"
+        }
+    },
+    "appPort": ["13337:13337"]
 }
 ```
 
