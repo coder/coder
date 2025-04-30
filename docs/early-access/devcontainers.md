@@ -27,13 +27,20 @@ experience.
 
 ## Features
 
+### Available Now
+
 - Automatic dev container detection from repositories
 - Seamless dev container startup during workspace initialization
 - Integrated IDE experience in dev containers with VS Code
 - Direct service access in dev containers
-- Native SSH access to dev containers
-- Dev container change detection (coming soon)
-- On-demand dev container recreation (coming soon)
+- Limited SSH access to dev containers
+
+### Coming Soon
+
+- Dev container change detection
+- On-demand dev container recreation
+- Support for automatic port forwarding inside the container
+- Full native SSH support to dev containers
 
 ## Prerequisites
 
@@ -41,7 +48,7 @@ experience.
 - Coder CLI version 2.22.0 or later
 - Dev containers integration enabled in your template(s)
 - Docker-compatible workspace image in the template(s)
-- Appropriate permissions to execute Docker commands
+- Appropriate permissions to execute Docker commands inside your workspace
 
 ## How It Works
 
@@ -81,6 +88,8 @@ module "devcontainers-cli" {
 }
 ```
 
+Alternatively, install the devcontainer CLI manually in your base image.
+
 ### Configure Automatic Dev Container Startup
 
 The
@@ -107,6 +116,28 @@ resource "coder_devcontainer" "my-repository" {
 > Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone)
 > module to ensure your repository is cloned into the workspace folder and ready
 > for automatic startup.
+
+### Enable Dev Containers Integration
+
+To enable the dev containers integration in your workspace, you must set the
+`CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to `true` in your
+workspace container:
+
+```terraform
+resource "docker_container" "workspace" {
+  count = data.coder_workspace.me.start_count
+  image = "codercom/oss-dogfood:latest"
+  env = [
+    "CODER_AGENT_DEVCONTAINERS_ENABLE=true",
+    # ... Other environment variables.
+  ]
+  # ... Other container configuration.
+}
+```
+
+This environment variable is required for the Coder agent to detect and manage
+dev containers. Without it, the agent will not attempt to start or connect to
+dev containers even if the `coder_devcontainer` resource is defined.
 
 ### Complete Template Example
 
@@ -151,9 +182,9 @@ resource "docker_container" "workspace" {
   image = "codercom/oss-dogfood:latest"
   env = [
     "CODER_AGENT_DEVCONTAINERS_ENABLE=true",
-    # ...
+    # ... Other environment variables.
   ]
-  # ...
+  # ... Other container configuration.
 }
 ```
 
@@ -197,6 +228,11 @@ work.
 During the early access phase, port forwarding is limited to ports defined via
 [`appPort`](https://containers.dev/implementors/json_reference/#image-specific)
 in your `devcontainer.json` file.
+
+> [!NOTE]
+>
+> Support for automatic port forwarding via the `forwardPorts` property in
+> `devcontainer.json` is planned for a future release.
 
 For example, with this `devcontainer.json` configuration:
 
@@ -259,7 +295,7 @@ These limitations will be addressed in future updates as the feature matures.
 ## Comparison with Envbuilder-based Dev Containers
 
 | Feature        | Dev Containers (Early Access)          | Envbuilder Dev Containers                    |
-|----------------|----------------------------------------|----------------------------------------------|
+| -------------- | -------------------------------------- | -------------------------------------------- |
 | Implementation | Direct `@devcontainers/cli` and Docker | Coder's Envbuilder                           |
 | Target users   | Individual developers                  | Platform teams and administrators            |
 | Configuration  | Standard `devcontainer.json`           | Terraform templates with Envbuilder          |
@@ -267,7 +303,9 @@ These limitations will be addressed in future updates as the feature matures.
 | Requirements   | Docker access in workspace             | Compatible with more restricted environments |
 
 Choose the appropriate solution based on your team's needs and infrastructure
-constraints.
+constraints. For additional details on Envbuilder's dev container support, see
+the
+[Envbuilder devcontainer spec support documentation](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md).
 
 ## Troubleshooting
 
@@ -275,7 +313,10 @@ constraints.
 
 If your dev container fails to start:
 
-1. Check the workspace logs for detailed error messages
+1. Check the agent logs for error messages:
+   - `/tmp/coder-agent.log`
+   - `/tmp/coder-startup-script.log`
+   - `/tmp/coder-script-[script_id].log`
 2. Verify that Docker is running in your workspace
 3. Ensure the `devcontainer.json` file is valid
 4. Check that the repository has been cloned correctly
