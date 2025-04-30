@@ -1,22 +1,15 @@
 {
 	"$schema": "https://unpkg.com/knip@5/schema.json",
 	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
-	"project": ["./src/**/*.ts", "./src/**/*.tsx"],
+	"project": ["./src/**/*.ts", "./src/**/*.tsx", "./e2e/**/*.ts"],
 	"ignore": ["**/*Generated.ts"],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
-		"express",
-		"@types/express",
-		"ssh2",
-		"@types/ssh2",
 		"@types/react-virtualized-auto-sizer",
 		"jest_workaround",
-		"protobufjs",
-		"rxjs",
 		"ts-proto"
 	],
-	// This sets knip not to report unused exports of types and interfaces
-	// as long as they are used within the file.
+	// Don't report unused exports of types as long as they are used within the file.
 	"ignoreExportsUsedInFile": {
 		"interface": true,
 		"type": true
