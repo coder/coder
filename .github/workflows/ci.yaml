@@ -313,7 +313,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -335,8 +335,25 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Download Go Build Cache
+        id: download-go-build-cache
+        uses: ./.github/actions/test-cache/download
+        if: runner.os == 'Windows'
+        with:
+          key-prefix: test-go-build-11-${{ runner.os }}-${{ runner.arch }}
+          cache-path: "~/.cache/go-cache"
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          build-cache-path: ~/.cache/go-cache
+          cache: false
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        run: |
+          find . -type f ! -path ./.git/\*\* | mtimehash
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
@@ -368,6 +385,9 @@ jobs:
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
           export TS_DEBUG_DISCO=true
+          export GOCACHE=~/.cache/go-cache/build
+          export GOMODCACHE=~/.cache/go-cache/mod
+          echo "PATH: $PATH"
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast
 
@@ -375,6 +395,14 @@ jobs:
         uses: ./.github/actions/test-cache/upload
         with:
           cache-key: ${{ steps.download-cache.outputs.cache-key }}
+
+      - name: Upload Go Build Cache
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          cache-path: "~/.cache/go-cache"
+          override-condition: "true"
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1

@@ -117,6 +117,8 @@ func TestGitSSH(t *testing.T) {
 	t.Run("Dial", func(t *testing.T) {
 		t.Parallel()
 
+		fmt.Println("Dial")
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 

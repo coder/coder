@@ -5,6 +5,13 @@ inputs:
   version:
     description: "The Go version to use."
     default: "1.24.2"
+  build-cache-path:
+    description: "The path to the build cache."
+    default: ""
+    required: false
+  cache:
+    description: "Whether to cache the build cache."
+    default: "true"
 runs:
   using: "composite"
   steps:
@@ -12,13 +19,28 @@ runs:
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
         go-version: ${{ inputs.version }}
-
-    - name: Install gotestsum
+        cache: ${{ inputs.cache }}
+    - name: Install gotestsum and mtimehash
       shell: bash
-      run: go install gotest.tools/gotestsum@latest
+      run: |
+        export BUILD_CACHE_PATH=${{ inputs.build-cache-path }}
+        if [ -n "${BUILD_CACHE_PATH}" ]; then
+          mkdir -p "${BUILD_CACHE_PATH}"
+          export GOCACHE="${BUILD_CACHE_PATH}/build"
+          export GOMODCACHE="${BUILD_CACHE_PATH}/mod"
+        fi
+        go install gotest.tools/gotestsum@latest
+        go install github.com/slsyy/mtimehash/cmd/mtimehash@latest
 
     # It isn't necessary that we ever do this, but it helps
     # separate the "setup" from the "run" times.
     - name: go mod download
       shell: bash
-      run: go mod download -x
+      run: |
+        export BUILD_CACHE_PATH=${{ inputs.build-cache-path }}
+        if [ -n "${BUILD_CACHE_PATH}" ]; then
+          mkdir -p "${BUILD_CACHE_PATH}"
+          export GOCACHE="${BUILD_CACHE_PATH}/build"
+          export GOMODCACHE="${BUILD_CACHE_PATH}/mod"
+        fi
+        go mod download -x
