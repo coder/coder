@@ -482,9 +482,14 @@ BEGIN
     );
 
     member_count := (
-        SELECT count(*) as count FROM organization_members
+        SELECT
+            count(*) AS count
+        FROM
+            organization_members
+        LEFT JOIN users ON users.id = organization_members.user_id
         WHERE
             organization_members.organization_id = OLD.id
+            AND users.deleted = FALSE
     );
 
     provisioner_keys_count := (
