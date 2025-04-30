@@ -901,6 +901,7 @@ func setupTestDBTemplateVersion(
 		ID:              templateID,
 		ActiveVersionID: templateVersion.ID,
 	}))
+	// Make sure immutable params don't break prebuilt workspace deletion logic
 	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
 		TemplateVersionID: templateVersion.ID,
 		Name:              "test",
