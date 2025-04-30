@@ -111,6 +111,8 @@ resource "coder_devcontainer" "my-repository" {
 > container's workspace and should point to a valid project folder containing a
 > `devcontainer.json` file.
 
+<!-- nolint:MD028/no-blanks-blockquote -->
+
 > [!TIP]
 >
 > Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone)
@@ -238,7 +240,7 @@ For example, with this `devcontainer.json` configuration:
 
 ```json
 {
-	"appPort": ["8080:8080", "4000:3000"]
+    "appPort": ["8080:8080", "4000:3000"]
 }
 ```
 
@@ -266,12 +268,12 @@ To use the code-server feature, add the following to your `devcontainer.json`:
 
 ```json
 {
-	"features": {
-		"ghcr.io/coder/devcontainer-features/code-server:1": {
-			"port": 13337
-		}
-	},
-	"appPort": [13337]
+    "features": {
+        "ghcr.io/coder/devcontainer-features/code-server:1": {
+            "port": 13337
+        }
+    },
+    "appPort": [13337]
 }
 ```
 
