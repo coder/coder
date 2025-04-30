@@ -144,7 +144,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	useEffect(() => {
 		if (form.submitCount > 0 && form.errors) {
-			workspaceNameInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+			workspaceNameInputRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
 			workspaceNameInputRef.current?.focus();
 		}
 	}, [form.submitCount, form.errors]);
