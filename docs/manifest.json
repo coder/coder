@@ -223,12 +223,14 @@
 						{
 							"title": "Working with dev containers",
 							"description": "Access dev containers via SSH, your IDE, or web terminal.",
-							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
+							"path": "./user-guides/devcontainers/working-with-dev-containers.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Troubleshooting dev containers",
 							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
-							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md"
+							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md",
+							"state": ["early access"]
 						}
 					]
 				},
