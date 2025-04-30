@@ -45,6 +45,7 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { IDEAL_REFRESH_ONE_DAY, useTimeSync } from "hooks/useTimeSync";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -62,7 +63,6 @@ import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { lastWeeks } from "./utils";
-import { IDEAL_REFRESH_ONE_DAY, useTimeSync } from "hooks/useTimeSync";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 

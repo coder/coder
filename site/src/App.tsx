@@ -1,5 +1,6 @@
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { TimeSyncProvider } from "hooks/useTimeSync";
 import {
 	type FC,
 	type ReactNode,
@@ -14,7 +15,6 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { router } from "./router";
-import { TimeSyncProvider } from "hooks/useTimeSync";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {

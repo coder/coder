@@ -17,9 +17,9 @@ import {
 	startOfHour,
 	subDays,
 } from "date-fns";
+import { useTimeSync } from "hooks/useTimeSync";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
-import { useTimeSync } from "hooks/useTimeSync";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
