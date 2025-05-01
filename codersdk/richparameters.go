@@ -164,7 +164,7 @@ type ParameterResolver struct {
 // resolves the correct value.  It returns the value of the parameter, if valid, and an error if invalid.
 func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) (value string, err error) {
 	prevV := r.findLastValue(p)
-	if !p.Mutable && v != nil && prevV != nil {
+	if !p.Mutable && v != nil && prevV != nil && v.Value != prevV.Value {
 		return "", xerrors.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
 	}
 	if p.Required && v == nil && prevV == nil {
