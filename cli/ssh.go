@@ -1542,6 +1542,10 @@ func writeCoderConnectNetInfo(ctx context.Context, networkInfoDir string) error 
 	if !ok {
 		fs = afero.NewOsFs()
 	}
+	if err := fs.MkdirAll(networkInfoDir, 0o700); err != nil {
+		return xerrors.Errorf("mkdir: %w", err)
+	}
+
 	// The VS Code extension obtains the PID of the SSH process to
 	// find the log file associated with a SSH session.
 	//
