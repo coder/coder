@@ -377,6 +377,9 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
 				</TableCell>
+				<TableCell className="w-0">
+					<Skeleton variant="rounded" width={40} height={40} />
+				</TableCell>
 				<TableCell>
 					<div className="flex">
 						<KeyboardArrowRight className="text-content-disabled size-icon-sm" />
