@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { API } from "api/api";
 import { MockGitSSHKey, mockApiError } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import { SSHKeysPage, Language as SSHKeysPageLanguage } from "./SSHKeysPage";
+import SSHKeysPage, { Language as SSHKeysPageLanguage } from "./SSHKeysPage";
 
 describe("SSH keys Page", () => {
 	it("shows the SSH key", async () => {

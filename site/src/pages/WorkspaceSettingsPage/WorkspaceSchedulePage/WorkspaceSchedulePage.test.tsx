@@ -8,7 +8,7 @@ import {
 	Language as FormLanguage,
 	type WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
-import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
+import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,

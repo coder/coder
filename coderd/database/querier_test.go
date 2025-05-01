@@ -3586,6 +3586,43 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 		require.ErrorContains(t, err, "cannot delete organization")
 		require.ErrorContains(t, err, "has 1 members")
 	})
+
+	t.Run("UserDeletedButNotRemovedFromOrg", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+		userC := dbgen.User(t, db, database.User{})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+			UserID:         userA.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+			UserID:         userC.ID,
+		})
+
+		// Delete one of the users but don't remove them from the org
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db.UpdateUserDeletedByID(ctx, userB.ID)
+
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 members that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 members")
+	})
 }
 
 type templateVersionWithPreset struct {

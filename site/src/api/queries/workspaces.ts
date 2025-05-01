@@ -133,7 +133,7 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-export function workspacesKey(config: WorkspacesRequest = {}) {
+function workspacesKey(config: WorkspacesRequest = {}) {
 	const { q, limit } = config;
 	return ["workspaces", { q, limit }] as const;
 }

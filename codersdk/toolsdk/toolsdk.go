@@ -327,6 +327,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 					"description": "The owner of the workspaces to list. Use \"me\" to list workspaces for the authenticated user. If you do not specify an owner, \"me\" will be assumed by default.",
 				},
 			},
+			Required: []string{},
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, args ListWorkspacesArgs) ([]MinimalWorkspace, error) {
@@ -1256,6 +1257,7 @@ var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 					"type": "string",
 				},
 			},
+			Required: []string{"template_id"},
 		},
 	},
 	Handler: func(ctx context.Context, deps Deps, args DeleteTemplateArgs) (codersdk.Response, error) {

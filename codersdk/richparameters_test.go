@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,20 +122,60 @@ func TestParameterResolver_ValidateResolve_NewOverridesOld(t *testing.T) {
 func TestParameterResolver_ValidateResolve_Immutable(t *testing.T) {
 	t.Parallel()
 	uut := codersdk.ParameterResolver{
-		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "5"}},
+		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "old"}},
 	}
 	p := codersdk.TemplateVersionParameter{
 		Name:     "n",
-		Type:     "number",
+		Type:     "string",
 		Required: true,
 		Mutable:  false,
 	}
-	v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
-		Name:  "n",
-		Value: "6",
-	})
-	require.Error(t, err)
-	require.Equal(t, "", v)
+
+	cases := []struct {
+		name        string
+		newValue    string
+		expectedErr string
+	}{
+		{
+			name:        "mutation",
+			newValue:    "new", // "new" != "old"
+			expectedErr: fmt.Sprintf("Parameter %q is not mutable", p.Name),
+		},
+		{
+			// Values are case-sensitive.
+			name:        "case change",
+			newValue:    "Old", // "Old" != "old"
+			expectedErr: fmt.Sprintf("Parameter %q is not mutable", p.Name),
+		},
+		{
+			name:        "default",
+			newValue:    "", // "" != "old"
+			expectedErr: fmt.Sprintf("Parameter %q is not mutable", p.Name),
+		},
+		{
+			name:     "no change",
+			newValue: "old", // "old" == "old"
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+				Name:  "n",
+				Value: tc.newValue,
+			})
+
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				require.Equal(t, tc.newValue, v)
+			} else {
+				require.ErrorContains(t, err, tc.expectedErr)
+				require.Equal(t, "", v)
+			}
+		})
+	}
 }
 
 func TestRichParameterValidation(t *testing.T) {

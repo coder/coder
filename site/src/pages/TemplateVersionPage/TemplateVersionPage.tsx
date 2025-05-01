@@ -11,9 +11,9 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import TemplateVersionPageView from "./TemplateVersionPageView";
+import { TemplateVersionPageView } from "./TemplateVersionPageView";
 
-export const TemplateVersionPage: FC = () => {
+const TemplateVersionPage: FC = () => {
 	const getLink = useLinks();
 	const {
 		organization: organizationName = "default",

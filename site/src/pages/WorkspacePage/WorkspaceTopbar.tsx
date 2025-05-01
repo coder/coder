@@ -35,7 +35,7 @@ export type WorkspaceError =
 	| "buildError"
 	| "cancellationError";
 
-export type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
+type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;

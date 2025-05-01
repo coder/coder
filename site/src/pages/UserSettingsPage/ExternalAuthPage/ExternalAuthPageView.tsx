@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -10,8 +9,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
-// biome-ignore lint/nursery/noRestrictedImports: styled
-import { styled } from "@mui/material/styles";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {

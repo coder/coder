@@ -1,15 +1,12 @@
 import { API } from "api/api";
-import { experiments } from "api/queries/experiments";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
-import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";

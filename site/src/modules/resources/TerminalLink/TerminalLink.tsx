@@ -5,7 +5,7 @@ import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-export const Language = {
+const Language = {
 	terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
 };
 

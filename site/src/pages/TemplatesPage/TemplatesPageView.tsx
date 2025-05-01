@@ -52,7 +52,7 @@ import {
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 
-export const Language = {
+const Language = {
 	developerCount: (activeCount: number): string => {
 		return `${formatTemplateActiveDevelopers(activeCount)} developer${
 			activeCount !== 1 ? "s" : ""
