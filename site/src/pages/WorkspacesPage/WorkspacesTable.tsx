@@ -160,6 +160,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					<TableHead className="w-2/6">Template</TableHead>
 					<TableHead className="w-2/6">Status</TableHead>
 					<TableHead className="w-0" />
+					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
@@ -285,6 +286,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								workspace={workspace}
 								onActionSuccess={onActionSuccess}
 							/>
+							<TableCell>
+								<div className="flex">
+									<KeyboardArrowRight className="text-content-secondary size-icon-sm" />
+								</div>
+							</TableCell>
 						</WorkspacesRow>
 					);
 				})}
@@ -359,8 +365,10 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
 				</TableCell>
-				<TableCell className="w-0">
-					<Skeleton variant="text" width="25%" />
+				<TableCell>
+					<div className="flex">
+						<KeyboardArrowRight className="text-content-disabled size-icon-sm" />
+					</div>
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>
@@ -477,9 +485,10 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	});
 
 	const isRetrying =
-		updateWorkspaceMutation.isLoading ||
-		deleteWorkspaceMutation.isLoading ||
-		startWorkspaceMutation.isLoading;
+		startWorkspaceMutation.isLoading ||
+		stopWorkspaceMutation.isLoading ||
+		deleteWorkspaceMutation.isLoading;
+
 	const retry = () => {
 		switch (workspace.latest_build.transition) {
 			case "start":
