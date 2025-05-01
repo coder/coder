@@ -325,16 +325,20 @@ func TestClaimPrebuild(t *testing.T) {
 
 			spy.claims.Store(0) // Reset counter because we need to check if any new claim requests happen.
 
+			wp, err := userClient.WorkspaceBuildParameters(ctx, userWorkspace.LatestBuild.ID)
+			require.NoError(t, err)
+
 			stopBuild, err := userClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID: version.ID,
-				Transition:        codersdk.WorkspaceTransitionStop,
+				TemplateVersionID:   version.ID,
+				Transition:          codersdk.WorkspaceTransitionStop,
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, stopBuild.ID)
 
 			startBuild, err := userClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID: version.ID,
-				Transition:        codersdk.WorkspaceTransitionStart,
+				TemplateVersionID:   version.ID,
+				Transition:          codersdk.WorkspaceTransitionStart,
+				RichParameterValues: wp,
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, startBuild.ID)
