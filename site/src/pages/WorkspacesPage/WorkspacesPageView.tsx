@@ -6,7 +6,7 @@ import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
 import { hasError, isApiValidationError } from "api/errors";
-import type { Template, Workspace, WorkspaceBuild } from "api/typesGenerated";
+import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";

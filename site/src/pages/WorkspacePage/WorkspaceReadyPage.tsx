@@ -23,6 +23,10 @@ import dayjs from "dayjs";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import {
+	WorkspaceUpdateDialogs,
+	useWorkspaceUpdate,
+} from "modules/workspaces/useWorkspaceUpdate";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -33,10 +37,6 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "./permissions";
-import {
-	useWorkspaceUpdate,
-	WorkspaceUpdateDialogs,
-} from "modules/workspaces/useWorkspaceUpdate";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;

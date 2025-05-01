@@ -1,8 +1,8 @@
 import type { Template, Workspace } from "api/typesGenerated";
 import { compareAsc } from "date-fns";
+import { calcOffset } from "hooks/usePagination";
 import { useWorkspacesData } from "pages/WorkspacesPage/data";
 import type { TemplateScheduleFormValues } from "./formHelpers";
-import { calcOffset } from "hooks/usePagination";
 
 export const useWorkspacesToGoDormant = (
 	template: Template,

@@ -13,6 +13,11 @@ import {
 	MoreMenuItem,
 	MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
+import { useAuthenticated } from "hooks/useAuthenticated";
+import {
+	type ActionType,
+	abilitiesByWorkspaceStatus,
+} from "modules/workspaces/actions";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { mustUpdateWorkspace } from "utils/workspace";
@@ -31,11 +36,6 @@ import {
 import { DebugButton } from "./DebugButton";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
-import {
-	abilitiesByWorkspaceStatus,
-	type ActionType,
-} from "modules/workspaces/actions";
-import { useAuthenticated } from "hooks/useAuthenticated";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;

@@ -2,17 +2,25 @@ import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
+import { templateVersion } from "api/queries/templates";
+import {
+	cancelBuild,
+	deleteWorkspace,
+	startWorkspace,
+	stopWorkspace,
+} from "api/queries/workspaces";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-	WorkspaceBuild,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Button } from "components/Button/Button";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	StatusIndicator,
@@ -31,19 +39,33 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { BanIcon, PlayIcon, RefreshCcwIcon, SquareIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
+import {
+	WorkspaceUpdateDialogs,
+	useWorkspaceUpdate,
+} from "modules/workspaces/useWorkspaceUpdate";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
 	useMemo,
 } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
@@ -53,30 +75,6 @@ import {
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-import { BanIcon, PlayIcon, RefreshCcwIcon, SquareIcon } from "lucide-react";
-import { Button } from "components/Button/Button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	cancelBuild,
-	deleteWorkspace,
-	startWorkspace,
-	stopWorkspace,
-	updateWorkspace,
-} from "api/queries/workspaces";
-import { Spinner } from "components/Spinner/Spinner";
-import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
-import { useAuthenticated } from "hooks";
-import {
-	useWorkspaceUpdate,
-	WorkspaceUpdateDialogs,
-} from "modules/workspaces/useWorkspaceUpdate";
-import { templateVersion } from "api/queries/templates";
 
 dayjs.extend(relativeTime);
 

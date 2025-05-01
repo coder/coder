@@ -1,8 +1,10 @@
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates } from "api/queries/templates";
-import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
@@ -19,8 +21,6 @@ import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useWorkspaceUpdate, useWorkspacesData } from "./data";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { getErrorDetail, getErrorMessage } from "api/errors";
 
 function useSafeSearchParams() {
 	// Have to wrap setSearchParams because React Router doesn't make sure that
