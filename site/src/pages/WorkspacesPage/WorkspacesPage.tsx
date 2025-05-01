@@ -19,6 +19,8 @@ import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useWorkspaceUpdate, useWorkspacesData } from "./data";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 
 function useSafeSearchParams() {
 	// Have to wrap setSearchParams because React Router doesn't make sure that
@@ -133,6 +135,12 @@ const WorkspacesPage: FC = () => {
 					await queryClient.invalidateQueries({
 						queryKey,
 					});
+				}}
+				onActionError={(error) => {
+					displayError(
+						getErrorMessage(error, "Failed to perform action"),
+						getErrorDetail(error),
+					);
 				}}
 			/>
 

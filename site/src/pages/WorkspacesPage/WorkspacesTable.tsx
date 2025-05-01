@@ -86,6 +86,7 @@ export interface WorkspacesTableProps {
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	onActionSuccess: () => Promise<void>;
+	onActionError: (error: unknown) => void;
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -98,6 +99,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	templates,
 	canCreateTemplate,
 	onActionSuccess,
+	onActionError,
 }) => {
 	const dashboard = useDashboard();
 	const workspaceIDToAppByStatus = useMemo(() => {
@@ -291,6 +293,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<WorkspaceActionsCell
 								workspace={workspace}
 								onActionSuccess={onActionSuccess}
+								onActionError={onActionError}
 							/>
 							<TableCell>
 								<div className="flex">
@@ -436,11 +439,13 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 type WorkspaceActionsCellProps = {
 	workspace: Workspace;
 	onActionSuccess: () => Promise<void>;
+	onActionError: (error: unknown) => void;
 };
 
 const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	workspace,
 	onActionSuccess,
+	onActionError,
 }) => {
 	const { user } = useAuthenticated();
 
@@ -457,6 +462,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			startWorkspaceOptions.onSuccess(build);
 			await onActionSuccess();
 		},
+		onError: onActionError,
 	});
 
 	const stopWorkspaceOptions = stopWorkspace(workspace, queryClient);
@@ -466,6 +472,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			stopWorkspaceOptions.onSuccess(build);
 			await onActionSuccess();
 		},
+		onError: onActionError,
 	});
 
 	const cancelJobOptions = cancelBuild(workspace, queryClient);
@@ -475,6 +482,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			cancelJobOptions.onSuccess();
 			await onActionSuccess();
 		},
+		onError: onActionError,
 	});
 
 	const updateWorkspaceOptions = updateWorkspace(workspace, queryClient);
@@ -484,6 +492,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			updateWorkspaceOptions.onSuccess(build);
 			await onActionSuccess();
 		},
+		onError: onActionError,
 	});
 
 	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
@@ -493,6 +502,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			deleteWorkspaceOptions.onSuccess(build);
 			await onActionSuccess();
 		},
+		onError: onActionError,
 	});
 
 	const isRetrying =
