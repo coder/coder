@@ -161,9 +161,10 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages := make([]aisdk.Message, 0, len(dbMessages))
-	for i, message := range dbMessages {
-		err = json.Unmarshal(message.Content, &messages[i])
+	messages := make([]codersdk.ChatMessage, 0)
+	for _, dbMsg := range dbMessages {
+		var msg codersdk.ChatMessage
+		err = json.Unmarshal(dbMsg.Content, &msg)
 		if err != nil {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to unmarshal chat message",
@@ -171,19 +172,20 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		messages = append(messages, msg)
 	}
 	messages = append(messages, req.Message)
 
 	client := codersdk.New(api.AccessURL)
 	client.SetSessionToken(httpmw.APITokenFromRequest(r))
 
-	tools := make([]aisdk.Tool, len(toolsdk.All))
+	tools := make([]aisdk.Tool, 0)
 	handlers := map[string]toolsdk.GenericHandlerFunc{}
-	for i, tool := range toolsdk.All {
-		if tool.Tool.Schema.Required == nil {
-			tool.Tool.Schema.Required = []string{}
+	for _, tool := range toolsdk.All {
+		if tool.Name == "coder_report_task" {
+			continue // This tool requires an agent to run.
 		}
-		tools[i] = tool.Tool
+		tools = append(tools, tool.Tool)
 		handlers[tool.Tool.Name] = tool.Handler
 	}
 

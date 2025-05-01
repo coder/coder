@@ -40,6 +40,9 @@ func (c *Client) ListChats(ctx context.Context) ([]Chat, error) {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
 
 	var chats []Chat
 	return chats, json.NewDecoder(res.Body).Decode(&chats)

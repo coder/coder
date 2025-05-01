@@ -3336,6 +3336,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web-push`             |
 | `dynamic-parameters`   |
 | `workspace-prebuilds`  |
+| `agentic-chat`         |
 
 ## codersdk.ExternalAuth
 

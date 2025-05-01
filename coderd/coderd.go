@@ -1001,8 +1001,12 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
+		// Chats are an experimental feature
 		r.Route("/chats", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgenticChat),
+			)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Route("/{chat}", func(r chi.Router) {
