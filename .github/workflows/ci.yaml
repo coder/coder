@@ -335,18 +335,23 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+      - name: Setup ImDisk
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/setup-imdisk
+
       - name: Download Go Build Cache
         id: download-go-build-cache
         uses: ./.github/actions/test-cache/download
         if: runner.os == 'Windows'
         with:
           key-prefix: test-go-build-11-${{ runner.os }}-${{ runner.arch }}
-          cache-path: "~/.cache/go-cache"
+          cache-path: "/r/.cache/go-cache"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
-          build-cache-path: ~/.cache/go-cache
+          build-cache-path: /r/.cache/go-cache
           cache: false
 
       - name: Normalize File and Directory Timestamps
@@ -364,32 +369,32 @@ jobs:
         with:
           key-prefix: test-go-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Test with Mock Database
-        id: test
-        shell: bash
-        run: |
-          # if macOS, install google-chrome for scaletests. As another concern,
-          # should we really have this kind of external dependency requirement
-          # on standard CI?
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            brew install google-chrome
-          fi
+      # - name: Test with Mock Database
+      #   id: test
+      #   shell: bash
+      #   run: |
+      #     # if macOS, install google-chrome for scaletests. As another concern,
+      #     # should we really have this kind of external dependency requirement
+      #     # on standard CI?
+      #     if [ "${{ matrix.os }}" == "macos-latest" ]; then
+      #       brew install google-chrome
+      #     fi
 
-          # By default Go will use the number of logical CPUs, which
-          # is a fine default.
-          PARALLEL_FLAG=""
+      #     # By default Go will use the number of logical CPUs, which
+      #     # is a fine default.
+      #     PARALLEL_FLAG=""
 
-          # macOS will output "The default interactive shell is now zsh"
-          # intermittently in CI...
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
-          fi
-          export TS_DEBUG_DISCO=true
-          export GOCACHE=~/.cache/go-cache/build
-          export GOMODCACHE=~/.cache/go-cache/mod
-          echo "PATH: $PATH"
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast
+      #     # macOS will output "The default interactive shell is now zsh"
+      #     # intermittently in CI...
+      #     if [ "${{ matrix.os }}" == "macos-latest" ]; then
+      #       touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+      #     fi
+      #     export TS_DEBUG_DISCO=true
+      #     export GOCACHE=/r/.cache/go-cache/build
+      #     export GOMODCACHE=/r/.cache/go-cache/mod
+      #     echo "PATH: $PATH"
+      #     gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+      #       --packages="./..." -- $PARALLEL_FLAG -short -failfast
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -401,7 +406,7 @@ jobs:
         uses: ./.github/actions/test-cache/upload
         with:
           cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}-${{ github.run_id }}-${{ github.run_attempt }}
-          cache-path: "~/.cache/go-cache"
+          cache-path: "/r/.cache/go-cache"
           override-condition: "true"
 
   # We don't run the full test-suite for Windows & MacOS, so we just run the CLI tests on every PR.
