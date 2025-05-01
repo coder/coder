@@ -400,6 +400,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 
 	for _, presetParam := range t.presetParams {
 		dbgen.PresetParameter(t.t, t.db, database.InsertPresetParametersParams{
+			ID:                      uuid.New(),
 			TemplateVersionPresetID: presetParam.TemplateVersionPresetID,
 			Names:                   []string{presetParam.Name},
 			Values:                  []string{presetParam.Value},

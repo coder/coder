@@ -371,7 +371,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 				select {
 				case <-ctx.Done():
-					logger.Warn(ctx, "agent shutting down", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
+					logger.Warn(ctx, "agent shutting down", slog.Error(ctx.Err()), slog.Error(context.Cause(ctx)))
 					mustExit = true
 				case event := <-reinitEvents:
 					logger.Warn(ctx, "agent received instruction to reinitialize",

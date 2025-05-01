@@ -65,7 +65,6 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 		default:
 		}
 	})
-
 	if err != nil {
 		close(workspaceClaims)
 		return func() {}, nil, xerrors.Errorf("failed to subscribe to prebuild claimed channel: %w", err)

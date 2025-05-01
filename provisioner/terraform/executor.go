@@ -391,7 +391,7 @@ func (e *executor) logResourceReplacements(ctx context.Context, plan *tfjson.Pla
 	if count > 0 {
 		e.server.logger.Warn(ctx, "plan introduces resource changes", slog.F("count", count))
 		for n, p := range replacements {
-			e.server.logger.Warn(ctx, "resource will be replaced!", slog.F("name", n), slog.F("replacement_paths", strings.Join(p, ",")))
+			e.server.logger.Warn(ctx, "resource will be replaced", slog.F("name", n), slog.F("replacement_paths", strings.Join(p, ",")))
 		}
 	}
 }
