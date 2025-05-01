@@ -280,7 +280,7 @@ const computeUsableURLS = (proxy?: Region): PreferredProxy => {
 
 // Local storage functions
 
-export const clearUserSelectedProxy = (): void => {
+const clearUserSelectedProxy = (): void => {
 	localStorage.removeItem("user-selected-proxy");
 };
 
@@ -288,7 +288,7 @@ export const saveUserSelectedProxy = (saved: Region): void => {
 	localStorage.setItem("user-selected-proxy", JSON.stringify(saved));
 };
 
-export const loadUserSelectedProxy = (): Region | undefined => {
+const loadUserSelectedProxy = (): Region | undefined => {
 	const str = localStorage.getItem("user-selected-proxy");
 	if (!str) {
 		return undefined;

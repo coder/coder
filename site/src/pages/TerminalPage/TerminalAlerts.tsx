@@ -62,7 +62,7 @@ export const TerminalAlerts = ({
 	);
 };
 
-export const ErrorScriptAlert: FC = () => {
+const ErrorScriptAlert: FC = () => {
 	return (
 		<TerminalAlert
 			severity="warning"
@@ -104,7 +104,7 @@ export const ErrorScriptAlert: FC = () => {
 	);
 };
 
-export const LoadingScriptsAlert: FC = () => {
+const LoadingScriptsAlert: FC = () => {
 	return (
 		<TerminalAlert
 			dismissible
@@ -128,7 +128,7 @@ export const LoadingScriptsAlert: FC = () => {
 	);
 };
 
-export const LoadedScriptsAlert: FC = () => {
+const LoadedScriptsAlert: FC = () => {
 	return (
 		<TerminalAlert
 			severity="success"
@@ -170,7 +170,7 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 	);
 };
 
-export const DisconnectedAlert: FC<AlertProps> = (props) => {
+const DisconnectedAlert: FC<AlertProps> = (props) => {
 	return (
 		<TerminalAlert
 			{...props}

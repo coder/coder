@@ -3,9 +3,9 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, createContext, useContext } from "react";
 import { Navigate, Outlet, useParams } from "react-router-dom";
 
-export const GroupsPageContext = createContext<
-	OrganizationSettingsValue | undefined
->(undefined);
+const GroupsPageContext = createContext<OrganizationSettingsValue | undefined>(
+	undefined,
+);
 
 type OrganizationSettingsValue = Readonly<{
 	organization?: Organization;

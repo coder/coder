@@ -18,7 +18,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 
-export const Language = {
+const Language = {
 	outdatedLabel: "Outdated",
 	versionTooltipText:
 		"This workspace version is outdated and a newer version is available.",
@@ -49,7 +49,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
 	);
 };
 
-export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
+const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
 	organizationName,
 	templateName,
 	latestVersionId,

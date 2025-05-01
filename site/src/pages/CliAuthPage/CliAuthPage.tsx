@@ -5,7 +5,7 @@ import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { CliAuthPageView } from "./CliAuthPageView";
 
-export const CliAuthenticationPage: FC = () => {
+const CliAuthenticationPage: FC = () => {
 	const { data } = useQuery(apiKey());
 
 	return (

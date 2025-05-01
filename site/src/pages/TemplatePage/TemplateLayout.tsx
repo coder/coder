@@ -20,7 +20,6 @@ import {
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { TemplatePageHeader } from "./TemplatePageHeader";
-import { TemplateStats } from "./TemplateStats";
 
 const templatePermissions = (
 	templateId: string,
