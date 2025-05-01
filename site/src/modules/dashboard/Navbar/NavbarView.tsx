@@ -154,6 +154,14 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
+			<NavLink
+				className={({ isActive }) => {
+					return cn(linkStyles.default, isActive ? linkStyles.active : "");
+				}}
+				to="/chat"
+			>
+				Chat
+			</NavLink>
 		</nav>
 	);
 };
