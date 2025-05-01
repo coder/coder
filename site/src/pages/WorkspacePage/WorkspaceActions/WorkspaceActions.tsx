@@ -5,11 +5,6 @@ import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { useAuthenticated } from "hooks/useAuthenticated";
-import {
-	type ActionType,
-	abilitiesByWorkspaceStatus,
-} from "modules/workspaces/actions";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -17,7 +12,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { useAuthenticated } from "hooks/useAuthenticated";
 import { EllipsisVertical } from "lucide-react";
+import {
+	type ActionType,
+	abilitiesByWorkspaceStatus,
+} from "modules/workspaces/actions";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { mustUpdateWorkspace } from "utils/workspace";
