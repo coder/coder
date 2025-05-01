@@ -305,7 +305,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						disabled={disabled}
 					/>
 					<Label htmlFor={parameter.name}>
-						{parameter.display_name || parameter.name}
+						{(parameter.styling as { label?: string })?.label}
 					</Label>
 				</div>
 			);
