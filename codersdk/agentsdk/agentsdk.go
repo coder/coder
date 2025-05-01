@@ -696,8 +696,9 @@ const (
 )
 
 type ReinitializationEvent struct {
-	Message string                 `json:"message"`
-	Reason  ReinitializationReason `json:"reason"`
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Reason      ReinitializationReason `json:"reason"`
 }
 
 func PrebuildClaimedChannel(id uuid.UUID) string {
@@ -707,7 +708,6 @@ func PrebuildClaimedChannel(id uuid.UUID) string {
 // WaitForReinit polls a SSE endpoint, and receives an event back under the following conditions:
 // - ping: ignored, keepalive
 // - prebuild claimed: a prebuilt workspace is claimed, so the agent must reinitialize.
-// NOTE: the caller is responsible for closing the events chan.
 func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, error) {
 	// TODO: allow configuring httpclient
 	c.SDK.HTTPClient.Timeout = time.Hour * 24
@@ -733,9 +733,6 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	nextEvent := codersdk.ServerSentEventReader(ctx, res.Body)
 
 	for {
-		// TODO (Sasswart): I don't like that we do this select at the start and at the end.
-		// nextEvent should return an error if the context is canceled, but that feels like a larger refactor.
-		// if it did, we'd only have the select at the end of the loop.
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

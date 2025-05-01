@@ -331,6 +331,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			}
 
 			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
+
 			var (
 				lastErr  error
 				mustExit bool
@@ -379,7 +380,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					mustExit = true
 				case event := <-reinitEvents:
 					logger.Warn(ctx, "agent received instruction to reinitialize",
-						slog.F("message", event.Message), slog.F("reason", event.Reason))
+						slog.F("user_id", event.UserID), slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
 				}
 
 				lastErr = agnt.Close()
