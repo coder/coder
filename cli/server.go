@@ -740,15 +740,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
-				var dbName string
-				dbCfg, err := pgconn.ParseConfig(dbURL)
-				if err != nil {
-					options.Logger.Debug(ctx, "failed to determine database name for stats collection", slog.Error(err))
-					dbName = "coder"
-				} else {
-					dbName = dbCfg.Database
+				if options.DeploymentValues.Prometheus.Enable {
+					var dbName string
+					dbCfg, err := pgconn.ParseConfig(dbURL)
+					if err != nil {
+						options.Logger.Warn(ctx, "failed to determine database name for stats collection; using 'coder' as placeholder", slog.Error(err))
+						dbName = "coder"
+					} else {
+						dbName = dbCfg.Database
+					}
+					options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, dbName))
 				}
-				options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, dbName))
 
 				options.Database = database.New(sqlDB)
 				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
