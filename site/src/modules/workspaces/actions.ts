@@ -34,6 +34,11 @@ export const actionTypes = [
 
 export type ActionType = (typeof actionTypes)[number];
 
+type ActionPermissions = {
+	canDebug: boolean;
+	isOwner: boolean;
+};
+
 type WorkspaceAbilities = {
 	actions: readonly ActionType[];
 	canCancel: boolean;
@@ -42,8 +47,11 @@ type WorkspaceAbilities = {
 
 export const abilitiesByWorkspaceStatus = (
 	workspace: Workspace,
-	canDebug: boolean,
+	permissions: ActionPermissions,
 ): WorkspaceAbilities => {
+	const hasPermissionToCancel =
+		workspace.template_allow_user_cancel_workspace_jobs || permissions.isOwner;
+
 	if (workspace.dormant_at) {
 		return {
 			actions: ["activate"],
@@ -58,7 +66,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "starting": {
 			return {
 				actions: ["starting"],
-				canCancel: true,
+				canCancel: true && hasPermissionToCancel,
 				canAcceptJobs: false,
 			};
 		}
@@ -83,7 +91,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "stopping": {
 			return {
 				actions: ["stopping"],
-				canCancel: true,
+				canCancel: true && hasPermissionToCancel,
 				canAcceptJobs: false,
 			};
 		}
@@ -115,7 +123,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "failed": {
 			const actions: ActionType[] = ["retry"];
 
-			if (canDebug) {
+			if (permissions.canDebug) {
 				actions.push("debug");
 			}
 

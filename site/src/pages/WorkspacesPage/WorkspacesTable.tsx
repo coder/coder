@@ -71,6 +71,7 @@ import {
 } from "api/queries/workspaces";
 import { Spinner } from "components/Spinner/Spinner";
 import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
+import { useAuthenticated } from "hooks";
 
 dayjs.extend(relativeTime);
 
@@ -441,8 +442,13 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	workspace,
 	onActionSuccess,
 }) => {
+	const { user } = useAuthenticated();
+
 	const queryClient = useQueryClient();
-	const abilities = abilitiesByWorkspaceStatus(workspace, false);
+	const abilities = abilitiesByWorkspaceStatus(workspace, {
+		canDebug: false,
+		isOwner: user.roles.find((role) => role.name === "owner") !== undefined,
+	});
 
 	const startWorkspaceOptions = startWorkspace(workspace, queryClient);
 	const startWorkspaceMutation = useMutation({

@@ -35,6 +35,7 @@ import {
 	abilitiesByWorkspaceStatus,
 	type ActionType,
 } from "modules/workspaces/actions";
+import { useAuthenticated } from "hooks/useAuthenticated";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;
@@ -55,7 +56,6 @@ export interface WorkspaceActionsProps {
 	children?: ReactNode;
 	canChangeVersions: boolean;
 	canDebug: boolean;
-	isOwner: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -76,20 +76,19 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isRestarting,
 	canChangeVersions,
 	canDebug,
-	isOwner,
 }) => {
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
 
 	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
+	const { user } = useAuthenticated();
+	const isOwner =
+		user.roles.find((role) => role.name === "owner") !== undefined;
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
-		canDebug,
+		{ canDebug, isOwner },
 	);
-	const showCancel =
-		canCancel &&
-		(workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
 	const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
 	const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
@@ -172,7 +171,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 							<Fragment key={action}>{buttonMapping[action]}</Fragment>
 						))}
 
-			{showCancel && <CancelButton handleAction={handleCancel} />}
+			{canCancel && <CancelButton handleAction={handleCancel} />}
 
 			<FavoriteButton
 				workspaceID={workspace.id}

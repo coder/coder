@@ -59,10 +59,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		throw Error("Workspace is undefined");
 	}
 
-	// Owner
-	const { user: me } = useAuthenticated();
-	const isOwner = me.roles.find((role) => role.name === "owner") !== undefined;
-
 	// Debug mode
 	const { data: deploymentValues } = useQuery({
 		...deploymentConfig(),
@@ -280,7 +276,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
 				template={template}
 				buildLogs={buildLogs}
-				isOwner={isOwner}
 				timings={timingsQuery.data}
 			/>
 
