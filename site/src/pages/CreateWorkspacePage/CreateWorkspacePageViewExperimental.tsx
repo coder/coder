@@ -340,9 +340,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 										Workspace name
 									</Label>
-									<div>
+									<div className="flex flex-col">
 										<Input
 											id={`${id}-workspace-name`}
+											ref={workspaceNameInputRef}
 											value={form.values.name}
 											onChange={(e) => {
 												form.setFieldValue("name", e.target.value.trim());
@@ -350,6 +351,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}}
 											disabled={creatingWorkspace}
 										/>
+										{form.touched.name && form.errors.name && (
+											<div className="text-content-destructive text-xs mt-2">
+												{form.errors.name}
+											</div>
+										)}
 										<div className="flex gap-2 text-xs text-content-secondary items-center">
 											Need a suggestion?
 											<Button
@@ -484,7 +490,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 									return (
 										<DynamicParameter
-											{...getFieldHelpers(parameterInputName)}
 											key={parameter.name}
 											parameter={parameter}
 											onChange={(value) =>
