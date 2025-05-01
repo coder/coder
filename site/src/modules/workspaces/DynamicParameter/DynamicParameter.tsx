@@ -106,7 +106,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="warning">
+										<Badge size="sm" variant="warning" border="none">
 											<TriangleAlert />
 											Immutable
 										</Badge>

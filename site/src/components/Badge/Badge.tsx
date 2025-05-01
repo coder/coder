@@ -26,10 +26,15 @@ const badgeVariants = cva(
 				sm: "text-2xs font-regular h-5.5 [&_svg]:size-icon-xs",
 				md: "text-xs font-medium [&_svg]:size-icon-sm",
 			},
+			border: {
+				none: "border-transparent",
+				solid: "border border-solid",
+			}
 		},
 		defaultVariants: {
 			variant: "default",
 			size: "md",
+			border: "solid",
 		},
 	},
 );
@@ -41,14 +46,14 @@ export interface BadgeProps
 }
 
 export const Badge = forwardRef<HTMLDivElement, BadgeProps>(
-	({ className, variant, size, asChild = false, ...props }, ref) => {
+	({ className, variant, size, border, asChild = false, ...props }, ref) => {
 		const Comp = asChild ? Slot : "div";
 
 		return (
 			<Comp
 				{...props}
 				ref={ref}
-				className={cn(badgeVariants({ variant, size }), className)}
+				className={cn(badgeVariants({ variant, size, border }), className)}
 			/>
 		);
 	},
