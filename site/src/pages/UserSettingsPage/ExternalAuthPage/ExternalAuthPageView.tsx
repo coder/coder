@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -18,16 +17,17 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
-import { Loader } from "components/Loader/Loader";
+import { Button } from "components/Button/Button";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { EllipsisVertical } from "lucide-react";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -178,12 +178,15 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 				</LoadingButton>
 			</TableCell>
 			<TableCell>
-				<MoreMenu>
-					<MoreMenuTrigger>
-						<ThreeDotsButton size="small" disabled={!authenticated} />
-					</MoreMenuTrigger>
-					<MoreMenuContent>
-						<MoreMenuItem
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
+							<EllipsisVertical aria-hidden="true" />
+							<span className="sr-only">Open menu</span>
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
 							onClick={async () => {
 								onValidateExternalAuth();
 								// This is kinda jank. It does a refetch of the thing
@@ -194,19 +197,18 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							}}
 						>
 							Test Validate&hellip;
-						</MoreMenuItem>
-						<Divider />
-						<MoreMenuItem
-							danger
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							className="text-content-destructive focus:text-content-destructive"
 							onClick={async () => {
 								onUnlinkExternalAuth();
 								await refetch();
 							}}
 						>
 							Unlink&hellip;
-						</MoreMenuItem>
-					</MoreMenuContent>
-				</MoreMenu>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</TableCell>
 		</TableRow>
 	);
