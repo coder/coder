@@ -404,14 +404,6 @@ jobs:
           cache-path: "~/.cache/go-cache"
           override-condition: "true"
 
-      - name: Upload test stats to Datadog
-        timeout-minutes: 1
-        continue-on-error: true
-        uses: ./.github/actions/upload-datadog
-        if: success() || failure()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
-
   # We don't run the full test-suite for Windows & MacOS, so we just run the CLI tests on every PR.
   # We run the test suite in test-go-pg, including CLI.
   test-cli:
