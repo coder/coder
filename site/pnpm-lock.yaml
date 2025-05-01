@@ -18,13 +18,13 @@ importers:
     dependencies:
       '@ai-sdk/provider-utils':
         specifier: 2.2.6
-        version: 2.2.6(zod@3.24.2)
+        version: 2.2.6(zod@3.24.3)
       '@ai-sdk/react':
         specifier: 1.2.6
-        version: 1.2.6(react@18.3.1)(zod@3.24.2)
+        version: 1.2.6(react@18.3.1)(zod@3.24.3)
       '@ai-sdk/ui-utils':
         specifier: 1.2.7
-        version: 1.2.7(zod@3.24.2)
+        version: 1.2.7(zod@3.24.3)
       '@emoji-mart/data':
         specifier: 1.2.1
         version: 1.2.1
@@ -6508,6 +6508,11 @@ packages:
   yup@1.6.1:
     resolution: {integrity: sha512-JED8pB50qbA4FOkDol0bYF/p60qSEDQqBD0/qeIrUCG1KbPBIQ776fCUNb9ldbPcSTxA69g/47XTo4TqWiuXOA==, tarball: https://registry.npmjs.org/yup/-/yup-1.6.1.tgz}
 
+  zod-to-json-schema@3.24.5:
+    resolution: {integrity: sha512-/AuWwMP+YqiPbsJx5D6TfgRTc4kTLjsh5SOcd4bLsfUg2RcEXrFMJl1DGgdHy2aCfsIA/cr/1JM0xcB2GZji8g==, tarball: https://registry.npmjs.org/zod-to-json-schema/-/zod-to-json-schema-3.24.5.tgz}
+    peerDependencies:
+      zod: ^3.24.1
+
   zod-validation-error@3.4.0:
     resolution: {integrity: sha512-ZOPR9SVY6Pb2qqO5XHt+MkkTRxGXb4EVtnjc9JpXUOtUB1T9Ru7mZOT361AN3MsetVe7R0a1KZshJDZdgp9miQ==, tarball: https://registry.npmjs.org/zod-validation-error/-/zod-validation-error-3.4.0.tgz}
     engines: {node: '>=18.0.0'}
@@ -6516,13 +6521,6 @@ packages:
 
   zod@3.24.3:
     resolution: {integrity: sha512-HhY1oqzWCQWuUqvBFnsyrtZRhyPeR7SUGv+C4+MsisMuVfSPx8HpwWqH8tRahSlt6M3PiFAcoeFhZAqIXTxoSg==, tarball: https://registry.npmjs.org/zod/-/zod-3.24.3.tgz}
-  zod-to-json-schema@3.24.5:
-    resolution: {integrity: sha512-/AuWwMP+YqiPbsJx5D6TfgRTc4kTLjsh5SOcd4bLsfUg2RcEXrFMJl1DGgdHy2aCfsIA/cr/1JM0xcB2GZji8g==, tarball: https://registry.npmjs.org/zod-to-json-schema/-/zod-to-json-schema-3.24.5.tgz}
-    peerDependencies:
-      zod: ^3.24.1
-
-  zod@3.24.2:
-    resolution: {integrity: sha512-lY7CDW43ECgW9u1TcT3IoXHflywfVqDYze4waEz812jR/bZ8FHDsl7pFQoSZTz5N+2NqRXs8GBwnAwo3ZNxqhQ==, tarball: https://registry.npmjs.org/zod/-/zod-3.24.2.tgz}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==, tarball: https://registry.npmjs.org/zwitch/-/zwitch-2.0.4.tgz}
@@ -6534,19 +6532,19 @@ snapshots:
 
   '@adobe/css-tools@4.4.1': {}
 
-  '@ai-sdk/provider-utils@2.2.4(zod@3.24.2)':
+  '@ai-sdk/provider-utils@2.2.4(zod@3.24.3)':
     dependencies:
       '@ai-sdk/provider': 1.1.0
       nanoid: 3.3.8
       secure-json-parse: 2.7.0
-      zod: 3.24.2
+      zod: 3.24.3
 
-  '@ai-sdk/provider-utils@2.2.6(zod@3.24.2)':
+  '@ai-sdk/provider-utils@2.2.6(zod@3.24.3)':
     dependencies:
       '@ai-sdk/provider': 1.1.2
       nanoid: 3.3.8
       secure-json-parse: 2.7.0
-      zod: 3.24.2
+      zod: 3.24.3
 
   '@ai-sdk/provider@1.1.0':
     dependencies:
@@ -6556,29 +6554,29 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/react@1.2.6(react@18.3.1)(zod@3.24.2)':
+  '@ai-sdk/react@1.2.6(react@18.3.1)(zod@3.24.3)':
     dependencies:
-      '@ai-sdk/provider-utils': 2.2.4(zod@3.24.2)
-      '@ai-sdk/ui-utils': 1.2.5(zod@3.24.2)
+      '@ai-sdk/provider-utils': 2.2.4(zod@3.24.3)
+      '@ai-sdk/ui-utils': 1.2.5(zod@3.24.3)
       react: 18.3.1
       swr: 2.3.3(react@18.3.1)
       throttleit: 2.1.0
     optionalDependencies:
-      zod: 3.24.2
+      zod: 3.24.3
 
-  '@ai-sdk/ui-utils@1.2.5(zod@3.24.2)':
+  '@ai-sdk/ui-utils@1.2.5(zod@3.24.3)':
     dependencies:
       '@ai-sdk/provider': 1.1.0
-      '@ai-sdk/provider-utils': 2.2.4(zod@3.24.2)
-      zod: 3.24.2
-      zod-to-json-schema: 3.24.5(zod@3.24.2)
+      '@ai-sdk/provider-utils': 2.2.4(zod@3.24.3)
+      zod: 3.24.3
+      zod-to-json-schema: 3.24.5(zod@3.24.3)
 
-  '@ai-sdk/ui-utils@1.2.7(zod@3.24.2)':
+  '@ai-sdk/ui-utils@1.2.7(zod@3.24.3)':
     dependencies:
       '@ai-sdk/provider': 1.1.2
-      '@ai-sdk/provider-utils': 2.2.6(zod@3.24.2)
-      zod: 3.24.2
-      zod-to-json-schema: 3.24.5(zod@3.24.2)
+      '@ai-sdk/provider-utils': 2.2.6(zod@3.24.3)
+      zod: 3.24.3
+      zod-to-json-schema: 3.24.5(zod@3.24.3)
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -13489,18 +13487,14 @@ snapshots:
       toposort: 2.0.2
       type-fest: 2.19.0
 
-<<<<<<< HEAD
+  zod-to-json-schema@3.24.5(zod@3.24.3):
+    dependencies:
+      zod: 3.24.3
+
   zod-validation-error@3.4.0(zod@3.24.3):
     dependencies:
       zod: 3.24.3
 
   zod@3.24.3: {}
-=======
-  zod-to-json-schema@3.24.5(zod@3.24.2):
-    dependencies:
-      zod: 3.24.2
-
-  zod@3.24.2: {}
->>>>>>> da5ee701e (Initial chat schema)
 
   zwitch@2.0.4: {}

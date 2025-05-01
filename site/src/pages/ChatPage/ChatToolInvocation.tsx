@@ -7,14 +7,12 @@ import CodeIcon from "@mui/icons-material/Code";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ErrorIcon from "@mui/icons-material/Error";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
-import ListIcon from "@mui/icons-material/List";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
-import TerminalIcon from "@mui/icons-material/Terminal";
-import Avatar from "@mui/material/Avatar";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { InfoIcon } from "lucide-react";
 import type React from "react";
 import { type FC, memo, useMemo, useState } from "react";
@@ -72,7 +70,7 @@ export const ChatToolInvocation: FC<ChatToolInvocationProps> = ({
 				{JSON.stringify(toolInvocation, null, 2)}
 			</SyntaxHighlighter>
 		);
-	}, [toolInvocation]);
+	}, [toolInvocation, theme.shape.borderRadius, theme.spacing]);
 
 	return (
 		<div
@@ -334,11 +332,7 @@ const ChatToolInvocationResultPreview: FC<{
 						gap: theme.spacing(1.5),
 					}}
 				>
-					<Avatar
-						src={user.avatar_url}
-						alt={user.username}
-						sx={{ width: 32, height: 32 }}
-					>
+					<Avatar src={user.avatar_url}>
 						<PersonIcon />
 					</Avatar>
 					<div>
@@ -411,9 +405,6 @@ const ChatToolInvocationResultPreview: FC<{
 		case "coder_get_workspace_build_logs":
 		case "coder_get_template_version_logs": {
 			const logs = toolInvocation.result;
-			if (!logs) {
-				console.log(toolInvocation);
-			}
 			const totalLines = logs.length;
 			const maxLinesToShow = 5;
 			const lastLogs = logs.slice(-maxLinesToShow);
@@ -490,7 +481,7 @@ const ChatToolInvocationResultPreview: FC<{
 			break;
 		case "coder_upload_tar_file":
 			content = (
-				<FilePreview files={toolInvocation.args.files} prefix={`Uploaded!`} />
+				<FilePreview files={toolInvocation.args.files} prefix={"Uploaded!"} />
 			);
 			break;
 		case "coder_create_template": {
@@ -717,11 +708,12 @@ const FilePreview: FC<{ files: Record<string, string>; prefix?: string }> =
 		);
 	});
 
+// TODO: generate these from codersdk/toolsdk.go.
 export type ChatToolInvocation =
 	| ToolInvocation<
 			"coder_get_workspace",
 			{
-				id: string;
+				workspace_id: string;
 			},
 			TypesGen.Workspace
 	  >
@@ -731,7 +723,7 @@ export type ChatToolInvocation =
 				user: string;
 				template_version_id: string;
 				name: string;
-				rich_parameters: Record<string, any>;
+				rich_parameters: Record<string, string>;
 			},
 			TypesGen.Workspace
 	  >
@@ -754,7 +746,7 @@ export type ChatToolInvocation =
 	  >
 	| ToolInvocation<
 			"coder_list_templates",
-			{},
+			Record<string, never>,
 			Pick<
 				TypesGen.Template,
 				| "id"
@@ -771,11 +763,16 @@ export type ChatToolInvocation =
 			},
 			TypesGen.TemplateVersionParameter[]
 	  >
-	| ToolInvocation<"coder_get_authenticated_user", {}, TypesGen.User>
+	| ToolInvocation<
+			"coder_get_authenticated_user",
+			Record<string, never>,
+			TypesGen.User
+	  >
 	| ToolInvocation<
 			"coder_create_workspace_build",
 			{
 				workspace_id: string;
+				template_version_id?: string;
 				transition: "start" | "stop" | "delete";
 			},
 			TypesGen.WorkspaceBuild
@@ -834,7 +831,6 @@ export type ChatToolInvocation =
 	| ToolInvocation<
 			"coder_upload_tar_file",
 			{
-				mime_type: string;
 				files: Record<string, string>;
 			},
 			TypesGen.UploadResponse

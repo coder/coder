@@ -8,7 +8,7 @@ import TextField from "@mui/material/TextField";
 import { createChat } from "api/queries/chats";
 import type { Chat } from "api/typesGenerated";
 import { Margins } from "components/Margins/Margins";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { type FC, type FormEvent, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -35,7 +35,6 @@ export const ChatLanding: FC = () => {
 	const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!input.trim()) return;
-		console.log("Form submitted with input:", input);
 		// Actual submission logic will go elsewhere
 		setInput(""); // Clear input after submit (optional)
 

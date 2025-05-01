@@ -6,7 +6,7 @@ import Select from "@mui/material/Select";
 import { deploymentLanguageModels } from "api/queries/deployment";
 import type { LanguageModel } from "api/typesGenerated"; // Assuming types live here based on project structure
 import { Loader } from "components/Loader/Loader";
-import { ChangeEvent, type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useChatContext } from "./ChatLayout";
 

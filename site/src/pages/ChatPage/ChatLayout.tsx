@@ -8,9 +8,11 @@ import ListItemText from "@mui/material/ListItemText";
 import Paper from "@mui/material/Paper";
 import { createChat, getChats } from "api/queries/chats";
 import { deploymentLanguageModels } from "api/queries/deployment";
-import { Chat, type LanguageModelConfig } from "api/typesGenerated";
+import type { LanguageModelConfig } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { useAgenticChat } from "contexts/useAgenticChat";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -28,7 +30,6 @@ export interface ChatContext {
 
 	setSelectedModel: (model: string) => void;
 }
-
 export const useChatContext = (): ChatContext => {
 	const context = useContext(ChatContext);
 	if (!context) {
@@ -87,6 +88,7 @@ export const ChatProvider: FC<PropsWithChildren> = ({ children }) => {
 };
 
 export const ChatLayout: FC = () => {
+	const agenticChat = useAgenticChat();
 	const queryClient = useQueryClient();
 	const { data: chats, isLoading: chatsLoading } = useQuery(getChats());
 	const createChatMutation = useMutation(createChat(queryClient));
@@ -98,7 +100,27 @@ export const ChatLayout: FC = () => {
 		navigate("/chat");
 	};
 
-	console.log(chats);
+	if (!agenticChat.enabled) {
+		return (
+			<Margins>
+				<div
+					css={{
+						display: "flex",
+						flexDirection: "column",
+						marginTop: "24px",
+						alignItems: "center",
+						paddingBottom: "16px",
+					}}
+				>
+					<h1>Agentic Chat is not enabled</h1>
+					<p>
+						Agentic Chat is an experimental feature and is not enabled by
+						default. Please contact your administrator for more information.
+					</p>
+				</div>
+			</Margins>
+		);
+	}
 
 	return (
 		// Outermost container: controls height and prevents page scroll

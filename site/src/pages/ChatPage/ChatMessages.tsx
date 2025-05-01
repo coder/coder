@@ -2,9 +2,9 @@ import { type Message, useChat } from "@ai-sdk/react";
 import { type Theme, keyframes, useTheme } from "@emotion/react";
 import SendIcon from "@mui/icons-material/Send";
 import IconButton from "@mui/material/IconButton";
-import Paper, { PaperProps } from "@mui/material/Paper";
+import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
-import { getChatMessages, getChats } from "api/queries/chats";
+import { getChatMessages } from "api/queries/chats";
 import type { ChatMessage, CreateChatMessageRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
@@ -17,7 +17,7 @@ import {
 	useRef,
 } from "react";
 import ReactMarkdown from "react-markdown";
-import { useQuery, useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router-dom";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
@@ -43,7 +43,14 @@ const pulseAnimation = keyframes`
 	100% { opacity: 0.6; }
 `;
 
-const renderToolInvocation = (toolInvocation: any, theme: Theme) => (
+const renderToolInvocation = (
+	toolInvocation: {
+		toolName: string;
+		args: unknown;
+		result?: unknown;
+	},
+	theme: Theme,
+) => (
 	<div
 		css={{
 			marginTop: theme.spacing(1),
@@ -89,7 +96,7 @@ const renderToolInvocation = (toolInvocation: any, theme: Theme) => (
 					{JSON.stringify(toolInvocation.args, null, 2)}
 				</div>
 			</div>
-			{toolInvocation.result && (
+			{toolInvocation.result !== null && (
 				<div>
 					Result:
 					<div
@@ -253,12 +260,12 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 			>
 				{message.role === "assistant" && message.parts ? (
 					<div>
-						{message.parts.map((part, partIndex) => {
+						{message.parts.map((part) => {
 							switch (part.type) {
 								case "text":
 									return (
 										<ReactMarkdown
-											key={partIndex}
+											key={message.id}
 											remarkPlugins={[remarkGfm]}
 											rehypePlugins={[rehypeRaw]}
 											css={{
@@ -272,15 +279,17 @@ const MessageBubble: FC<MessageBubbleProps> = memo(({ message }) => {
 									);
 								case "tool-invocation":
 									return (
-										<div key={partIndex}>
+										<div key={message.id}>
 											<ChatToolInvocation
-												toolInvocation={part.toolInvocation as any}
+												toolInvocation={
+													part.toolInvocation as ChatToolInvocation
+												}
 											/>
 										</div>
 									);
 								case "reasoning":
 									return (
-										<div key={partIndex}>
+										<div key={message.id}>
 											{renderReasoning(part.reasoning, theme)}
 										</div>
 									);
@@ -319,11 +328,11 @@ const ChatView: FC<ChatViewProps> = ({
 	handleInputChange,
 	handleSubmit,
 	isLoading,
-	chatID,
 }) => {
 	const theme = useTheme();
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const chatContext = useChatContext();
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -333,11 +342,11 @@ const ChatView: FC<ChatViewProps> = ({
 			});
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [messages, isLoading]);
+	}, []);
 
 	useEffect(() => {
 		inputRef.current?.focus();
-	}, [chatID]);
+	}, []);
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (event.key === "Enter" && !event.shiftKey) {
@@ -372,8 +381,8 @@ const ChatView: FC<ChatViewProps> = ({
 						gap: theme.spacing(3),
 					}}
 				>
-					{messages.map((message, index) => (
-						<MessageBubble key={`message-${index}`} message={message} />
+					{messages.map((message) => (
+						<MessageBubble key={`message-${message.id}`} message={message} />
 					))}
 					<div ref={messagesEndRef} />
 				</div>
@@ -420,6 +429,7 @@ const ChatView: FC<ChatViewProps> = ({
 					<TextField
 						inputRef={inputRef}
 						value={input}
+						disabled={isLoading || chatContext.selectedModel === ""}
 						onChange={handleInputChange}
 						onKeyDown={handleKeyDown}
 						placeholder="Ask Coder..."
@@ -438,7 +448,9 @@ const ChatView: FC<ChatViewProps> = ({
 					<IconButton
 						type="submit"
 						color="primary"
-						disabled={!input.trim() || isLoading}
+						disabled={
+							!input.trim() || isLoading || chatContext.selectedModel === ""
+						}
 						css={{
 							alignSelf: "flex-end",
 							marginBottom: theme.spacing(0.5),
@@ -464,7 +476,7 @@ export const ChatMessages: FC = () => {
 	}
 
 	const { state } = useLocation();
-	const transferedState = state as ChatLandingLocationState | undefined;
+	const transferredState = state as ChatLandingLocationState | undefined;
 
 	const messagesQuery = useQuery<ChatMessage[], Error>(getChatMessages(chatID));
 
@@ -473,7 +485,7 @@ export const ChatMessages: FC = () => {
 	const {
 		messages,
 		input,
-		handleInputChange: originalHandleInputChange,
+		handleInputChange,
 		handleSubmit: originalHandleSubmit,
 		isLoading,
 		setInput,
@@ -492,7 +504,7 @@ export const ChatMessages: FC = () => {
 				thinking: false,
 			};
 		},
-		initialInput: transferedState?.message,
+		initialInput: transferredState?.message,
 		initialMessages: messagesQuery.data as Message[] | undefined,
 	});
 
@@ -502,11 +514,6 @@ export const ChatMessages: FC = () => {
 			setMessages(messagesQuery.data as Message[]);
 		}
 	}, [messagesQuery.data, messages.length, setMessages]);
-
-	// Wrap handlers in useCallback
-	const handleInputChange = useCallback(originalHandleInputChange, [
-		originalHandleInputChange,
-	]);
 
 	const handleSubmitCallback = useCallback(
 		(e?: React.FormEvent<HTMLFormElement>) => {
@@ -520,7 +527,7 @@ export const ChatMessages: FC = () => {
 
 	// Clear input and potentially submit on initial load with message
 	useEffect(() => {
-		if (transferedState?.message && input === transferedState.message) {
+		if (transferredState?.message && input === transferredState.message) {
 			// Prevent submitting if messages already exist (e.g., browser back/forward)
 			if (messages.length === (messagesQuery.data?.length ?? 0)) {
 				handleSubmitCallback(); // Use the correct callback name
@@ -529,7 +536,7 @@ export const ChatMessages: FC = () => {
 			window.history.replaceState({}, document.title);
 		}
 	}, [
-		transferedState?.message,
+		transferredState?.message,
 		input,
 		handleSubmitCallback,
 		messages.length,
@@ -537,10 +544,10 @@ export const ChatMessages: FC = () => {
 	]); // Use the correct callback name
 
 	useEffect(() => {
-		if (transferedState?.message) {
+		if (transferredState?.message) {
 			// Logic potentially related to transferedState can go here if needed,
 		}
-	}, [transferedState?.message]);
+	}, [transferredState?.message]);
 
 	if (messagesQuery.error) {
 		return <ErrorAlert error={messagesQuery.error} />;

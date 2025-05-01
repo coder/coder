@@ -24,7 +24,7 @@ export const GetWorkspace: Story = {
 		renderInvocations(
 			"coder_get_workspace",
 			{
-				id: MockWorkspace.id,
+				workspace_id: MockWorkspace.id,
 			},
 			MockWorkspace,
 		),
@@ -207,7 +207,6 @@ export const UploadTarFile: Story = {
 		renderInvocations(
 			"coder_upload_tar_file",
 			{
-				mime_type: "application/x-tar",
 				files: { "main.tf": templateTerraform, Dockerfile: templateDockerfile },
 			},
 			{
@@ -272,40 +271,48 @@ const renderInvocations = <T extends ChatToolInvocation["toolName"]>(
 	return (
 		<>
 			<ChatToolInvocation
-				toolInvocation={{
-					toolCallId: "call",
-					toolName,
-					args: args as any,
-					state: "call",
-				}}
+				toolInvocation={
+					{
+						toolCallId: "call",
+						toolName,
+						args,
+						state: "call",
+					} as ChatToolInvocation
+				}
 			/>
 			<ChatToolInvocation
-				toolInvocation={{
-					toolCallId: "partial-call",
-					toolName,
-					args: args as any,
-					state: "partial-call",
-				}}
+				toolInvocation={
+					{
+						toolCallId: "partial-call",
+						toolName,
+						args,
+						state: "partial-call",
+					} as ChatToolInvocation
+				}
 			/>
 			<ChatToolInvocation
-				toolInvocation={{
-					toolCallId: "result",
-					toolName,
-					args: args as any,
-					state: "result",
-					result: result as any,
-				}}
+				toolInvocation={
+					{
+						toolCallId: "result",
+						toolName,
+						args,
+						state: "result",
+						result,
+					} as ChatToolInvocation
+				}
 			/>
 			<ChatToolInvocation
-				toolInvocation={{
-					toolCallId: "result",
-					toolName,
-					args: args as any,
-					state: "result",
-					result: {
-						error: error || "Something bad happened!",
-					},
-				}}
+				toolInvocation={
+					{
+						toolCallId: "result",
+						toolName,
+						args,
+						state: "result",
+						result: {
+							error: error || "Something bad happened!",
+						},
+					} as ChatToolInvocation
+				}
 			/>
 		</>
 	);
@@ -398,7 +405,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/src
 
 # alpine:3.18
-FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto 
+FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
