@@ -31,7 +31,10 @@ import {
 import { DebugButton } from "./DebugButton";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
-import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
+import {
+	abilitiesByWorkspaceStatus,
+	type ActionType,
+} from "modules/workspaces/actions";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;

@@ -7,6 +7,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
+	WorkspaceBuild,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -47,6 +48,24 @@ import {
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
+import { BanIcon, PlayIcon, RefreshCcwIcon, SquareIcon } from "lucide-react";
+import { Button } from "components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { useMutation, useQueryClient } from "react-query";
+import {
+	cancelBuild,
+	deleteWorkspace,
+	startWorkspace,
+	stopWorkspace,
+	updateWorkspace,
+} from "api/queries/workspaces";
+import { Spinner } from "components/Spinner/Spinner";
+import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 
 dayjs.extend(relativeTime);
 
@@ -60,6 +79,7 @@ export interface WorkspacesTableProps {
 	canCheckWorkspaces: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	onActionSuccess: () => Promise<void>;
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -71,6 +91,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	canCheckWorkspaces,
 	templates,
 	canCreateTemplate,
+	onActionSuccess,
 }) => {
 	const dashboard = useDashboard();
 	const workspaceIDToAppByStatus = useMemo(() => {
@@ -260,12 +281,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
-
-							<TableCell>
-								<div className="flex pl-4">
-									<KeyboardArrowRight className="text-content-secondary w-5 h-5" />
-								</div>
-							</TableCell>
+							<WorkspaceActionsCell
+								workspace={workspace}
+								onActionSuccess={onActionSuccess}
+							/>
 						</WorkspacesRow>
 					);
 				})}
@@ -289,7 +308,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 
 	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
-	const clickableProps = useClickableTableRow({
+	const { role, hover, ...clickableProps } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
 		onClick: (event) => {
 			// Order of booleans actually matters here for Windows-Mac compatibility;
@@ -396,6 +415,201 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 					{lastUsedMessage(workspace.last_used_at)}
 				</span>
 			</div>
+		</TableCell>
+	);
+};
+
+type WorkspaceActionsCellProps = {
+	workspace: Workspace;
+	onActionSuccess: () => Promise<void>;
+};
+
+const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
+	workspace,
+	onActionSuccess,
+}) => {
+	const queryClient = useQueryClient();
+	const abilities = abilitiesByWorkspaceStatus(workspace, false);
+
+	const startWorkspaceOptions = startWorkspace(workspace, queryClient);
+	const startWorkspaceMutation = useMutation({
+		...startWorkspaceOptions,
+		onSuccess: async (build) => {
+			startWorkspaceOptions.onSuccess(build);
+			await onActionSuccess();
+		},
+	});
+
+	const stopWorkspaceOptions = stopWorkspace(workspace, queryClient);
+	const stopWorkspaceMutation = useMutation({
+		...stopWorkspaceOptions,
+		onSuccess: async (build) => {
+			stopWorkspaceOptions.onSuccess(build);
+			await onActionSuccess();
+		},
+	});
+
+	const cancelJobOptions = cancelBuild(workspace, queryClient);
+	const cancelBuildMutation = useMutation({
+		...cancelJobOptions,
+		onSuccess: async () => {
+			cancelJobOptions.onSuccess();
+			await onActionSuccess();
+		},
+	});
+
+	const updateWorkspaceOptions = updateWorkspace(workspace, queryClient);
+	const updateWorkspaceMutation = useMutation({
+		...updateWorkspaceOptions,
+		onSuccess: async (build) => {
+			updateWorkspaceOptions.onSuccess(build);
+			await onActionSuccess();
+		},
+	});
+
+	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
+	const deleteWorkspaceMutation = useMutation({
+		...deleteWorkspaceOptions,
+		onSuccess: async (build) => {
+			deleteWorkspaceOptions.onSuccess(build);
+			await onActionSuccess();
+		},
+	});
+
+	const isRetrying =
+		updateWorkspaceMutation.isLoading ||
+		deleteWorkspaceMutation.isLoading ||
+		startWorkspaceMutation.isLoading;
+	const retry = () => {
+		switch (workspace.latest_build.transition) {
+			case "start":
+				startWorkspaceMutation.mutate({});
+				break;
+			case "stop":
+				stopWorkspaceMutation.mutate({});
+				break;
+			case "delete":
+				deleteWorkspaceMutation.mutate({});
+				break;
+		}
+	};
+
+	return (
+		<TableCell>
+			{abilities.actions.includes("start") && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon-lg"
+								onClick={(e) => {
+									e.stopPropagation();
+									startWorkspaceMutation.mutate({});
+								}}
+							>
+								<Spinner loading={startWorkspaceMutation.isLoading}>
+									<PlayIcon />
+								</Spinner>
+								<span className="sr-only">Start workspace</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Start workspace</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+
+			{abilities.actions.includes("updateAndStart") && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon-lg"
+								onClick={(e) => {
+									e.stopPropagation();
+									updateWorkspaceMutation.mutate(undefined);
+								}}
+							>
+								<Spinner loading={startWorkspaceMutation.isLoading}>
+									<PlayIcon />
+								</Spinner>
+								<span className="sr-only">Update and start workspace</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Update and start workspace</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+
+			{abilities.actions.includes("stop") && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon-lg"
+								onClick={(e) => {
+									e.stopPropagation();
+									stopWorkspaceMutation.mutate({});
+								}}
+							>
+								<Spinner loading={stopWorkspaceMutation.isLoading}>
+									<SquareIcon />
+								</Spinner>
+								<span className="sr-only">Stop workspace</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Stop workspace</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+
+			{abilities.canCancel && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon-lg"
+								onClick={(e) => {
+									e.stopPropagation();
+									cancelBuildMutation.mutate();
+								}}
+							>
+								<Spinner loading={cancelBuildMutation.isLoading}>
+									<BanIcon />
+								</Spinner>
+								<span className="sr-only">Cancel current job</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Cancel current job</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+
+			{abilities.actions.includes("retry") && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon-lg"
+								onClick={(e) => {
+									e.stopPropagation();
+									retry();
+								}}
+							>
+								<Spinner loading={isRetrying}>
+									<RefreshCcwIcon />
+								</Spinner>
+								<span className="sr-only">Retry</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Retry</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
 		</TableCell>
 	);
 };

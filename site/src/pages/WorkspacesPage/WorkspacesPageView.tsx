@@ -6,7 +6,7 @@ import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
 import { hasError, isApiValidationError } from "api/errors";
-import type { Template, Workspace } from "api/typesGenerated";
+import type { Template, Workspace, WorkspaceBuild } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -65,6 +65,7 @@ export interface WorkspacesPageViewProps {
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
 	canChangeVersions: boolean;
+	onActionSuccess: () => Promise<void>;
 }
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
@@ -88,6 +89,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	templatesFetchStatus,
 	canCreateTemplate,
 	canChangeVersions,
+	onActionSuccess,
 }) => {
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which does
 	// not exist. In this case, the page is not valid and we want to show a better
@@ -221,6 +223,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}
 					templates={templates}
+					onActionSuccess={onActionSuccess}
 				/>
 			)}
 
