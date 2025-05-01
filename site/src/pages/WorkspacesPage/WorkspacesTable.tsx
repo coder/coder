@@ -38,7 +38,12 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { type FC, type ReactNode, useMemo } from "react";
+import {
+	type FC,
+	type PropsWithChildren,
+	type ReactNode,
+	useMemo,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
@@ -506,119 +511,92 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	return (
 		<TableCell>
 			{abilities.actions.includes("start") && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon-lg"
-								onClick={(e) => {
-									e.stopPropagation();
-									startWorkspaceMutation.mutate({});
-								}}
-							>
-								<Spinner loading={startWorkspaceMutation.isLoading}>
-									<PlayIcon />
-								</Spinner>
-								<span className="sr-only">Start workspace</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Start workspace</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<PrimaryAction
+					onClick={() => startWorkspaceMutation.mutate({})}
+					isLoading={startWorkspaceMutation.isLoading}
+					label="Start workspace"
+				>
+					<PlayIcon />
+				</PrimaryAction>
 			)}
 
 			{abilities.actions.includes("updateAndStart") && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon-lg"
-								onClick={(e) => {
-									e.stopPropagation();
-									updateWorkspaceMutation.mutate(undefined);
-								}}
-							>
-								<Spinner loading={startWorkspaceMutation.isLoading}>
-									<PlayIcon />
-								</Spinner>
-								<span className="sr-only">Update and start workspace</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Update and start workspace</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<PrimaryAction
+					onClick={() => {
+						updateWorkspaceMutation.mutate(undefined);
+					}}
+					isLoading={updateWorkspaceMutation.isLoading}
+					label="Update and start workspace"
+				>
+					<PlayIcon />
+				</PrimaryAction>
 			)}
 
 			{abilities.actions.includes("stop") && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon-lg"
-								onClick={(e) => {
-									e.stopPropagation();
-									stopWorkspaceMutation.mutate({});
-								}}
-							>
-								<Spinner loading={stopWorkspaceMutation.isLoading}>
-									<SquareIcon />
-								</Spinner>
-								<span className="sr-only">Stop workspace</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Stop workspace</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<PrimaryAction
+					onClick={() => {
+						stopWorkspaceMutation.mutate({});
+					}}
+					isLoading={stopWorkspaceMutation.isLoading}
+					label="Stop workspace"
+				>
+					<SquareIcon />
+				</PrimaryAction>
 			)}
 
 			{abilities.canCancel && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon-lg"
-								onClick={(e) => {
-									e.stopPropagation();
-									cancelBuildMutation.mutate();
-								}}
-							>
-								<Spinner loading={cancelBuildMutation.isLoading}>
-									<BanIcon />
-								</Spinner>
-								<span className="sr-only">Cancel current job</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Cancel current job</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<PrimaryAction
+					onClick={cancelBuildMutation.mutate}
+					isLoading={cancelBuildMutation.isLoading}
+					label="Cancel build"
+				>
+					<BanIcon />
+				</PrimaryAction>
 			)}
 
 			{abilities.actions.includes("retry") && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon-lg"
-								onClick={(e) => {
-									e.stopPropagation();
-									retry();
-								}}
-							>
-								<Spinner loading={isRetrying}>
-									<RefreshCcwIcon />
-								</Spinner>
-								<span className="sr-only">Retry</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Retry</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<PrimaryAction
+					onClick={retry}
+					isLoading={isRetrying}
+					label="Retry build"
+				>
+					<RefreshCcwIcon />
+				</PrimaryAction>
 			)}
 		</TableCell>
+	);
+};
+
+type PrimaryActionProps = PropsWithChildren<{
+	onClick: () => void;
+	isLoading: boolean;
+	label: string;
+}>;
+
+const PrimaryAction: FC<PrimaryActionProps> = ({
+	onClick,
+	isLoading,
+	label,
+	children,
+}) => {
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						variant="outline"
+						size="icon-lg"
+						onClick={(e) => {
+							e.stopPropagation();
+							onClick();
+						}}
+					>
+						<Spinner loading={isLoading}>{children}</Spinner>
+						<span className="sr-only">{label}</span>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
