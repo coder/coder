@@ -277,7 +277,10 @@ const updateWorkspaceBuild = async (
 		build.workspace_owner_name,
 		build.workspace_name,
 	);
-	const previousData = queryClient.getQueryData(workspaceKey) as Workspace;
+	const previousData = queryClient.getQueryData<Workspace>(workspaceKey);
+	if (!previousData) {
+		return;
+	}
 
 	// Check if the build returned is newer than the previous build that could be
 	// updated from web socket
