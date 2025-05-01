@@ -539,6 +539,33 @@ func TestWithCleanContext(t *testing.T) {
 	})
 }
 
+func TestToolSchemaFields(t *testing.T) {
+	t.Parallel()
+
+	// Test that all tools have the required Schema fields (Properties and Required)
+	for _, tool := range toolsdk.All {
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			t.Parallel()
+
+			// Check that Properties is not nil
+			require.NotNil(t, tool.Tool.Schema.Properties,
+				"Tool %q missing Schema.Properties", tool.Tool.Name)
+
+			// Check that Required is not nil
+			require.NotNil(t, tool.Tool.Schema.Required,
+				"Tool %q missing Schema.Required", tool.Tool.Name)
+
+			// Ensure Properties has entries for all required fields
+			for _, requiredField := range tool.Tool.Schema.Required {
+				_, exists := tool.Tool.Schema.Properties[requiredField]
+				require.True(t, exists,
+					"Tool %q requires field %q but it is not defined in Properties",
+					tool.Tool.Name, requiredField)
+			}
+		})
+	}
+}
+
 // TestMain runs after all tests to ensure that all tools in this package have
 // been tested once.
 func TestMain(m *testing.M) {
