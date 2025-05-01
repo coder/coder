@@ -5,12 +5,17 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import { SelectFilter } from "components/Filter/SelectFilter";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Pill } from "components/Pill/Pill";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
@@ -153,11 +158,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "" },
+		{ label: "None", value: "None" },
 	]);
 	useEffect(() => {
 		setPresetOptions([
-			{ label: "None", value: "" },
+			{ label: "None", value: "None" },
 			...presets.map((preset) => ({
 				label: preset.Name,
 				value: preset.ID,
@@ -421,7 +426,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					)}
 
 					{parameters.length > 0 && (
-						<section className="flex flex-col gap-6">
+						<section className="flex flex-col gap-9">
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">Parameters</h2>
 								<p className="text-sm text-content-secondary m-0">
@@ -429,30 +434,39 @@ export const CreateWorkspacePageViewExperimental: FC<
 									parameters cannot be modified once the workspace is created.
 								</p>
 							</hgroup>
-							<Diagnostics diagnostics={diagnostics} />
+							{diagnostics.length > 0 && (
+								<Diagnostics diagnostics={diagnostics} />
+							)}
 							{presets.length > 0 && (
-								<Stack direction="column" spacing={2}>
-									<div className="flex flex-col gap-2">
-										<div className="flex gap-2 items-center">
-											<Label className="text-sm">Preset</Label>
-											<FeatureStageBadge contentType={"beta"} size="md" />
-										</div>
-										<div className="flex">
-											<SelectFilter
-												label="Preset"
-												options={presetOptions}
-												onSelect={(option) => {
+								<div className="flex flex-col gap-2">
+									<div className="flex gap-2 items-center">
+										<Label className="text-sm">Preset</Label>
+										<FeatureStageBadge contentType={"beta"} size="md" />
+									</div>
+									<div className="flex flex-col gap-4">
+										<div className="max-w-lg">
+											<Select
+												onValueChange={(option) => {
 													const index = presetOptions.findIndex(
-														(preset) => preset.value === option?.value,
+														(preset) => preset.value === option,
 													);
 													if (index === -1) {
 														return;
 													}
 													setSelectedPresetIndex(index);
 												}}
-												placeholder="Select a preset"
-												selectedOption={presetOptions[selectedPresetIndex]}
-											/>
+											>
+												<SelectTrigger>
+													<SelectValue placeholder={"Select a preset"} />
+												</SelectTrigger>
+												<SelectContent>
+													{presetOptions.map((option) => (
+														<SelectItem key={option.value} value={option.value}>
+															{option.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
 										</div>
 										<span className="flex items-center gap-3">
 											<Switch
@@ -465,7 +479,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 											</Label>
 										</span>
 									</div>
-								</Stack>
+								</div>
 							)}
 
 							<div className="flex flex-col gap-9">
