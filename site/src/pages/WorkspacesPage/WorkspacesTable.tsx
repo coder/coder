@@ -533,7 +533,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 	return (
 		<TableCell>
-			<div className="flex gap-1">
+			<div className="flex gap-1 justify-end">
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
