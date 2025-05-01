@@ -61,7 +61,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	cancelBuild,
 	deleteWorkspace,
@@ -72,6 +72,11 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import { useAuthenticated } from "hooks";
+import {
+	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
+} from "modules/workspaces/useWorkspaceUpdate";
+import { templateVersion } from "api/queries/templates";
 
 dayjs.extend(relativeTime);
 
@@ -485,13 +490,14 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
-	const updateWorkspaceOptions = updateWorkspace(workspace, queryClient);
-	const updateWorkspaceMutation = useMutation({
-		...updateWorkspaceOptions,
-		onSuccess: async (build) => {
-			updateWorkspaceOptions.onSuccess(build);
-			await onActionSuccess();
-		},
+	const { data: latestVersion } = useQuery({
+		...templateVersion(workspace.template_active_version_id),
+		enabled: workspace.outdated,
+	});
+	const workspaceUpdate = useWorkspaceUpdate({
+		workspace,
+		latestVersion,
+		onSuccess: onActionSuccess,
 		onError: onActionError,
 	});
 
@@ -537,15 +543,18 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			)}
 
 			{abilities.actions.includes("updateAndStart") && (
-				<PrimaryAction
-					onClick={() => {
-						updateWorkspaceMutation.mutate(undefined);
-					}}
-					isLoading={updateWorkspaceMutation.isLoading}
-					label="Update and start workspace"
-				>
-					<PlayIcon />
-				</PrimaryAction>
+				<>
+					<PrimaryAction
+						onClick={() => {
+							workspaceUpdate.update(false);
+						}}
+						isLoading={workspaceUpdate.isUpdating}
+						label="Update and start workspace"
+					>
+						<PlayIcon />
+					</PrimaryAction>
+					<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+				</>
 			)}
 
 			{abilities.actions.includes("stop") && (
