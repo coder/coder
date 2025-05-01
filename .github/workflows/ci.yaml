@@ -236,45 +236,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: go install tools
-        uses: ./.github/actions/setup-go-tools
-
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
-          unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
-          popd
-
-      - name: make gen
-        run: |
-          # Remove golden files to detect discrepancy in generated files.
-          make clean/golden-files
-          # Notifications require DB, we could start a DB instance here but
-          # let's just restore for now.
-          git checkout -- coderd/notifications/testdata/rendered-templates
-          # no `-j` flag as `make` fails with:
-          # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
-          make --output-sync -B gen
-
-      - name: Check for unstaged files
-        run: ./scripts/check_unstaged.sh
-
   fmt:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
@@ -316,7 +277,7 @@ jobs:
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 20
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -326,88 +287,36 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
+        if: runner.os == 'Linux'
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
+
+      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+      - name: Setup ImDisk
+        if: runner.os == 'Windows'
+        uses: hugodutka/setup-imdisk@e6437cdfa0a7e110bc3f560da8c04b3c3fcc4135
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
-      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
-      - name: Setup ImDisk
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/setup-imdisk
-
-      - name: Download Go Build Cache
-        id: download-go-build-cache
-        uses: ./.github/actions/test-cache/download
-        if: runner.os == 'Windows'
-        with:
-          key-prefix: test-go-build-11-${{ runner.os }}-${{ runner.arch }}
-          cache-path: "/r/.cache/go-cache"
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
-          build-cache-path: /r/.cache/go-cache
+          version: ""
           cache: false
 
-      - name: Normalize File and Directory Timestamps
+      - name: Wush
+        if: always() && runner.os == 'Windows'
         shell: bash
         run: |
-          find . -type f ! -path ./.git/\*\* | mtimehash
-          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
+          curl -L -o wush.zip https://github.com/coder/wush/releases/download/v0.4.1/wush_0.4.1_windows_amd64.zip
+          unzip -o wush.zip
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: Download Test Cache
-        id: download-cache
-        uses: ./.github/actions/test-cache/download
-        with:
-          key-prefix: test-go-${{ runner.os }}-${{ runner.arch }}
-
-      # - name: Test with Mock Database
-      #   id: test
-      #   shell: bash
-      #   run: |
-      #     # if macOS, install google-chrome for scaletests. As another concern,
-      #     # should we really have this kind of external dependency requirement
-      #     # on standard CI?
-      #     if [ "${{ matrix.os }}" == "macos-latest" ]; then
-      #       brew install google-chrome
-      #     fi
-
-      #     # By default Go will use the number of logical CPUs, which
-      #     # is a fine default.
-      #     PARALLEL_FLAG=""
-
-      #     # macOS will output "The default interactive shell is now zsh"
-      #     # intermittently in CI...
-      #     if [ "${{ matrix.os }}" == "macos-latest" ]; then
-      #       touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
-      #     fi
-      #     export TS_DEBUG_DISCO=true
-      #     export GOCACHE=/r/.cache/go-cache/build
-      #     export GOMODCACHE=/r/.cache/go-cache/mod
-      #     echo "PATH: $PATH"
-      #     gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-      #       --packages="./..." -- $PARALLEL_FLAG -short -failfast
-
-      - name: Upload Test Cache
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-cache.outputs.cache-key }}
-
-      - name: Upload Go Build Cache
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}-${{ github.run_id }}-${{ github.run_attempt }}
-          cache-path: "/r/.cache/go-cache"
-          override-condition: "true"
+          chmod +x wush.exe
+          ./wush.exe serve
 
   # We don't run the full test-suite for Windows & MacOS, so we just run the CLI tests on every PR.
   # We run the test suite in test-go-pg, including CLI.

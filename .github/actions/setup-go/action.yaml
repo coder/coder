@@ -20,27 +20,27 @@ runs:
       with:
         go-version: ${{ inputs.version }}
         cache: ${{ inputs.cache }}
-    - name: Install gotestsum and mtimehash
-      shell: bash
-      run: |
-        export BUILD_CACHE_PATH=${{ inputs.build-cache-path }}
-        if [ -n "${BUILD_CACHE_PATH}" ]; then
-          mkdir -p "${BUILD_CACHE_PATH}"
-          export GOCACHE="${BUILD_CACHE_PATH}/build"
-          export GOMODCACHE="${BUILD_CACHE_PATH}/mod"
-        fi
-        go install gotest.tools/gotestsum@latest
-        go install github.com/slsyy/mtimehash/cmd/mtimehash@latest
+    # - name: Install gotestsum and mtimehash
+    #   shell: bash
+    #   run: |
+    #     export BUILD_CACHE_PATH=${{ inputs.build-cache-path }}
+    #     if [ -n "${BUILD_CACHE_PATH}" ]; then
+    #       mkdir -p "${BUILD_CACHE_PATH}"
+    #       export GOCACHE="${BUILD_CACHE_PATH}/build"
+    #       export GOMODCACHE="${BUILD_CACHE_PATH}/mod"
+    #     fi
+    #     go install gotest.tools/gotestsum@latest
+    #     go install github.com/slsyy/mtimehash/cmd/mtimehash@latest
 
-    # It isn't necessary that we ever do this, but it helps
-    # separate the "setup" from the "run" times.
-    - name: go mod download
-      shell: bash
-      run: |
-        export BUILD_CACHE_PATH=${{ inputs.build-cache-path }}
-        if [ -n "${BUILD_CACHE_PATH}" ]; then
-          mkdir -p "${BUILD_CACHE_PATH}"
-          export GOCACHE="${BUILD_CACHE_PATH}/build"
-          export GOMODCACHE="${BUILD_CACHE_PATH}/mod"
-        fi
-        go mod download -x
+    # # It isn't necessary that we ever do this, but it helps
+    # # separate the "setup" from the "run" times.
+    # - name: go mod download
+    #   shell: bash
+    #   run: |
+    #     export BUILD_CACHE_PATH=${{ inputs.build-cache-path }}
+    #     if [ -n "${BUILD_CACHE_PATH}" ]; then
+    #       mkdir -p "${BUILD_CACHE_PATH}"
+    #       export GOCACHE="${BUILD_CACHE_PATH}/build"
+    #       export GOMODCACHE="${BUILD_CACHE_PATH}/mod"
+    #     fi
+    #     go mod download -x
