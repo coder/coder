@@ -29,7 +29,7 @@ const badgeVariants = cva(
 			border: {
 				none: "border-transparent",
 				solid: "border border-solid",
-			}
+			},
 		},
 		defaultVariants: {
 			variant: "default",
