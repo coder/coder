@@ -4,7 +4,12 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { BannerConfig } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "components/DropdownMenu/DropdownMenu";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 
@@ -46,19 +51,13 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 			<TableCell>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button
-							size="icon-lg"
-							variant="subtle"
-							aria-label="Open menu"
-						>
+						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
 							<EllipsisVertical aria-hidden="true" />
 							<span className="sr-only">Open menu</span>
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem
-							onClick={() => onEdit()}
-						>
+						<DropdownMenuItem onClick={() => onEdit()}>
 							Edit&hellip;
 						</DropdownMenuItem>
 						<DropdownMenuItem
