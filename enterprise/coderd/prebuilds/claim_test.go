@@ -329,8 +329,8 @@ func TestClaimPrebuild(t *testing.T) {
 			require.NoError(t, err)
 
 			stopBuild, err := userClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID:   version.ID,
-				Transition:          codersdk.WorkspaceTransitionStop,
+				TemplateVersionID: version.ID,
+				Transition:        codersdk.WorkspaceTransitionStop,
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, stopBuild.ID)
