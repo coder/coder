@@ -404,13 +404,13 @@ This feature allows template authors to create more interactive and responsive w
 
 To use Dynamic Parameters, enable the experiment flag or set the environment variable:
 
-## Flag
+#### Flag
 
 ```shell
 coder server --experiments=dynamic-parameters
 ```
 
-## Env Variable
+#### Env Variable
 
 ```shell
 CODER_EXPERIMENTS=dynamic-parameters
