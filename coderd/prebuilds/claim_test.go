@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -44,13 +43,8 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		err = publisher.PublishWorkspaceClaim(claim)
 		require.NoError(t, err)
 
-		// Verify the message was published
-		select {
-		case gotUserID := <-userIDCh:
-			require.Equal(t, userID, gotUserID)
-		case <-time.After(testutil.WaitShort):
-			t.Fatal("timeout waiting for claim")
-		}
+		gotUserID := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, userIDCh)
+		require.Equal(t, userID, gotUserID)
 	})
 
 	t.Run("fail to publish claim", func(t *testing.T) {
@@ -66,7 +60,7 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		}
 
 		err := publisher.PublishWorkspaceClaim(claim)
-		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to trigger prebuilt workspace reinitialization")
 	})
 }
 
@@ -88,7 +82,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		// Channel should be closed immediately due to context cancellation
 		select {
 		case _, ok := <-claims:
-			assert.False(t, ok)
+			require.False(t, ok)
 		case <-time.After(testutil.WaitShort):
 			t.Fatal("timeout waiting for closed channel")
 		}
@@ -106,7 +100,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		cancelFunc()
 		select {
 		case _, ok := <-claims:
-			assert.False(t, ok)
+			require.False(t, ok)
 		case <-time.After(testutil.WaitShort):
 			t.Fatal("timeout waiting for closed channel")
 		}
@@ -132,9 +126,9 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		// Verify we receive the claim
 		select {
 		case claim := <-claims:
-			assert.Equal(t, userID, claim.UserID)
-			assert.Equal(t, workspaceID, claim.WorkspaceID)
-			assert.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, claim.Reason)
+			require.Equal(t, userID, claim.UserID)
+			require.Equal(t, workspaceID, claim.WorkspaceID)
+			require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, claim.Reason)
 		case <-time.After(time.Second):
 			t.Fatal("timeout waiting for claim")
 		}
@@ -173,8 +167,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
 		_, _, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to subscribe to prebuild claimed channel")
+		require.ErrorContains(t, err, "failed to subscribe to prebuild claimed channel")
 	})
 }
 

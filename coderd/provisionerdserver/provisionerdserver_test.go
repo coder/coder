@@ -1832,7 +1832,7 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 				defer cancel()
 
-				// WHEN the jop is completed
+				// WHEN the job is completed
 
 				completedJob := proto.CompletedJob{
 					JobId: job.ID.String(),
