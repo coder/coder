@@ -530,62 +530,64 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 	return (
 		<TableCell>
-			{abilities.actions.includes("start") && (
-				<PrimaryAction
-					onClick={() => startWorkspaceMutation.mutate({})}
-					isLoading={startWorkspaceMutation.isLoading}
-					label="Start workspace"
-				>
-					<PlayIcon />
-				</PrimaryAction>
-			)}
-
-			{abilities.actions.includes("updateAndStart") && (
-				<>
+			<div className="flex gap-1">
+				{abilities.actions.includes("start") && (
 					<PrimaryAction
-						onClick={() => {
-							workspaceUpdate.update(false);
-						}}
-						isLoading={workspaceUpdate.isUpdating}
-						label="Update and start workspace"
+						onClick={() => startWorkspaceMutation.mutate({})}
+						isLoading={startWorkspaceMutation.isLoading}
+						label="Start workspace"
 					>
 						<PlayIcon />
 					</PrimaryAction>
-					<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
-				</>
-			)}
+				)}
 
-			{abilities.actions.includes("stop") && (
-				<PrimaryAction
-					onClick={() => {
-						stopWorkspaceMutation.mutate({});
-					}}
-					isLoading={stopWorkspaceMutation.isLoading}
-					label="Stop workspace"
-				>
-					<SquareIcon />
-				</PrimaryAction>
-			)}
+				{abilities.actions.includes("updateAndStart") && (
+					<>
+						<PrimaryAction
+							onClick={() => {
+								workspaceUpdate.update(false);
+							}}
+							isLoading={workspaceUpdate.isUpdating}
+							label="Update and start workspace"
+						>
+							<PlayIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
 
-			{abilities.canCancel && (
-				<PrimaryAction
-					onClick={cancelBuildMutation.mutate}
-					isLoading={cancelBuildMutation.isLoading}
-					label="Cancel build"
-				>
-					<BanIcon />
-				</PrimaryAction>
-			)}
+				{abilities.actions.includes("stop") && (
+					<PrimaryAction
+						onClick={() => {
+							stopWorkspaceMutation.mutate({});
+						}}
+						isLoading={stopWorkspaceMutation.isLoading}
+						label="Stop workspace"
+					>
+						<SquareIcon />
+					</PrimaryAction>
+				)}
 
-			{abilities.actions.includes("retry") && (
-				<PrimaryAction
-					onClick={retry}
-					isLoading={isRetrying}
-					label="Retry build"
-				>
-					<RefreshCcwIcon />
-				</PrimaryAction>
-			)}
+				{abilities.canCancel && (
+					<PrimaryAction
+						onClick={cancelBuildMutation.mutate}
+						isLoading={cancelBuildMutation.isLoading}
+						label="Cancel build"
+					>
+						<BanIcon />
+					</PrimaryAction>
+				)}
+
+				{abilities.actions.includes("retry") && (
+					<PrimaryAction
+						onClick={retry}
+						isLoading={isRetrying}
+						label="Retry build"
+					>
+						<RefreshCcwIcon />
+					</PrimaryAction>
+				)}
+			</div>
 		</TableCell>
 	);
 };
