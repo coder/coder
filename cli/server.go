@@ -37,6 +37,7 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -738,6 +739,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defer func() {
 					_ = sqlDB.Close()
 				}()
+
+				var dbName string
+				dbCfg, err := pgconn.ParseConfig(dbURL)
+				if err != nil {
+					options.Logger.Debug(ctx, "failed to determine database name for stats collection", slog.Error(err))
+					dbName = "coder"
+				} else {
+					dbName = dbCfg.Database
+				}
+				options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, dbName))
 
 				options.Database = database.New(sqlDB)
 				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
