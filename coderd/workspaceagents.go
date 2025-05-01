@@ -339,9 +339,33 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		Slug:    req.AppSlug,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace app.",
-			Detail:  err.Error(),
+			Detail:  fmt.Sprintf("No app found with slug %q", req.AppSlug),
+		})
+		return
+	}
+
+	if len(req.Message) > 160 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Message is too long.",
+			Detail:  "Message must be less than 160 characters.",
+			Validations: []codersdk.ValidationError{
+				{Field: "message", Detail: "Message must be less than 160 characters."},
+			},
+		})
+		return
+	}
+
+	switch req.State {
+	case codersdk.WorkspaceAppStatusStateComplete, codersdk.WorkspaceAppStatusStateFailure, codersdk.WorkspaceAppStatusStateWorking: // valid states
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid state provided.",
+			Detail:  fmt.Sprintf("invalid state: %q", req.State),
+			Validations: []codersdk.ValidationError{
+				{Field: "state", Detail: "State must be one of: complete, failure, working."},
+			},
 		})
 		return
 	}
@@ -847,6 +871,11 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 				Message: "Failed to fetch containers from agent.",
 				Detail:  "Request timed out.",
 			})
+			return
+		}
+		// If the agent returns a codersdk.Error, we can return that directly.
+		if cerr, ok := codersdk.AsError(err); ok {
+			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

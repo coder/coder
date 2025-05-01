@@ -1,24 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockTemplate,
-	MockTemplateVersion,
 	MockWorkspaceResource,
 	MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
-import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
+import { TemplateResourcesPageView } from "./TemplateResourcesPageView";
 
-const meta: Meta<typeof TemplateSummaryPageView> = {
-	title: "pages/TemplatePage/TemplateSummaryPageView",
-	component: TemplateSummaryPageView,
+const meta: Meta<typeof TemplateResourcesPageView> = {
+	title: "pages/TemplatePage/TemplateResourcesPageView",
+	component: TemplateResourcesPageView,
 };
 
 export default meta;
-type Story = StoryObj<typeof TemplateSummaryPageView>;
+type Story = StoryObj<typeof TemplateResourcesPageView>;
 
 export const Example: Story = {
 	args: {
 		template: MockTemplate,
-		activeVersion: MockTemplateVersion,
 		resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
 	},
 };
@@ -26,7 +24,6 @@ export const Example: Story = {
 export const NoIcon: Story = {
 	args: {
 		template: { ...MockTemplate, icon: "" },
-		activeVersion: MockTemplateVersion,
 		resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
 	},
 };

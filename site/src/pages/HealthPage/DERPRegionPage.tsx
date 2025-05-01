@@ -27,7 +27,7 @@ import {
 	Pill,
 } from "./Content";
 
-export const DERPRegionPage: FC = () => {
+const DERPRegionPage: FC = () => {
 	const theme = useTheme();
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const params = useParams() as { regionId: string };

@@ -18,7 +18,7 @@ import {
 	withDashboardProvider,
 	withGlobalSnackbar,
 } from "testHelpers/storybook";
-import { NotificationsPage } from "./NotificationsPage";
+import NotificationsPage from "./NotificationsPage";
 
 const meta = {
 	title: "pages/UserSettingsPage/NotificationsPage",

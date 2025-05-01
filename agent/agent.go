@@ -91,9 +91,9 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
-	ContainerLister              agentcontainers.Lister
 
 	ExperimentalDevcontainersEnabled bool
+	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
 }
 
 type Client interface {
@@ -156,9 +156,6 @@ func New(options Options) Agent {
 	if options.Execer == nil {
 		options.Execer = agentexec.DefaultExecer
 	}
-	if options.ContainerLister == nil {
-		options.ContainerLister = agentcontainers.NoopLister{}
-	}
 
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
@@ -194,9 +191,9 @@ func New(options Options) Agent {
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
-		lister:             options.ContainerLister,
 
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
+		containerAPIOptions:              options.ContainerAPIOptions,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -276,9 +273,10 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
-	lister  agentcontainers.Lister
 
 	experimentalDevcontainersEnabled bool
+	containerAPIOptions              []agentcontainers.Option
+	containerAPI                     atomic.Pointer[agentcontainers.API] // Set by apiHandler.
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1178,6 +1176,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+				if containerAPI := a.containerAPI.Load(); containerAPI != nil {
+					// Inform the container API that the agent is ready.
+					// This allows us to start watching for changes to
+					// the devcontainer configuration files.
+					containerAPI.SignalReady()
+				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)

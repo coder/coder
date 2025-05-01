@@ -4,15 +4,15 @@ import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import type { AssignableRoles, Role } from "api/typesGenerated";
+import { Button as ShadcnButton } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -27,6 +27,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -213,27 +214,33 @@ const RoleRow: FC<RoleRowProps> = ({
 
 			<TableCell>
 				{!role.built_in && (canUpdateOrgRole || canDeleteOrgRole) && (
-					<MoreMenu>
-						<MoreMenuTrigger>
-							<ThreeDotsButton />
-						</MoreMenuTrigger>
-						<MoreMenuContent>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<ShadcnButton
+								size="icon-lg"
+								variant="subtle"
+								aria-label="Open menu"
+							>
+								<EllipsisVertical aria-hidden="true" />
+								<span className="sr-only">Open menu</span>
+							</ShadcnButton>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
 							{canUpdateOrgRole && (
-								<MoreMenuItem
-									onClick={() => {
-										navigate(role.name);
-									}}
-								>
+								<DropdownMenuItem onClick={() => navigate(role.name)}>
 									Edit
-								</MoreMenuItem>
+								</DropdownMenuItem>
 							)}
 							{canDeleteOrgRole && (
-								<MoreMenuItem danger onClick={onDelete}>
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={onDelete}
+								>
 									Delete&hellip;
-								</MoreMenuItem>
+								</DropdownMenuItem>
 							)}
-						</MoreMenuContent>
-					</MoreMenu>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				)}
 			</TableCell>
 		</TableRow>
@@ -272,5 +279,3 @@ const styles = {
 		lineHeight: "160%",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
-
-export default CustomRolesPageView;

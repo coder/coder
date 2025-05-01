@@ -3,7 +3,7 @@ import type { LogLevel } from "api/typesGenerated";
 import type { FC, HTMLAttributes } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
-export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
+const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 
 export interface Line {
 	id: number;

@@ -72,7 +72,7 @@ type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
 	value: boolean;
 };
 
-export const BooleanPill: FC<BooleanPillProps> = ({
+const BooleanPill: FC<BooleanPillProps> = ({
 	value,
 	children,
 	...divProps

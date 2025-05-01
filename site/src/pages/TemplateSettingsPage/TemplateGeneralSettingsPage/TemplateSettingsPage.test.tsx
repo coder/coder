@@ -14,7 +14,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { validationSchema } from "./TemplateSettingsForm";
-import { TemplateSettingsPage } from "./TemplateSettingsPage";
+import TemplateSettingsPage from "./TemplateSettingsPage";
 
 type FormValues = Required<
 	Omit<
