@@ -24,6 +24,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -730,8 +731,86 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
-	nextEvent := codersdk.ServerSentEventReader(ctx, res.Body)
+	reinitEvent, err := NewSSEAgentReinitReceiver(res.Body).Receive(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("listening for reinitialization events: %w", err)
+	}
+	return reinitEvent, nil
+}
 
+func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) <-chan ReinitializationEvent {
+	reinitEvents := make(chan ReinitializationEvent)
+
+	go func() {
+		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+			logger.Debug(ctx, "waiting for agent reinitialization instructions")
+			reinitEvent, err := client.WaitForReinit(ctx)
+			if err != nil {
+				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				close(reinitEvents)
+				return
+			case reinitEvents <- *reinitEvent:
+			}
+		}
+	}()
+
+	return reinitEvents
+}
+
+func NewSSEAgentReinitTransmitter(logger slog.Logger, rw http.ResponseWriter, r *http.Request) *SSEAgentReinitTransmitter {
+	return &SSEAgentReinitTransmitter{logger: logger, rw: rw, r: r}
+}
+
+type SSEAgentReinitTransmitter struct {
+	rw     http.ResponseWriter
+	r      *http.Request
+	logger slog.Logger
+}
+
+func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <-chan ReinitializationEvent) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(s.rw, s.r)
+	if err != nil {
+		return xerrors.Errorf("failed to create sse transmitter: %w", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-sseSenderClosed:
+			return xerrors.New("sse connection closed")
+		case reinitEvent := <-reinitEvents:
+			err := sseSendEvent(codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeData,
+				Data: reinitEvent,
+			})
+			if err != nil {
+				s.logger.Warn(ctx, "failed to send SSE response to trigger reinit", slog.Error(err))
+			}
+		}
+	}
+}
+
+func NewSSEAgentReinitReceiver(r io.ReadCloser) *SSEAgentReinitReceiver {
+	return &SSEAgentReinitReceiver{r: r}
+}
+
+type SSEAgentReinitReceiver struct {
+	r io.ReadCloser
+}
+
+func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*ReinitializationEvent, error) {
+	nextEvent := codersdk.ServerSentEventReader(ctx, s.r)
 	for {
 		select {
 		case <-ctx.Done():
@@ -762,27 +841,4 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 			return &reinitEvent, nil
 		}
 	}
-}
-
-func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) <-chan ReinitializationEvent {
-	reinitEvents := make(chan ReinitializationEvent)
-
-	go func() {
-		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-			logger.Debug(ctx, "waiting for agent reinitialization instructions")
-			reinitEvent, err := client.WaitForReinit(ctx)
-			if err != nil {
-				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
-				continue
-			}
-			select {
-			case <-ctx.Done():
-				close(reinitEvents)
-				return
-			case reinitEvents <- *reinitEvent:
-			}
-		}
-	}()
-
-	return reinitEvents
 }

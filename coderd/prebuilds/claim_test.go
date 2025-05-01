@@ -79,12 +79,12 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
 		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
 
 		cancelFunc, claims, err := listener.ListenForWorkspaceClaims(ctx, uuid.New())
 		require.NoError(t, err)
 		defer cancelFunc()
 
+		cancel()
 		// Channel should be closed immediately due to context cancellation
 		select {
 		case _, ok := <-claims:

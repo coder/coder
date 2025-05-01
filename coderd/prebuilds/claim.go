@@ -2,7 +2,6 @@ package prebuilds
 
 import (
 	"context"
-	"net/http"
 	"sync"
 
 	"github.com/google/uuid"
@@ -10,14 +9,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
-
-type WorkspaceClaimPublisher interface {
-	PublishWorkspaceClaim(agentsdk.ReinitializationEvent)
-}
 
 func NewPubsubWorkspaceClaimPublisher(ps pubsub.Pubsub) *PubsubWorkspaceClaimPublisher {
 	return &PubsubWorkspaceClaimPublisher{ps: ps}
@@ -35,10 +28,6 @@ func (p PubsubWorkspaceClaimPublisher) PublishWorkspaceClaim(claim agentsdk.Rein
 	return nil
 }
 
-type WorkspaceClaimListener interface {
-	ListenForWorkspaceClaims(ctx context.Context, workspaceID uuid.UUID) (func(), <-chan agentsdk.ReinitializationEvent, error)
-}
-
 func NewPubsubWorkspaceClaimListener(ps pubsub.Pubsub, logger slog.Logger) *PubsubWorkspaceClaimListener {
 	return &PubsubWorkspaceClaimListener{ps: ps, logger: logger}
 }
@@ -49,6 +38,12 @@ type PubsubWorkspaceClaimListener struct {
 }
 
 func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Context, workspaceID uuid.UUID) (func(), <-chan agentsdk.ReinitializationEvent, error) {
+	select {
+	case <-ctx.Done():
+		return func() {}, nil, ctx.Err()
+	default:
+	}
+
 	workspaceClaims := make(chan agentsdk.ReinitializationEvent, 1)
 	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, id []byte) {
 		claimantID, err := uuid.ParseBytes(id)
@@ -90,53 +85,4 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 	}()
 
 	return cancel, workspaceClaims, nil
-}
-
-func StreamAgentReinitEvents(ctx context.Context, logger slog.Logger, rw http.ResponseWriter, r *http.Request, reinitEvents <-chan agentsdk.ReinitializationEvent) {
-	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error setting up server-sent events.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Prevent handler from returning until the sender is closed.
-	defer func() {
-		<-sseSenderClosed
-	}()
-
-	// An initial ping signals to the requester that the server is now ready
-	// and the client can begin servicing a channel with data.
-	_ = sseSendEvent(codersdk.ServerSentEvent{
-		Type: codersdk.ServerSentEventTypePing,
-	})
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case reinitEvent := <-reinitEvents:
-			err = sseSendEvent(codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeData,
-				Data: reinitEvent,
-			})
-			if err != nil {
-				logger.Warn(ctx, "failed to send SSE response to trigger reinit", slog.Error(err))
-			}
-		}
-	}
-}
-
-type MockClaimCoordinator interface{}
-
-type ClaimListener interface{}
-type PostgresClaimListener struct{}
-
-type AgentReinitializer interface{}
-type SSEAgentReinitializer struct{}
-
-type ClaimCoordinator interface {
-	ClaimListener
-	AgentReinitializer
 }

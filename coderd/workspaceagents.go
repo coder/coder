@@ -1181,14 +1181,24 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 	log.Info(ctx, "agent waiting for reinit instruction")
 
-	cancel, reinitEvents, err := prebuilds.ListenForWorkspaceClaims(ctx, log, api.Pubsub, workspace.ID)
+	cancel, reinitEvents, err := prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID)
 	if err != nil {
 		log.Error(ctx, "failed to subscribe to prebuild claimed channel", slog.Error(err))
 		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
 		return
 	}
 	defer cancel()
-	prebuilds.StreamAgentReinitEvents(ctx, log, rw, r, reinitEvents)
+
+	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
+
+	err = transmitter.Transmit(ctx, reinitEvents)
+	if err != nil {
+		log.Error(ctx, "failed to stream agent reinit events", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error streaming agent reinitialization events.",
+			Detail:  err.Error(),
+		})
+	}
 }
 
 // convertProvisionedApps converts applications that are in the middle of provisioning process.

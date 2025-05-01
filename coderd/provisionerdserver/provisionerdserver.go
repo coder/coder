@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1749,7 +1750,12 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				slog.F("user", input.PrebuildClaimedByUser.String()),
 				slog.F("workspace_id", workspace.ID))
 
-			if err := prebuilds.PublishWorkspaceClaim(ctx, s.Pubsub, workspace.ID, input.PrebuildClaimedByUser); err != nil {
+			err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+				UserID:      input.PrebuildClaimedByUser,
+				WorkspaceID: workspace.ID,
+				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			})
+			if err != nil {
 				s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
 			}
 		}
