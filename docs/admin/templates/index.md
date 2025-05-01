@@ -50,6 +50,9 @@ needs of different teams.
   create and publish images for use within Coder workspaces & templates.
 - [Dev Container support](./managing-templates/devcontainers/index.md): Enable
   dev containers to allow teams to bring their own tools into Coder workspaces.
+- [Early Access Dev Containers](../../user-guides/devcontainers/index.md): Try our
+  new direct devcontainers integration (distinct from Envbuilder-based
+  approach).
 - [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing):
   Configure your template to prevent certain resources from being destroyed
   (e.g. user disks).
