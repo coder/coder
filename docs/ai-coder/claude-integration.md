@@ -193,21 +193,21 @@ Understanding your codebase:
 
 1. Navigate to your repository:
 
-  ```bash
-  cd /path/to/repo
-  ```
+   ```bash
+   cd /path/to/repo
+   ```
 
 1. Get a high-level overview:
 
-  ```bash
-  claude "Help me understand this codebase"
-  ```
+   ```bash
+   claude "Help me understand this codebase"
+   ```
 
 1. Ask about specific parts:
 
-  ```bash
-  claude "Explain how authentication works in this app"
-  ```
+   ```bash
+   claude "Explain how authentication works in this app"
+   ```
 
 ### Advanced workflows
 
@@ -240,15 +240,24 @@ See our [issue tracker integration guide](./issue-tracker.md) for more workflows
 
 To use Claude directly in your IDE, add the Claude VS Code extension to your workspace:
 
+### VS Code
+
+If you use VS Code on your local machine with the [Remote SSH extension](../user-guides/workspace-access/vscode.md):
+
+1. Install the [Claude extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-vscode) in your local VS Code.
+1. Configure it with your Anthropic API key.
+1. Connect to your Coder workspace via Remote SSH.
+1. Use Claude directly within VS Code while working with your remote files.
+
 ### code-server
 
 1. Add this to the script section in your template:
 
-```bash
-CLAUDE_VSIX_URL="https://open-vsx.org/api/anthropic/claude-vscode/latest/file/anthropic.claude-vscode-latest.vsix"
-curl -L $CLAUDE_VSIX_URL -o /tmp/claude-vscode.vsix
-code-server --install-extension /tmp/claude-vscode.vsix
-```
+   ```bash
+   CLAUDE_VSIX_URL="https://open-vsx.org/api/anthropic/claude-vscode/latest/file/anthropic.claude-vscode-latest.vsix"
+   curl -L $CLAUDE_VSIX_URL -o /tmp/claude-vscode.vsix
+   code-server --install-extension /tmp/claude-vscode.vsix
+   ```
 
 1. Create a settings file with your API key:
 
@@ -266,15 +275,6 @@ code-server --install-extension /tmp/claude-vscode.vsix
    - Look for the Claude icon in the sidebar
    - Click it to open the Claude panel
    - Start chatting with Claude about your code
-
-### VS Code
-
-If you use VS Code on your local machine with the [Remote SSH extension](../user-guides/workspace-access/vscode.md):
-
-1. Install the [Claude extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-vscode) in your local VS Code.
-1. Configure it with your Anthropic API key.
-1. Connect to your Coder workspace via Remote SSH.
-1. Use Claude directly within VS Code while working with your remote files.
 
 </div>
 
