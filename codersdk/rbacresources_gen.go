@@ -9,6 +9,7 @@ const (
 	ResourceAssignOrgRole                 RBACResource = "assign_org_role"
 	ResourceAssignRole                    RBACResource = "assign_role"
 	ResourceAuditLog                      RBACResource = "audit_log"
+	ResourceChat                          RBACResource = "chat"
 	ResourceCryptoKey                     RBACResource = "crypto_key"
 	ResourceDebugInfo                     RBACResource = "debug_info"
 	ResourceDeploymentConfig              RBACResource = "deployment_config"
@@ -69,6 +70,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},
 	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
 	ResourceAuditLog:                      {ActionCreate, ActionRead},
+	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},
 	ResourceDeploymentConfig:              {ActionRead, ActionUpdate},
