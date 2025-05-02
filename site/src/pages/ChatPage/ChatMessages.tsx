@@ -545,7 +545,7 @@ export const ChatMessages: FC = () => {
 
 	useEffect(() => {
 		if (transferredState?.message) {
-			// Logic potentially related to transferedState can go here if needed,
+			// Logic potentially related to transferredState can go here if needed,
 		}
 	}, [transferredState?.message]);
 
