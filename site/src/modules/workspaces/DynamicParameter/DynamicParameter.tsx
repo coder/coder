@@ -207,7 +207,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						values = parsed;
 					}
 				} catch (e) {
-					console.error("Error parsing parameter value with form_type multi-select", e);
+					console.error(
+						"Error parsing parameter value with form_type multi-select",
+						e,
+					);
 				}
 			}
 
@@ -219,7 +222,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			}));
 
 			const optionMap = new Map(
-				parameter.options.map(opt => [opt.value.value, opt.name])
+				parameter.options.map((opt) => [opt.value.value, opt.name]),
 			);
 
 			const selectedOptions: Option[] = values.map((val) => {
