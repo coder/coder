@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
@@ -224,10 +225,19 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		var newTitle string
+		accMessages := acc.Messages()
+		// If for some reason the stream didn't return any messages, use the
+		// original message as the title.
+		if len(accMessages) == 0 {
+			newTitle = strings.Truncate(messages[0].Content, 40)
+		} else {
+			newTitle = strings.Truncate(accMessages[0].Content, 40)
+		}
 		err = api.Database.UpdateChatByID(ctx, database.UpdateChatByIDParams{
 			ID:        chat.ID,
-			Title:     acc.Messages()[0].Content,
-			UpdatedAt: time.Now(),
+			Title:     newTitle,
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
