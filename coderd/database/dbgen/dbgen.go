@@ -643,8 +643,8 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
-		err = provisionerjobs.PostJob(ps, job)
-		require.NoError(t, err, "post job to pubsub")
+		// Advisory, but not essential since acquirer has a background poller to pick up missed jobs.
+		_ = provisionerjobs.PostJob(ps, job)
 	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
