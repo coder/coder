@@ -6526,29 +6526,22 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 
 const insertPresetParameters = `-- name: InsertPresetParameters :many
 INSERT INTO
-	template_version_preset_parameters (id, template_version_preset_id, name, value)
+	template_version_preset_parameters (template_version_preset_id, name, value)
 SELECT
 	$1,
-	$2,
-	unnest($3 :: TEXT[]),
-	unnest($4 :: TEXT[])
+	unnest($2 :: TEXT[]),
+	unnest($3 :: TEXT[])
 RETURNING id, template_version_preset_id, name, value
 `
 
 type InsertPresetParametersParams struct {
-	ID                      uuid.UUID `db:"id" json:"id"`
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Names                   []string  `db:"names" json:"names"`
 	Values                  []string  `db:"values" json:"values"`
 }
 
 func (q *sqlQuerier) InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error) {
-	rows, err := q.db.QueryContext(ctx, insertPresetParameters,
-		arg.ID,
-		arg.TemplateVersionPresetID,
-		pq.Array(arg.Names),
-		pq.Array(arg.Values),
-	)
+	rows, err := q.db.QueryContext(ctx, insertPresetParameters, arg.TemplateVersionPresetID, pq.Array(arg.Names), pq.Array(arg.Values))
 	if err != nil {
 		return nil, err
 	}

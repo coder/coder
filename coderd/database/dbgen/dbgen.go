@@ -1211,7 +1211,6 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 
 func PresetParameter(t testing.TB, db database.Store, seed database.InsertPresetParametersParams) []database.TemplateVersionPresetParameter {
 	parameters, err := db.InsertPresetParameters(genCtx, database.InsertPresetParametersParams{
-		ID:                      takeFirst(seed.ID, uuid.New()),
 		TemplateVersionPresetID: takeFirst(seed.TemplateVersionPresetID, uuid.New()),
 		Names:                   takeFirstSlice(seed.Names, []string{testutil.GetRandomName(t)}),
 		Values:                  takeFirstSlice(seed.Values, []string{testutil.GetRandomName(t)}),
