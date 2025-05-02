@@ -574,13 +574,18 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
 		Initiator(prebuilds.SystemUserID).
-		VersionID(template.ActiveVersionID).
-		MarkPrebuild().
-		TemplateVersionPresetID(presetID)
+		MarkPrebuild()
 
-	// We only inject the required params when the prebuild is being created.
-	// This mirrors the behavior of regular workspace deletion (see cli/delete.go).
 	if transition != database.WorkspaceTransitionDelete {
+		// We don't specify the version for a delete transition,
+		// because the prebuilt workspace may have been created using an older template version.
+		// If the version isn't explicitly set, the builder will automatically use the version
+		// from the last workspace build — which is the desired behavior.
+		builder = builder.VersionID(template.ActiveVersionID)
+
+		// We only inject the required params when the prebuild is being created.
+		// This mirrors the behavior of regular workspace deletion (see cli/delete.go).
+		builder = builder.TemplateVersionPresetID(presetID)
 		builder = builder.RichParameterValues(params)
 	}
 

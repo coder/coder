@@ -99,10 +99,8 @@ export const SuspendUserSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const suspendButton = await within(userRow).findByText("Suspend", {
-			exact: false,
-		});
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const suspendButton = await within(document.body).findByText("Suspend…");
 		await user.click(suspendButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -120,10 +118,8 @@ export const SuspendUserError: Story = {
 		}
 		spyOn(API, "suspendUser").mockRejectedValue(undefined);
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const suspendButton = await within(userRow).findByText("Suspend", {
-			exact: false,
-		});
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const suspendButton = await within(document.body).findByText("Suspend…");
 		await user.click(suspendButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -149,10 +145,8 @@ export const DeleteUserSuccess: Story = {
 			count: 59,
 		});
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const deleteButton = await within(userRow).findByText("Delete", {
-			exact: false,
-		});
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const deleteButton = await within(document.body).findByText("Delete…");
 		await user.click(deleteButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -172,10 +166,8 @@ export const DeleteUserError: Story = {
 		}
 		spyOn(API, "deleteUser").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const deleteButton = await within(userRow).findByText("Delete", {
-			exact: false,
-		});
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const deleteButton = await within(document.body).findByText("Delete…");
 		await user.click(deleteButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -220,10 +212,8 @@ export const ActivateUserSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const activateButton = await within(userRow).findByText("Activate", {
-			exact: false,
-		});
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const activateButton = await within(document.body).findByText("Activate…");
 		await user.click(activateButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -242,10 +232,8 @@ export const ActivateUserError: Story = {
 		}
 		spyOn(API, "activateUser").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const activateButton = await within(userRow).findByText("Activate", {
-			exact: false,
-		});
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const activateButton = await within(document.body).findByText("Activate…");
 		await user.click(activateButton);
 
 		const dialog = await within(document.body).findByRole("dialog");
@@ -279,10 +267,9 @@ export const ResetUserPasswordSuccess: Story = {
 		}
 		spyOn(API, "updateUserPassword").mockResolvedValue();
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const resetPasswordButton = await within(userRow).findByText(
-			"Reset password",
-			{ exact: false },
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const resetPasswordButton = await within(document.body).findByText(
+			"Reset password…",
 		);
 		await user.click(resetPasswordButton);
 
@@ -306,10 +293,9 @@ export const ResetUserPasswordError: Story = {
 		}
 		spyOn(API, "updateUserPassword").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("More options"));
-		const resetPasswordButton = await within(userRow).findByText(
-			"Reset password",
-			{ exact: false },
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		const resetPasswordButton = await within(document.body).findByText(
+			"Reset password…",
 		);
 		await user.click(resetPasswordButton);
 
