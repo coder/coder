@@ -165,7 +165,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
     "id": "string",
     "parts": [
       {
-        "data": "string",
+        "data": [
+          0
+        ],
         "details": [
           {
             "data": "string",
@@ -224,7 +226,7 @@ Status Code **200**
 | `»» url`                     | string                                                           | false    |              |                         |
 | `» id`                       | string                                                           | false    |              |                         |
 | `» parts`                    | array                                                            | false    |              |                         |
-| `»» data`                    | string                                                           | false    |              |                         |
+| `»» data`                    | array                                                            | false    |              |                         |
 | `»» details`                 | array                                                            | false    |              |                         |
 | `»»» data`                   | string                                                           | false    |              |                         |
 | `»»» signature`              | string                                                           | false    |              |                         |
@@ -301,7 +303,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "id": "string",
     "parts": [
       {
-        "data": "string",
+        "data": [
+          0
+        ],
         "details": [
           {
             "data": "string",

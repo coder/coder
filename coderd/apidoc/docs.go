@@ -10543,7 +10543,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "details": {
                     "type": "array",

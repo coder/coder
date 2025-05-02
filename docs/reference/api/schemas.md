@@ -221,7 +221,9 @@
   "id": "string",
   "parts": [
     {
-      "data": "string",
+      "data": [
+        0
+      ],
       "details": [
         {
           "data": "string",
@@ -273,7 +275,9 @@
 
 ```json
 {
-  "data": "string",
+  "data": [
+    0
+  ],
   "details": [
     {
       "data": "string",
@@ -310,7 +314,7 @@
 
 | Name             | Type                                                    | Required | Restrictions | Description             |
 |------------------|---------------------------------------------------------|----------|--------------|-------------------------|
-| `data`           | string                                                  | false    |              |                         |
+| `data`           | array of integer                                        | false    |              |                         |
 | `details`        | array of [aisdk.ReasoningDetail](#aisdkreasoningdetail) | false    |              |                         |
 | `mimeType`       | string                                                  | false    |              | Type: "file"            |
 | `reasoning`      | string                                                  | false    |              | Type: "reasoning"       |
@@ -1361,7 +1365,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "id": "string",
   "parts": [
     {
-      "data": "string",
+      "data": [
+        0
+      ],
       "details": [
         {
           "data": "string",
@@ -1463,7 +1469,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "id": "string",
     "parts": [
       {
-        "data": "string",
+        "data": [
+          0
+        ],
         "details": [
           {
             "data": "string",

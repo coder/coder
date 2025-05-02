@@ -291,7 +291,7 @@ You are running as an agent - please keep going until the user's query is comple
 			})
 			return
 		}
-		stream = stream.WithToolCalling(func(toolCall aisdk.ToolCall) any {
+		stream = stream.WithToolCalling(func(toolCall aisdk.ToolCall) aisdk.ToolCallResult {
 			tool, ok := handlers[toolCall.Name]
 			if !ok {
 				return nil
