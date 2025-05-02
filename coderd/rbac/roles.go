@@ -299,6 +299,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				// Users can create, read, update, and delete their own agentic chat messages.
+				ResourceChat.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			})...,
 		),
 	}.withCachedRegoValue()
