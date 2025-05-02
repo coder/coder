@@ -53,6 +53,7 @@ module.exports = {
 					orange: "hsl(var(--surface-orange))",
 					sky: "hsl(var(--surface-sky))",
 					red: "hsl(var(--surface-red))",
+					purple: "hsl(var(--surface-purple))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -69,6 +70,7 @@ module.exports = {
 					green: "hsl(var(--highlight-green))",
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
+					red: "hsl(var(--highlight-red))",
 				},
 			},
 			keyframes: {
