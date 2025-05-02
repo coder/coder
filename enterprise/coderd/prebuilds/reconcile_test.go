@@ -411,15 +411,15 @@ func TestPrebuildReconciliation(t *testing.T) {
 	}
 }
 
-// brokenPublisher is used to validate that Publish() calls which always fail do not affect the reconciler's behaviour,
+// brokenPublisher is used to validate that Publish() calls which always fail do not affect the reconciler's behavior,
 // since the messages published are not essential but merely advisory.
 type brokenPublisher struct {
 	pubsub.Pubsub
 }
 
-func (b *brokenPublisher) Publish(event string, _ []byte) error {
+func (*brokenPublisher) Publish(event string, _ []byte) error {
 	// I'm explicitly _not_ checking for EventJobPosted (coderd/database/provisionerjobs/provisionerjobs.go) since that
-	// required too much knowledge of the underlying implementation.
+	// requires too much knowledge of the underlying implementation.
 	return xerrors.Errorf("refusing to publish %q", event)
 }
 
