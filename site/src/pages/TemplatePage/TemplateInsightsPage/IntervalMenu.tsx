@@ -5,7 +5,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { type FC, useRef, useState } from "react";
 
-export const insightsIntervals = {
+const insightsIntervals = {
 	day: {
 		label: "Daily",
 	},

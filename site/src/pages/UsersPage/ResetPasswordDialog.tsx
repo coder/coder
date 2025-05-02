@@ -12,7 +12,7 @@ export interface ResetPasswordDialogProps {
 	loading: boolean;
 }
 
-export const Language = {
+const Language = {
 	title: "Reset password",
 	message: (username?: string): JSX.Element => (
 		<>

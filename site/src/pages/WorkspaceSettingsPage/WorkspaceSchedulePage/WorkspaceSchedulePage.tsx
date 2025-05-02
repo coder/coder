@@ -39,7 +39,7 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 		},
 	}) as const;
 
-export const WorkspaceSchedulePage: FC = () => {
+const WorkspaceSchedulePage: FC = () => {
 	const params = useParams() as { username: string; workspace: string };
 	const navigate = useNavigate();
 	const username = params.username.replace("@", "");

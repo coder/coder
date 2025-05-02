@@ -23,7 +23,7 @@ type ChartContextProps = {
 	config: ChartConfig;
 };
 
-export const ChartContext = React.createContext<ChartContextProps | null>(null);
+const ChartContext = React.createContext<ChartContextProps | null>(null);
 
 function useChart() {
 	const context = React.useContext(ChartContext);
@@ -82,10 +82,7 @@ export const ChartContainer = React.forwardRef<
 });
 ChartContainer.displayName = "Chart";
 
-export const ChartStyle = ({
-	id,
-	config,
-}: { id: string; config: ChartConfig }) => {
+const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 	const colorConfig = Object.entries(config).filter(
 		([, config]) => config.theme || config.color,
 	);
@@ -274,9 +271,9 @@ export const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = "ChartTooltip";
 
-export const ChartLegend = RechartsPrimitive.Legend;
+const ChartLegend = RechartsPrimitive.Legend;
 
-export const ChartLegendContent = React.forwardRef<
+const ChartLegendContent = React.forwardRef<
 	HTMLDivElement,
 	React.ComponentProps<"div"> &
 		Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {

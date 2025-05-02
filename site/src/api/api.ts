@@ -396,7 +396,17 @@ export class MissingBuildParameters extends Error {
 }
 
 export type GetProvisionerJobsParams = {
-	status?: TypesGen.ProvisionerJobStatus;
+	status?: string;
+	limit?: number;
+	// IDs separated by comma
+	ids?: string;
+};
+
+export type GetProvisionerDaemonsParams = {
+	// IDs separated by comma
+	ids?: string;
+	// Stringified JSON Object
+	tags?: string;
 	limit?: number;
 };
 
@@ -711,22 +721,13 @@ class ApiMethods {
 		return response.data;
 	};
 
-	/**
-	 * @param organization Can be the organization's ID or name
-	 * @param tags to filter provisioner daemons by.
-	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
-		tags?: Record<string, string>,
+		params?: GetProvisionerDaemonsParams,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
-		const params = new URLSearchParams();
-
-		if (tags) {
-			params.append("tags", JSON.stringify(tags));
-		}
-
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons?${params}`,
+			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			{ params },
 		);
 		return response.data;
 	};
@@ -2446,11 +2447,20 @@ class ApiMethods {
 			labels?.map((label) => ["label", label]),
 		);
 
-		const res =
-			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
-				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
-			);
-		return res.data;
+		try {
+			const res =
+				await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
+					`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
+				);
+			return res.data;
+		} catch (err) {
+			// If the error is a 403, it means that experimental
+			// containers are not enabled on the agent.
+			if (isAxiosError(err) && err.response?.status === 403) {
+				return { containers: [] };
+			}
+			throw err;
+		}
 	};
 
 	getInboxNotifications = async (startingBeforeId?: string) => {
@@ -2553,7 +2563,7 @@ interface ClientApi extends ApiMethods {
 	getAxiosInstance: () => AxiosInstance;
 }
 
-export class Api extends ApiMethods implements ClientApi {
+class Api extends ApiMethods implements ClientApi {
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);

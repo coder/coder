@@ -443,7 +443,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
 	readonly transition: WorkspaceTransition;
 	readonly dry_run?: boolean;
-	readonly state?: readonly string[];
+	readonly state?: string;
 	readonly orphan?: boolean;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
@@ -3252,6 +3252,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly workspace_folder: string;
 	readonly config_path?: string;
 	readonly running: boolean;
+	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 }
 

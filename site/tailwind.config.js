@@ -8,6 +8,9 @@ module.exports = {
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
+			fontFamily: {
+				sans: `"Inter Variable", system-ui, sans-serif`,
+			},
 			size: {
 				"icon-lg": "1.5rem",
 				"icon-sm": "1.125rem",

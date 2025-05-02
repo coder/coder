@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -114,6 +115,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		claudeConfigPath string
 		claudeMDPath     string
 		systemPrompt     string
+		coderPrompt      string
 		appStatusSlug    string
 		testBinaryName   string
 
@@ -176,8 +178,27 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			}
 			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
 
+			// Determine if we should include the reportTaskPrompt
+			var reportTaskPrompt string
+			if agentToken != "" && appStatusSlug != "" {
+				// Only include the report task prompt if both agent token and app
+				// status slug are defined. Otherwise, reporting a task will fail
+				// and confuse the agent (and by extension, the user).
+				reportTaskPrompt = defaultReportTaskPrompt
+			}
+
+			// If a user overrides the coder prompt, we don't want to append
+			// the report task prompt, as it then becomes the responsibility
+			// of the user.
+			actualCoderPrompt := defaultCoderPrompt
+			if coderPrompt != "" {
+				actualCoderPrompt = coderPrompt
+			} else if reportTaskPrompt != "" {
+				actualCoderPrompt += "\n\n" + reportTaskPrompt
+			}
+
 			// We also write the system prompt to the CLAUDE.md file.
-			if err := injectClaudeMD(fs, systemPrompt, claudeMDPath); err != nil {
+			if err := injectClaudeMD(fs, actualCoderPrompt, systemPrompt, claudeMDPath); err != nil {
 				return xerrors.Errorf("failed to modify CLAUDE.md: %w", err)
 			}
 			cliui.Infof(inv.Stderr, "Wrote CLAUDE.md to %s", claudeMDPath)
@@ -221,6 +242,14 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Flag:        "claude-system-prompt",
 				Value:       serpent.StringOf(&systemPrompt),
 				Default:     "Send a task status update to notify the user that you are ready for input, and then wait for user input.",
+			},
+			{
+				Name:        "coder-prompt",
+				Description: "The coder prompt to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_CODER_PROMPT",
+				Flag:        "claude-coder-prompt",
+				Value:       serpent.StringOf(&coderPrompt),
+				Default:     "", // Empty default means we'll use defaultCoderPrompt from the variable
 			},
 			{
 				Name:        "app-status-slug",
@@ -399,22 +428,27 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		server.WithInstructions(instructions),
 	)
 
-	// Create a new context for the tools with all relevant information.
-	clientCtx := toolsdk.WithClient(ctx, client)
 	// Get the workspace agent token from the environment.
+	toolOpts := make([]func(*toolsdk.Deps), 0)
 	var hasAgentClient bool
 	if agentToken, err := getAgentToken(fs); err == nil && agentToken != "" {
 		hasAgentClient = true
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
-		clientCtx = toolsdk.WithAgentClient(clientCtx, agentClient)
+		toolOpts = append(toolOpts, toolsdk.WithAgentClient(agentClient))
 	} else {
 		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
 	}
-	if appStatusSlug == "" {
-		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
+
+	if appStatusSlug != "" {
+		toolOpts = append(toolOpts, toolsdk.WithAppStatusSlug(appStatusSlug))
 	} else {
-		clientCtx = toolsdk.WithWorkspaceAppStatusSlug(clientCtx, appStatusSlug)
+		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
+	}
+
+	toolDeps, err := toolsdk.NewDeps(client, toolOpts...)
+	if err != nil {
+		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
 
 	// Register tools based on the allowlist (if specified)
@@ -427,7 +461,7 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		if len(allowedTools) == 0 || slices.ContainsFunc(allowedTools, func(t string) bool {
 			return t == tool.Tool.Name
 		}) {
-			mcpSrv.AddTools(mcpFromSDK(tool))
+			mcpSrv.AddTools(mcpFromSDK(tool, toolDeps))
 		}
 	}
 
@@ -435,7 +469,7 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	done := make(chan error)
 	go func() {
 		defer close(done)
-		srvErr := srv.Listen(clientCtx, invStdin, invStdout)
+		srvErr := srv.Listen(ctx, invStdin, invStdout)
 		done <- srvErr
 	}()
 
@@ -567,22 +601,25 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 }
 
 var (
-	coderPrompt = `YOU MUST REPORT YOUR STATUS IMMEDIATELY AFTER EACH USER MESSAGE.
-INTERRUPT READING FILES OR ANY OTHER TOOL CALL IF YOU HAVE NOT REPORTED A STATUS YET.
-You MUST use the mcp__coder__coder_report_task function with all required parameters:
-- summary: Short description of what you're doing
-- link: A relevant link for the status
-- done: Boolean indicating if the task is complete (true/false)
-- emoji: Relevant emoji for the status
-- need_user_attention: Boolean indicating if the task needs user attention (true/false)
-WHEN TO REPORT (MANDATORY):
-1. IMMEDIATELY after receiving ANY user message, before any other actions
-2. After completing any task
-3. When making significant progress
-4. When encountering roadblocks
-5. When asking questions
-6. Before and after using search tools or making code changes
-FAILING TO REPORT STATUS PROPERLY WILL RESULT IN INCORRECT BEHAVIOR.`
+	defaultCoderPrompt = `You are a helpful Coding assistant. Aim to autonomously investigate
+and solve issues the user gives you and test your work, whenever possible.
+Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
+but opt for autonomy.`
+
+	defaultReportTaskPrompt = `YOU MUST REPORT ALL TASKS TO CODER.
+When reporting tasks, you MUST follow these EXACT instructions:
+- IMMEDIATELY report status after receiving ANY user message.
+- Be granular. If you are investigating with multiple steps, report each step to coder.
+
+Task state MUST be one of the following:
+- Use "state": "working" when actively processing WITHOUT needing additional user input.
+- Use "state": "complete" only when finished with a task.
+- Use "state": "failure" when you need ANY user input, lack sufficient details, or encounter blockers.
+
+Task summaries MUST:
+- Include specifics about what you're doing.
+- Include clear and actionable steps for the user.
+- Be less than 160 characters in length.`
 
 	// Define the guard strings
 	coderPromptStartGuard  = "<coder-prompt>"
@@ -591,7 +628,7 @@ FAILING TO REPORT STATUS PROPERLY WILL RESULT IN INCORRECT BEHAVIOR.`
 	systemPromptEndGuard   = "</system-prompt>"
 )
 
-func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error {
+func injectClaudeMD(fs afero.Fs, coderPrompt, systemPrompt, claudeMDPath string) error {
 	_, err := fs.Stat(claudeMDPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -695,7 +732,7 @@ func getAgentToken(fs afero.Fs) (string, error) {
 
 // mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
 // It assumes that the tool responds with a valid JSON object.
-func mcpFromSDK(sdkTool toolsdk.Tool[any]) server.ServerTool {
+func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool {
 	// NOTE: some clients will silently refuse to use tools if there is an issue
 	// with the tool's schema or configuration.
 	if sdkTool.Schema.Properties == nil {
@@ -712,27 +749,17 @@ func mcpFromSDK(sdkTool toolsdk.Tool[any]) server.ServerTool {
 			},
 		},
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result, err := sdkTool.Handler(ctx, request.Params.Arguments)
+			var buf bytes.Buffer
+			if err := json.NewEncoder(&buf).Encode(request.Params.Arguments); err != nil {
+				return nil, xerrors.Errorf("failed to encode request arguments: %w", err)
+			}
+			result, err := sdkTool.Handler(ctx, tb, buf.Bytes())
 			if err != nil {
 				return nil, err
 			}
-			var sb strings.Builder
-			if err := json.NewEncoder(&sb).Encode(result); err == nil {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						mcp.NewTextContent(sb.String()),
-					},
-				}, nil
-			}
-			// If the result is not JSON, return it as a string.
-			// This is a fallback for tools that return non-JSON data.
-			resultStr, ok := result.(string)
-			if !ok {
-				return nil, xerrors.Errorf("tool call result is neither valid JSON or a string, got: %T", result)
-			}
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.NewTextContent(resultStr),
+					mcp.NewTextContent(string(result)),
 				},
 			}, nil
 		},

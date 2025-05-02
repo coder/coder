@@ -21,7 +21,7 @@ const meta: Meta<typeof OrganizationProvisionerJobsPageView> = {
 	args: {
 		organization: MockOrganization,
 		jobs: MockProvisionerJobs,
-		filter: { status: "" },
+		filter: { status: "", ids: "" },
 		onRetry: fn(),
 	},
 };
@@ -81,8 +81,8 @@ export const Empty: Story = {
 export const OnFilter: Story = {
 	render: function FilterWithState({ ...args }) {
 		const [jobs, setJobs] = useState<ProvisionerJob[]>([]);
-		const [filter, setFilter] = useState({ status: "pending" });
-		const handleFilterChange = (newFilter: { status: string }) => {
+		const [filter, setFilter] = useState({ status: "pending", ids: "" });
+		const handleFilterChange = (newFilter: { status: string; ids: string }) => {
 			setFilter(newFilter);
 			const filteredJobs = MockProvisionerJobs.filter((job) =>
 				newFilter.status ? job.status === newFilter.status : true,
@@ -107,5 +107,15 @@ export const OnFilter: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const option = await body.findByRole("option", { name: "succeeded" });
 		await userEvent.click(option);
+	},
+};
+
+export const FilterByID: Story = {
+	args: {
+		jobs: [MockProvisionerJob],
+		filter: {
+			ids: MockProvisionerJob.id,
+			status: "",
+		},
 	},
 };

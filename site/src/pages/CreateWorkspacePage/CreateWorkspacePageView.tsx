@@ -47,11 +47,11 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
-import { ExperimentalFormContext } from "./CreateWorkspaceExperimentRouter";
 import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
+import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 

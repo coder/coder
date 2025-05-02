@@ -31,7 +31,7 @@ export const isApiError = (err: unknown): err is ApiError => {
 	);
 };
 
-export const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
+const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
 	return (
 		typeof err === "object" &&
 		err !== null &&

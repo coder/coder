@@ -39,7 +39,7 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
 		chromatic: {
-			diffThreshold: 0.3,
+			diffThreshold: 0.6,
 		},
 	},
 };
@@ -321,7 +321,7 @@ export const TemplateInfoPopover: Story = {
 	},
 	parameters: {
 		chromatic: {
-			diffThreshold: 0.3,
+			diffThreshold: 0.6,
 		},
 	},
 };

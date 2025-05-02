@@ -901,8 +901,8 @@ github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322 h1:m0lPZjlQ7vdVp
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322/go.mod h1:rOLFDDVKVFiDqZFXoteXc97YXx7kFi9kYqR+2ETPkLQ=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs24WOxc3PBvygSNTQurm0PYPujJjLLOzs0=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
-github.com/coder/guts v1.1.0 h1:EACEds9o4nwFjynDWsw1mvls0Xg91e74vBrqwz8BcGY=
-github.com/coder/guts v1.1.0/go.mod h1:31NO4z6MVTOD4WaCLqE/hUAHGgNok9sRbuMc/LZFopI=
+github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b h1:tfLKcE2s6D7YpFk7MUUCDE0Xbbmac+k2GqO8KMjv/Ug=
+github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b/go.mod h1:31NO4z6MVTOD4WaCLqE/hUAHGgNok9sRbuMc/LZFopI=
 github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048 h1:3jzYUlGH7ZELIH4XggXhnTnP05FCYiAFeQpoN+gNR5I=
 github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=

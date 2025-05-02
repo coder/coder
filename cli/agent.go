@@ -26,7 +26,6 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
@@ -319,13 +318,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				return xerrors.Errorf("create agent execer: %w", err)
 			}
 
-			var containerLister agentcontainers.Lister
-			if !experimentalDevcontainersEnabled {
-				logger.Info(ctx, "agent devcontainer detection not enabled")
-				containerLister = &agentcontainers.NoopLister{}
-			} else {
+			if experimentalDevcontainersEnabled {
 				logger.Info(ctx, "agent devcontainer detection enabled")
-				containerLister = agentcontainers.NewDocker(execer)
+			} else {
+				logger.Info(ctx, "agent devcontainer detection not enabled")
 			}
 
 			agnt := agent.New(agent.Options{
@@ -354,7 +350,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				PrometheusRegistry: prometheusRegistry,
 				BlockFileTransfer:  blockFileTransfer,
 				Execer:             execer,
-				ContainerLister:    containerLister,
 
 				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 			})

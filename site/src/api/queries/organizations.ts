@@ -1,10 +1,13 @@
-import { API, type GetProvisionerJobsParams } from "api/api";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
-	ProvisionerJobStatus,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -164,33 +167,34 @@ export const organizations = () => {
 
 export const getProvisionerDaemonsKey = (
 	organization: string,
-	tags?: Record<string, string>,
-) => ["organization", organization, tags, "provisionerDaemons"];
+	params?: GetProvisionerDaemonsParams,
+) => ["organization", organization, "provisionerDaemons", params];
 
 export const provisionerDaemons = (
 	organization: string,
-	tags?: Record<string, string>,
+	params?: GetProvisionerDaemonsParams,
 ) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization, tags),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
+		queryKey: getProvisionerDaemonsKey(organization, params),
+		queryFn: () =>
+			API.getProvisionerDaemonsByOrganization(organization, params),
 	};
 };
 
-export const getProvisionerDaemonGroupsKey = (organization: string) => [
+const getProvisionerDaemonGroupsKey = (organization: string) => [
 	"organization",
 	organization,
 	"provisionerDaemons",
 ];
 
-export const provisionerDaemonGroups = (organization: string) => {
+const provisionerDaemonGroups = (organization: string) => {
 	return {
 		queryKey: getProvisionerDaemonGroupsKey(organization),
 		queryFn: () => API.getProvisionerDaemonGroupsByOrganization(organization),
 	};
 };
 
-export const getGroupIdpSyncSettingsKey = (organization: string) => [
+const getGroupIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
 	"groupIdpSyncSettings",
@@ -215,7 +219,7 @@ export const patchGroupSyncSettings = (
 	};
 };
 
-export const getRoleIdpSyncSettingsKey = (organization: string) => [
+const getRoleIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
 	"roleIdpSyncSettings",
@@ -345,7 +349,7 @@ export const workspacePermissionsByOrganization = (
 	};
 };
 
-export const getOrganizationIdpSyncClaimFieldValuesKey = (
+const getOrganizationIdpSyncClaimFieldValuesKey = (
 	organization: string,
 	field: string,
 ) => [organization, "idpSync", "fieldValues", field];

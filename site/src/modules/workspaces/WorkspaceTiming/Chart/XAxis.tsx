@@ -40,11 +40,11 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 	);
 };
 
-export const XAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
+const XAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
 	return <ul css={styles.labels} {...props} />;
 };
 
-export const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
+const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 	return (
 		<li
 			css={[
@@ -106,7 +106,7 @@ type XGridProps = HTMLProps<HTMLDivElement> & {
 	columns: number;
 };
 
-export const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
+const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
 	return (
 		<div css={styles.grid} role="presentation" {...htmlProps}>
 			{[...Array(columns).keys()].map((key) => (
