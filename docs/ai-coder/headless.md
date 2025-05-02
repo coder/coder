@@ -41,9 +41,9 @@ coder exp mcp configure cursor # Configure Cursor to interact with Coder
 ```
 
 > [!TIP]
-> The Claude integration offers multiple usage modes. See our [complete Claude integration guide](./claude-integration.md) 
-> for details on CLI, VS Code, and headless options.
-
+> The Claude integration offers multiple usage modes.
+> See our [complete Claude integration guide](./claude-integration.md) for details on CLI, VS Code, and headless options.
+>
 > MCP is also used for various agents to report activity back to Coder. Learn more about this in [custom agents](./custom-agents.md).
 
 ## Coder CLI
