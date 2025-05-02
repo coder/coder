@@ -489,7 +489,6 @@ require (
 require (
 	github.com/coder/preview v0.0.1
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/jackc/pgx/v5 v5.7.4
 	github.com/kylecarbs/aisdk-go v0.0.5
 	github.com/mark3labs/mcp-go v0.23.1
 )
@@ -515,8 +514,6 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/go-getter v1.7.8 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/moby/sys/user v0.3.0 // indirect
 	github.com/openai/openai-go v0.1.0-beta.6 // indirect
