@@ -11,10 +11,10 @@ import isEqual from "lodash/isEqual";
 import {
 	type FC,
 	type HTMLProps,
-	isValidElement,
-	memo,
 	type ReactElement,
 	type ReactNode,
+	isValidElement,
+	memo,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
