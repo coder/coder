@@ -35,7 +35,7 @@ The easiest way to get started with Claude in Coder is to add the
    ```hcl
    module "claude-code" {
      source  = "registry.coder.com/modules/claude-code/coder"
-     version = "1.0.0"
+     version = "1.2.1"
 
      agent                   = var.agent  # This connects the module to your agent
      experiment_use_screen   = true       # Enable reporting to Coder dashboard
