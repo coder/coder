@@ -316,30 +316,35 @@ You are running as an agent - please keep going until the user's query is comple
 			return
 		}
 
-		raw, err := json.Marshal(acc.Messages())
-		if err != nil {
-			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to marshal chat message",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		messages = append(messages, acc.Messages()...)
+		// acc.Messages() may sometimes return nil. Serializing this
+		// will cause a pq error: "cannot extract elements from a scalar".
+		newMessages := append([]aisdk.Message{}, acc.Messages()...)
+		if len(newMessages) > 0 {
+			raw, err := json.Marshal(newMessages)
+			if err != nil {
+				httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to marshal chat message",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			messages = append(messages, newMessages...)
 
-		// Insert these messages into the database!
-		_, err = api.Database.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:    chat.ID,
-			CreatedAt: dbtime.Now(),
-			Model:     req.Model,
-			Provider:  provider.Provider,
-			Content:   raw,
-		})
-		if err != nil {
-			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to insert chat messages",
-				Detail:  err.Error(),
+			// Insert these messages into the database!
+			_, err = api.Database.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:    chat.ID,
+				CreatedAt: dbtime.Now(),
+				Model:     req.Model,
+				Provider:  provider.Provider,
+				Content:   raw,
 			})
-			return
+			if err != nil {
+				httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to insert chat messages",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
 
 		if acc.FinishReason() == aisdk.FinishReasonToolCalls {
