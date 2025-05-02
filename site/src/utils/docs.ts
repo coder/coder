@@ -13,7 +13,7 @@ function defaultDocsUrl(): string {
 	if (i >= 0) {
 		version = version.slice(0, i);
 	}
-	return `${docsUrl}/v${version.startsWith('v') ? version.substring(1) : version}`;
+	return `${docsUrl}/@${version}`;
 }
 
 // Add cache to avoid DOM reading all the time
