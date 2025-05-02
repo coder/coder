@@ -489,8 +489,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 ```json
 {
-  "message": "string",
-  "reason": "prebuild_claimed"
+  "reason": "prebuild_claimed",
+  "userID": "string",
+  "workspaceID": "string"
 }
 ```
 

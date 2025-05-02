@@ -186,17 +186,19 @@
 
 ```json
 {
-  "message": "string",
-  "reason": "prebuild_claimed"
+  "reason": "prebuild_claimed",
+  "userID": "string",
+  "workspaceID": "string"
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                               | Required | Restrictions | Description |
-|-----------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `message` | string                                                             | false    |              |             |
-| `reason`  | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| Name          | Type                                                               | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `userID`      | string                                                             | false    |              |             |
+| `workspaceID` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
 

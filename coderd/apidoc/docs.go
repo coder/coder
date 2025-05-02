@@ -10325,11 +10325,14 @@ const docTemplate = `{
         "agentsdk.ReinitializationEvent": {
             "type": "object",
             "properties": {
-                "message": {
-                    "type": "string"
-                },
                 "reason": {
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
+                },
+                "userID": {
+                    "type": "string"
+                },
+                "workspaceID": {
+                    "type": "string"
                 }
             }
         },

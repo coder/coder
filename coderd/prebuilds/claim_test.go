@@ -60,7 +60,7 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		}
 
 		err := publisher.PublishWorkspaceClaim(claim)
-		require.ErrorContains(t, err, "failed to trigger prebuilt workspace reinitialization")
+		require.ErrorContains(t, err, "failed to trigger prebuilt workspace agent reinitialization")
 	})
 }
 
