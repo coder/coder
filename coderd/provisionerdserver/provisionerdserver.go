@@ -1923,7 +1923,6 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			presetParameterValues = append(presetParameterValues, parameter.Value)
 		}
 		_, err = tx.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			ID:                      uuid.New(),
 			TemplateVersionPresetID: dbPreset.ID,
 			Names:                   presetParameterNames,
 			Values:                  presetParameterValues,
