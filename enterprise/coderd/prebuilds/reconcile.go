@@ -103,8 +103,12 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	c.running.Store(true)
 
 	// Publish provisioning jobs outside of database transactions.
-	// PGPubsub tries to acquire a new connection on Publish. A connection is held while a database transaction is active,
-	// so we can exhaust available connections.
+	// A connection is held while a database transaction is active; PGPubsub also tries to acquire a new connection on
+	// Publish, so we can exhaust available connections.
+	//
+	// A single worker dequeues from the channel, which should be sufficient.
+	// If any messages are missed due to congestion or errors, provisionerdserver has a backup polling mechanism which
+	// will periodically pick up any queued jobs (see poll(time.Duration) in coderd/provisionerdserver/acquirer.go).
 	go func() {
 		for {
 			select {
