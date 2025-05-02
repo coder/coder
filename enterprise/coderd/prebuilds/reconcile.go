@@ -44,7 +44,7 @@ type StoreReconciler struct {
 	running           atomic.Bool
 	stopped           atomic.Bool
 	done              chan struct{}
-	provisionNotifyCh chan *database.ProvisionerJob
+	provisionNotifyCh chan database.ProvisionerJob
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -64,7 +64,7 @@ func NewStoreReconciler(store database.Store,
 		clock:             clock,
 		registerer:        registerer,
 		done:              make(chan struct{}, 1),
-		provisionNotifyCh: make(chan *database.ProvisionerJob, 100),
+		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
 
 	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
@@ -117,11 +117,7 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case job := <-c.provisionNotifyCh:
-				if job == nil {
-					continue
-				}
-
-				err := provisionerjobs.PostJob(c.pubsub, *job)
+				err := provisionerjobs.PostJob(c.pubsub, job)
 				if err != nil {
 					c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 				}
@@ -600,9 +596,13 @@ func (c *StoreReconciler) provision(
 		return xerrors.Errorf("provision workspace: %w", err)
 	}
 
+	if provisionerJob == nil {
+		return nil
+	}
+
 	// Publish provisioner job event outside of transaction.
 	select {
-	case c.provisionNotifyCh <- provisionerJob:
+	case c.provisionNotifyCh <- *provisionerJob:
 	default: // channel full, drop the message; provisioner will pick this job up later with its periodic check, though.
 		c.logger.Warn(ctx, "provisioner job notification queue full, dropping",
 			slog.F("job_id", provisionerJob.ID), slog.F("prebuild_id", prebuildID.String()))
