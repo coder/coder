@@ -18,7 +18,6 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
-import { docs } from "utils/docs";
 import {
 	getFormHelpers,
 	nameValidator,
