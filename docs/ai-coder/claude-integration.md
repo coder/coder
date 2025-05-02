@@ -13,7 +13,7 @@
 ## Overview
 
 This guide shows you how to set up [Anthropic's Claude](https://www.anthropic.com/claude) in your Coder workspaces using Claude Code.
-Claude Code is an AI coding agent built on Claude that helps with coding tasks, documentation, and more.
+Claude Code is an AI-powered coding agent built on Claude that helps with development tasks, documentation, and more.
 
 If you're new to AI coding agents in Coder, check out our [introduction to AI agents](./agents.md) first.
 
