@@ -712,6 +712,10 @@ func createWorkspace(
 			if len(agents) > 1 {
 				return xerrors.Errorf("multiple agents are not yet supported in prebuilt workspaces")
 			}
+
+			agentTokensByAgentID = map[uuid.UUID]string{
+				agents[0].ID: agents[0].AuthToken.String(),
+			}
 		}
 
 		// We have to refetch the workspace for the joined in fields.
