@@ -755,6 +755,12 @@
 					"state": ["early access"]
 				},
 				{
+					"title": "Integrating Claude with Coder",
+					"description": "Learn how to integrate Claude Code in your Coder workspace",
+					"path": "./ai-coder/claude-integration.md",
+					"state": ["early access"]
+				},
+				{
 					"title": "Custom agents",
 					"description": "Learn how to use custom agents with Coder",
 					"path": "./ai-coder/custom-agents.md",
