@@ -13,7 +13,7 @@
 ## Overview
 
 This guide shows you how to set up [Anthropic's Claude](https://www.anthropic.com/claude) in your Coder workspaces.
-Claude is an AI assistant that can help you with coding tasks, documentation, and more.
+Claude Code is an AI coding agent that can help you with coding tasks, documentation, and more.
 
 If you're new to AI coding agents in Coder, check out our [introduction to AI agents](./agents.md) first.
 
@@ -119,16 +119,15 @@ module "claude-code" {
 
 ## Customize your Claude setup
 
-You can customize Claude's behavior with these additional options:
+You can customize Claude's behavior with additional options:
 
 ```hcl
 module "claude-code" {
   # ... basic settings from above
+  # full list at https://coder.com/docs/ai-coder/claude-integration#environment-variables-reference
 
   # Choose a specific Claude model
-  model = "claude-3-7-sonnet-20240229"  # Most capable model
-  # Or use a more economical option
-  # model = "claude-3-5-sonnet-20240620"
+  model = "claude-3-7-sonnet-20240229"
 
   # Give Claude specific instructions
   custom_system_prompt = "You are a Python expert focused on writing clean, efficient code."
@@ -141,7 +140,8 @@ module "claude-code" {
 }
 ```
 
-For the full list of configuration options, see the [module documentation](https://registry.coder.com/modules/claude-code).
+For the full list of configuration options, consult the [module documentation](https://registry.coder.com/modules/claude-code).
+For advanced configuration using environment variables, use the table in [Environment Variables Reference](#environment-variables-reference).
 
 ## Using Claude in your workspace
 
@@ -341,6 +341,41 @@ When using Claude with Coder, keep these security tips in mind:
 - Use [RBAC](../admin/users/groups-roles.md) to control which users can access AI features.
 - Regularly review Claude's activity in your Coder dashboard.
 - Consider [workspace boundaries](./securing.md) to limit what Claude can access.
+
+## Environment Variables Reference
+
+The following environment variables can be used to configure and fine-tune Claude's behavior in your Coder workspace.
+These are particularly useful for troubleshooting and advanced use cases.
+
+| Variable | Description | Default | Required | Example |
+|----------|-------------|---------|----------|---------|
+| `CLAUDE_API_KEY` | Anthropic API key for authentication | None | Yes | `sk-ant-...` |
+| `CLAUDE_MODEL` | Claude model to use | claude-3-5-sonnet-20240620 | No | claude-3-7-sonnet-20240229 |
+| `CLAUDE_CODE_DEBUG` | Enable verbose debug logging | 0 | No | 1 |
+| `CLAUDE_TIMEOUT_SECONDS` | Maximum time for a request (seconds) | 300 | No | 600 |
+| `CODER_AGENT_TOKEN` | Token for Coder Agent authentication | None | No | `coder...` |
+| `CODER_AGENT_TOKEN_FILE` | Path to file containing the agent token | None | No | `/path/to/token` |
+| `CODER_MCP_APP_STATUS_SLUG` | Identifier for status reporting | None | No | claude |
+| `CODER_MCP_CLAUDE_SYSTEM_PROMPT` | Override system prompt | Default prompt | No | "You are a Python expert..." |
+| `CODER_MCP_CLAUDE_CODER_PROMPT` | Override coder prompt | Default prompt | No | "You are a Go specialist..." |
+| `CODER_MCP_INSTRUCTIONS` | Custom instructions for MCP server | None | No | "Only use approved tools" |
+
+### Example usage
+
+```bash
+# Basic configuration
+export CLAUDE_API_KEY="sk-ant-your-api-key"
+export CLAUDE_MODEL="claude-3-7-sonnet-20240229"
+
+# Performance tuning
+export CLAUDE_TIMEOUT_SECONDS=600
+
+# Advanced debug options
+export CLAUDE_CODE_DEBUG=1
+
+# Run Claude with custom settings
+claude "Write a unit test for this function"
+```
 
 ## What's next
 
