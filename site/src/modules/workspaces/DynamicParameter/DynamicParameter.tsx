@@ -198,6 +198,19 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			);
 
 		case "multi-select": {
+			let values: string[] = [];
+
+			if (value) {
+				try {
+					const parsed = JSON.parse(value);
+					if (Array.isArray(parsed)) {
+						values = parsed;
+					}
+				} catch (e) {
+					console.error("Error parsing parameter value with form_type multi-select", e);
+				}
+			}
+
 			// Map parameter options to MultiSelectCombobox options format
 			const options: Option[] = parameter.options.map((opt) => ({
 				value: opt.value.value,
@@ -205,11 +218,14 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				disable: false,
 			}));
 
-			const selectedOptions: Option[] = JSON.parse(value).map((val: string) => {
-				const option = parameter.options.find((o) => o.value.value === val);
+			const optionMap = new Map(
+				parameter.options.map(opt => [opt.value.value, opt.name])
+			);
+
+			const selectedOptions: Option[] = values.map((val) => {
 				return {
 					value: val,
-					label: option?.name || val,
+					label: optionMap.get(val) || val,
 					disable: false,
 				};
 			});
