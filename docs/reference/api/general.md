@@ -161,6 +161,19 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "value": {
+        "providers": [
+          {
+            "base_url": "string",
+            "models": [
+              "string"
+            ],
+            "type": "string"
+          }
+        ]
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -567,6 +580,43 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 | Status | Meaning                                                 | Description | Schema                                                           |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get language models
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/llms \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /deployment/llms`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "models": [
+    {
+      "display_name": "string",
+      "id": "string",
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.LanguageModelConfig](schemas.md#codersdklanguagemodelconfig) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -554,6 +554,75 @@ func TestInvalidPreset(t *testing.T) {
 	}
 }
 
+func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+	preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+	prebuiltWorkspace := setupTestDBPrebuild(
+		t,
+		clock,
+		db,
+		pubSub,
+		database.WorkspaceTransitionStart,
+		database.ProvisionerJobStatusSucceeded,
+		org.ID,
+		preset,
+		template.ID,
+		templateVersionID,
+	)
+
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	// make sure we have only one workspace
+	require.Equal(t, 1, len(workspaces))
+
+	// Create a new template version and mark it as active.
+	// This marks the previous template version as inactive.
+	templateVersionID = setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+	// Add required param, which is not set in preset.
+	// It means that creating of new prebuilt workspace will fail, but we should be able to clean up old prebuilt workspaces.
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: templateVersionID,
+		Name:              "required-param",
+		Description:       "required param which isn't set in preset",
+		Type:              "bool",
+		DefaultValue:      "",
+		Required:          true,
+	})
+
+	// Old prebuilt workspace should be deleted.
+	require.NoError(t, controller.ReconcileAll(ctx))
+
+	builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+		WorkspaceID: prebuiltWorkspace.ID,
+	})
+	require.NoError(t, err)
+	// Make sure old prebuild workspace was deleted, despite it contains required parameter which isn't set in preset.
+	require.Equal(t, 2, len(builds))
+	require.Equal(t, database.WorkspaceTransitionDelete, builds[0].Transition)
+}
+
 func TestRunLoop(t *testing.T) {
 	t.Parallel()
 
