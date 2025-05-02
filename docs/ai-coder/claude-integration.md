@@ -1,4 +1,4 @@
-# Detailed Claude Integration with Coder
+# Integrating Claude with Coder
 
 > [!NOTE]
 >
@@ -12,48 +12,74 @@
 
 ## Overview
 
-This guide shows you how to integrate Anthropic's Claude with Coder. Claude is [recommended as our primary AI coding agent](./agents.md) due to its strong performance on complex programming tasks.
+This guide shows you how to set up [Anthropic's Claude](https://www.anthropic.com/claude) in your Coder workspaces. Claude is an AI assistant that can help you with coding tasks, documentation, and more.
 
-## Prerequisites
+If you're new to AI coding agents in Coder, check out our [introduction to AI agents](./agents.md) first.
+
+## What you'll need
 
 Before you begin, make sure you have:
 
-- A Coder deployment with v2.21.0 or later
-- A [template configured for AI agents](./create-template.md)
-- Access to Anthropic API through one of these methods:
-  - Direct Anthropic API key
-  - AWS Bedrock (enterprise)
-  - GCP Vertex AI (enterprise)
+- A Coder deployment with v2.21.0 or later (see [installation guide](../install/index.md) if needed)
+- An [API key from Anthropic](https://console.anthropic.com/keys) or access through AWS Bedrock/GCP Vertex AI
+- Basic familiarity with [Coder templates](../admin/templates/index.md) (or follow our [quick template guide](./create-template.md))
 
-## Authentication configuration
+## Quick setup: Use our template module
 
-Claude Code supports multiple authentication methods. Choose the option that works best for your infrastructure.
+The easiest way to get started with Claude in Coder is to use our [pre-built module from the registry](https://registry.coder.com/modules/claude-code).
 
-### Direct Anthropic API key
+1. Create a new Coder template or modify an existing one
+2. Add the Claude Code module to your template's `main.tf` file:
 
-1. Add a template variable for the API key:
+```hcl
+module "claude-code" {
+  source  = "registry.coder.com/modules/claude-code/coder"
+  version = "1.0.0"
+  
+  agent                   = var.agent  # This connects the module to your agent
+  experiment_use_screen   = true       # Enable reporting to Coder dashboard
+  experiment_report_tasks = true       # Show tasks in Coder UI
+}
+```
+
+3. Add a template parameter for your API key:
 
 ```hcl
 variable "anthropic_api_key" {
   type        = string
   description = "Anthropic API key for Claude Code"
-  sensitive   = true
+  sensitive   = true  # This hides the value in logs and UI
   default     = ""
 }
 ```
 
-2. Pass it to the module:
+4. Pass the API key to the module:
 
 ```hcl
 module "claude-code" {
-  # ... other settings from the registry template
+  # ... existing settings from above
   anthropic_api_key = var.anthropic_api_key
 }
 ```
 
-### AWS Bedrock
+5. Push your template:
+   ```bash
+   coder templates push my-claude-template
+   ```
 
-For enterprise customers using AWS Bedrock:
+6. Create a workspace with this template, providing your API key when prompted.
+
+## Authentication options
+
+Claude Code supports multiple authentication methods:
+
+### Option 1: Direct Anthropic API key (recommended for getting started)
+
+Get your API key from the [Anthropic Console](https://console.anthropic.com/keys) and use it as shown in the quick setup above.
+
+### Option 2: AWS Bedrock (for enterprise users)
+
+If you're using Claude through AWS Bedrock:
 
 ```hcl
 module "claude-code" {
@@ -65,9 +91,9 @@ module "claude-code" {
 }
 ```
 
-### Google Vertex AI
+### Option 3: Google Vertex AI (for enterprise users)
 
-For enterprise customers using Google Vertex AI:
+If you're using Claude through Google Vertex AI:
 
 ```hcl
 module "claude-code" {
@@ -79,157 +105,212 @@ module "claude-code" {
 }
 ```
 
-## Advanced Claude Code configuration
+## Customizing your Claude setup
 
-Beyond basic setup, Claude Code supports additional configuration options:
+You can customize Claude's behavior with these additional options:
 
 ```hcl
 module "claude-code" {
-  source  = "registry.coder.com/modules/claude-code/coder"
-  version = "1.0.0"
+  # ... basic settings from above
   
-  agent                    = var.agent
-  experiment_use_screen    = true    # Required for Coder dashboard integration
-  experiment_report_tasks  = true    # Required for Coder dashboard integration
-  model                    = "claude-3-7-sonnet-20240229"  # Recommended model
+  # Choose a specific Claude model
+  model = "claude-3-7-sonnet-20240229"  # Most capable model
+  # Or use a more economical option
+  # model = "claude-3-5-sonnet-20240620"
   
-  # Optional parameters
-  custom_system_prompt     = "You are a helpful assistant focused on Python development."
-  additional_tools         = ["playwright-mcp", "desktop-commander"]
-  enable_file_upload       = true
-  timeout_seconds          = 300
+  # Give Claude specific instructions
+  custom_system_prompt = "You are a Python expert focused on writing clean, efficient code."
+  
+  # Add special capabilities through MCP
+  additional_tools = ["playwright-mcp", "desktop-commander"]
+  
+  # Set resource limits
+  timeout_seconds = 300  # Maximum time for a single request
 }
 ```
 
-## Using Claude Code in your workspace
+For the full list of configuration options, see the [module documentation](https://registry.coder.com/modules/claude-code).
 
-After your workspace is running with the Claude Code module, you can use it in several ways.
+## Using Claude in your workspace
 
-### Basic usage
+Once you've created a workspace with the Claude module, you can start using it right away!
 
-Run simple prompts or interact with files:
+### Getting started
+
+After connecting to your workspace (via SSH, VS Code, or the web terminal), you can:
+
+1. Run your first Claude command to test it:
+
+   ```bash
+   claude-code "Hello! What can you help me with today?"
+   ```
+
+2. You should see Claude respond in your terminal. You'll also notice that this task appears in the Coder dashboard under your workspace.
+
+### Everyday coding tasks
+
+Claude is most helpful for these common tasks:
+
+#### Generating code
 
 ```bash
-# Simple prompt
+# Write a simple function
 claude-code "Write a function to sort an array in JavaScript"
 
-# Interact with a file
-claude-code "Add proper error handling to this file" path/to/file.js
+# Create a complete component
+claude-code "Create a React component that displays a list of user profiles"
 ```
 
-### Repository exploration
-
-Explore and understand your codebase:
+#### Working with files
 
 ```bash
-# Navigate to your repository
+# Ask Claude to analyze a specific file
+claude-code "Explain what this code does" app.js
+
+# Improve existing code
+claude-code "Add error handling to this function" user-service.js
+```
+
+#### Understanding your codebase
+
+```bash
+# Navigate to your repository first
 cd /path/to/repo
 
-# Ask Claude to explore and understand the codebase
+# Get a high-level overview
 claude-code "Help me understand this codebase"
 
-# Get specific help with a component
-claude-code "Explain how the authentication system works in this app"
+# Ask about specific parts
+claude-code "Explain how authentication works in this app"
 ```
 
-### Task automation
+### Advanced workflows
 
-Automate common development tasks:
+As you get comfortable with Claude, try these more powerful workflows:
 
-```bash
-# Generate tests for a specific module
-claude-code "Write comprehensive tests for this module" src/module.js
+#### Working with GitHub issues
 
-# Review and suggest improvements
-claude-code "Review this PR and suggest improvements" $(gh pr view --json body -q .body)
-```
-
-### Using with issue trackers
-
-Claude Code works with issue tracking systems. For GitHub issues:
+If your template includes GitHub integration:
 
 ```bash
-# Install GitHub CLI if not already in your template
-apt-get update && apt-get install -y gh
+# Make sure you have the GitHub CLI
+which gh || sudo apt-get update && sudo apt-get install -y gh
 
-# Authenticate (if using Coder's external authentication)
+# Authenticate (if using external auth with Coder)
 eval "$(coder external-auth url-application github)"
 
-# Get an issue description and ask Claude to implement it
+# Work on an issue directly
 ISSUE_DESCRIPTION=$(gh issue view 123 --json body -q .body)
 claude-code "Implement this feature: $ISSUE_DESCRIPTION"
 ```
 
-## Claude with VS Code integration
+See our [issue tracker integration guide](./issue-tracker.md) for more workflows.
 
-For interactive assistance in VS Code, use the Claude VS Code extension.
+## Using Claude in VS Code
 
-Add this to your template's startup script:
+Want to use Claude directly in your IDE? You can add the Claude VS Code extension to your workspace:
+
+### Adding Claude to code-server (browser-based VS Code)
+
+1. Add this to your template's startup script:
 
 ```bash
-# Install Claude extension for VS Code
-code-server --install-extension anthropic.claude-vscode
+# Add this to the script section of your template
+CLAUDE_VSIX_URL="https://open-vsx.org/api/anthropic/claude-vscode/latest/file/anthropic.claude-vscode-latest.vsix"
+curl -L $CLAUDE_VSIX_URL -o /tmp/claude-vscode.vsix
+code-server --install-extension /tmp/claude-vscode.vsix
 
-# Configure Claude VS Code extension
+# Create a settings file with your API key
 mkdir -p ~/.config/Code/User/
 cat > ~/.config/Code/User/settings.json <<EOF
 {
   "claude.apiKey": "${var.anthropic_api_key}",
-  "claude.apiProvider": "anthropic" // or "bedrock" or "vertexai"
+  "claude.apiProvider": "anthropic" 
 }
 EOF
 ```
 
-## Advanced usage with MCP
+2. After your workspace starts, open code-server and:
+   - Look for the Claude icon in the sidebar
+   - Click it to open the Claude panel
+   - Start chatting with Claude about your code
 
-[MCP (Model Context Protocol)](./best-practices.md#adding-tools-via-mcp) lets Claude access additional tools and capabilities.
+### Using Claude with VS Code Desktop
 
-Configure Claude Desktop to work with your Coder workspace:
+If you use VS Code on your local machine with the [Remote SSH extension](../user-guides/workspace-access/vscode.md):
 
-```bash
-# On your local machine
-coder exp mcp configure claude-desktop
-```
+1. Install the [Claude extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-vscode) in your local VS Code
+2. Configure it with your Anthropic API key
+3. Connect to your Coder workspace via Remote SSH
+4. Use Claude directly within VS Code while working with your remote files
 
-In Claude Desktop, you can then:
-- Connect to your Coder workspace
-- Run commands and access files
-- View agent status and activity
+## Using Claude Desktop with Coder (Advanced)
+
+For power users, you can connect [Claude Desktop](https://claude.ai/download) to your Coder workspace:
+
+1. Install Claude Desktop on your local machine
+2. Use Coder to configure MCP integration:
+
+   ```bash
+   # Run this on your local machine (not in the workspace)
+   coder exp mcp configure claude-desktop
+   ```
+
+3. In Claude Desktop, you can now:
+   - Connect to your Coder workspaces
+   - View your workspace files
+   - Run commands in your workspace
+   - Monitor agent activities
+
+Learn more about [MCP integration](./best-practices.md#adding-tools-via-mcp) in our best practices guide.
 
 ## Troubleshooting
 
-### Common issues
+Having issues with Claude in your workspace? Here are some common solutions:
 
-- **Authentication errors**: Check that your API keys are correctly configured and have proper permissions
-- **Memory limitations**: If Claude Code is terminated due to OOM errors, increase workspace memory allocation
-- **Tool failures**: Verify that required dependencies for MCP tools are installed in your workspace
+### Authentication issues
 
-### Debugging Claude Code
+If Claude reports authentication errors:
 
-To troubleshoot Claude Code issues:
+1. Double-check your API key is correct
+2. Verify the API key has been passed to your workspace
+3. Try running `claude-code config show` to see your current configuration
+
+### Claude seems slow or crashes
+
+If Claude is running out of memory or seems sluggish:
+
+1. Increase your workspace's memory allocation
+2. For large requests, try breaking them into smaller, more focused prompts
+3. If using VS Code extension, try the CLI version instead for better performance
+
+### Getting more help
+
+Still having trouble?
 
 ```bash
-# Enable debug logging
-export CLAUDE_CODE_DEBUG=1
-claude-code "Your prompt"
-
-# Check Claude Code version
+# Check your Claude version
 claude-code --version
 
-# Verify config
-claude-code config show
+# Enable debug logging for more information
+export CLAUDE_CODE_DEBUG=1
+claude-code "Test prompt"
 ```
 
-## Security considerations
+For more detailed help, join our [Discord community](https://discord.gg/coder) or check the [Claude documentation](https://docs.anthropic.com/claude/docs).
 
-When using Claude with Coder:
+## Security best practices
 
-- Store API keys as [sensitive template variables](../templates/parameters.md#sensitive-parameters)
-- Consider using [RBAC](../admin/rbac.md) to control which users can create workspaces with AI capabilities
-- Review [securing agents](./securing.md) guidelines for additional protection
+When using Claude with Coder, keep these security tips in mind:
+
+- Always store API keys as [sensitive template variables](../admin/templates/extending-templates/parameters.md#sensitive-parameters)
+- Use [RBAC](../admin/users/groups-roles.md) to control which users can access AI features
+- Regularly review Claude's activity in your Coder dashboard
+- Consider [workspace boundaries](./securing.md) to limit what Claude can access
 
 ## What's next
 
-- [Integrate with your issue tracker](./issue-tracker.md)
-- [Learn about MCP and adding AI tools](./best-practices.md)
-- [Explore headless agent capabilities](./headless.md)
+- [Connect Claude to your issue tracker](./issue-tracker.md) to help with tickets
+- [Try other AI coding agents](./agents.md) in Coder
+- [Add AI tools via MCP](./best-practices.md) to enhance Claude's capabilities
+- Learn about [running AI agents without an IDE](./headless.md)
