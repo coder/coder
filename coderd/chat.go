@@ -207,7 +207,7 @@ func (api *API) postChatMessages(w http.ResponseWriter, r *http.Request) {
 - It should be maximum of 40 characters.
 - Do not use quotes, colons, special characters, or emojis.`,
 			Messages: messages,
-			Tools:    tools,
+			Tools:    []aisdk.Tool{}, // This initial stream doesn't use tools.
 		})
 		if err != nil {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
