@@ -12,8 +12,8 @@
 
 ## Overview
 
-This guide shows you how to set up [Anthropic's Claude](https://www.anthropic.com/claude) in your Coder workspaces.
-Claude Code is an AI coding agent that can help you with coding tasks, documentation, and more.
+This guide shows you how to set up [Anthropic's Claude](https://www.anthropic.com/claude) in your Coder workspaces using Claude Code.
+Claude Code is an AI coding agent built on Claude that helps with coding tasks, documentation, and more.
 
 If you're new to AI coding agents in Coder, check out our [introduction to AI agents](./agents.md) first.
 
@@ -347,18 +347,18 @@ When using Claude with Coder, keep these security tips in mind:
 The following environment variables can be used to configure and fine-tune Claude's behavior in your Coder workspace.
 These are particularly useful for troubleshooting and advanced use cases.
 
-| Variable | Description | Default | Required | Example |
-|----------|-------------|---------|----------|---------|
-| `CLAUDE_API_KEY` | Anthropic API key for authentication | None | Yes | `sk-ant-...` |
-| `CLAUDE_MODEL` | Claude model to use | claude-3-5-sonnet-20240620 | No | claude-3-7-sonnet-20240229 |
-| `CLAUDE_CODE_DEBUG` | Enable verbose debug logging | 0 | No | 1 |
-| `CLAUDE_TIMEOUT_SECONDS` | Maximum time for a request (seconds) | 300 | No | 600 |
-| `CODER_AGENT_TOKEN` | Token for Coder Agent authentication | None | No | `coder...` |
-| `CODER_AGENT_TOKEN_FILE` | Path to file containing the agent token | None | No | `/path/to/token` |
-| `CODER_MCP_APP_STATUS_SLUG` | Identifier for status reporting | None | No | claude |
-| `CODER_MCP_CLAUDE_SYSTEM_PROMPT` | Override system prompt | Default prompt | No | "You are a Python expert..." |
-| `CODER_MCP_CLAUDE_CODER_PROMPT` | Override coder prompt | Default prompt | No | "You are a Go specialist..." |
-| `CODER_MCP_INSTRUCTIONS` | Custom instructions for MCP server | None | No | "Only use approved tools" |
+| Variable                         | Description                             | Default                    | Required | Example                      |
+|----------------------------------|-----------------------------------------|----------------------------|----------|------------------------------|
+| `CLAUDE_API_KEY`                 | Anthropic API key for authentication    | None                       | Yes      | `sk-ant-...`                 |
+| `CLAUDE_MODEL`                   | Claude model to use                     | claude-3-5-sonnet-20240620 | No       | claude-3-7-sonnet-20240229   |
+| `CLAUDE_CODE_DEBUG`              | Enable verbose debug logging            | 0                          | No       | 1                            |
+| `CLAUDE_TIMEOUT_SECONDS`         | Maximum time for a request (seconds)    | 300                        | No       | 600                          |
+| `CODER_AGENT_TOKEN`              | Token for Coder Agent authentication    | None                       | No       | `coder...`                   |
+| `CODER_AGENT_TOKEN_FILE`         | Path to file containing the agent token | None                       | No       | `/path/to/token`             |
+| `CODER_MCP_APP_STATUS_SLUG`      | Identifier for status reporting         | None                       | No       | claude                       |
+| `CODER_MCP_CLAUDE_SYSTEM_PROMPT` | Override system prompt                  | Default prompt             | No       | "You are a Python expert..." |
+| `CODER_MCP_CLAUDE_CODER_PROMPT`  | Override coder prompt                   | Default prompt             | No       | "You are a Go specialist..." |
+| `CODER_MCP_INSTRUCTIONS`         | Custom instructions for MCP server      | None                       | No       | "Only use approved tools"    |
 
 ### Example usage
 
