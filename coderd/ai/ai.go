@@ -40,7 +40,13 @@ func ModelsFromConfig(ctx context.Context, configs []codersdk.AIProviderConfig) 
 
 		switch config.Type {
 		case "openai":
-			client := openai.NewClient(openaioption.WithAPIKey(config.APIKey))
+			opts := []openaioption.RequestOption{
+				openaioption.WithAPIKey(config.APIKey),
+			}
+			if config.BaseURL != "" {
+				opts = append(opts, openaioption.WithBaseURL(config.BaseURL))
+			}
+			client := openai.NewClient(opts...)
 			streamFunc = func(ctx context.Context, options StreamOptions) (aisdk.DataStream, error) {
 				openaiMessages, err := aisdk.MessagesToOpenAI(options.Messages)
 				if err != nil {

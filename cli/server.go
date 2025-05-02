@@ -2680,7 +2680,7 @@ func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, erro
 		case "BASE_URL":
 			provider.BaseURL = v.Value
 		case "MODELS":
-			provider.Models = strings.Split(v.Value, " ")
+			provider.Models = strings.Split(v.Value, ",")
 		}
 		providers[providerNum] = provider
 	}
