@@ -22,6 +22,10 @@ With Coder, you can self-host AI agents in isolated development environments wit
 
 ![AI Agents in Coder](../images/guides/ai-agents/landing.png)
 
+> [!TIP]
+> **Looking for a quick start?** We recommend [Claude Code](https://github.com/anthropics/claude-code) as the most capable AI coding agent.
+> See our [detailed Claude integration guide](./claude-integration.md) for step-by-step setup instructions.
+
 ## Prerequisites
 
 Coder is free and open source for developers, with a [premium plan](https://coder.com/pricing) for enterprises. You can self-host a Coder deployment in your own cloud provider.
