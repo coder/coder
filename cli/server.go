@@ -740,6 +740,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				if options.DeploymentValues.Prometheus.Enable {
+					// At this stage we don't think the database name serves much purpose in these metrics.
+					// It requires parsing the DSN to determine it, which requires pulling in another dependency
+					// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
+					// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
+					// take different forms, which make parsing non-trivial.
 					options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
 				}
 
