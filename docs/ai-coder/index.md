@@ -23,7 +23,7 @@ With Coder, you can self-host AI agents in isolated development environments wit
 ![AI Agents in Coder](../images/guides/ai-agents/landing.png)
 
 > [!TIP]
-> **Looking for a quick start?** We recommend [Claude Code](https://github.com/anthropics/claude-code) as the most capable AI coding agent.
+> **Looking for a quick start?** [Claude Code](https://github.com/anthropics/claude-code) has first-class integration with Coder.
 > See our [detailed Claude integration guide](./claude-integration.md) for step-by-step setup instructions.
 
 ## Prerequisites
