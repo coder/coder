@@ -569,5 +569,3 @@ export const ChatMessages: FC = () => {
 		/>
 	);
 };
-
-export default ChatMessages;

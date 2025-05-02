@@ -19,7 +19,7 @@ export interface ChatLandingLocationState {
 	message: string;
 }
 
-export const ChatLanding: FC = () => {
+const ChatLanding: FC = () => {
 	const { user } = useAuthenticated();
 	const theme = useTheme();
 	const [input, setInput] = useState("");

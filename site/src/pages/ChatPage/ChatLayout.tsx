@@ -42,7 +42,7 @@ export const ChatContext = createContext<ChatContext | undefined>(undefined);
 
 const SELECTED_MODEL_KEY = "coder_chat_selected_model";
 
-export const ChatProvider: FC<PropsWithChildren> = ({ children }) => {
+const ChatProvider: FC<PropsWithChildren> = ({ children }) => {
 	const [selectedModel, setSelectedModel] = useState<string>(() => {
 		const savedModel = localStorage.getItem(SELECTED_MODEL_KEY);
 		return savedModel || "";
@@ -244,5 +244,3 @@ export const ChatLayout: FC = () => {
 		</div>
 	);
 };
-
-export default ChatLayout;

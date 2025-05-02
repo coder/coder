@@ -22,9 +22,6 @@ importers:
       '@ai-sdk/react':
         specifier: 1.2.6
         version: 1.2.6(react@18.3.1)(zod@3.24.3)
-      '@ai-sdk/ui-utils':
-        specifier: 1.2.7
-        version: 1.2.7(zod@3.24.3)
       '@emoji-mart/data':
         specifier: 1.2.1
         version: 1.2.1
@@ -533,12 +530,6 @@ packages:
 
   '@ai-sdk/ui-utils@1.2.5':
     resolution: {integrity: sha512-XDgqnJcaCkDez7qolvk+PDbs/ceJvgkNkxkOlc9uDWqxfDJxtvCZ+14MP/1qr4IBwGIgKVHzMDYDXvqVhSWLzg==, tarball: https://registry.npmjs.org/@ai-sdk/ui-utils/-/ui-utils-1.2.5.tgz}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.23.8
-
-  '@ai-sdk/ui-utils@1.2.7':
-    resolution: {integrity: sha512-OVRxa4SDj0wVsMZ8tGr/whT89oqNtNoXBKmqWC2BRv5ZG6azL2LYZ5ZK35u3lb4l1IE7cWGsLlmq0py0ttsL7A==, tarball: https://registry.npmjs.org/@ai-sdk/ui-utils/-/ui-utils-1.2.7.tgz}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.23.8
@@ -6568,13 +6559,6 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 1.1.0
       '@ai-sdk/provider-utils': 2.2.4(zod@3.24.3)
-      zod: 3.24.3
-      zod-to-json-schema: 3.24.5(zod@3.24.3)
-
-  '@ai-sdk/ui-utils@1.2.7(zod@3.24.3)':
-    dependencies:
-      '@ai-sdk/provider': 1.1.2
-      '@ai-sdk/provider-utils': 2.2.6(zod@3.24.3)
       zod: 3.24.3
       zod-to-json-schema: 3.24.5(zod@3.24.3)
 
