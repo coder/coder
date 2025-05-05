@@ -32,12 +32,12 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 			<span className="flex flex-row items-center gap-2">
 				{auth.display_icon && (
 					<ExternalImage
-						className="w-6 h-6"
+						className="w-5 h-5"
 						src={auth.display_icon}
 						alt={`${auth.display_name} Icon`}
 					/>
 				)}
-				<p className="font-semibold m-0">{auth.display_name}</p>
+				<p className="font-semibold text-sm m-0">{auth.display_name}</p>
 				{!auth.optional && (
 					<Badge size="sm" variant={error ? "destructive" : "warning"}>
 						Required
@@ -48,8 +48,8 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 			<span className="flex flex-row items-center gap-2">
 				{auth.authenticated ? (
 					<>
-						<Check className="w-5 h-5 text-content-success" />
-						<p className="text-sm font-semibold text-content-secondary m-0">
+						<Check className="w-4 h-4 text-content-success" />
+						<p className="text-xs font-semibold text-content-secondary m-0">
 							Authenticated
 						</p>
 					</>
