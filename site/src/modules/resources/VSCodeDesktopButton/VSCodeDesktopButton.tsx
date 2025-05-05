@@ -7,8 +7,8 @@ import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { type FC, useRef, useState } from "react";
-import { DisplayAppNameMap } from "../AppLink/AppLink";
 import { AgentButton } from "../AgentButton";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export interface VSCodeDesktopButtonProps {
 	userName: string;

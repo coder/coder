@@ -4,19 +4,19 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useProxy } from "contexts/ProxyContext";
-import { type FC, useState } from "react";
-import { createAppLinkHref } from "utils/apps";
-import { generateRandomString } from "utils/random";
-import { BaseIcon } from "./BaseIcon";
-import { ShareIcon } from "./ShareIcon";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useProxy } from "contexts/ProxyContext";
+import { type FC, useState } from "react";
+import { createAppLinkHref } from "utils/apps";
+import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
+import { BaseIcon } from "./BaseIcon";
+import { ShareIcon } from "./ShareIcon";
 
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	port_forwarding_helper: "Ports",

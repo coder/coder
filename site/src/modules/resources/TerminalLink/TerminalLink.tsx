@@ -1,8 +1,8 @@
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import type { FC, MouseEvent } from "react";
 import { generateRandomString } from "utils/random";
-import { DisplayAppNameMap } from "../AppLink/AppLink";
 import { AgentButton } from "../AgentButton";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 const Language = {
 	terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,

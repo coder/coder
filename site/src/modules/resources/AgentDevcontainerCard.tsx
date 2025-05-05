@@ -3,19 +3,19 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentContainer,
 } from "api/typesGenerated";
-import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
-import { portForwardURL } from "utils/portForward";
-import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
-import { TerminalLink } from "./TerminalLink/TerminalLink";
-import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { ExternalLinkIcon } from "lucide-react";
+import type { FC } from "react";
+import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
+import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
+import { TerminalLink } from "./TerminalLink/TerminalLink";
+import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
 
 type AgentDevcontainerCardProps = {
 	agent: WorkspaceAgent;
