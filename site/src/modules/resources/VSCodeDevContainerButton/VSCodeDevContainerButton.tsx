@@ -7,8 +7,8 @@ import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { type FC, useRef, useState } from "react";
-import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
+import { Button } from "components/Button/Button";
 
 export interface VSCodeDevContainerButtonProps {
 	userName: string;
@@ -54,21 +54,20 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					<VSCodeInsidersButton {...props} />
 				)}
 
-				<AgentButton
+				<Button
 					aria-controls={
 						isVariantMenuOpen ? "vscode-variant-button-menu" : undefined
 					}
 					aria-expanded={isVariantMenuOpen ? "true" : undefined}
 					aria-label="select VSCode variant"
 					aria-haspopup="menu"
-					disableRipple
 					onClick={() => {
 						setIsVariantMenuOpen(true);
 					}}
 					css={{ paddingLeft: 0, paddingRight: 0 }}
 				>
 					<KeyboardArrowDownIcon css={{ fontSize: 16 }} />
-				</AgentButton>
+				</Button>
 			</ButtonGroup>
 
 			<Menu
@@ -118,8 +117,7 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 	const [loading, setLoading] = useState(false);
 
 	return (
-		<AgentButton
-			startIcon={<VSCodeIcon />}
+		<Button
 			disabled={loading}
 			onClick={() => {
 				setLoading(true);
@@ -147,8 +145,9 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 					});
 			}}
 		>
+			<VSCodeIcon />
 			{DisplayAppNameMap.vscode}
-		</AgentButton>
+		</Button>
 	);
 };
 
@@ -162,8 +161,7 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 	const [loading, setLoading] = useState(false);
 
 	return (
-		<AgentButton
-			startIcon={<VSCodeInsidersIcon />}
+		<Button
 			disabled={loading}
 			onClick={() => {
 				setLoading(true);
@@ -191,7 +189,8 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 					});
 			}}
 		>
+			<VSCodeInsidersIcon />
 			{DisplayAppNameMap.vscode_insiders}
-		</AgentButton>
+		</Button>
 	);
 };

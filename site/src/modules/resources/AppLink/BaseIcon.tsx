@@ -1,7 +1,9 @@
+import { useTheme } from "@emotion/react";
 import ComputerIcon from "@mui/icons-material/Computer";
 import type { WorkspaceApp } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import type { FC } from "react";
+import { forDarkThemes, forLightThemes } from "theme/externalImages";
 
 interface BaseIconProps {
 	app: WorkspaceApp;
@@ -9,8 +11,11 @@ interface BaseIconProps {
 }
 
 export const BaseIcon: FC<BaseIconProps> = ({ app, onIconPathError }) => {
+	const theme = useTheme();
+
 	return app.icon ? (
 		<ExternalImage
+			mode={theme.palette.mode === "dark" ? forLightThemes : forDarkThemes}
 			alt={`${app.display_name} Icon`}
 			src={app.icon}
 			style={{ pointerEvents: "none" }}

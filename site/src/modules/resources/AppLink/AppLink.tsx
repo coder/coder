@@ -1,18 +1,22 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
-import { type FC, type MouseEvent, useState } from "react";
+import { type FC, useState } from "react";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
-import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { Button } from "components/Button/Button";
 
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	port_forwarding_helper: "Ports",
@@ -112,22 +116,13 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 		canClick = false;
 	}
 
-	const isPrivateApp = app.sharing_level === "owner";
+	const canShare = app.sharing_level !== "owner";
 
-	return (
-		<Tooltip title={primaryTooltip}>
-			<Link
-				color="inherit"
-				component={AgentButton}
-				startIcon={icon}
-				endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
-				disabled={!canClick}
+	const button = (
+		<Button disabled={!canClick} asChild>
+			<a
 				href={href}
-				css={{
-					pointerEvents: canClick ? undefined : "none",
-					textDecoration: "none !important",
-				}}
-				onClick={async (event: MouseEvent<HTMLElement>) => {
+				onClick={async (event) => {
 					if (!canClick) {
 						return;
 					}
@@ -187,8 +182,23 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					}
 				}}
 			>
+				{icon}
 				{appDisplayName}
-			</Link>
-		</Tooltip>
+				{canShare && <ShareIcon app={app} />}
+			</a>
+		</Button>
 	);
+
+	if (primaryTooltip) {
+		return (
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>{button}</TooltipTrigger>
+					<TooltipContent>{primaryTooltip}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
+	}
+
+	return button;
 };
