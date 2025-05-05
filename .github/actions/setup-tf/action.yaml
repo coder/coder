@@ -5,7 +5,13 @@ runs:
   using: "composite"
   steps:
     - name: Install Terraform
+      if: ${{ runner.os != 'Windows' }}
       uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
       with:
         terraform_version: 1.11.4
         terraform_wrapper: false
+    - name: Install Terraform on Windows
+      if: ${{ runner.os == 'Windows' }}
+      shell: bash
+      run: |
+        choco install terraform --version=1.11.4 -y

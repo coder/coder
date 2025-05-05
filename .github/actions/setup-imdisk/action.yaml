@@ -1,7 +1,7 @@
 name: "Setup ImDisk"
 if: runner.os == 'Windows'
 description: |
-  Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+  Sets up the ImDisk toolkit for Windows and backs often-used paths with RAM disks
 runs:
   using: "composite"
   steps:
@@ -22,6 +22,27 @@ runs:
         install.bat /silent
 
     - name: Create RAM Disk
-      shell: cmd
+      shell: bash
       run: |
         imdisk -a -s 4096M -m R: -p "/fs:ntfs /q /y"
+
+        # bash
+        mkdir "$RUNNER_TEMP"_tmp
+        cp -r "$RUNNER_TEMP"/. "$RUNNER_TEMP"_tmp
+        rm -rf "$RUNNER_TEMP"/*
+        imdisk -a -s 8192M -m "$RUNNER_TEMP" -p "/fs:ntfs /q /y"
+        cp -r "$RUNNER_TEMP"_tmp/. "$RUNNER_TEMP"
+        rm -rf "$RUNNER_TEMP"_tmp
+
+        cd "$RUNNER_TEMP"
+        export GOCACHE="$(go env GOCACHE)"
+        export GOMODCACHE="$(go env GOMODCACHE)"
+        rm -rf "$GOCACHE"
+        rm -rf "$GOMODCACHE"
+        mkdir -p "$GOCACHE"
+        mkdir -p "$GOMODCACHE"
+        imdisk -a -s 8192M -m "$GOCACHE" -p "/fs:ntfs /q /y"
+        imdisk -a -s 8192M -m "$GOMODCACHE" -p "/fs:ntfs /q /y"
+
+        rm -rf "$GITHUB_WORKSPACE"/*
+        imdisk -a -s 2048M -m "$GITHUB_WORKSPACE" -p "/fs:ntfs /q /y"
