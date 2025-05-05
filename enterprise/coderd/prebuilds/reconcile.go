@@ -40,10 +40,11 @@ type StoreReconciler struct {
 	registerer prometheus.Registerer
 	metrics    *MetricsCollector
 
-	cancelFn context.CancelCauseFunc
-	running  atomic.Bool
-	stopped  atomic.Bool
-	done     chan struct{}
+	cancelFn          context.CancelCauseFunc
+	running           atomic.Bool
+	stopped           atomic.Bool
+	done              chan struct{}
+	provisionNotifyCh chan database.ProvisionerJob
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -56,13 +57,14 @@ func NewStoreReconciler(store database.Store,
 	registerer prometheus.Registerer,
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
-		store:      store,
-		pubsub:     ps,
-		logger:     logger,
-		cfg:        cfg,
-		clock:      clock,
-		registerer: registerer,
-		done:       make(chan struct{}, 1),
+		store:             store,
+		pubsub:            ps,
+		logger:            logger,
+		cfg:               cfg,
+		clock:             clock,
+		registerer:        registerer,
+		done:              make(chan struct{}, 1),
+		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
 
 	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
@@ -99,6 +101,29 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	//
 	// NOTE: without this atomic bool, Stop might race with Run for the c.cancelFn above.
 	c.running.Store(true)
+
+	// Publish provisioning jobs outside of database transactions.
+	// A connection is held while a database transaction is active; PGPubsub also tries to acquire a new connection on
+	// Publish, so we can exhaust available connections.
+	//
+	// A single worker dequeues from the channel, which should be sufficient.
+	// If any messages are missed due to congestion or errors, provisionerdserver has a backup polling mechanism which
+	// will periodically pick up any queued jobs (see poll(time.Duration) in coderd/provisionerdserver/acquirer.go).
+	go func() {
+		for {
+			select {
+			case <-c.done:
+				return
+			case <-ctx.Done():
+				return
+			case job := <-c.provisionNotifyCh:
+				err := provisionerjobs.PostJob(c.pubsub, job)
+				if err != nil {
+					c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+				}
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -576,10 +601,16 @@ func (c *StoreReconciler) provision(
 		return xerrors.Errorf("provision workspace: %w", err)
 	}
 
-	err = provisionerjobs.PostJob(c.pubsub, *provisionerJob)
-	if err != nil {
-		// Client probably doesn't care about this error, so just log it.
-		c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+	if provisionerJob == nil {
+		return nil
+	}
+
+	// Publish provisioner job event outside of transaction.
+	select {
+	case c.provisionNotifyCh <- *provisionerJob:
+	default: // channel full, drop the message; provisioner will pick this job up later with its periodic check, though.
+		c.logger.Warn(ctx, "provisioner job notification queue full, dropping",
+			slog.F("job_id", provisionerJob.ID), slog.F("prebuild_id", prebuildID.String()))
 	}
 
 	c.logger.Info(ctx, "prebuild job scheduled", slog.F("transition", transition),
