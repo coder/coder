@@ -19,7 +19,8 @@ export const AgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
 					"& .MuiButton-startIcon, & .MuiButton-endIcon": {
 						width: 16,
 						height: 16,
-						"& svg": { width: "100%", height: "100%" },
+
+						"& svg, & img": { width: "100%", height: "100%" },
 					},
 				})}
 			>
