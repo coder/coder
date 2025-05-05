@@ -898,7 +898,7 @@ type Workspace struct {
 }
 
 func (w *Workspace) Clone() Workspace {
-	agents := make(map[uuid.UUID]*Agent, len(a.agents))
+	agents := make(map[uuid.UUID]*Agent, len(w.agents))
 	for k, v := range w.agents {
 		clone := v.Clone()
 		agents[k] = &clone
