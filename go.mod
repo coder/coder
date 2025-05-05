@@ -111,8 +111,8 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dblohm7/wingoes v0.0.0-20240820181039-f2b84150679e
 	github.com/elastic/go-sysinfo v1.15.1
-	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
-	github.com/emersion/go-smtp v0.21.2
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
+	github.com/emersion/go-smtp v0.22.0
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
