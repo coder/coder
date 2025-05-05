@@ -1,5 +1,6 @@
 import ComputerIcon from "@mui/icons-material/Computer";
 import type { WorkspaceApp } from "api/typesGenerated";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import type { FC } from "react";
 
 interface BaseIconProps {
@@ -9,7 +10,7 @@ interface BaseIconProps {
 
 export const BaseIcon: FC<BaseIconProps> = ({ app, onIconPathError }) => {
 	return app.icon ? (
-		<img
+		<ExternalImage
 			alt={`${app.display_name} Icon`}
 			src={app.icon}
 			style={{ pointerEvents: "none" }}
