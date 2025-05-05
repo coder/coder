@@ -209,7 +209,7 @@ describe("CreateWorkspacePage", () => {
 			.mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
 		await screen.findByText(
-			"Authenticated with GitHub",
+			"Authenticated",
 			{},
 			{ interval: 500, timeout: 5000 },
 		);
