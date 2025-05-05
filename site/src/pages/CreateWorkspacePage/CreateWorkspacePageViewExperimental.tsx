@@ -23,6 +23,7 @@ import { useDebouncedFunction } from "hooks/debounce";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
 import {
 	DynamicParameter,
+	type ParameterStyling,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
@@ -492,6 +493,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
+									const styling = parameter.styling as ParameterStyling;
 									const parameterField = `rich_parameter_values.${index}`;
 									const parameterInputName = `${parameterField}.value`;
 									const isPresetParameter = presetParameterNames.includes(
@@ -501,7 +503,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										disabledParams?.includes(
 											parameter.name.toLowerCase().replace(/ /g, "_"),
 										) ||
-										(parameter.styling as { disabled?: boolean })?.disabled ||
+										styling?.disabled ||
 										creatingWorkspace ||
 										isPresetParameter;
 

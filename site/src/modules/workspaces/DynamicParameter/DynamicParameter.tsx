@@ -36,6 +36,12 @@ import { type FC, useEffect, useId, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
+export interface ParameterStyling {
+	placeholder?: string;
+	label?: string;
+	disabled?: boolean;
+}
+
 export interface DynamicParameterProps {
 	parameter: PreviewParameter;
 	onChange: (value: string) => void;
@@ -164,6 +170,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	id,
 }) => {
 	const value = validValue(parameter.value);
+	const styling = parameter.styling as ParameterStyling;
 	const [localValue, setLocalValue] = useState(value);
 
 	useEffect(() => {
@@ -181,10 +188,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				>
 					<SelectTrigger>
 						<SelectValue
-							placeholder={
-								(parameter.styling as { placeholder?: string })?.placeholder ||
-								"Select option"
-							}
+							placeholder={styling?.placeholder || "Select option"}
 						/>
 					</SelectTrigger>
 					<SelectContent>
@@ -245,10 +249,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						onChange(JSON.stringify(values));
 					}}
 					hidePlaceholderWhenSelected
-					placeholder={
-						(parameter.styling as { placeholder?: string })?.placeholder ||
-						"Select option"
-					}
+					placeholder={styling?.placeholder || "Select option"}
 					emptyIndicator={
 						<p className="text-center text-md text-content-primary">
 							No results found
@@ -304,9 +305,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						}}
 						disabled={disabled}
 					/>
-					<Label htmlFor={parameter.name}>
-						{(parameter.styling as { label?: string })?.label}
-					</Label>
+					<Label htmlFor={parameter.name}>{styling?.label}</Label>
 				</div>
 			);
 
@@ -343,9 +342,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						target.style.height = `${target.scrollHeight}px`;
 					}}
 					disabled={disabled}
-					placeholder={
-						(parameter.styling as { placeholder?: string })?.placeholder
-					}
+					placeholder={styling?.placeholder}
 					required={parameter.required}
 				/>
 			);
@@ -377,9 +374,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					}}
 					disabled={disabled}
 					required={parameter.required}
-					placeholder={
-						(parameter.styling as { placeholder?: string })?.placeholder
-					}
+					placeholder={styling?.placeholder}
 					{...inputProps}
 				/>
 			);
