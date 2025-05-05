@@ -567,7 +567,7 @@ func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
 				},
 			},
 		},
-		FreshState: true,
+		Kind: tailnet.Snapshot,
 	})
 	require.NoError(t, err)
 
@@ -579,6 +579,7 @@ func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
 	require.NotNil(t, peerUpdate)
 	require.Len(t, peerUpdate.UpsertedAgents, 1)
 	require.Len(t, peerUpdate.DeletedAgents, 1)
+	require.Len(t, peerUpdate.DeletedWorkspaces, 0)
 
 	require.Equal(t, aID2[:], peerUpdate.UpsertedAgents[0].Id)
 	require.Equal(t, hsTime, peerUpdate.UpsertedAgents[0].LastHandshake.AsTime())
@@ -667,7 +668,7 @@ func TestTunnel_sendAgentUpdateWorkspaceReconnect(t *testing.T) {
 				},
 			},
 		},
-		FreshState: true,
+		Kind: tailnet.Snapshot,
 	})
 	require.NoError(t, err)
 
@@ -757,7 +758,7 @@ func TestProcessFreshState(t *testing.T) {
 			name:          "NoChange",
 			initialAgents: initialAgents,
 			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
+				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
 				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2, &agent4},
 				DeletedWorkspaces:  []*tailnet.Workspace{},
@@ -772,7 +773,7 @@ func TestProcessFreshState(t *testing.T) {
 			name:          "AgentAdded", // Agent 3 added in update
 			initialAgents: initialAgents,
 			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
+				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2, &ws3},
 				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2, &agent3, &agent4},
 				DeletedWorkspaces:  []*tailnet.Workspace{},
@@ -787,7 +788,7 @@ func TestProcessFreshState(t *testing.T) {
 			name:          "AgentRemovedWorkspaceAlsoRemoved", // Agent 2 removed, ws2 also removed
 			initialAgents: initialAgents,
 			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
+				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1},         // ws2 not present
 				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent4}, // agent2 not present
 				DeletedWorkspaces:  []*tailnet.Workspace{},
@@ -804,7 +805,7 @@ func TestProcessFreshState(t *testing.T) {
 			name:          "AgentRemovedWorkspaceStays", // Agent 4 removed, but ws1 stays (due to agent1)
 			initialAgents: initialAgents,
 			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
+				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},   // ws1 still present
 				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2}, // agent4 not present
 				DeletedWorkspaces:  []*tailnet.Workspace{},
@@ -821,7 +822,7 @@ func TestProcessFreshState(t *testing.T) {
 			name:          "InitialAgentsEmpty",
 			initialAgents: map[uuid.UUID]tailnet.Agent{}, // Start with no agents known
 			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
+				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
 				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2},
 				DeletedWorkspaces:  []*tailnet.Workspace{},
@@ -836,7 +837,7 @@ func TestProcessFreshState(t *testing.T) {
 			name:          "UpdateEmpty", // Fresh state says nothing exists
 			initialAgents: initialAgents,
 			update: &tailnet.WorkspaceUpdate{
-				FreshState:         true,
+				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{},
 				UpsertedAgents:     []*tailnet.Agent{},
 				DeletedWorkspaces:  []*tailnet.Workspace{},
@@ -861,7 +862,7 @@ func TestProcessFreshState(t *testing.T) {
 			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
 			maps.Copy(agentsCopy, tt.initialAgents)
 
-			processFreshState(tt.update, agentsCopy)
+			processSnapshotUpdate(tt.update, agentsCopy)
 
 			require.ElementsMatch(t, tt.expectedDelete.DeletedAgents, tt.update.DeletedAgents, "DeletedAgents mismatch")
 			require.ElementsMatch(t, tt.expectedDelete.DeletedWorkspaces, tt.update.DeletedWorkspaces, "DeletedWorkspaces mismatch")

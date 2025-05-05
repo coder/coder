@@ -1611,7 +1611,7 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
-		FreshState:        true,
+		Kind:              tailnet.Snapshot,
 	}
 
 	// And the callback
@@ -1619,7 +1619,6 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	require.Equal(t, currentState, cbUpdate)
 
 	// Current recvState should match but shouldn't be a fresh state
-	currentState.FreshState = false
 	recvState, err := updateCtrl.CurrentState()
 	require.NoError(t, err)
 	slices.SortFunc(recvState.UpsertedWorkspaces, func(a, b *tailnet.Workspace) int {
@@ -1628,6 +1627,9 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	slices.SortFunc(recvState.UpsertedAgents, func(a, b *tailnet.Agent) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+	// tunnel is still open, so it's a diff
+	currentState.Kind = tailnet.Diff
+
 	require.Equal(t, currentState, recvState)
 }
 
@@ -1694,16 +1696,17 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
-		FreshState:        true,
+		Kind:              tailnet.Snapshot,
 	}
 
 	cbUpdate := testutil.TryReceive(ctx, t, fUH.ch)
 	require.Equal(t, initRecvUp, cbUpdate)
 
-	// Current state should match initial but shouldn't be a fresh state
-	initRecvUp.FreshState = false
 	state, err := updateCtrl.CurrentState()
 	require.NoError(t, err)
+	// tunnel is still open, so it's a diff
+	initRecvUp.Kind = tailnet.Diff
+
 	require.Equal(t, initRecvUp, state)
 
 	// Send update that removes w1a1 and adds w1a2
@@ -1757,7 +1760,6 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 				"w1.coder.":            {ws1a1IP},
 			}},
 		},
-		FreshState: false,
 	}
 	require.Equal(t, sndRecvUpdate, cbUpdate)
 
@@ -1776,7 +1778,6 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
-		FreshState:        false,
 	}, state)
 }
 

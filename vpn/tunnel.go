@@ -397,9 +397,9 @@ func (u *updater) sendUpdateResponse(req *request[*TunnelMessage, *ManagerMessag
 // createPeerUpdateLocked creates a PeerUpdate message from a workspace update, populating
 // the network status of the agents.
 func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUpdate {
-	// this flag is true on the first update after a reconnect
-	if update.FreshState {
-		processFreshState(&update, u.agents)
+	// if the update is a snapshot, we need to process the full state
+	if update.Kind == tailnet.Snapshot {
+		processSnapshotUpdate(&update, u.agents)
 	}
 
 	out := &PeerUpdate{
@@ -554,8 +554,12 @@ func (u *updater) netStatusLoop() {
 	}
 }
 
-// processFreshState handles the logic for when a fresh state update is received.
-func processFreshState(update *tailnet.WorkspaceUpdate, agents map[uuid.UUID]tailnet.Agent) {
+// processSnapshotUpdate handles the logic when a full state update is received.
+// When the tunnel is live, we only receive diffs, but the first packet on any given
+// reconnect to the tailnet API is a full state.
+// Without this logic we weren't processing deletes for any workspaces or agents deleted
+// while the client was disconnected while the computer was asleep.
+func processSnapshotUpdate(update *tailnet.WorkspaceUpdate, agents map[uuid.UUID]tailnet.Agent) {
 	// ignoredWorkspaces is initially populated with the workspaces that are
 	// in the current update. Later on we populate it with the deleted workspaces too
 	// so that we don't send duplicate updates. Same applies to ignoredAgents.
