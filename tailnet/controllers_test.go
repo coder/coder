@@ -1618,7 +1618,7 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	cbUpdate := testutil.TryReceive(ctx, t, fUH.ch)
 	require.Equal(t, currentState, cbUpdate)
 
-	// Current recvState should match but shouldn't be a fresh state
+	// Current recvState should match
 	recvState, err := updateCtrl.CurrentState()
 	require.NoError(t, err)
 	slices.SortFunc(recvState.UpsertedWorkspaces, func(a, b *tailnet.Workspace) int {

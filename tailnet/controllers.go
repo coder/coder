@@ -897,6 +897,21 @@ type Workspace struct {
 	agents        map[uuid.UUID]*Agent
 }
 
+func (a *Workspace) Clone() Workspace {
+	agents := make(map[uuid.UUID]*Agent, len(a.agents))
+	for k, v := range a.agents {
+		clone := v.Clone()
+		agents[k] = &clone
+	}
+	return Workspace{
+		ID:            a.ID,
+		Name:          a.Name,
+		Status:        a.Status,
+		ownerUsername: a.ownerUsername,
+		agents:        agents,
+	}
+}
+
 type DNSNameOptions struct {
 	Suffix string
 }

@@ -293,6 +293,7 @@ func TestUpdater_createPeerUpdate(t *testing.T) {
 		ctx:         ctx,
 		netLoopDone: make(chan struct{}),
 		agents:      map[uuid.UUID]tailnet.Agent{},
+		workspaces:  map[uuid.UUID]tailnet.Workspace{},
 		conn:        newFakeConn(tailnet.WorkspaceUpdate{}, hsTime),
 	}
 
@@ -727,6 +728,7 @@ func TestProcessFreshState(t *testing.T) {
 	wsID1 := uuid.New()
 	wsID2 := uuid.New()
 	wsID3 := uuid.New()
+	wsID4 := uuid.New()
 
 	agentID1 := uuid.New()
 	agentID2 := uuid.New()
@@ -738,25 +740,32 @@ func TestProcessFreshState(t *testing.T) {
 	agent3 := tailnet.Agent{ID: agentID3, Name: "agent3", WorkspaceID: wsID3}
 	agent4 := tailnet.Agent{ID: agentID4, Name: "agent4", WorkspaceID: wsID1}
 
-	ws1 := tailnet.Workspace{ID: wsID1, Name: "ws1"}
-	ws2 := tailnet.Workspace{ID: wsID2, Name: "ws2"}
-	ws3 := tailnet.Workspace{ID: wsID3, Name: "ws3"}
+	ws1 := tailnet.Workspace{ID: wsID1, Name: "ws1", Status: proto.Workspace_RUNNING}
+	ws2 := tailnet.Workspace{ID: wsID2, Name: "ws2", Status: proto.Workspace_RUNNING}
+	ws3 := tailnet.Workspace{ID: wsID3, Name: "ws3", Status: proto.Workspace_RUNNING}
+	ws4 := tailnet.Workspace{ID: wsID4, Name: "ws4", Status: proto.Workspace_RUNNING}
 
 	initialAgents := map[uuid.UUID]tailnet.Agent{
 		agentID1: agent1,
 		agentID2: agent2,
 		agentID4: agent4,
 	}
+	initialWorkspaces := map[uuid.UUID]tailnet.Workspace{
+		wsID1: ws1,
+		wsID2: ws2,
+	}
 
 	tests := []struct {
-		name           string
-		initialAgents  map[uuid.UUID]tailnet.Agent
-		update         *tailnet.WorkspaceUpdate
-		expectedDelete *tailnet.WorkspaceUpdate // We only care about deletions added by the function
+		name              string
+		initialAgents     map[uuid.UUID]tailnet.Agent
+		initialWorkspaces map[uuid.UUID]tailnet.Workspace
+		update            *tailnet.WorkspaceUpdate
+		expectedDelete    *tailnet.WorkspaceUpdate // We only care about deletions added by the function
 	}{
 		{
-			name:          "NoChange",
-			initialAgents: initialAgents,
+			name:              "NoChange",
+			initialAgents:     initialAgents,
+			initialWorkspaces: initialWorkspaces,
 			update: &tailnet.WorkspaceUpdate{
 				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
@@ -770,8 +779,9 @@ func TestProcessFreshState(t *testing.T) {
 			},
 		},
 		{
-			name:          "AgentAdded", // Agent 3 added in update
-			initialAgents: initialAgents,
+			name:              "AgentAdded", // Agent 3 added in update
+			initialAgents:     initialAgents,
+			initialWorkspaces: initialWorkspaces,
 			update: &tailnet.WorkspaceUpdate{
 				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2, &ws3},
@@ -785,8 +795,9 @@ func TestProcessFreshState(t *testing.T) {
 			},
 		},
 		{
-			name:          "AgentRemovedWorkspaceAlsoRemoved", // Agent 2 removed, ws2 also removed
-			initialAgents: initialAgents,
+			name:              "AgentRemovedWorkspaceAlsoRemoved", // Agent 2 removed, ws2 also removed
+			initialAgents:     initialAgents,
+			initialWorkspaces: initialWorkspaces,
 			update: &tailnet.WorkspaceUpdate{
 				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1},         // ws2 not present
@@ -795,15 +806,18 @@ func TestProcessFreshState(t *testing.T) {
 				DeletedAgents:      []*tailnet.Agent{},
 			},
 			expectedDelete: &tailnet.WorkspaceUpdate{
-				DeletedWorkspaces: []*tailnet.Workspace{{ID: wsID2}}, // Expect ws2 to be deleted
+				DeletedWorkspaces: []*tailnet.Workspace{
+					{ID: wsID2, Name: "ws2", Status: proto.Workspace_RUNNING},
+				}, // Expect ws2 to be deleted
 				DeletedAgents: []*tailnet.Agent{ // Expect agent2 to be deleted
 					{ID: agentID2, Name: "agent2", WorkspaceID: wsID2},
 				},
 			},
 		},
 		{
-			name:          "AgentRemovedWorkspaceStays", // Agent 4 removed, but ws1 stays (due to agent1)
-			initialAgents: initialAgents,
+			name:              "AgentRemovedWorkspaceStays", // Agent 4 removed, but ws1 stays (due to agent1)
+			initialAgents:     initialAgents,
+			initialWorkspaces: initialWorkspaces,
 			update: &tailnet.WorkspaceUpdate{
 				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},   // ws1 still present
@@ -819,8 +833,9 @@ func TestProcessFreshState(t *testing.T) {
 			},
 		},
 		{
-			name:          "InitialAgentsEmpty",
-			initialAgents: map[uuid.UUID]tailnet.Agent{}, // Start with no agents known
+			name:              "InitialAgentsEmpty",
+			initialAgents:     map[uuid.UUID]tailnet.Agent{}, // Start with no agents known
+			initialWorkspaces: map[uuid.UUID]tailnet.Workspace{},
 			update: &tailnet.WorkspaceUpdate{
 				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
@@ -834,8 +849,9 @@ func TestProcessFreshState(t *testing.T) {
 			},
 		},
 		{
-			name:          "UpdateEmpty", // Fresh state says nothing exists
-			initialAgents: initialAgents,
+			name:              "UpdateEmpty", // Snapshot says nothing exists
+			initialAgents:     initialAgents,
+			initialWorkspaces: initialWorkspaces,
 			update: &tailnet.WorkspaceUpdate{
 				Kind:               tailnet.Snapshot,
 				UpsertedWorkspaces: []*tailnet.Workspace{},
@@ -844,12 +860,33 @@ func TestProcessFreshState(t *testing.T) {
 				DeletedAgents:      []*tailnet.Agent{},
 			},
 			expectedDelete: &tailnet.WorkspaceUpdate{ // Expect all initial agents/workspaces to be deleted
-				DeletedWorkspaces: []*tailnet.Workspace{{ID: wsID1}, {ID: wsID2}}, // ws1 and ws2 deleted
+				DeletedWorkspaces: []*tailnet.Workspace{
+					{ID: wsID1, Name: "ws1", Status: proto.Workspace_RUNNING},
+					{ID: wsID2, Name: "ws2", Status: proto.Workspace_RUNNING},
+				}, // ws1 and ws2 deleted
 				DeletedAgents: []*tailnet.Agent{ // agent1, agent2, agent4 deleted
 					{ID: agentID1, Name: "agent1", WorkspaceID: wsID1},
 					{ID: agentID2, Name: "agent2", WorkspaceID: wsID2},
 					{ID: agentID4, Name: "agent4", WorkspaceID: wsID1},
 				},
+			},
+		},
+		{
+			name:              "WorkspaceWithNoAgents", // Snapshot says nothing exists
+			initialAgents:     initialAgents,
+			initialWorkspaces: map[uuid.UUID]tailnet.Workspace{wsID1: ws1, wsID2: ws2, wsID4: ws4}, // ws4 has no agents
+			update: &tailnet.WorkspaceUpdate{
+				Kind:               tailnet.Snapshot,
+				UpsertedWorkspaces: []*tailnet.Workspace{&ws1, &ws2},
+				UpsertedAgents:     []*tailnet.Agent{&agent1, &agent2, &agent4},
+				DeletedWorkspaces:  []*tailnet.Workspace{},
+				DeletedAgents:      []*tailnet.Agent{},
+			},
+			expectedDelete: &tailnet.WorkspaceUpdate{ // Expect all initial agents/workspaces to be deleted
+				DeletedWorkspaces: []*tailnet.Workspace{
+					{ID: wsID4, Name: "ws4", Status: proto.Workspace_RUNNING},
+				}, // ws4 should be deleted
+				DeletedAgents: []*tailnet.Agent{},
 			},
 		},
 	}
@@ -862,7 +899,10 @@ func TestProcessFreshState(t *testing.T) {
 			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
 			maps.Copy(agentsCopy, tt.initialAgents)
 
-			processSnapshotUpdate(tt.update, agentsCopy)
+			workspaceCopy := make(map[uuid.UUID]tailnet.Workspace)
+			maps.Copy(workspaceCopy, tt.initialWorkspaces)
+
+			processSnapshotUpdate(tt.update, agentsCopy, workspaceCopy)
 
 			require.ElementsMatch(t, tt.expectedDelete.DeletedAgents, tt.update.DeletedAgents, "DeletedAgents mismatch")
 			require.ElementsMatch(t, tt.expectedDelete.DeletedWorkspaces, tt.update.DeletedWorkspaces, "DeletedWorkspaces mismatch")

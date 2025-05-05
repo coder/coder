@@ -88,6 +88,7 @@ func NewTunnel(
 			netLoopDone: make(chan struct{}),
 			uSendCh:     s.sendCh,
 			agents:      map[uuid.UUID]tailnet.Agent{},
+			workspaces:  map[uuid.UUID]tailnet.Workspace{},
 			clock:       quartz.NewReal(),
 		},
 	}
@@ -347,7 +348,9 @@ type updater struct {
 	uSendCh chan<- *TunnelMessage
 	// agents contains the agents that are currently connected to the tunnel.
 	agents map[uuid.UUID]tailnet.Agent
-	conn   Conn
+	// workspaces contains the workspaces to which agents are currently connected via the tunnel.
+	workspaces map[uuid.UUID]tailnet.Workspace
+	conn       Conn
 
 	clock quartz.Clock
 }
@@ -399,7 +402,7 @@ func (u *updater) sendUpdateResponse(req *request[*TunnelMessage, *ManagerMessag
 func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUpdate {
 	// if the update is a snapshot, we need to process the full state
 	if update.Kind == tailnet.Snapshot {
-		processSnapshotUpdate(&update, u.agents)
+		processSnapshotUpdate(&update, u.agents, u.workspaces)
 	}
 
 	out := &PeerUpdate{
@@ -416,6 +419,12 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 	}
 	for _, agent := range update.DeletedAgents {
 		delete(u.agents, agent.ID)
+	}
+	for _, workspace := range update.UpsertedWorkspaces {
+		u.workspaces[workspace.ID] = workspace.Clone()
+	}
+	for _, workspace := range update.DeletedWorkspaces {
+		delete(u.workspaces, workspace.ID)
 	}
 
 	for i, ws := range update.UpsertedWorkspaces {
@@ -559,7 +568,7 @@ func (u *updater) netStatusLoop() {
 // reconnect to the tailnet API is a full state.
 // Without this logic we weren't processing deletes for any workspaces or agents deleted
 // while the client was disconnected while the computer was asleep.
-func processSnapshotUpdate(update *tailnet.WorkspaceUpdate, agents map[uuid.UUID]tailnet.Agent) {
+func processSnapshotUpdate(update *tailnet.WorkspaceUpdate, agents map[uuid.UUID]tailnet.Agent, workspaces map[uuid.UUID]tailnet.Workspace) {
 	// ignoredWorkspaces is initially populated with the workspaces that are
 	// in the current update. Later on we populate it with the deleted workspaces too
 	// so that we don't send duplicate updates. Same applies to ignoredAgents.
@@ -573,23 +582,23 @@ func processSnapshotUpdate(update *tailnet.WorkspaceUpdate, agents map[uuid.UUID
 		ignoredAgents[agent.ID] = struct{}{}
 	}
 	for _, agent := range agents {
-		if _, ok := ignoredAgents[agent.ID]; !ok {
+		if _, present := ignoredAgents[agent.ID]; !present {
 			// delete any current agents that are not in the new update
 			update.DeletedAgents = append(update.DeletedAgents, &tailnet.Agent{
 				ID:          agent.ID,
 				Name:        agent.Name,
 				WorkspaceID: agent.WorkspaceID,
 			})
-			// if the workspace connected to an agent we're deleting,
-			// is not present in the fresh state, add it to the deleted workspaces
-			if _, ok := ignoredWorkspaces[agent.WorkspaceID]; !ok {
-				update.DeletedWorkspaces = append(update.DeletedWorkspaces, &tailnet.Workspace{
-					// other fields cannot be populated because the tunnel
-					// only stores agents and corresponding workspaceIDs
-					ID: agent.WorkspaceID,
-				})
-				ignoredWorkspaces[agent.WorkspaceID] = struct{}{}
-			}
+		}
+	}
+	for _, workspace := range workspaces {
+		if _, present := ignoredWorkspaces[workspace.ID]; !present {
+			update.DeletedWorkspaces = append(update.DeletedWorkspaces, &tailnet.Workspace{
+				ID:     workspace.ID,
+				Name:   workspace.Name,
+				Status: workspace.Status,
+			})
+			ignoredWorkspaces[workspace.ID] = struct{}{}
 		}
 	}
 }
