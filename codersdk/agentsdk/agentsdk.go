@@ -710,18 +710,30 @@ func PrebuildClaimedChannel(id uuid.UUID) string {
 // - ping: ignored, keepalive
 // - prebuild claimed: a prebuilt workspace is claimed, so the agent must reinitialize.
 func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, error) {
-	// TODO: allow configuring httpclient
-	c.SDK.HTTPClient.Timeout = time.Hour * 24
+	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/reinit")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
 
-	// TODO (sasswart): tried the following to fix the above, it won't work. The shorter timeout wins.
-	// I also considered cloning c.SDK.HTTPClient and setting the timeout on the cloned client.
-	// That won't work because we can't pass the cloned HTTPClient into s.SDK.Request.
-	// Looks like we're going to need a separate client to be able to have a longer timeout.
-	//
-	// timeoutCtx, cancelTimeoutCtx := context.WithTimeout(ctx, 24*time.Hour)
-	// defer cancelTimeoutCtx()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(rpcURL, []*http.Cookie{{
+		Name:  codersdk.SessionTokenCookie,
+		Value: c.SDK.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.SDK.HTTPClient.Transport,
+	}
 
-	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/reinit", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rpcURL.String(), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("build request: %w", err)
+	}
+
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
