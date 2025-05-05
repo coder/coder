@@ -62,6 +62,19 @@ export const WithIcon: Story = {
 	},
 };
 
+export const WithNonSquaredIcon: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			icon: "/icon/windsurf.svg",
+			sharing_level: "owner",
+			health: "healthy",
+		},
+		agent: MockWorkspaceAgent,
+	},
+};
+
 export const ExternalApp: Story = {
 	args: {
 		workspace: MockWorkspace,
