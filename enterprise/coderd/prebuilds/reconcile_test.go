@@ -322,11 +322,6 @@ func TestPrebuildReconciliation(t *testing.T) {
 									t, &slogtest.Options{IgnoreErrors: true},
 								).Leveled(slog.LevelDebug)
 								db, pubSub := dbtestutil.NewDB(t)
-								if useBrokenPubsub {
-									pubSub = &brokenPublisher{Pubsub: pubSub}
-								}
-
-								controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 								ownerID := uuid.New()
 								dbgen.User(t, db, database.User{
@@ -368,6 +363,11 @@ func TestPrebuildReconciliation(t *testing.T) {
 									// This marks the template version that we care about as inactive
 									setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
 								}
+
+								if useBrokenPubsub {
+									pubSub = &brokenPublisher{Pubsub: pubSub}
+								}
+								controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
 
 								// Run the reconciliation multiple times to ensure idempotency
 								// 8 was arbitrary, but large enough to reasonably trust the result
@@ -417,10 +417,13 @@ type brokenPublisher struct {
 	pubsub.Pubsub
 }
 
+// Publish deliberately fails.
+// I'm explicitly _not_ checking for EventJobPosted (coderd/database/provisionerjobs/provisionerjobs.go) since that
+// requires too much knowledge of the underlying implementation.
 func (*brokenPublisher) Publish(event string, _ []byte) error {
-	// I'm explicitly _not_ checking for EventJobPosted (coderd/database/provisionerjobs/provisionerjobs.go) since that
-	// requires too much knowledge of the underlying implementation.
-	return xerrors.Errorf("refusing to publish %q", event)
+	// Mimick some work being done.
+	<-time.After(testutil.IntervalFast)
+	return xerrors.Errorf("failed to publish %q", event)
 }
 
 func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
