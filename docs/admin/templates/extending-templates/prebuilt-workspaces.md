@@ -4,7 +4,7 @@ Prebuilt workspaces allow template administrators to improve the developer exper
 creation time with an automatically maintained pool of ready-to-use workspaces for specific parameter presets.
 
 The template administrator configures a template to provision prebuilt workspaces in the background, and then when a developer creates
-a new workspace with matching parameters, Coder assigns them an existing prebuilt instance.
+a new workspace that matches the preset, Coder assigns them an existing prebuilt instance.
 Prebuilt workspaces significantly reduce wait times, especially for templates with complex provisioning or lengthy startup procedures.
 
 Prebuilt workspaces are:
