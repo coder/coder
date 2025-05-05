@@ -304,7 +304,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-6 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 
@@ -397,14 +397,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 					{externalAuth && externalAuth.length > 0 && (
 						<section>
 							<hgroup>
-								<h2 className="text-xl font-semibold mb-0">
+								<h2 className="text-xl font-semibold m-0">
 									External Authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.
 								</p>
 							</hgroup>
-							<div>
+							<div className="flex flex-col gap-4">
 								{Boolean(error) && !hasAllRequiredExternalAuth && (
 									<Alert severity="error">
 										To create a workspace using this template, please connect to
