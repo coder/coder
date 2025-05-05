@@ -16,7 +16,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Button } from "components/Button/Button";
+import { AgentButton } from "../AgentButton";
 
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	port_forwarding_helper: "Ports",
@@ -119,7 +119,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const canShare = app.sharing_level !== "owner";
 
 	const button = (
-		<Button disabled={!canClick} asChild>
+		<AgentButton disabled={!canClick} asChild>
 			<a
 				href={href}
 				onClick={async (event) => {
@@ -186,7 +186,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 				{appDisplayName}
 				{canShare && <ShareIcon app={app} />}
 			</a>
-		</Button>
+		</AgentButton>
 	);
 
 	if (primaryTooltip) {

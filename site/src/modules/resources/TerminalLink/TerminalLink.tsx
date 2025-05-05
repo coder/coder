@@ -2,7 +2,7 @@ import { TerminalIcon } from "components/Icons/TerminalIcon";
 import type { FC, MouseEvent } from "react";
 import { generateRandomString } from "utils/random";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
-import { Button } from "components/Button/Button";
+import { AgentButton } from "../AgentButton";
 
 const Language = {
 	terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
@@ -38,7 +38,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 	}/terminal?${params.toString()}`;
 
 	return (
-		<Button asChild>
+		<AgentButton asChild>
 			<a
 				href={href}
 				onClick={(event: MouseEvent<HTMLElement>) => {
@@ -53,6 +53,6 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 				<TerminalIcon />
 				{DisplayAppNameMap.web_terminal}
 			</a>
-		</Button>
+		</AgentButton>
 	);
 };

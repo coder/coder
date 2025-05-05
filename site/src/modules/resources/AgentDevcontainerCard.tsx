@@ -15,7 +15,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Button } from "components/Button/Button";
+import { AgentButton } from "./AgentButton";
 
 type AgentDevcontainerCardProps = {
 	agent: WorkspaceAgent;
@@ -89,12 +89,12 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							<TooltipProvider key={portLabel}>
 								<Tooltip>
 									<TooltipTrigger>
-										<Button disabled={!hasHostBind} asChild>
+										<AgentButton disabled={!hasHostBind} asChild>
 											<a href={linkDest}>
 												<ExternalLinkIcon />
 												{portLabel}
 											</a>
-										</Button>
+										</AgentButton>
 									</TooltipTrigger>
 									<TooltipContent>{helperText}</TooltipContent>
 								</Tooltip>

@@ -8,7 +8,7 @@ import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { type FC, useRef, useState } from "react";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
-import { Button } from "components/Button/Button";
+import { AgentButton } from "../AgentButton";
 
 export interface VSCodeDevContainerButtonProps {
 	userName: string;
@@ -54,7 +54,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					<VSCodeInsidersButton {...props} />
 				)}
 
-				<Button
+				<AgentButton
 					aria-controls={
 						isVariantMenuOpen ? "vscode-variant-button-menu" : undefined
 					}
@@ -67,7 +67,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					css={{ paddingLeft: 0, paddingRight: 0 }}
 				>
 					<KeyboardArrowDownIcon css={{ fontSize: 16 }} />
-				</Button>
+				</AgentButton>
 			</ButtonGroup>
 
 			<Menu
@@ -117,7 +117,7 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 	const [loading, setLoading] = useState(false);
 
 	return (
-		<Button
+		<AgentButton
 			disabled={loading}
 			onClick={() => {
 				setLoading(true);
@@ -147,7 +147,7 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 		>
 			<VSCodeIcon />
 			{DisplayAppNameMap.vscode}
-		</Button>
+		</AgentButton>
 	);
 };
 
@@ -161,7 +161,7 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 	const [loading, setLoading] = useState(false);
 
 	return (
-		<Button
+		<AgentButton
 			disabled={loading}
 			onClick={() => {
 				setLoading(true);
@@ -191,6 +191,6 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 		>
 			<VSCodeInsidersIcon />
 			{DisplayAppNameMap.vscode_insiders}
-		</Button>
+		</AgentButton>
 	);
 };
