@@ -132,7 +132,7 @@ When a prebuilt workspace is claimed, another `terraform apply` run occurs with 
 This can cause issues:
 
 1. The workspace is initially created with values from the `prebuilds` user and a random name.
-1. After claiming, the workspace owner and name change, which Terraform sees as configuration drift.
+1. After claiming, various workspace properties change (ownership, name, and potentially other values), which Terraform sees as configuration drift.
 1. If these values are used in immutable fields, Terraform will destroy and recreate the resource, eliminating the benefit of prebuilds.
 
 For example, when these values are used in immutable fields like the AWS instance `user_data`, you'll see resource replacement during claiming:
