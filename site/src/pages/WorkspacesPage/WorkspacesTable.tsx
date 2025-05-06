@@ -547,9 +547,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				{abilities.actions.includes("updateAndStart") && (
 					<>
 						<PrimaryAction
-							onClick={() => {
-								workspaceUpdate.update(false);
-							}}
+							onClick={workspaceUpdate.update}
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and start workspace"
 						>
