@@ -213,17 +213,23 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameters,
 	]);
 
+	// send the last user modified parameter and all touched parameters to the websocket
 	const sendDynamicParamsRequest = (
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs = Object.fromEntries(
-			form.values.rich_parameter_values?.map((value) => {
-				return [value.name, value.value];
-			}) ?? [],
-		);
-		// Update the input for the changed parameter
+		const formInputs: { [k: string]: string } = {};
 		formInputs[parameter.name] = value;
+		const parameters = form.values.rich_parameter_values ?? [];
+
+		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
+			if (isTouched && fieldName !== parameter.name) {
+				const param = parameters.find((p) => p.name === fieldName);
+				if (param?.value) {
+					formInputs[fieldName] = param.value;
+				}
+			}
+		}
 
 		sendMessage(formInputs);
 	};
@@ -238,6 +244,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				name: parameter.name,
 				value,
 			});
+			form.setFieldTouched(parameter.name, true);
 			sendDynamicParamsRequest(parameter, value);
 		},
 		500,
@@ -255,6 +262,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				name: parameter.name,
 				value,
 			});
+			form.setFieldTouched(parameter.name, true);
 			sendDynamicParamsRequest(parameter, value);
 		}
 	};
