@@ -26,7 +26,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
-} from "modules/workspaces/useWorkspaceUpdate";
+} from "modules/workspaces/WorkspaceUpdateDialogs";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";

@@ -66,7 +66,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "starting": {
 			return {
 				actions: ["starting"],
-				canCancel: true && hasPermissionToCancel,
+				canCancel: hasPermissionToCancel,
 				canAcceptJobs: false,
 			};
 		}
@@ -91,7 +91,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "stopping": {
 			return {
 				actions: ["stopping"],
-				canCancel: true && hasPermissionToCancel,
+				canCancel: hasPermissionToCancel,
 				canAcceptJobs: false,
 			};
 		}

@@ -20,10 +20,7 @@ type UseWorkspaceUpdateOptions = {
 };
 
 type UseWorkspaceUpdateResult = {
-	update: (
-		hasConfirmed?: boolean,
-		buildParameters?: WorkspaceBuildParameter[],
-	) => void;
+	update: () => void;
 	isUpdating: boolean;
 	dialogs: {
 		updateConfirmation: UpdateConfirmationDialogProps;
@@ -50,15 +47,11 @@ export const useWorkspaceUpdate = ({
 		onError,
 	});
 
-	const update = (
-		hasConfirmed = false,
-		buildParameters: WorkspaceBuildParameter[] = [],
-	) => {
-		if (!hasConfirmed) {
-			setIsConfirmingUpdate(true);
-			return;
-		}
+	const update = () => {
+		setIsConfirmingUpdate(true);
+	};
 
+	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
 		updateWorkspaceMutation.mutate(buildParameters);
 		setIsConfirmingUpdate(false);
 	};
@@ -70,7 +63,7 @@ export const useWorkspaceUpdate = ({
 			updateConfirmation: {
 				open: isConfirmingUpdate,
 				onClose: () => setIsConfirmingUpdate(false),
-				onConfirm: () => update(true),
+				onConfirm: () => confirmUpdate(),
 				latestVersion,
 			},
 			missingBuildParameters: {
@@ -80,7 +73,7 @@ export const useWorkspaceUpdate = ({
 				},
 				onUpdate: (buildParameters: WorkspaceBuildParameter[]) => {
 					if (updateWorkspaceMutation.error instanceof MissingBuildParameters) {
-						update(true, buildParameters);
+						confirmUpdate(buildParameters);
 					}
 				},
 			},

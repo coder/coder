@@ -54,11 +54,11 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
-} from "modules/workspaces/useWorkspaceUpdate";
+} from "modules/workspaces/WorkspaceUpdateDialogs";
+import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import {
 	type FC,
 	type PropsWithChildren,
