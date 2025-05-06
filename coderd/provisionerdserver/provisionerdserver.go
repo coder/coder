@@ -1841,7 +1841,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 }
 
 func (s *server) notifyPrebuiltWorkspaceResourceReplacement(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
-	if claimantID == uuid.Nil {
+	if claimantID == uuid.Nil || len(replacements) == 0 {
 		// This is not a prebuild claim.
 		return
 	}
@@ -1878,8 +1878,9 @@ func (s *server) notifyPrebuiltWorkspaceResourceReplacement(ctx context.Context,
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 		); err != nil {
-			s.Logger.Warn(ctx, "failed to notify of prebuilt workspace resource replacement", slog.Error(err))
-			break
+			s.Logger.Warn(ctx, "failed to notify of prebuilt workspace resource replacement", slog.Error(err),
+				slog.F("user_id", templateAdmin.ID.String()), slog.F("user_email", templateAdmin.Email))
+			continue
 		}
 	}
 }

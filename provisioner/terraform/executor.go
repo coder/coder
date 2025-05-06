@@ -300,10 +300,14 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
 
-	state, plan, replacements, err := e.planResources(ctx, killCtx, planfilePath)
+	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
-		return nil, err
+		return nil, xerrors.Errorf("plan resources: %w", err)
+	}
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
@@ -312,17 +316,22 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	// the point of prebuilding if the expensive resource is replaced once claimed!
 	var (
 		isPrebuildClaimAttempt = !destroy && metadata.GetPrebuildClaimForUserId() != ""
-		reps                   []*proto.ResourceReplacement
+		resReps                []*proto.ResourceReplacement
 	)
-	if count := len(replacements); count > 0 && isPrebuildClaimAttempt {
-		// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
-		//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
-		//				 to diagnose this resource replacement issue, at least.
-		e.logDrift(ctx, killCtx, planfilePath, logr)
+	if repsFromPlan := findResourceReplacements(plan); len(repsFromPlan) > 0 {
+		if isPrebuildClaimAttempt {
+			// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
+			//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
+			//				 to diagnose this resource replacement issue, at least.
+			//				 Once prebuilds moves out of beta, consider deleting this condition.
 
-		reps = make([]*proto.ResourceReplacement, 0, len(replacements))
-		for n, p := range replacements {
-			reps = append(reps, &proto.ResourceReplacement{
+			// Lock held before calling (see top of method).
+			e.logDrift(ctx, killCtx, planfilePath, logr)
+		}
+
+		resReps = make([]*proto.ResourceReplacement, 0, len(repsFromPlan))
+		for n, p := range repsFromPlan {
+			resReps = append(resReps, &proto.ResourceReplacement{
 				Resource: n,
 				Paths:    p,
 			})
@@ -335,8 +344,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		Presets:               state.Presets,
-		Plan:                  plan,
-		ResourceReplacements:  reps,
+		Plan:                  planJSON,
+		ResourceReplacements:  resReps,
 	}, nil
 }
 
@@ -358,18 +367,18 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, json.RawMessage, resourceReplacements, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, *tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, nil, xerrors.Errorf("graph: %w", err)
+		return nil, nil, xerrors.Errorf("graph: %w", err)
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
@@ -387,15 +396,10 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 
 	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	planJSON, err := json.Marshal(plan)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return state, planJSON, findResourceReplacements(plan), nil
+	return state, plan, nil
 }
 
 // parsePlan must only be called while the lock is held.

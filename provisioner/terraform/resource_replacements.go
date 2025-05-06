@@ -42,7 +42,18 @@ func findResourceReplacements(plan *tfjson.Plan) resourceReplacements {
 			continue
 		}
 
-		// Replacing our resources, no problem!
+		// Replacing our resources: could be a problem - but we ignore since they're "virtual" resources. If any of these
+		// resources' attributes are referenced by non-coder resources, those will show up as transitive changes there.
+		// i.e. if the coder_agent.id attribute is used in docker_container.env
+		//
+		// Replacing our resources is not strictly a problem in and of itself.
+		//
+		// NOTE:
+		// We may need to special-case coder_agent in the future. Currently, coder_agent is replaced on every build
+		// because it only supports Create but not Update: https://github.com/coder/terraform-provider-coder/blob/5648efb/provider/agent.go#L28
+		// When we can modify an agent's attributes, some of which may be immutable (like "arch") and some may not (like "env"),
+		// then we'll have to handle this specifically.
+		// This will only become relevant once we support multiple agents: https://github.com/coder/coder/issues/17388
 		if strings.Index(ch.Type, "coder_") == 0 {
 			continue
 		}
