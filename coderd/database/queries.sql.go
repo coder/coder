@@ -766,6 +766,207 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteChat = `-- name: DeleteChat :exec
+DELETE FROM chats WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteChat(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChat, id)
+	return err
+}
+
+const getChatByID = `-- name: GetChatByID :one
+SELECT id, owner_id, created_at, updated_at, title FROM chats
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, getChatByID, id)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Title,
+	)
+	return i, err
+}
+
+const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
+SELECT id, chat_id, created_at, model, provider, content FROM chat_messages
+WHERE chat_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CreatedAt,
+			&i.Model,
+			&i.Provider,
+			&i.Content,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByOwnerID = `-- name: GetChatsByOwnerID :many
+SELECT id, owner_id, created_at, updated_at, title FROM chats
+WHERE owner_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChat = `-- name: InsertChat :one
+INSERT INTO chats (owner_id, created_at, updated_at, title)
+VALUES ($1, $2, $3, $4)
+RETURNING id, owner_id, created_at, updated_at, title
+`
+
+type InsertChatParams struct {
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Title     string    `db:"title" json:"title"`
+}
+
+func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.OwnerID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Title,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Title,
+	)
+	return i, err
+}
+
+const insertChatMessages = `-- name: InsertChatMessages :many
+INSERT INTO chat_messages (chat_id, created_at, model, provider, content)
+SELECT
+    $1 :: uuid AS chat_id,
+    $2 :: timestamptz AS created_at,
+    $3 :: VARCHAR(127) AS model,
+    $4 :: VARCHAR(127) AS provider,
+    jsonb_array_elements($5 :: jsonb) AS content
+RETURNING chat_messages.id, chat_messages.chat_id, chat_messages.created_at, chat_messages.model, chat_messages.provider, chat_messages.content
+`
+
+type InsertChatMessagesParams struct {
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Model     string          `db:"model" json:"model"`
+	Provider  string          `db:"provider" json:"provider"`
+	Content   json.RawMessage `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, insertChatMessages,
+		arg.ChatID,
+		arg.CreatedAt,
+		arg.Model,
+		arg.Provider,
+		arg.Content,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CreatedAt,
+			&i.Model,
+			&i.Provider,
+			&i.Content,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateChatByID = `-- name: UpdateChatByID :exec
+UPDATE chats
+SET title = $2, updated_at = $3
+WHERE id = $1
+`
+
+type UpdateChatByIDParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Title     string    `db:"title" json:"title"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatByID, arg.ID, arg.Title, arg.UpdatedAt)
+	return err
+}
+
 const deleteCryptoKey = `-- name: DeleteCryptoKey :one
 UPDATE crypto_keys
 SET secret = NULL, secret_key_id = NULL
