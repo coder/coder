@@ -1,8 +1,10 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
+import { workspaces } from "api/queries/workspaces";
 import type {
 	Workspace,
 	WorkspaceBuild,
+	WorkspacesRequest,
 	WorkspacesResponse,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -14,27 +16,11 @@ import {
 	useQueryClient,
 } from "react-query";
 
-type UseWorkspacesDataParams = {
-	page: number;
-	limit: number;
-	query: string;
-};
-
-export const useWorkspacesData = ({
-	page,
-	limit,
-	query,
-}: UseWorkspacesDataParams) => {
-	const queryKey = ["workspaces", query, page];
+export const useWorkspacesData = (req: WorkspacesRequest) => {
 	const [shouldRefetch, setShouldRefetch] = useState(true);
+	const workspacesQueryOptions = workspaces(req);
 	const result = useQuery({
-		queryKey,
-		queryFn: () =>
-			API.getWorkspaces({
-				q: query,
-				limit: limit,
-				offset: page <= 0 ? 0 : (page - 1) * limit,
-			}),
+		...workspacesQueryOptions,
 		onSuccess: () => {
 			setShouldRefetch(true);
 		},
@@ -46,7 +32,7 @@ export const useWorkspacesData = ({
 
 	return {
 		...result,
-		queryKey,
+		queryKey: workspacesQueryOptions.queryKey,
 	};
 };
 

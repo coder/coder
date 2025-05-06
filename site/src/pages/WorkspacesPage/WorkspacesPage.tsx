@@ -1,8 +1,10 @@
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
@@ -10,7 +12,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import { type FC, useEffect, useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
@@ -35,6 +37,7 @@ function useSafeSearchParams() {
 }
 
 const WorkspacesPage: FC = () => {
+	const queryClient = useQueryClient();
 	// If we use a useSearchParams for each hook, the values will not be in sync.
 	// So we have to use a single one, centralizing the values, and pass it to
 	// each hook.
@@ -72,7 +75,7 @@ const WorkspacesPage: FC = () => {
 
 	const { data, error, queryKey, refetch } = useWorkspacesData({
 		...pagination,
-		query: filterProps.filter.query,
+		q: filterProps.filter.query,
 	});
 
 	const updateWorkspace = useWorkspaceUpdate(queryKey);
@@ -128,6 +131,17 @@ const WorkspacesPage: FC = () => {
 				onUpdateAll={() => setConfirmingBatchAction("update")}
 				onStartAll={() => batchActions.startAll(checkedWorkspaces)}
 				onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
+				onActionSuccess={async () => {
+					await queryClient.invalidateQueries({
+						queryKey,
+					});
+				}}
+				onActionError={(error) => {
+					displayError(
+						getErrorMessage(error, "Failed to perform action"),
+						getErrorDetail(error),
+					);
+				}}
 			/>
 
 			<BatchDeleteConfirmation
