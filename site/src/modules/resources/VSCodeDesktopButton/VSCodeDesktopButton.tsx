@@ -5,6 +5,7 @@ import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { ChevronDownIcon } from "lucide-react";
+import { getVSCodeHref } from "modules/apps/apps";
 import { type FC, useRef, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
@@ -118,21 +119,15 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 				setLoading(true);
 				API.getApiKey()
 					.then(({ key }) => {
-						const query = new URLSearchParams({
+						const href = getVSCodeHref("vscode", {
 							owner: userName,
 							workspace: workspaceName,
-							url: location.origin,
 							token: key,
-							openRecent: "true",
+							agent: agentName,
+							folder: folderPath,
 						});
-						if (agentName) {
-							query.set("agent", agentName);
-						}
-						if (folderPath) {
-							query.set("folder", folderPath);
-						}
 
-						location.href = `vscode://coder.coder-remote/open?${query.toString()}`;
+						location.href = href;
 					})
 					.catch((ex) => {
 						console.error(ex);
@@ -163,20 +158,15 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 				setLoading(true);
 				API.getApiKey()
 					.then(({ key }) => {
-						const query = new URLSearchParams({
+						const href = getVSCodeHref("vscode-insiders", {
 							owner: userName,
 							workspace: workspaceName,
-							url: location.origin,
 							token: key,
+							agent: agentName,
+							folder: folderPath,
 						});
-						if (agentName) {
-							query.set("agent", agentName);
-						}
-						if (folderPath) {
-							query.set("folder", folderPath);
-						}
 
-						location.href = `vscode-insiders://coder.coder-remote/open?${query.toString()}`;
+						location.href = href;
 					})
 					.catch((ex) => {
 						console.error(ex);
