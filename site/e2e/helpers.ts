@@ -1043,7 +1043,7 @@ export async function openTerminalWindow(
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
 	await page
-		.getByRole("button", { name: /temrinal/i })
+		.getByRole("link", { name: /terminal/i })
 		.click({ timeout: 60_000 });
 	const terminal = await pagePromise;
 	await terminal.waitForLoadState("domcontentloaded");
