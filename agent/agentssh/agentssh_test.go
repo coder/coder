@@ -214,7 +214,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 		}
 
 		for _, ch := range waitConns {
-			<-ch
+			testutil.RequireReceive(ctx, t, ch)
 		}
 
 		return s, wg.Wait
