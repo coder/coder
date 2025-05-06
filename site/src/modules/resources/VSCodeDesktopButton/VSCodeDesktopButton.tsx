@@ -1,10 +1,10 @@
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { API } from "api/api";
 import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
+import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
@@ -62,7 +62,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					}}
 					size="icon-lg"
 				>
-					<KeyboardArrowDownIcon css={{ fontSize: 16 }} />
+					<ChevronDownIcon />
 				</AgentButton>
 			</div>
 
