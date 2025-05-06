@@ -1,8 +1,6 @@
 package codersdk
 
 import (
-	"strconv"
-
 	"golang.org/x/xerrors"
 
 	"github.com/coder/terraform-provider-coder/v2/provider"
@@ -60,29 +58,6 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		value = richParameter.DefaultValue
 	}
 
-	if lastBuildParameter != nil && lastBuildParameter.Value != "" && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
-		prev, err := strconv.Atoi(lastBuildParameter.Value)
-		if err != nil {
-			return xerrors.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)
-		}
-
-		current, err := strconv.Atoi(buildParameter.Value)
-		if err != nil {
-			return xerrors.Errorf("current parameter value is not a number: %s", buildParameter.Value)
-		}
-
-		switch richParameter.ValidationMonotonic {
-		case MonotonicOrderIncreasing:
-			if prev > current {
-				return xerrors.Errorf("parameter value must be equal or greater than previous value: %d", prev)
-			}
-		case MonotonicOrderDecreasing:
-			if prev < current {
-				return xerrors.Errorf("parameter value must be equal or lower than previous value: %d", prev)
-			}
-		}
-	}
-
 	if len(richParameter.Options) > 0 {
 		var matched bool
 		for _, opt := range richParameter.Options {
@@ -119,7 +94,13 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		Error:       richParameter.ValidationError,
 		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
-	return validation.Valid(richParameter.Type, value)
+	var prev *string
+	// Empty strings should be rejected, however the previous behavior was to
+	// accept the empty string ("") as a `nil` previous value.
+	if lastBuildParameter != nil && lastBuildParameter.Value != "" {
+		prev = &lastBuildParameter.Value
+	}
+	return validation.Valid(richParameter.Type, value, prev)
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {

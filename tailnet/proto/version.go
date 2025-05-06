@@ -47,7 +47,7 @@ import (
 //     ReportConnection RPC on the Agent API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

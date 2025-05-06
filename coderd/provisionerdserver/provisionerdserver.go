@@ -543,6 +543,28 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
+		// A previous workspace build exists
+		var lastWorkspaceBuildParameters []database.WorkspaceBuildParameter
+		if workspaceBuild.BuildNumber > 1 {
+			// TODO: Should we fetch the last build that succeeded? This fetches the
+			//   previous build regardless of the status of the build.
+			buildNum := workspaceBuild.BuildNumber - 1
+			previous, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspaceBuild.WorkspaceID,
+				BuildNumber: buildNum,
+			})
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, xerrors.Errorf("get last build with number=%d: %w", buildNum, err)
+			}
+
+			if err == nil {
+				lastWorkspaceBuildParameters, err = s.Database.GetWorkspaceBuildParameters(ctx, previous.ID)
+				if err != nil {
+					return nil, xerrors.Errorf("get last build parameters %q: %w", previous.ID, err)
+				}
+			}
+		}
+
 		workspaceBuildParameters, err := s.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
@@ -619,12 +641,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:      workspaceBuild.ID.String(),
-				WorkspaceName:         workspace.Name,
-				State:                 workspaceBuild.ProvisionerState,
-				RichParameterValues:   convertRichParameterValues(workspaceBuildParameters),
-				VariableValues:        asVariableValues(templateVariables),
-				ExternalAuthProviders: externalAuthProviders,
+				WorkspaceBuildId:        workspaceBuild.ID.String(),
+				WorkspaceName:           workspace.Name,
+				State:                   workspaceBuild.ProvisionerState,
+				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
+				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
+				VariableValues:          asVariableValues(templateVariables),
+				ExternalAuthProviders:   externalAuthProviders,
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,

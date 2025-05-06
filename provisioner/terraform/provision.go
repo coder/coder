@@ -152,7 +152,7 @@ func (s *server) Plan(
 
 	s.logger.Debug(ctx, "ran initialization")
 
-	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.ExternalAuthProviders)
+	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
@@ -205,7 +205,7 @@ func (s *server) Apply(
 
 	// Earlier in the session, Plan() will have written the state file and the plan file.
 	statefilePath := getStateFilePath(sess.WorkDirectory)
-	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil)
+	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
 	}
@@ -236,7 +236,7 @@ func planVars(plan *proto.PlanRequest) ([]string, error) {
 
 func provisionEnv(
 	config *proto.Config, metadata *proto.Metadata,
-	richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
+	previousParams, richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
 ) ([]string, error) {
 	env := safeEnviron()
 	ownerGroups, err := json.Marshal(metadata.GetWorkspaceOwnerGroups())
@@ -276,6 +276,9 @@ func provisionEnv(
 
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
+	}
+	for _, param := range previousParams {
+		env = append(env, provider.ParameterEnvironmentVariablePrevious(param.Name)+"="+param.Value)
 	}
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)

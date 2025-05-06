@@ -749,13 +749,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if err != nil {
 			return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 		}
+		def := ""
+		if param.Default != nil {
+			def = *param.Default
+		}
 		protoParam := &proto.RichParameter{
 			Name:         param.Name,
 			DisplayName:  param.DisplayName,
 			Description:  param.Description,
 			Type:         param.Type,
 			Mutable:      param.Mutable,
-			DefaultValue: param.Default,
+			DefaultValue: def,
 			Icon:         param.Icon,
 			Required:     !param.Optional,
 			// #nosec G115 - Safe conversion as parameter order value is expected to be within int32 range

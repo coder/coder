@@ -1826,7 +1826,6 @@ export interface PreviewParameterValidation {
 	readonly validation_min: number | null;
 	readonly validation_max: number | null;
 	readonly validation_monotonic: string | null;
-	readonly validation_invalid: boolean | null;
 }
 
 // From codersdk/deployment.go
