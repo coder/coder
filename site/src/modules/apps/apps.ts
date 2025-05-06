@@ -1,5 +1,3 @@
-import { generateRandomString } from "utils/random";
-
 type GetVSCodeHrefParams = {
 	owner: string;
 	workspace: string;
@@ -52,9 +50,5 @@ export const getTerminalHref = ({
 };
 
 export const openAppInNewWindow = (name: string, href: string) => {
-	window.open(
-		href,
-		`${name} - ${generateRandomString(12)}`,
-		"width=900,height=600",
-	);
+	window.open(href, "_blank", "width=900,height=600");
 };

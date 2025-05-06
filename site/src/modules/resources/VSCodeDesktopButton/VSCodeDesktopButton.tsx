@@ -119,15 +119,13 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 				setLoading(true);
 				API.getApiKey()
 					.then(({ key }) => {
-						const href = getVSCodeHref("vscode", {
+						location.href = getVSCodeHref("vscode", {
 							owner: userName,
 							workspace: workspaceName,
 							token: key,
 							agent: agentName,
 							folder: folderPath,
 						});
-
-						location.href = href;
 					})
 					.catch((ex) => {
 						console.error(ex);
@@ -158,15 +156,13 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 				setLoading(true);
 				API.getApiKey()
 					.then(({ key }) => {
-						const href = getVSCodeHref("vscode-insiders", {
+						location.href = getVSCodeHref("vscode-insiders", {
 							owner: userName,
 							workspace: workspaceName,
 							token: key,
 							agent: agentName,
 							folder: folderPath,
 						});
-
-						location.href = href;
 					})
 					.catch((ex) => {
 						console.error(ex);

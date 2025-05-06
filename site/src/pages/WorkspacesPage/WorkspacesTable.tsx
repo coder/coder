@@ -638,7 +638,6 @@ type WorkspaceAppsProps = {
 };
 
 const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
-	const buttons: ReactNode[] = [];
 	const { data: apiKeyRes } = useQuery(apiKey());
 	const token = apiKeyRes?.key;
 
@@ -653,6 +652,8 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (!agent) {
 		return null;
 	}
+
+	const buttons: ReactNode[] = [];
 
 	if (agent.display_apps.includes("vscode")) {
 		buttons.push(
