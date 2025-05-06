@@ -125,6 +125,42 @@ WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the
 		AND created_at >= @lookback::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;
 
+-- GetPresetsAtFailureLimit groups workspace builds by preset ID.
+-- Each preset is associated with exactly one template version ID.
+-- For each preset, the query checks the last hard_limit builds.
+-- If all of them failed, the preset is considered to have hit the hard failure limit.
+-- The query returns a list of preset IDs that have reached this failure threshold.
+-- Only active template versions with configured presets are considered.
+-- name: GetPresetsAtFailureLimit :many
+WITH filtered_builds AS (
+	-- Only select builds which are for prebuild creations
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	FROM template_version_presets tvp
+			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
+			INNER JOIN workspaces w ON wlb.workspace_id = w.id
+			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
+			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
+	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+		AND wlb.transition = 'start'::workspace_transition
+		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+),
+time_sorted_builds AS (
+	-- Group builds by preset, then sort each group by created_at.
+	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
+	FROM filtered_builds fb
+)
+SELECT
+	tsb.template_version_id,
+	tsb.preset_id
+FROM time_sorted_builds tsb
+-- For each preset, check the last hard_limit builds.
+-- If all of them failed, the preset is considered to have hit the hard failure limit.
+WHERE tsb.rn <= @hard_limit::bigint
+	AND tsb.job_status = 'failed'::provisioner_job_status
+GROUP BY tsb.template_version_id, tsb.preset_id
+HAVING COUNT(*) = @hard_limit::bigint;
+
 -- name: GetPrebuildMetrics :many
 SELECT
 	t.name as template_name,

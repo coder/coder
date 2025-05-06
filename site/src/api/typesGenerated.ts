@@ -1761,6 +1761,7 @@ export interface PrebuildsConfig {
 	readonly reconciliation_interval: number;
 	readonly reconciliation_backoff_interval: number;
 	readonly reconciliation_backoff_lookback: number;
+	readonly failure_hard_limit: number;
 }
 
 // From codersdk/presets.go

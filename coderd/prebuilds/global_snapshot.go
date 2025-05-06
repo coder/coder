@@ -10,10 +10,11 @@ import (
 
 // GlobalSnapshot represents a full point-in-time snapshot of state relating to prebuilds across all templates.
 type GlobalSnapshot struct {
-	Presets             []database.GetTemplatePresetsWithPrebuildsRow
-	RunningPrebuilds    []database.GetRunningPrebuiltWorkspacesRow
-	PrebuildsInProgress []database.CountInProgressPrebuildsRow
-	Backoffs            []database.GetPresetsBackoffRow
+	Presets              []database.GetTemplatePresetsWithPrebuildsRow
+	RunningPrebuilds     []database.GetRunningPrebuiltWorkspacesRow
+	PrebuildsInProgress  []database.CountInProgressPrebuildsRow
+	Backoffs             []database.GetPresetsBackoffRow
+	HardLimitedPresetMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
 }
 
 func NewGlobalSnapshot(
@@ -21,12 +22,19 @@ func NewGlobalSnapshot(
 	runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
+	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 ) GlobalSnapshot {
+	hardLimitedPresetMap := make(map[uuid.UUID]database.GetPresetsAtFailureLimitRow, len(hardLimitedPresets))
+	for _, preset := range hardLimitedPresets {
+		hardLimitedPresetMap[preset.PresetID] = preset
+	}
+
 	return GlobalSnapshot{
-		Presets:             presets,
-		RunningPrebuilds:    runningPrebuilds,
-		PrebuildsInProgress: prebuildsInProgress,
-		Backoffs:            backoffs,
+		Presets:              presets,
+		RunningPrebuilds:     runningPrebuilds,
+		PrebuildsInProgress:  prebuildsInProgress,
+		Backoffs:             backoffs,
+		HardLimitedPresetMap: hardLimitedPresetMap,
 	}
 }
 
@@ -63,4 +71,9 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		InProgress: inProgress,
 		Backoff:    backoffPtr,
 	}, nil
+}
+
+func (s GlobalSnapshot) IsHardLimited(presetID uuid.UUID) bool {
+	_, ok := s.HardLimitedPresetMap[presetID]
+	return ok
 }

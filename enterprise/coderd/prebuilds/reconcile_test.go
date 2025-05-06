@@ -645,6 +645,102 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionDelete, builds[0].Transition)
 }
 
+func TestSkippingHardLimitedPresets(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	// Test cases verify the behavior of prebuild creation depending on configured failure limits
+	testCases := []struct {
+		name           string
+		hardLimit      int64
+		isHardLimitHit bool
+	}{
+		{
+			name:           "hard limit is hit - skip creation of prebuilt workspace",
+			hardLimit:      1,
+			isHardLimitHit: true,
+		},
+		{
+			name:           "hard limit is not hit - try to create prebuilt workspace again",
+			hardLimit:      2,
+			isHardLimitHit: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			templateDeleted := false
+
+			clock := quartz.NewMock(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{
+				FailureHardLimit: serpent.Int64(tc.hardLimit),
+			}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry())
+
+			// Set up test environment with a template, version, and preset
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+
+			// Create a failed prebuild workspace that counts toward the hard failure limit.
+			prebuiltWorkspace := setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusFailed,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+			_ = prebuiltWorkspace
+
+			// Verify initial state: one failed workspace exists
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			workspaceCount := len(workspaces)
+			require.Equal(t, 1, workspaceCount)
+
+			// Advance clock to bypass backoff mechanisms
+			clock.Advance(time.Second).MustWait(ctx)
+
+			// Trigger reconciliation to attempt creating a new prebuild
+			// The outcome depends on whether the hard limit has been reached
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// Verify the final state after reconciliation
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+
+			if tc.isHardLimitHit {
+				// When hard limit is reached, no new workspace should be created
+				workspaceCount = len(workspaces)
+				require.Equal(t, 1, workspaceCount)
+			} else {
+				// When hard limit is not reached, a new workspace should be created
+				workspaceCount = len(workspaces)
+				require.Equal(t, 2, workspaceCount)
+			}
+		})
+	}
+}
+
 func TestRunLoop(t *testing.T) {
 	t.Parallel()
 

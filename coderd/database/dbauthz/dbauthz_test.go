@@ -4857,6 +4857,11 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
+	s.Run("GetPresetsAtFailureLimit", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(int64(0)).
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
 	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(time.Time{}).
 			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights).

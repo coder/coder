@@ -2234,6 +2234,15 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, ar
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, args)
 }
 
+func (q *querier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	// GetPresetsAtFailureLimit returns a list of template version presets that have reached the hard failure limit.
+	// Request the same authorization permissions as GetPresetsBackoff, since the methods are similar.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsAtFailureLimit(ctx, hardLimit)
+}
+
 func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
 	// GetPresetsBackoff returns a list of template version presets along with metadata such as the number of failed prebuilds.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
