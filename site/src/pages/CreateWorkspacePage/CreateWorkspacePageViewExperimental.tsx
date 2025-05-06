@@ -213,17 +213,23 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameters,
 	]);
 
+	// send the last user modified parameter and all touched parameters to the websocket
 	const sendDynamicParamsRequest = (
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs = Object.fromEntries(
-			form.values.rich_parameter_values?.map((value) => {
-				return [value.name, value.value];
-			}) ?? [],
-		);
-		// Update the input for the changed parameter
+		const formInputs: { [k: string]: string } = {};
 		formInputs[parameter.name] = value;
+		const parameters = form.values.rich_parameter_values ?? [];
+
+		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
+			if (isTouched && fieldName !== parameter.name) {
+				const param = parameters.find((p) => p.name === fieldName);
+				if (param?.value) {
+					formInputs[fieldName] = param.value;
+				}
+			}
+		}
 
 		sendMessage(formInputs);
 	};
@@ -238,6 +244,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				name: parameter.name,
 				value,
 			});
+			form.setFieldTouched(parameter.name, true);
 			sendDynamicParamsRequest(parameter, value);
 		},
 		500,
@@ -255,6 +262,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				name: parameter.name,
 				value,
 			});
+			form.setFieldTouched(parameter.name, true);
 			sendDynamicParamsRequest(parameter, value);
 		}
 	};
@@ -304,7 +312,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-6 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 
@@ -397,14 +405,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 					{externalAuth && externalAuth.length > 0 && (
 						<section>
 							<hgroup>
-								<h2 className="text-xl font-semibold mb-0">
+								<h2 className="text-xl font-semibold m-0">
 									External Authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.
 								</p>
 							</hgroup>
-							<div>
+							<div className="flex flex-col gap-4">
 								{Boolean(error) && !hasAllRequiredExternalAuth && (
 									<Alert severity="error">
 										To create a workspace using this template, please connect to

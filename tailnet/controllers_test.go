@@ -1611,6 +1611,7 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
+		Kind:              tailnet.Snapshot,
 	}
 
 	// And the callback
@@ -1626,6 +1627,9 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	slices.SortFunc(recvState.UpsertedAgents, func(a, b *tailnet.Agent) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+	// tunnel is still open, so it's a diff
+	currentState.Kind = tailnet.Diff
+
 	require.Equal(t, currentState, recvState)
 }
 
@@ -1692,14 +1696,17 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 		},
 		DeletedWorkspaces: []*tailnet.Workspace{},
 		DeletedAgents:     []*tailnet.Agent{},
+		Kind:              tailnet.Snapshot,
 	}
 
 	cbUpdate := testutil.TryReceive(ctx, t, fUH.ch)
 	require.Equal(t, initRecvUp, cbUpdate)
 
-	// Current state should match initial
 	state, err := updateCtrl.CurrentState()
 	require.NoError(t, err)
+	// tunnel is still open, so it's a diff
+	initRecvUp.Kind = tailnet.Diff
+
 	require.Equal(t, initRecvUp, state)
 
 	// Send update that removes w1a1 and adds w1a2
