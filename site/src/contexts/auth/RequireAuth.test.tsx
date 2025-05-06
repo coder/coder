@@ -1,4 +1,5 @@
 import { renderHook, screen } from "@testing-library/react";
+import { useAuthenticated } from "hooks";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
@@ -9,7 +10,6 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { AuthContext, type AuthContextValue } from "./AuthProvider";
-import { useAuthenticated } from "./RequireAuth";
 
 describe("RequireAuth", () => {
 	it("redirects to /login if user is not authenticated", async () => {

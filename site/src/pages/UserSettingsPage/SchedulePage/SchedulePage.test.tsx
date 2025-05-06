@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { SchedulePage } from "./SchedulePage";
+import SchedulePage from "./SchedulePage";
 
 const fillForm = async ({
 	hour,

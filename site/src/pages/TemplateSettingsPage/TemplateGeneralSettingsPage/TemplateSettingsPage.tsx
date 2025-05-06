@@ -13,7 +13,7 @@ import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
-export const TemplateSettingsPage: FC = () => {
+const TemplateSettingsPage: FC = () => {
 	const { template: templateName } = useParams() as { template: string };
 	const navigate = useNavigate();
 	const getLink = useLinks();

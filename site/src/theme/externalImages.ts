@@ -1,6 +1,6 @@
 import type { CSSObject } from "@emotion/react";
 
-export type ExternalImageMode = keyof ExternalImageModeStyles;
+type ExternalImageMode = keyof ExternalImageModeStyles;
 
 export interface ExternalImageModeStyles {
 	/**
@@ -160,4 +160,5 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/rust.svg", "monochrome"],
 	["/icon/terminal.svg", "monochrome"],
 	["/icon/widgets.svg", "monochrome"],
+	["/icon/windsurf.svg", "monochrome"],
 ]);

@@ -10,7 +10,7 @@ import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
-export const TemplatePermissionsPage: FC = () => {
+const TemplatePermissionsPage: FC = () => {
 	const { template, permissions } = useTemplateSettings();
 	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
 	const templateACLQuery = useQuery(templateACL(template.id));

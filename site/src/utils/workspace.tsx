@@ -256,10 +256,6 @@ export const getDisplayWorkspaceStatus = (
 	}
 };
 
-export const hasJobError = (workspace: TypesGen.Workspace) => {
-	return workspace.latest_build.job.error !== undefined;
-};
-
 export const paramsUsedToCreateWorkspace = (
 	param: TypesGen.TemplateVersionParameter,
 ) => !param.ephemeral;

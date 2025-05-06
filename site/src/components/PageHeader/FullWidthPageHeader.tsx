@@ -46,7 +46,7 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 	);
 };
 
-export const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
+const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
 	const theme = useTheme();
 	return (
 		<div

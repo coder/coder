@@ -20,18 +20,18 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { Button as ShadcnButton } from "components/Button/Button";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { Loader } from "components/Loader/Loader";
-import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -51,6 +51,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -58,7 +59,7 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
-export const GroupPage: FC = () => {
+const GroupPage: FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;
@@ -330,20 +331,27 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 			</TableCell>
 			<TableCell width="1%">
 				{canUpdate && (
-					<MoreMenu>
-						<MoreMenuTrigger>
-							<ThreeDotsButton />
-						</MoreMenuTrigger>
-						<MoreMenuContent>
-							<MoreMenuItem
-								danger
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<ShadcnButton
+								size="icon-lg"
+								variant="subtle"
+								aria-label="Open menu"
+							>
+								<EllipsisVertical aria-hidden="true" />
+								<span className="sr-only">Open menu</span>
+							</ShadcnButton>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
 								onClick={onRemove}
 								disabled={group.id === group.organization_id}
 							>
 								Remove
-							</MoreMenuItem>
-						</MoreMenuContent>
-					</MoreMenu>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				)}
 			</TableCell>
 		</TableRow>

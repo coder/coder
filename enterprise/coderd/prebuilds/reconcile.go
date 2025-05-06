@@ -40,10 +40,11 @@ type StoreReconciler struct {
 	registerer prometheus.Registerer
 	metrics    *MetricsCollector
 
-	cancelFn context.CancelCauseFunc
-	running  atomic.Bool
-	stopped  atomic.Bool
-	done     chan struct{}
+	cancelFn          context.CancelCauseFunc
+	running           atomic.Bool
+	stopped           atomic.Bool
+	done              chan struct{}
+	provisionNotifyCh chan database.ProvisionerJob
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -56,13 +57,14 @@ func NewStoreReconciler(store database.Store,
 	registerer prometheus.Registerer,
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
-		store:      store,
-		pubsub:     ps,
-		logger:     logger,
-		cfg:        cfg,
-		clock:      clock,
-		registerer: registerer,
-		done:       make(chan struct{}, 1),
+		store:             store,
+		pubsub:            ps,
+		logger:            logger,
+		cfg:               cfg,
+		clock:             clock,
+		registerer:        registerer,
+		done:              make(chan struct{}, 1),
+		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
 
 	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
@@ -99,6 +101,29 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	//
 	// NOTE: without this atomic bool, Stop might race with Run for the c.cancelFn above.
 	c.running.Store(true)
+
+	// Publish provisioning jobs outside of database transactions.
+	// A connection is held while a database transaction is active; PGPubsub also tries to acquire a new connection on
+	// Publish, so we can exhaust available connections.
+	//
+	// A single worker dequeues from the channel, which should be sufficient.
+	// If any messages are missed due to congestion or errors, provisionerdserver has a backup polling mechanism which
+	// will periodically pick up any queued jobs (see poll(time.Duration) in coderd/provisionerdserver/acquirer.go).
+	go func() {
+		for {
+			select {
+			case <-c.done:
+				return
+			case <-ctx.Done():
+				return
+			case job := <-c.provisionNotifyCh:
+				err := provisionerjobs.PostJob(c.pubsub, job)
+				if err != nil {
+					c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+				}
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -307,6 +332,15 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
 		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err), slog.F("preset_id", ps.Preset.ID))
+		return nil
+	}
+
+	// Nothing has to be done.
+	if !ps.Preset.UsingActiveVersion && actions.IsNoop() {
+		logger.Debug(ctx, "skipping reconciliation for preset - nothing has to be done",
+			slog.F("template_id", ps.Preset.TemplateID.String()), slog.F("template_name", ps.Preset.TemplateName),
+			slog.F("template_version_id", ps.Preset.TemplateVersionID.String()), slog.F("template_version_name", ps.Preset.TemplateVersionName),
+			slog.F("preset_id", ps.Preset.ID.String()), slog.F("preset_name", ps.Preset.Name))
 		return nil
 	}
 
@@ -540,13 +574,18 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
 		Initiator(prebuilds.SystemUserID).
-		VersionID(template.ActiveVersionID).
-		MarkPrebuild().
-		TemplateVersionPresetID(presetID)
+		MarkPrebuild()
 
-	// We only inject the required params when the prebuild is being created.
-	// This mirrors the behavior of regular workspace deletion (see cli/delete.go).
 	if transition != database.WorkspaceTransitionDelete {
+		// We don't specify the version for a delete transition,
+		// because the prebuilt workspace may have been created using an older template version.
+		// If the version isn't explicitly set, the builder will automatically use the version
+		// from the last workspace build — which is the desired behavior.
+		builder = builder.VersionID(template.ActiveVersionID)
+
+		// We only inject the required params when the prebuild is being created.
+		// This mirrors the behavior of regular workspace deletion (see cli/delete.go).
+		builder = builder.TemplateVersionPresetID(presetID)
 		builder = builder.RichParameterValues(params)
 	}
 
@@ -562,10 +601,16 @@ func (c *StoreReconciler) provision(
 		return xerrors.Errorf("provision workspace: %w", err)
 	}
 
-	err = provisionerjobs.PostJob(c.pubsub, *provisionerJob)
-	if err != nil {
-		// Client probably doesn't care about this error, so just log it.
-		c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+	if provisionerJob == nil {
+		return nil
+	}
+
+	// Publish provisioner job event outside of transaction.
+	select {
+	case c.provisionNotifyCh <- *provisionerJob:
+	default: // channel full, drop the message; provisioner will pick this job up later with its periodic check, though.
+		c.logger.Warn(ctx, "provisioner job notification queue full, dropping",
+			slog.F("job_id", provisionerJob.ID), slog.F("prebuild_id", prebuildID.String()))
 	}
 
 	c.logger.Info(ctx, "prebuild job scheduled", slog.F("transition", transition),

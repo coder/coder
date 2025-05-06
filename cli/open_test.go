@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -335,7 +336,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 	})
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-		o.ContainerLister = mcl
+		o.ExperimentalDevcontainersEnabled = true
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
 	})
 	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -508,7 +510,8 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	})
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-		o.ContainerLister = mcl
+		o.ExperimentalDevcontainersEnabled = true
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
 	})
 	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 

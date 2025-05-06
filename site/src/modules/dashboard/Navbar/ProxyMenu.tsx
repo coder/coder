@@ -10,7 +10,7 @@ import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";

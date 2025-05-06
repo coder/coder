@@ -9,7 +9,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-var ErrNoClaimablePrebuiltWorkspaces = xerrors.New("no claimable prebuilt workspaces found")
+var (
+	ErrNoClaimablePrebuiltWorkspaces        = xerrors.New("no claimable prebuilt workspaces found")
+	ErrAGPLDoesNotSupportPrebuiltWorkspaces = xerrors.New("prebuilt workspaces functionality is not supported under the AGPL license")
+)
 
 // ReconciliationOrchestrator manages the lifecycle of prebuild reconciliation.
 // It runs a continuous loop to check and reconcile prebuild states, and can be stopped gracefully.

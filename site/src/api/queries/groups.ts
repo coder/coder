@@ -10,7 +10,7 @@ type GroupSortOrder = "asc" | "desc";
 
 export const groupsQueryKey = ["groups"];
 
-export const groups = () => {
+const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
@@ -60,7 +60,7 @@ export function groupsByUserIdInOrganization(organization: string) {
 	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
-export function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
+function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	// Sorting here means that nothing has to be sorted for the individual
 	// user arrays later
 	const sorted = sortGroupsByName(groups, "asc");
@@ -163,7 +163,7 @@ export const removeMember = (queryClient: QueryClient) => {
 	};
 };
 
-export const invalidateGroup = (
+const invalidateGroup = (
 	queryClient: QueryClient,
 	organization: string,
 	groupId: string,
@@ -176,7 +176,7 @@ export const invalidateGroup = (
 		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
 	]);
 
-export function sortGroupsByName<T extends Group>(
+function sortGroupsByName<T extends Group>(
 	groups: readonly T[],
 	order: GroupSortOrder,
 ) {
