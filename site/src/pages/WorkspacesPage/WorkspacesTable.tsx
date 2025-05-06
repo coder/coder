@@ -733,13 +733,14 @@ const AppLink: FC<AppLinkProps> = ({
 				<TooltipTrigger asChild>
 					<Button variant="outline" size="icon-lg" asChild>
 						<a
+							className={isLoading ? "animate-pulse" : ""}
 							href={href}
 							onClick={(e) => {
 								e.stopPropagation();
 								onClick?.(e);
 							}}
 						>
-							<Spinner loading={isLoading}>{children}</Spinner>
+							{children}
 							<span className="sr-only">{label}</span>
 						</a>
 					</Button>
