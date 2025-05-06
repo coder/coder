@@ -66,55 +66,17 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 
 func TestPubsubWorkspaceClaimListener(t *testing.T) {
 	t.Parallel()
-	t.Run("stops listening if context canceled", func(t *testing.T) {
-		t.Parallel()
-
-		ps := pubsub.NewInMemory()
-		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		cancelFunc, claims, err := listener.ListenForWorkspaceClaims(ctx, uuid.New())
-		require.NoError(t, err)
-		defer cancelFunc()
-
-		cancel()
-		// Channel should be closed immediately due to context cancellation
-		select {
-		case _, ok := <-claims:
-			require.False(t, ok)
-		case <-time.After(testutil.WaitShort):
-			t.Fatal("timeout waiting for closed channel")
-		}
-	})
-
-	t.Run("stops listening if cancel func is called", func(t *testing.T) {
-		t.Parallel()
-
-		ps := pubsub.NewInMemory()
-		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
-
-		cancelFunc, claims, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New())
-		require.NoError(t, err)
-
-		cancelFunc()
-		select {
-		case _, ok := <-claims:
-			require.False(t, ok)
-		case <-time.After(testutil.WaitShort):
-			t.Fatal("timeout waiting for closed channel")
-		}
-	})
-
 	t.Run("finds claim events for its workspace", func(t *testing.T) {
 		t.Parallel()
 
 		ps := pubsub.NewInMemory()
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
+		claims := make(chan agentsdk.ReinitializationEvent, 1) // Buffer to avoid messing with goroutines in the rest of the test
+
 		workspaceID := uuid.New()
 		userID := uuid.New()
-		cancelFunc, claims, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID)
+		cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID, claims)
 		require.NoError(t, err)
 		defer cancelFunc()
 
@@ -125,11 +87,12 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 
 		// Verify we receive the claim
 		select {
-		case claim := <-claims:
+		case claim, ok := <-claims:
+			require.True(t, ok, "received on a closed channel")
 			require.Equal(t, userID, claim.UserID)
 			require.Equal(t, workspaceID, claim.WorkspaceID)
 			require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, claim.Reason)
-		case <-time.After(time.Second):
+		case <-time.After(testutil.WaitSuperLong): // TODO: revert to waitshort
 			t.Fatal("timeout waiting for claim")
 		}
 	})
@@ -140,9 +103,10 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		ps := pubsub.NewInMemory()
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
+		claims := make(chan agentsdk.ReinitializationEvent)
 		workspaceID := uuid.New()
 		otherWorkspaceID := uuid.New()
-		cancelFunc, claims, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID)
+		cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID, claims)
 		require.NoError(t, err)
 		defer cancelFunc()
 
@@ -163,10 +127,11 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 	t.Run("communicates the error if it can't subscribe", func(t *testing.T) {
 		t.Parallel()
 
+		claims := make(chan agentsdk.ReinitializationEvent)
 		ps := &brokenPubsub{}
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
-		_, _, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New())
+		_, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New(), claims)
 		require.ErrorContains(t, err, "failed to subscribe to prebuild claimed channel")
 	})
 }

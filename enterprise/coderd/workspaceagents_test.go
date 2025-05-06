@@ -3,9 +3,14 @@ package coderd_test
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
+	"time"
+
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -80,6 +85,12 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
+	tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("dbmem cannot currently claim a workspace")
+	}
+
 	// GIVEN a live enterprise API with the prebuilds feature enabled
 	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
@@ -116,7 +127,7 @@ func TestReinitializeAgent(t *testing.T) {
 		a[0].Scripts = []*proto.Script{
 			{
 				DisplayName: "Prebuild Test Script",
-				Script:      "sleep 5", // Make reinitialization take long enough to assert that it happened
+				Script:      fmt.Sprintf("sleep 5; printenv | grep 'CODER_AGENT_TOKEN' >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name()), // Make reinitialization take long enough to assert that it happened
 				RunOnStart:  true,
 			},
 		}
@@ -140,18 +151,32 @@ func TestReinitializeAgent(t *testing.T) {
 
 	// WHEN a workspace is created that can benefit from prebuilds
 	ctx := testutil.Context(t, testutil.WaitShort)
-	_, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+	workspace, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
 		TemplateVersionID:       tv.TemplateVersion.ID,
 		TemplateVersionPresetID: presetID,
 		Name:                    "claimed-workspace",
 	})
 	require.NoError(t, err)
 
+	db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID:        workspace.LatestBuild.ID,
+		UpdatedAt: time.Now(),
+		CompletedAt: sql.NullTime{
+			Valid: true,
+			Time:  time.Now(),
+		},
+	})
+
 	// THEN the now claimed workspace agent reinitializes
 	waiter.WaitFor(coderdtest.AgentsNotReady)
 
 	// THEN reinitialization completes
 	waiter.WaitFor(coderdtest.AgentsReady)
+
+	// THEN the agent script ran again and reused the same agent token
+	contents, err := os.ReadFile(tempAgentLog.Name())
+	_ = contents
+	require.NoError(t, err)
 }
 
 type setupResp struct {

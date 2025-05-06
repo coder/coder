@@ -37,14 +37,17 @@ type PubsubWorkspaceClaimListener struct {
 	ps     pubsub.Pubsub
 }
 
-func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Context, workspaceID uuid.UUID) (func(), <-chan agentsdk.ReinitializationEvent, error) {
+// ListenForWorkspaceClaims subscribes to a pubsub channel and sends any received events on the chan that it returns.
+// pubsub.Pubsub does not communicate when its last callback has been called after it has been closed. As such the chan
+// returned by this method is never closed. Call the returned cancel() function to close the subscription when it is no longer needed.
+// cancel() will be called if ctx expires or is canceled.
+func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Context, workspaceID uuid.UUID, reinitEvents chan<- agentsdk.ReinitializationEvent) (func(), error) {
 	select {
 	case <-ctx.Done():
-		return func() {}, nil, ctx.Err()
+		return func() {}, ctx.Err()
 	default:
 	}
 
-	workspaceClaims := make(chan agentsdk.ReinitializationEvent, 1)
 	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, id []byte) {
 		claimantID, err := uuid.ParseBytes(id)
 		if err != nil {
@@ -56,25 +59,25 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 			WorkspaceID: workspaceID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 		}
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-inner.Done():
 			return
-		case workspaceClaims <- claim:
+		case reinitEvents <- claim:
 		default:
+			return
 		}
 	})
 	if err != nil {
-		close(workspaceClaims)
-		return func() {}, nil, xerrors.Errorf("failed to subscribe to prebuild claimed channel: %w", err)
+		return func() {}, xerrors.Errorf("failed to subscribe to prebuild claimed channel: %w", err)
 	}
 
 	var once sync.Once
 	cancel := func() {
 		once.Do(func() {
 			cancelSub()
-			close(workspaceClaims)
 		})
 	}
 
@@ -83,5 +86,5 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 		cancel()
 	}()
 
-	return cancel, workspaceClaims, nil
+	return cancel, nil
 }

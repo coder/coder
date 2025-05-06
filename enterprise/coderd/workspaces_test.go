@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,6 +32,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -43,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -452,6 +457,79 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		_, err = client1.CreateUserWorkspace(ctx, user1.ID.String(), req)
 		require.Error(t, err)
+	})
+
+	t.Run("ClaimPrebuild", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("dbmem cannot currently claim a workspace")
+		}
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					err := dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
+					require.NoError(t, err)
+				}),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspacePrebuilds: 1,
+				},
+			},
+		})
+
+		// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
+		presetID := uuid.New()
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Preset(database.TemplateVersionPreset{
+			ID: presetID,
+		}).Do()
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:    prebuilds.SystemUserID,
+			TemplateID: tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  presetID,
+				Valid: true,
+			},
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			return a
+		}).Do()
+
+		// nolint:gocritic // this is a test
+		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+		agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
+		require.NoError(t, err)
+
+		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.WorkspaceAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+		require.NoError(t, err)
+
+		// WHEN a workspace is created that matches the available prebuilt workspace
+		_, err = client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateVersionID:       tv.TemplateVersion.ID,
+			TemplateVersionPresetID: presetID,
+			Name:                    "claimed-workspace",
+		})
+		require.NoError(t, err)
+
+		// THEN a new build is scheduled with the claimant and agent tokens specified
+		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, build.ID, r.Build.ID)
+		job, err := db.GetProvisionerJobByID(ctx, build.JobID)
+		require.NoError(t, err)
+		var metadata provisionerdserver.WorkspaceProvisionJob
+		require.NoError(t, json.Unmarshal(job.Input, &metadata))
+		require.Equal(t, metadata.PrebuildClaimedByUser, user.UserID)
 	})
 }
 

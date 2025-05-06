@@ -620,11 +620,24 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		runningAgentAuthTokens := []*sdkproto.RunningAgentAuthToken{}
-		for agentID, token := range input.RunningAgentAuthTokens {
-			runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
-				AgentId: agentID.String(),
-				Token:   token,
-			})
+		if input.PrebuildClaimedByUser != uuid.Nil {
+			// runningAgentAuthTokens are *only* used for prebuilds. We fetch them when we want to rebuild a prebuilt workspace
+			// but not generate new agent tokens. The provisionerdserver will push them down to
+			// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where they will be
+			// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
+			// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
+			// obviating the whole point of the prebuild.
+			agents, err := s.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				s.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
+					slog.F("workspace_id", workspace.ID), slog.Error(err))
+			}
+			for _, agent := range agents {
+				runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+					AgentId: agent.ID.String(),
+					Token:   agent.AuthToken.String(),
+				})
+			}
 		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
@@ -2503,13 +2516,6 @@ type WorkspaceProvisionJob struct {
 	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
 	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
 	LogLevel              string    `json:"log_level,omitempty"`
-	// RunningAgentAuthTokens is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
-	// but not generate new agent tokens. The provisionerdserver will retrieve these tokens and push them down to
-	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where they will be
-	// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
-	// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
-	// obviating the whole point of the prebuild.
-	RunningAgentAuthTokens map[uuid.UUID]string `json:"running_agent_auth_tokens"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

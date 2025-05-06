@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -44,10 +45,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -2640,4 +2643,92 @@ func TestAgentConnectionInfo(t *testing.T) {
 	require.Equal(t, "yallah", info.HostnameSuffix)
 	require.True(t, info.DisableDirectConnections)
 	require.True(t, info.DERPForceWebSockets)
+}
+
+func TestReinit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unclaimed workspaces are not reinitialized", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip()
+		}
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        r.Build.JobID,
+			UpdatedAt: time.Now(),
+			CompletedAt: sql.NullTime{
+				Valid: true,
+				Time:  time.Now(),
+			},
+		})
+		require.NoError(t, err)
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Nil(t, reinitEvent)
+	})
+	t.Run("claimed workspaces are reinitialized", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip()
+		}
+
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        r.Build.JobID,
+			UpdatedAt: time.Now(),
+			CompletedAt: sql.NullTime{
+				Valid: true,
+				Time:  time.Now(),
+			},
+		})
+		require.NoError(t, err)
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
+
+		time.Sleep(time.Second)
+
+		err = prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+			WorkspaceID: r.Workspace.ID,
+			UserID:      user.UserID,
+		})
+		require.NoError(t, err)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+	})
 }

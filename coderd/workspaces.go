@@ -641,10 +641,9 @@ func createWorkspace(
 
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
-			prebuildsClaimer     = *api.PrebuildsClaimer.Load()
-			workspaceID          uuid.UUID
-			claimedWorkspace     *database.Workspace
-			agentTokensByAgentID map[uuid.UUID]string
+			prebuildsClaimer = *api.PrebuildsClaimer.Load()
+			workspaceID      uuid.UUID
+			claimedWorkspace *database.Workspace
 		)
 
 		// If a template preset was chosen, try claim a prebuilt workspace.
@@ -704,18 +703,6 @@ func createWorkspace(
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
 			initiatorID = prebuildsClaimer.Initiator()
-			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, claimedWorkspace.ID)
-			if err != nil {
-				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
-					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
-			}
-			if len(agents) > 1 {
-				return xerrors.Errorf("multiple agents are not yet supported in prebuilt workspaces")
-			}
-
-			agentTokensByAgentID = map[uuid.UUID]string{
-				agents[0].ID: agents[0].AuthToken.String(),
-			}
 		}
 
 		// We have to refetch the workspace for the joined in fields.
@@ -730,8 +717,7 @@ func createWorkspace(
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
-			RichParameterValues(req.RichParameterValues).
-			RunningAgentAuthTokens(agentTokensByAgentID)
+			RichParameterValues(req.RichParameterValues)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

@@ -761,6 +761,7 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
 				continue
 			}
+			retrier.Reset()
 			select {
 			case <-ctx.Done():
 				close(reinitEvents)
@@ -783,6 +784,16 @@ type SSEAgentReinitTransmitter struct {
 	logger slog.Logger
 }
 
+var (
+	ErrTransmissionSourceClosed = xerrors.New("transmission source closed")
+	ErrTransmissionTargetClosed = xerrors.New("transmission target closed")
+)
+
+// Transmit will read from the given chan and send events for as long as:
+// * the chan remains open
+// * the context has not been canceled
+// * not timed out
+// * the connection to the receiver remains open
 func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <-chan ReinitializationEvent) error {
 	select {
 	case <-ctx.Done():
@@ -800,8 +811,11 @@ func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-sseSenderClosed:
-			return xerrors.New("sse connection closed")
-		case reinitEvent := <-reinitEvents:
+			return ErrTransmissionTargetClosed
+		case reinitEvent, ok := <-reinitEvents:
+			if !ok {
+				return ErrTransmissionSourceClosed
+			}
 			err := sseSendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeData,
 				Data: reinitEvent,
@@ -837,12 +851,18 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 		}
 
 		sse, err := nextEvent()
-		if err != nil {
+		switch {
+		case err != nil:
 			return nil, xerrors.Errorf("failed to read server-sent event: %w", err)
-		}
-		if sse.Type != codersdk.ServerSentEventTypeData {
+		case sse.Type == codersdk.ServerSentEventTypeError:
+			return nil, xerrors.Errorf("unexpected server sent event type error")
+		case sse.Type == codersdk.ServerSentEventTypePing:
 			continue
+		case sse.Type != codersdk.ServerSentEventTypeData:
+			return nil, xerrors.Errorf("unexpected server sent event type: %s", sse.Type)
 		}
+
+		// At this point we know that the sent event is of type codersdk.ServerSentEventTypeData
 		var reinitEvent ReinitializationEvent
 		b, ok := sse.Data.([]byte)
 		if !ok {
@@ -852,11 +872,6 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal reinit response: %w", err)
 		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			return &reinitEvent, nil
-		}
+		return &reinitEvent, nil
 	}
 }

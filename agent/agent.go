@@ -36,9 +36,6 @@ import (
 	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/retry"
-
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -56,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
+	"github.com/coder/retry"
 )
 
 const (
@@ -1052,7 +1050,7 @@ func (a *agent) run() (retErr error) {
 
 	err = connMan.wait()
 	if err != nil {
-		a.logger.Warn(context.Background(), "connection manager errored", slog.Error(err))
+		a.logger.Info(context.Background(), "connection manager errored", slog.Error(err))
 	}
 	return err
 }

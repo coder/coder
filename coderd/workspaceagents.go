@@ -1210,9 +1210,10 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 	log.Info(ctx, "agent waiting for reinit instruction")
 
-	cancel, reinitEvents, err := prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID)
+	reinitEvents := make(chan agentsdk.ReinitializationEvent)
+	cancel, err = prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
 	if err != nil {
-		log.Error(ctx, "failed to subscribe to prebuild claimed channel", slog.Error(err))
+		log.Error(ctx, "subscribe to prebuild claimed channel", slog.Error(err))
 		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
 		return
 	}
@@ -1221,7 +1222,12 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
 
 	err = transmitter.Transmit(ctx, reinitEvents)
-	if err != nil {
+	switch {
+	case errors.Is(err, agentsdk.ErrTransmissionSourceClosed):
+		log.Info(ctx, "agent reinitialization subscription closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case errors.Is(err, agentsdk.ErrTransmissionTargetClosed):
+		log.Info(ctx, "agent connection closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case err != nil:
 		log.Error(ctx, "failed to stream agent reinit events", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error streaming agent reinitialization events.",
