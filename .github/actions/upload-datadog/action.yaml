@@ -10,6 +10,8 @@ runs:
   steps:
     - shell: bash
       run: |
+        set -e
+
         owner=${{ github.repository_owner	 }}
         echo "owner: $owner"
         if [[  $owner != "coder" ]]; then
@@ -21,8 +23,45 @@ runs:
           echo "No API key provided, skipping..."
           exit 0
         fi
-        npm install -g @datadog/datadog-ci@2.21.0
-        datadog-ci junit upload --service coder ./gotests.xml \
+
+        BINARY_VERSION="v2.48.0"
+        BINARY_HASH_WINDOWS="b7bebb8212403fddb1563bae84ce5e69a70dac11e35eb07a00c9ef7ac9ed65ea"
+        BINARY_HASH_MACOS="e87c808638fddb21a87a5c4584b68ba802965eb0a593d43959c81f67246bd9eb"
+        BINARY_HASH_LINUX="5e700c465728fff8313e77c2d5ba1ce19a736168735137e1ddc7c6346ed48208"
+
+        TMP_DIR=$(mktemp -d)
+
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          BINARY_PATH="${TMP_DIR}/datadog-ci.exe"
+          BINARY_URL="https://github.com/DataDog/datadog-ci/releases/download/${BINARY_VERSION}/datadog-ci_win-x64"
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          BINARY_PATH="${TMP_DIR}/datadog-ci"
+          BINARY_URL="https://github.com/DataDog/datadog-ci/releases/download/${BINARY_VERSION}/datadog-ci_darwin-arm64"
+        elif [[ "${{ runner.os }}" == "Linux" ]]; then
+          BINARY_PATH="${TMP_DIR}/datadog-ci"
+          BINARY_URL="https://github.com/DataDog/datadog-ci/releases/download/${BINARY_VERSION}/datadog-ci_linux-x64"
+        else
+          echo "Unsupported OS: ${{ runner.os }}"
+          exit 1
+        fi
+
+        echo "Downloading DataDog CI binary version ${BINARY_VERSION} for ${{ runner.os }}..."
+        curl -sSL "$BINARY_URL" -o "$BINARY_PATH"
+
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          echo "$BINARY_HASH_WINDOWS  $BINARY_PATH" | sha256sum --check
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          echo "$BINARY_HASH_MACOS  $BINARY_PATH" | shasum -a 256 --check
+        elif [[ "${{ runner.os }}" == "Linux" ]]; then
+          echo "$BINARY_HASH_LINUX  $BINARY_PATH" | sha256sum --check
+        fi
+
+        # Make binary executable (not needed for Windows)
+        if [[ "${{ runner.os }}" != "Windows" ]]; then
+          chmod +x "$BINARY_PATH"
+        fi
+
+        "$BINARY_PATH" junit upload --service coder ./gotests.xml \
           --tags os:${{runner.os}} --tags runner_name:${{runner.name}}
       env:
         DATADOG_API_KEY: ${{ inputs.api-key }}
