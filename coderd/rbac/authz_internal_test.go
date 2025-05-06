@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 
@@ -1051,6 +1052,53 @@ func TestAuthorizeScope(t *testing.T) {
 			// The scope will return true, but the user perms return false for resources not owned by the user.
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
 			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
+		},
+	)
+
+	// This scope can only create workspaces
+	meID := uuid.New()
+	user = Subject{
+		ID: meID.String(),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier:  RoleIdentifier{Name: "no_personal_data"},
+				DisplayName: "No Personal Data",
+				Site: append(
+					// Workspace dormancy and workspace are omitted.
+					// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec
+					allPermsExcept(ResourceUser),
+					// This adds back in the Workspace permissions.
+					Permissions(map[string][]policy.Action{
+						ResourceUser.Type: {policy.ActionRead},
+					})...),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
+			},
+			// Empty string allow_list is allowed for actions like 'create'
+			AllowIDList: []string{meID.String()},
+		},
+	}
+
+	testAuthorize(t, "ReadPersonalUser", user,
+		// All these cases will fail because a resource ID is set.
+		cases(func(c authTestCase) authTestCase {
+			c.actions = slices.DeleteFunc(ResourceUser.AvailableActions(), func(action policy.Action) bool {
+				return action == policy.ActionRead
+			})
+			c.allow = false
+			c.resource.ID = meID.String()
+			return c
+		}, []authTestCase{
+			{resource: ResourceUser.WithOwner(meID.String()).InOrg(defOrg).WithID(meID)},
+		}),
+
+		// Test create allowed by scope:
+		[]authTestCase{
+			{resource: ResourceUser.WithOwner(meID.String()).InOrg(defOrg).WithID(meID), actions: []policy.Action{policy.ActionRead}, allow: true},
 		},
 	)
 }

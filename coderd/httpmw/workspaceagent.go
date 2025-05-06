@@ -109,12 +109,18 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
-			subject, _, err := UserRBACSubject(ctx, opts.DB, row.WorkspaceTable.OwnerID, rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
-				WorkspaceID: row.WorkspaceTable.ID,
-				OwnerID:     row.WorkspaceTable.OwnerID,
-				TemplateID:  row.WorkspaceTable.TemplateID,
-				VersionID:   row.WorkspaceBuild.TemplateVersionID,
-			}))
+			subject, _, err := UserRBACSubject(
+				ctx,
+				opts.DB,
+				row.WorkspaceTable.OwnerID,
+				rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+					WorkspaceID:   row.WorkspaceTable.ID,
+					OwnerID:       row.WorkspaceTable.OwnerID,
+					TemplateID:    row.WorkspaceTable.TemplateID,
+					VersionID:     row.WorkspaceBuild.TemplateVersionID,
+					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.ApiKeyScopeEnumNoUserData,
+				}),
+			)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error with workspace agent authorization context.",

@@ -42,6 +42,7 @@ type agentAttributes struct {
 	Directory       string            `mapstructure:"dir"`
 	ID              string            `mapstructure:"id"`
 	Token           string            `mapstructure:"token"`
+	APIKeyScope     string            `mapstructure:"api_key_scope"`
 	Env             map[string]string `mapstructure:"env"`
 	// Deprecated: but remains here for backwards compatibility.
 	StartupScript                string `mapstructure:"startup_script"`
@@ -319,6 +320,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				Metadata:                 metadata,
 				DisplayApps:              displayApps,
 				Order:                    attrs.Order,
+				ApiKeyScope:              attrs.APIKeyScope,
 			}
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {
@@ -394,7 +396,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 			agents, exists := resourceAgents[agentResource.Label]
 			if !exists {
-				agents = make([]*proto.Agent, 0)
+				agents = make([]*proto.Agent, 0, 1)
 			}
 			agents = append(agents, agent)
 			resourceAgents[agentResource.Label] = agents

@@ -2003,6 +2003,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		apiKeyScope := database.ApiKeyScopeEnumDefault
+		if prAgent.ApiKeyScope == string(database.ApiKeyScopeEnumNoUserData) {
+			apiKeyScope = database.ApiKeyScopeEnumNoUserData
+		}
+
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
@@ -2024,6 +2029,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			ResourceMetadata:         pqtype.NullRawMessage{},
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
 			DisplayOrder: int32(prAgent.Order),
+			APIKeyScope:  apiKeyScope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

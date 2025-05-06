@@ -800,6 +800,16 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
+	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+		DB:       options.Database,
+		Optional: false,
+	})
+	// Same as above but optional
+	workspaceAgentInfoOptional := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+		DB:       options.Database,
+		Optional: true,
+	})
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
@@ -1019,6 +1029,7 @@ func New(options *Options) *API {
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				workspaceAgentInfoOptional,
 			)
 			// Get without a specific external auth ID will return all external auths.
 			r.Get("/", api.listUserExternalAuths)
@@ -1254,8 +1265,12 @@ func New(options *Options) *API {
 							r.Get("/", api.workspaceByOwnerAndName)
 							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
 						})
-						r.Get("/gitsshkey", api.gitSSHKey)
-						r.Put("/gitsshkey", api.regenerateGitSSHKey)
+						r.With(
+							workspaceAgentInfoOptional,
+						).Get("/gitsshkey", api.gitSSHKey)
+						r.With(
+							workspaceAgentInfoOptional,
+						).Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/notifications", func(r chi.Router) {
 							r.Route("/preferences", func(r chi.Router) {
 								r.Get("/", api.userNotificationPreferences)
@@ -1284,10 +1299,7 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
-					DB:       options.Database,
-					Optional: false,
-				}))
+				r.Use(workspaceAgentInfo)
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)

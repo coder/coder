@@ -11,10 +11,11 @@ import (
 )
 
 type WorkspaceAgentScopeParams struct {
-	WorkspaceID uuid.UUID
-	OwnerID     uuid.UUID
-	TemplateID  uuid.UUID
-	VersionID   uuid.UUID
+	WorkspaceID   uuid.UUID
+	OwnerID       uuid.UUID
+	TemplateID    uuid.UUID
+	VersionID     uuid.UUID
+	BlockUserData bool
 }
 
 // WorkspaceAgentScope returns a scope that is the same as ScopeAll but can only
@@ -25,16 +26,25 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		panic("all uuids must be non-nil, this is a developer error")
 	}
 
-	allScope, err := ScopeAll.Expand()
-	if err != nil {
-		panic("failed to expand scope all, this should never happen")
+	var (
+		scope Scope
+		err   error
+	)
+	if params.BlockUserData {
+		scope, err = ScopeNoUserData.Expand()
+	} else {
+		scope, err = ScopeAll.Expand()
 	}
+	if err != nil {
+		panic("failed to expand scope, this should never happen")
+	}
+
 	return Scope{
 		// TODO: We want to limit the role too to be extra safe.
 		// Even though the allowlist blocks anything else, it is still good
 		// incase we change the behavior of the allowlist. The allowlist is new
 		// and evolving.
-		Role: allScope.Role,
+		Role: scope.Role,
 		// This prevents the agent from being able to access any other resource.
 		// Include the list of IDs of anything that is required for the
 		// agent to function.
@@ -50,6 +60,7 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 const (
 	ScopeAll                ScopeName = "all"
 	ScopeApplicationConnect ScopeName = "application_connect"
+	ScopeNoUserData         ScopeName = "no_user_data"
 )
 
 // TODO: Support passing in scopeID list for allowlisting resources.
@@ -76,6 +87,24 @@ var builtinScopes = map[ScopeName]Scope{
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
 			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeNoUserData: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeNoUserData)},
+			DisplayName: "Scope without access to user data",
+			Site: append(
+				// Workspace dormancy and workspace are omitted.
+				// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec
+				allPermsExcept(ResourceUser),
+				// This adds back in the Workspace permissions.
+				Permissions(map[string][]policy.Action{
+					ResourceUser.Type: {policy.ActionRead},
+				})...),
 			Org:  map[string][]Permission{},
 			User: []Permission{},
 		},

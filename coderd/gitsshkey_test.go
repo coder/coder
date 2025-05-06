@@ -126,3 +126,48 @@ func TestAgentGitSSHKey(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, agentKey.PrivateKey)
 }
+
+func TestAgentGitSSHKey_APIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		apiKeyScope string
+		expectError bool
+	}{
+		{apiKeyScope: "default", expectError: false},
+		{apiKeyScope: "no_user_data", expectError: true},
+	} {
+		t.Run(tt.apiKeyScope, func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			authToken := uuid.NewString()
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionPlan:  echo.PlanComplete,
+				ProvisionApply: echo.ProvisionApplyWithAgentAndAPIKeyScope(authToken, tt.apiKeyScope),
+			})
+			project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, project.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			agentClient := agentsdk.New(client.URL)
+			agentClient.SetSessionToken(authToken)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := agentClient.GitSSHKey(ctx)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

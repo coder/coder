@@ -147,6 +147,7 @@ message Agent {
 	int64 order = 23;
 	ResourcesMonitoring resources_monitoring = 24;
 	repeated Devcontainer devcontainers = 25;
+	string api_key_scope = 26;
 }
 
 enum AppSharingLevel {

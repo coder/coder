@@ -74,6 +74,64 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 	}
 }
 
+type ApiKeyScopeEnum string
+
+const (
+	ApiKeyScopeEnumDefault    ApiKeyScopeEnum = "default"
+	ApiKeyScopeEnumNoUserData ApiKeyScopeEnum = "no_user_data"
+)
+
+func (e *ApiKeyScopeEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ApiKeyScopeEnum(s)
+	case string:
+		*e = ApiKeyScopeEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ApiKeyScopeEnum: %T", src)
+	}
+	return nil
+}
+
+type NullApiKeyScopeEnum struct {
+	ApiKeyScopeEnum ApiKeyScopeEnum `json:"api_key_scope_enum"`
+	Valid           bool            `json:"valid"` // Valid is true if ApiKeyScopeEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullApiKeyScopeEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.ApiKeyScopeEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ApiKeyScopeEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullApiKeyScopeEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ApiKeyScopeEnum), nil
+}
+
+func (e ApiKeyScopeEnum) Valid() bool {
+	switch e {
+	case ApiKeyScopeEnumDefault,
+		ApiKeyScopeEnumNoUserData:
+		return true
+	}
+	return false
+}
+
+func AllApiKeyScopeEnumValues() []ApiKeyScopeEnum {
+	return []ApiKeyScopeEnum{
+		ApiKeyScopeEnumDefault,
+		ApiKeyScopeEnumNoUserData,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -3402,6 +3460,8 @@ type WorkspaceAgent struct {
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// Defines the scope of the API key associated with the agent. 'default' allows access to everything, 'no_user_data' restricts it to exclude user data.
+	APIKeyScope ApiKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 }
 
 // Workspace agent devcontainer configuration

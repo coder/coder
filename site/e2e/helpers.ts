@@ -644,6 +644,7 @@ const createTemplateVersionTar = async (
 						troubleshootingUrl: "",
 						token: randomUUID(),
 						devcontainers: [],
+						apiKeyScope: "default",
 						...agent,
 					} as Agent;
 

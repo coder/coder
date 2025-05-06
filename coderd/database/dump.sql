@@ -10,6 +10,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'application_connect'
 );
 
+CREATE TYPE api_key_scope_enum AS ENUM (
+    'default',
+    'no_user_data'
+);
+
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
@@ -1832,6 +1837,7 @@ CREATE TABLE workspace_agents (
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     api_version text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
+    api_key_scope api_key_scope_enum DEFAULT 'default'::api_key_scope_enum NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1857,6 +1863,8 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''default'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
