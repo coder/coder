@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import CircularProgress from "@mui/material/CircularProgress";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -79,21 +79,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
 	let primaryTooltip = "";
 	if (app.health === "initializing") {
-		icon = (
-			// This is a hack to make the spinner appear in the center of the start
-			// icon space
-			<span
-				css={{
-					display: "flex",
-					width: "100%",
-					height: "100%",
-					alignItems: "center",
-					justifyContent: "center",
-				}}
-			>
-				<CircularProgress size={14} />
-			</span>
-		);
+		icon = <Spinner loading />;
 		primaryTooltip = "Initializing...";
 	}
 	if (app.health === "unhealthy") {
@@ -119,9 +105,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const canShare = app.sharing_level !== "owner";
 
 	const button = (
-		<AgentButton disabled={!canClick} asChild>
+		<AgentButton asChild>
 			<a
-				href={href}
+				href={canClick ? href : undefined}
 				onClick={async (event) => {
 					if (!canClick) {
 						return;

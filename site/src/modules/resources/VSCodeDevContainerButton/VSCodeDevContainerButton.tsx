@@ -1,5 +1,4 @@
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import ButtonGroup from "@mui/material/ButtonGroup";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { API } from "api/api";
@@ -46,8 +45,8 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
 
 	return includesVSCodeDesktop && includesVSCodeInsiders ? (
-		<div>
-			<ButtonGroup ref={menuAnchorRef} variant="outlined">
+		<>
+			<div ref={menuAnchorRef} className="flex items-center gap-1">
 				{variant === "vscode" ? (
 					<VSCodeButton {...props} />
 				) : (
@@ -68,7 +67,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				>
 					<KeyboardArrowDownIcon css={{ fontSize: 16 }} />
 				</AgentButton>
-			</ButtonGroup>
+			</div>
 
 			<Menu
 				open={isVariantMenuOpen}
@@ -99,7 +98,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>
-		</div>
+		</>
 	) : includesVSCodeDesktop ? (
 		<VSCodeButton {...props} />
 	) : (
