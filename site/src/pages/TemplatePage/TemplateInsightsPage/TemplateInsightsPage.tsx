@@ -13,7 +13,6 @@ import {
 } from "api/queries/insights";
 import type {
 	Entitlements,
-	Template,
 	TemplateAppUsage,
 	TemplateInsightsResponse,
 	TemplateParameterUsage,

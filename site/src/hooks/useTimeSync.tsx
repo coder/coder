@@ -7,9 +7,9 @@
  *    the hook, you must also provide a select function
  */
 import {
-	createContext,
 	type FC,
 	type PropsWithChildren,
+	createContext,
 	useCallback,
 	useContext,
 	useId,
@@ -17,10 +17,10 @@ import {
 	useSyncExternalStore,
 } from "react";
 import {
-	defaultOptions,
 	type SubscriptionEntry,
 	TimeSync,
 	type TimeSyncInitOptions,
+	defaultOptions,
 } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
