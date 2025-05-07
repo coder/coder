@@ -440,6 +440,12 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 
 			if !bytes.Equal(configRaw, configModified) {
+				// Ensure the parent directory exists before writing the file
+				sshDir := filepath.Dir(sshConfigFile)
+				if err := os.MkdirAll(sshDir, os.ModePerm); err != nil {
+					return xerrors.Errorf("failed to create directory %q: %w", sshDir, err)
+				}
+
 				err = atomic.WriteFile(sshConfigFile, bytes.NewReader(configModified))
 				if err != nil {
 					return xerrors.Errorf("write ssh config failed: %w", err)

@@ -169,6 +169,47 @@ func TestConfigSSH(t *testing.T) {
 	<-copyDone
 }
 
+func TestConfigSSH_MissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Create a temporary directory but don't create .ssh subdirectory
+	tmpdir := t.TempDir()
+	sshConfigPath := filepath.Join(tmpdir, ".ssh", "config")
+
+	// Run config-ssh with a non-existent .ssh directory
+	args := []string{
+		"config-ssh",
+		"--ssh-config-file", sshConfigPath,
+		"--yes", // Skip confirmation prompts
+	}
+	inv, root := clitest.New(t, args...)
+	clitest.SetupConfig(t, client, root)
+
+	err := inv.Run()
+	require.NoError(t, err, "config-ssh should succeed with non-existent directory")
+
+	// Verify that the .ssh directory was created
+	sshDir := filepath.Dir(sshConfigPath)
+	_, err = os.Stat(sshDir)
+	require.NoError(t, err, ".ssh directory should exist")
+
+	// Verify that the config file was created
+	_, err = os.Stat(sshConfigPath)
+	require.NoError(t, err, "config file should exist")
+
+	// Check that the directory has proper permissions (0700)
+	sshDirInfo, err := os.Stat(sshDir)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(os.ModePerm), sshDirInfo.Mode().Perm(), "directory should have 0700 permissions")
+}
+
 func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	t.Parallel()
 
