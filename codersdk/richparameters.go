@@ -70,7 +70,6 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		if !matched {
 			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 		}
-		return nil
 	}
 
 	if !validationEnabled(richParameter) {

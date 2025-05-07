@@ -757,7 +757,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			err := inv.Run()
 			// TODO: improve validation so we catch this problem before it reaches the server
 			// 		 but for now just validate that the server actually catches invalid monotonicity
-			assert.ErrorContains(t, err, fmt.Sprintf("parameter value must be equal or greater than previous value: %s", tempVal))
+			assert.ErrorContains(t, err, "parameter value '1' must be equal or greater than previous value: 2")
 		}()
 
 		matches := []string{
