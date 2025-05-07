@@ -2,6 +2,9 @@ package prebuilds
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"cdr.dev/slog"
@@ -35,6 +38,16 @@ var (
 		labels,
 		nil,
 	)
+	resourceReplacementsDesc = prometheus.NewDesc(
+		"coderd_prebuilt_workspaces_resource_replacements_total",
+		"Total number of prebuilt workspaces whose resource(s) got replaced upon being claimed. "+
+			"In Terraform, drift on immutable attributes results in resource replacement. "+
+			"This represents a worst-case scenario for prebuilt workspaces because the pre-provisioned resource "+
+			"would have been recreated when claiming, thus obviating the point of pre-provisioning. "+
+			"See https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces.md#preventing-resource-replacement",
+		labels,
+		nil,
+	)
 	desiredPrebuildsDesc = prometheus.NewDesc(
 		"coderd_prebuilt_workspaces_desired",
 		"Target number of prebuilt workspaces that should be available for each template preset.",
@@ -61,15 +74,19 @@ type MetricsCollector struct {
 	database    database.Store
 	logger      slog.Logger
 	snapshotter prebuilds.StateSnapshotter
+
+	replacementsCounter   map[replacementKey]*atomic.Int64
+	replacementsCounterMu sync.Mutex
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
 func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter prebuilds.StateSnapshotter) *MetricsCollector {
 	return &MetricsCollector{
-		database:    db,
-		logger:      logger.Named("prebuilds_metrics_collector"),
-		snapshotter: snapshotter,
+		database:            db,
+		logger:              logger.Named("prebuilds_metrics_collector"),
+		snapshotter:         snapshotter,
+		replacementsCounter: make(map[replacementKey]*atomic.Int64),
 	}
 }
 
@@ -77,6 +94,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- createdPrebuildsDesc
 	descCh <- failedPrebuildsDesc
 	descCh <- claimedPrebuildsDesc
+	descCh <- resourceReplacementsDesc
 	descCh <- desiredPrebuildsDesc
 	descCh <- runningPrebuildsDesc
 	descCh <- eligiblePrebuildsDesc
@@ -97,6 +115,12 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(failedPrebuildsDesc, prometheus.CounterValue, float64(metric.FailedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 	}
+
+	mc.replacementsCounterMu.Lock()
+	for key, val := range mc.replacementsCounter {
+		metricsCh <- prometheus.MustNewConstMetric(resourceReplacementsDesc, prometheus.CounterValue, float64(val.Load()), key.templateName, key.presetName, key.orgName)
+	}
+	mc.replacementsCounterMu.Unlock()
 
 	snapshot, err := mc.snapshotter.SnapshotState(ctx, mc.database)
 	if err != nil {
@@ -120,4 +144,23 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(state.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(state.Eligible), preset.TemplateName, preset.Name, preset.OrganizationName)
 	}
+}
+
+type replacementKey struct {
+	orgName, templateName, presetName string
+}
+
+func (k replacementKey) String() string {
+	return fmt.Sprintf("%s:%s:%s", k.orgName, k.templateName, k.presetName)
+}
+
+func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, presetName string) {
+	mc.replacementsCounterMu.Lock()
+	defer mc.replacementsCounterMu.Unlock()
+
+	key := replacementKey{orgName: orgName, templateName: templateName, presetName: presetName}
+	if _, ok := mc.replacementsCounter[key]; !ok {
+		mc.replacementsCounter[key] = &atomic.Int64{}
+	}
+	mc.replacementsCounter[key].Add(1)
 }
