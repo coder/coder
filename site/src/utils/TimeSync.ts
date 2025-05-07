@@ -62,7 +62,6 @@ interface TimeSyncApi {
 	subscribe: (entry: SubscriptionEntry) => void;
 	unsubscribe: (id: string) => void;
 	getTimeSnapshot: () => Date;
-	invalidateSnapshot: () => void;
 }
 
 /**
@@ -166,8 +165,6 @@ export class TimeSync implements TimeSyncApi {
 	getTimeSnapshot(): Date {
 		return this.#latestDateSnapshot;
 	}
-
-	invalidateSnapshot(): void {}
 
 	unsubscribe(id: string): void {
 		const updated = this.#subscriptions.filter((s) => s.id !== id);

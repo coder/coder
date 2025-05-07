@@ -39,6 +39,12 @@ type ReactTimeSyncSubscriptionEntry = Readonly<
 	}
 >;
 
+// Need to wrap each value that we put in the selection cache, so that when we
+// try to retrieve a value, it's easy to differentiate between a value being
+// undefined because that's an explicit selection value, versus it being
+// undefined because we forgot to set it in the cache
+type SelectionCacheEntry = Readonly<{ value: unknown }>;
+
 interface ReactTimeSyncApi {
 	subscribe: (entry: ReactTimeSyncSubscriptionEntry) => () => void;
 	getSelectionSnapshot: <T = unknown>(id: string) => T;
@@ -46,38 +52,61 @@ interface ReactTimeSyncApi {
 
 class ReactTimeSync implements ReactTimeSyncApi {
 	readonly #timeSync: TimeSync;
-	readonly #resyncOnNewSubscription: boolean;
-	readonly #selectionCache: Map<string, unknown>;
+	readonly #selectionCache: Map<string, SelectionCacheEntry>;
 
 	constructor(options: Partial<TimeSyncInitOptions>) {
-		const {
-			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
-			initialDatetime = defaultOptions.initialDatetime,
-			createNewDatetime = defaultOptions.createNewDatetime,
-			setInterval = defaultOptions.setInterval,
-			clearInterval = defaultOptions.clearInterval,
-		} = options;
-
+		this.#timeSync = new TimeSync(options);
 		this.#selectionCache = new Map();
-		this.#resyncOnNewSubscription = resyncOnNewSubscription;
-		this.#timeSync = new TimeSync({
-			initialDatetime,
-			createNewDatetime,
-			setInterval,
-			clearInterval,
-		});
 	}
 
 	// All functions that are part of the public interface must be defined as
 	// arrow functions, so that they work properly with React
 
 	subscribe = (entry: ReactTimeSyncSubscriptionEntry): (() => void) => {
-		this.#timeSync.subscribe(entry);
-		return () => this.#timeSync.unsubscribe(entry.id);
+		const { select, id, idealRefreshIntervalMs, onUpdate } = entry;
+
+		// Make sure that we subscribe first, in case TimeSync is configured to
+		// invalidate the snapshot on a new subscription. Want to remove risk of
+		// stale data
+		const patchedEntry: SubscriptionEntry = {
+			id,
+			idealRefreshIntervalMs,
+			onUpdate: (newDate) => {
+				const prevSelection = this.getSelectionSnapshot(id);
+				const newSelection: unknown = select?.(newDate) ?? newDate;
+				if (newSelection === prevSelection) {
+					return;
+				}
+
+				this.#selectionCache.set(id, { value: newSelection });
+				onUpdate(newDate);
+			},
+		};
+		this.#timeSync.subscribe(patchedEntry);
+
+		const date = this.#timeSync.getTimeSnapshot();
+		const cacheValue = select?.(date) ?? date;
+		this.#selectionCache.set(id, { value: cacheValue });
+
+		return () => this.#timeSync.unsubscribe(id);
 	};
 
+	/**
+	 * Allows you to grab the result of a selection that has been registered
+	 * with ReactTimeSync.
+	 *
+	 * If this method is called with an ID before a subscription has been
+	 * registered for that ID, that will cause the method to throw.
+	 */
 	getSelectionSnapshot = <T,>(id: string): T => {
-		return this.#selectionCache.get(id) as T;
+		const cacheEntry = this.#selectionCache.get(id);
+		if (cacheEntry === undefined) {
+			throw new Error(
+				"Trying to retrieve value from selection cache without it being initialized",
+			);
+		}
+
+		return cacheEntry.value as T;
 	};
 }
 
@@ -177,7 +206,7 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	});
 
 	// We need to define this callback using useCallback instead of
-	// useEffectEvent because we want the memoization to be invaliated when the
+	// useEffectEvent because we want the memoization to be invalidated when the
 	// refresh interval changes. (When the subscription callback changes by
 	// reference, that causes useSyncExternalStore to redo the subscription with
 	// the new callback). All other values need to be included in the dependency
