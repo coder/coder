@@ -195,7 +195,7 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 	}
 
 	if auth != nil && auth(r, policy.ActionRead, user) {
-		return &user, organizationMembers, true
+		return &user, organizationMembers, false
 	}
 
 	// If the user cannot be read and 0 memberships exist, throw a 404 to not
