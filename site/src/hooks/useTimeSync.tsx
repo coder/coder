@@ -1,252 +1,107 @@
 /**
  * @todo Things that still need to be done before this can be called done:
  *
- * 1. Revamp the entire class definition, and fill out all missing methods
- * 2. Update the class to respect the resyncOnNewSubscription option
+ * 1. Fill out all incomplete methods
+ * 2. Make sure the class respects the resyncOnNewSubscription option
  * 3. Add tests
  * 4. See if there's a way to make sure that if you provide a type parameter to
  *    the hook, you must also provide a select function
  */
 import {
+	createContext,
 	type FC,
 	type PropsWithChildren,
-	createContext,
 	useCallback,
 	useContext,
 	useId,
 	useState,
 	useSyncExternalStore,
 } from "react";
+import {
+	defaultOptions,
+	type SubscriptionEntry,
+	TimeSync,
+	type TimeSyncInitOptions,
+} from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
-export const IDEAL_REFRESH_ONE_SECOND = 1_000;
-export const IDEAL_REFRESH_ONE_MINUTE = 60 * 1_000;
-export const IDEAL_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
-export const IDEAL_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
+export {
+	IDEAL_REFRESH_ONE_DAY,
+	IDEAL_REFRESH_ONE_HOUR,
+	IDEAL_REFRESH_ONE_MINUTE,
+	IDEAL_REFRESH_ONE_SECOND,
+} from "utils/TimeSync";
 
-type SetInterval = (fn: () => void, intervalMs: number) => number;
-type ClearInterval = (id: number | undefined) => void;
+type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 
-type TimeSyncInitOptions = Readonly<{
-	/**
-	 * Configures whether adding a new subscription will immediately create a
-	 * new time snapshot and use it to update all other subscriptions.
-	 */
-	resyncOnNewSubscription: boolean;
+type ReactTimeSyncSubscriptionEntry = Readonly<
+	SubscriptionEntry & {
+		select?: (newSnapshot: Date) => unknown;
+	}
+>;
 
-	/**
-	 * The Date value to use when initializing a TimeSync instance.
-	 */
-	initialDatetime: Date;
+type ReactTimeSyncInitOptions = Readonly<
+	TimeSyncInitOptions & {
+		/**
+		 * Configures whether adding a new subscription will immediately create
+		 * a new time snapshot and use it to update all other subscriptions.
+		 */
+		resyncOnNewSubscription: boolean;
+	}
+>;
 
-	/**
-	 * The function to use when creating a new datetime snapshot when a TimeSync
-	 * needs to update on an interval.
-	 */
-	createNewDatetime: (prevDatetime: Date) => Date;
-
-	/**
-	 * The function to use when creating new intervals.
-	 */
-	setInterval: SetInterval;
-
-	/**
-	 * The function to use when clearing intervals.
-	 *
-	 * (e.g., Clearing a previous interval because the TimeSync needs to make a
-	 * new interval to increase/decrease its update speed.)
-	 */
-	clearInterval: ClearInterval;
-}>;
-
-const defaultOptions: TimeSyncInitOptions = {
-	initialDatetime: new Date(),
+const defaultReactTimeSyncOptions: ReactTimeSyncInitOptions = {
+	...defaultOptions,
 	resyncOnNewSubscription: true,
-	createNewDatetime: () => new Date(),
-	setInterval: window.setInterval,
-	clearInterval: window.clearInterval,
 };
 
-type SubscriptionEntry = Readonly<{
-	id: string;
-	idealRefreshIntervalMs: number;
-	onUpdate: (newDatetime: Date) => void;
-	select?: (newSnapshot: Date) => unknown;
-}>;
-
-interface TimeSyncApi {
-	subscribe: (entry: SubscriptionEntry) => () => void;
-	unsubscribe: (id: string) => void;
-	getTimeSnapshot: () => Date;
+interface ReactTimeSyncApi {
+	subscribe: (entry: ReactTimeSyncSubscriptionEntry) => () => void;
 	getSelectionSnapshot: <T = unknown>(id: string) => T;
 }
 
-/**
- * TimeSync provides a centralized authority for working with time values in a
- * more structured, "pure function-ish" way, where all dependents for the time
- * values must stay in sync with each other. (e.g., in a React codebase, you
- * want multiple components that rely on time values to update together, to
- * avoid screen tearing and stale data for only some parts of the screen).
- *
- * It lets any number of consumers subscribe to it, requiring that subscribers
- * define the slowest possible update interval they need to receive new time
- * values for. A value of positive Infinity indicates that a subscriber doesn't
- * need updates; if all subscriptions have an update interval of Infinity, the
- * class may not dispatch updates.
- *
- * The class aggregates all the update intervals, and will dispatch updates to
- * all consumers based on the fastest refresh interval needed. (e.g., if
- * subscriber A needs no updates, but subscriber B needs updates every second,
- * BOTH will update every second until subscriber B unsubscribes. After that,
- * TimeSync will stop dispatching updates until subscription C gets added, and C
- * has a non-Infinite update interval).
- *
- * By design, there is no way to make one subscriber disable updates. That
- * defeats the goal of needing to keep everything in sync with each other. If
- * updates are happening too frequently in React, restructure how you're
- * composing your components to minimize the costs of re-renders.
- */
-export class TimeSync implements TimeSyncApi {
+class ReactTimeSync implements ReactTimeSyncApi {
+	readonly #timeSync: TimeSync;
 	readonly #resyncOnNewSubscription: boolean;
-	readonly #createNewDatetime: (prev: Date) => Date;
-	readonly #setInterval: SetInterval;
-	readonly #clearInterval: ClearInterval;
 	readonly #selectionCache: Map<string, unknown>;
 
-	#latestDateSnapshot: Date;
-	#subscriptions: SubscriptionEntry[];
-	#latestIntervalId: number | undefined;
-
-	constructor(options: Partial<TimeSyncInitOptions>) {
+	constructor(options: Partial<ReactTimeSyncInitOptions>) {
 		const {
+			resyncOnNewSubscription = defaultReactTimeSyncOptions.resyncOnNewSubscription,
 			initialDatetime = defaultOptions.initialDatetime,
-			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
 			createNewDatetime = defaultOptions.createNewDatetime,
 			setInterval = defaultOptions.setInterval,
 			clearInterval = defaultOptions.clearInterval,
 		} = options;
 
-		this.#setInterval = setInterval;
-		this.#clearInterval = clearInterval;
-		this.#createNewDatetime = createNewDatetime;
-		this.#resyncOnNewSubscription = resyncOnNewSubscription;
-
-		this.#latestDateSnapshot = initialDatetime;
-		this.#subscriptions = [];
 		this.#selectionCache = new Map();
-		this.#latestIntervalId = undefined;
-	}
-
-	#reconcileRefreshIntervals(): void {
-		if (this.#subscriptions.length === 0) {
-			this.#clearInterval(this.#latestIntervalId);
-			return;
-		}
-
-		const prevFastestInterval =
-			this.#subscriptions[0]?.idealRefreshIntervalMs ??
-			Number.POSITIVE_INFINITY;
-		if (this.#subscriptions.length > 1) {
-			this.#subscriptions.sort(
-				(e1, e2) => e1.idealRefreshIntervalMs - e2.idealRefreshIntervalMs,
-			);
-		}
-
-		const newFastestInterval =
-			this.#subscriptions[0]?.idealRefreshIntervalMs ??
-			Number.POSITIVE_INFINITY;
-		if (prevFastestInterval === newFastestInterval) {
-			return;
-		}
-		if (newFastestInterval === Number.POSITIVE_INFINITY) {
-			this.#clearInterval(this.#latestIntervalId);
-			return;
-		}
-
-		/**
-		 * @todo Figure out the conditions when the interval should be set up, and
-		 * when/how it should be updated
-		 */
-		this.#latestIntervalId = this.#setInterval(() => {
-			this.#latestDateSnapshot = this.#createNewDatetime(
-				this.#latestDateSnapshot,
-			);
-			this.#flushUpdateToSubscriptions();
-		}, newFastestInterval);
-	}
-
-	#flushUpdateToSubscriptions(): void {
-		for (const subEntry of this.#subscriptions) {
-			if (subEntry.select === undefined) {
-				subEntry.onUpdate(this.#latestDateSnapshot);
-				continue;
-			}
-
-			// Keeping things simple by only comparing values React-style with ===.
-			// If that becomes a problem down the line, we can beef the class up
-			const prevSelection = this.#selectionCache.get(subEntry.id);
-			const newSelection = subEntry.select(this.#latestDateSnapshot);
-			if (prevSelection !== newSelection) {
-				this.#selectionCache.set(subEntry.id, newSelection);
-				subEntry.onUpdate(this.#latestDateSnapshot);
-			}
-		}
+		this.#resyncOnNewSubscription = resyncOnNewSubscription;
+		this.#timeSync = new TimeSync({
+			initialDatetime,
+			createNewDatetime,
+			setInterval,
+			clearInterval,
+		});
 	}
 
 	// All functions that are part of the public interface must be defined as
 	// arrow functions, so that they work properly with React
 
-	getTimeSnapshot = (): Date => {
-		return this.#latestDateSnapshot;
+	subscribe = (entry: ReactTimeSyncSubscriptionEntry): (() => void) => {
+		this.#timeSync.subscribe(entry);
+		return () => this.#timeSync.unsubscribe(entry.id);
 	};
 
 	getSelectionSnapshot = <T,>(id: string): T => {
 		return this.#selectionCache.get(id) as T;
 	};
-
-	unsubscribe = (id: string): void => {
-		const updated = this.#subscriptions.filter((s) => s.id !== id);
-		if (updated.length === this.#subscriptions.length) {
-			return;
-		}
-
-		this.#subscriptions = updated;
-		this.#reconcileRefreshIntervals();
-	};
-
-	subscribe = (entry: SubscriptionEntry): (() => void) => {
-		if (entry.idealRefreshIntervalMs <= 0) {
-			throw new Error(
-				`Refresh interval ${entry.idealRefreshIntervalMs} must be a positive integer (or Infinity)`,
-			);
-		}
-
-		const unsub = () => this.unsubscribe(entry.id);
-		const subIndex = this.#subscriptions.findIndex((s) => s.id === entry.id);
-		if (subIndex === -1) {
-			this.#subscriptions.push(entry);
-			this.#reconcileRefreshIntervals();
-			return unsub;
-		}
-
-		const prev = this.#subscriptions[subIndex];
-		if (prev === undefined) {
-			throw new Error("Went out of bounds");
-		}
-
-		this.#subscriptions[subIndex] = entry;
-		if (prev.idealRefreshIntervalMs !== entry.idealRefreshIntervalMs) {
-			this.#reconcileRefreshIntervals();
-		}
-		return unsub;
-	};
 }
 
-const timeSyncContext = createContext<TimeSync | null>(null);
+const timeSyncContext = createContext<ReactTimeSync | null>(null);
 
 type TimeSyncProviderProps = Readonly<
 	PropsWithChildren<{
-		options?: Partial<TimeSyncInitOptions>;
+		options?: Partial<ReactTimeSyncInitOptions>;
 	}>
 >;
 
@@ -267,7 +122,7 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	// be treated like a pseudo-ref value, where its values can only be used in
 	// very specific, React-approved ways
 	const [readonlySync] = useState(
-		() => new TimeSync(options ?? defaultOptions),
+		() => new ReactTimeSync(options ?? defaultReactTimeSyncOptions),
 	);
 
 	return (
@@ -328,8 +183,8 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// (2) Whenever React is notified of a state change (outside of React).
 	//
 	// Case 2 is basically an effect with extra steps (and single-threaded JS
-	// gives us assurance about correctness). And for (1), useEffectEvent will be
-	// initialized with whatever callback you give it on mount. So for the
+	// gives us assurance about correctness). And for (1), useEffectEvent will
+	// be initialized with whatever callback you give it on mount. So for the
 	// mounting render alone, it's safe to call a useEffectEvent callback from
 	// inside a render.
 	const stableSelect = useEffectEvent((date: Date): T => {
@@ -344,7 +199,6 @@ export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// the new callback). All other values need to be included in the dependency
 	// array for correctness, but they should always maintain stable memory
 	// addresses
-	type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return timeSync.subscribe({
