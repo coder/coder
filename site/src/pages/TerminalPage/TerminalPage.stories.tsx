@@ -17,7 +17,6 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockExperiments,
-	MockUser,
 	MockUserAppearanceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,

@@ -20,7 +20,7 @@ import {
 	createMemoryRouter,
 } from "react-router-dom";
 import themes, { DEFAULT_THEME } from "theme";
-import { MockUser } from "./entities";
+import { MockUserOwner } from "./entities";
 
 export function createTestQueryClient() {
 	// Helps create one query client for each test case, to make sure that tests
@@ -118,7 +118,7 @@ export function renderWithAuth(
 
 	return {
 		...renderResult,
-		user: MockUser,
+		user: MockUserOwner,
 	};
 }
 
@@ -154,7 +154,7 @@ export function renderWithTemplateSettingsLayout(
 	);
 
 	return {
-		user: MockUser,
+		user: MockUserOwner,
 		...renderResult,
 	};
 }
@@ -191,7 +191,7 @@ export function renderWithWorkspaceSettingsLayout(
 	);
 
 	return {
-		user: MockUser,
+		user: MockUserOwner,
 		...renderResult,
 	};
 }
@@ -228,7 +228,7 @@ export function renderWithOrganizationSettingsLayout(
 	);
 
 	return {
-		user: MockUser,
+		user: MockUserOwner,
 		...renderResult,
 	};
 }

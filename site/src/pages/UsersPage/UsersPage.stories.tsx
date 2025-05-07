@@ -9,7 +9,7 @@ import type { User } from "api/typesGenerated";
 import { MockGroups } from "pages/UsersPage/storybookData/groups";
 import { MockRoles } from "pages/UsersPage/storybookData/roles";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { MockAuthMethodsAll, MockUser } from "testHelpers/entities";
+import { MockAuthMethodsAll } from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -59,7 +59,7 @@ const parameters = {
 			},
 		},
 	],
-	user: MockUser,
+	user: MockUserOwner,
 	permissions: {
 		createUser: true,
 		updateUsers: true,

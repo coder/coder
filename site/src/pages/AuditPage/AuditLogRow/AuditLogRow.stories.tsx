@@ -13,7 +13,7 @@ import {
 	MockAuditLogRequestPasswordReset,
 	MockAuditLogWithDeletedResource,
 	MockAuditLogWithWorkspaceBuild,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import { AuditLogRow } from "./AuditLogRow";
 
@@ -155,7 +155,7 @@ export const NoUserAgent: Story = {
 			description: "{user} deleted workspace {target}",
 			resource_link: "/@jon/yeee/builds/35",
 			is_deleted: false,
-			user: MockUser,
+			user: MockUserOwner,
 		},
 	},
 };

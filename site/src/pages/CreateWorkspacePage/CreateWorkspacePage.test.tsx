@@ -8,7 +8,7 @@ import {
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockTemplateVersionParameter3,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceQuota,
 	MockWorkspaceRequest,
@@ -59,7 +59,7 @@ describe("CreateWorkspacePage", () => {
 
 		await waitFor(() =>
 			expect(API.createWorkspace).toBeCalledWith(
-				MockUser.id,
+				MockUserOwner.id,
 				expect.objectContaining({
 					...MockWorkspaceRichParametersRequest,
 				}),
@@ -219,7 +219,7 @@ describe("CreateWorkspacePage", () => {
 
 		await waitFor(() =>
 			expect(API.createWorkspace).toBeCalledWith(
-				MockUser.id,
+				MockUserOwner.id,
 				expect.objectContaining({
 					...MockWorkspaceRequest,
 				}),
@@ -258,7 +258,7 @@ describe("CreateWorkspacePage", () => {
 
 		await waitFor(() =>
 			expect(API.createWorkspace).toBeCalledWith(
-				MockUser.id,
+				MockUserOwner.id,
 				expect.objectContaining({
 					...MockWorkspaceRequest,
 				}),

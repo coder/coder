@@ -1,9 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import {
-	MockGroup as MockGroup1,
-	MockUser,
-	mockApiError,
-} from "testHelpers/entities";
+import { MockGroup as MockGroup1, mockApiError } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { AccountUserGroups } from "./AccountUserGroups";
 

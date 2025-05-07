@@ -93,7 +93,7 @@ describe("useAuthenticated", () => {
 		expect(() => {
 			renderHook(() => useAuthenticated(), {
 				wrapper: createAuthWrapper({
-					user: MockUser,
+					user: MockUserOwner,
 					permissions: MockPermissions,
 				}),
 			});

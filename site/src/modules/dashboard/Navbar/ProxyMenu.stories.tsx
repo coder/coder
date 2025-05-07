@@ -8,7 +8,6 @@ import {
 	MockAuthMethodsAll,
 	MockPermissions,
 	MockProxyLatencies,
-	MockUser,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";

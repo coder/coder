@@ -7,7 +7,7 @@ import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
 import {
 	MockNotificationMethodsResponse,
 	MockNotificationTemplates,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import {
 	withAuthProvider,
@@ -193,7 +193,7 @@ export const baseMeta = {
 				data: MockNotificationMethodsResponse,
 			},
 		],
-		user: MockUser,
+		user: MockUserOwner,
 		permissions: { viewDeploymentConfig: true },
 		deploymentOptions: mockNotificationsDeploymentOptions,
 		deploymentValues: {
