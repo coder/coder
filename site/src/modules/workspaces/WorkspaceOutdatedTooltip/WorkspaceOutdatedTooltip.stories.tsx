@@ -34,14 +34,12 @@ type Story = StoryObj<typeof WorkspaceOutdatedTooltip>;
 
 const Example: Story = {
 	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByRole("button"));
+			await userEvent.hover(body.getByRole("button"));
 			await waitFor(() =>
-				expect(
-					screen.getByText(MockTemplateVersion.message),
-				).toBeInTheDocument(),
+				expect(body.getByText(MockTemplateVersion.message)).toBeInTheDocument(),
 			);
 		});
 	},
