@@ -2,9 +2,8 @@
  * @todo Things that still need to be done before this can be called done:
  *
  * 1. Fill out all incomplete methods
- * 2. Make sure the class respects the resyncOnNewSubscription option
- * 3. Add tests
- * 4. See if there's a way to make sure that if you provide a type parameter to
+ * 2. Add tests
+ * 3. See if there's a way to make sure that if you provide a type parameter to
  *    the hook, you must also provide a select function
  */
 import {
@@ -40,21 +39,6 @@ type ReactTimeSyncSubscriptionEntry = Readonly<
 	}
 >;
 
-type ReactTimeSyncInitOptions = Readonly<
-	TimeSyncInitOptions & {
-		/**
-		 * Configures whether adding a new subscription will immediately create
-		 * a new time snapshot and use it to update all other subscriptions.
-		 */
-		resyncOnNewSubscription: boolean;
-	}
->;
-
-const defaultReactTimeSyncOptions: ReactTimeSyncInitOptions = {
-	...defaultOptions,
-	resyncOnNewSubscription: true,
-};
-
 interface ReactTimeSyncApi {
 	subscribe: (entry: ReactTimeSyncSubscriptionEntry) => () => void;
 	getSelectionSnapshot: <T = unknown>(id: string) => T;
@@ -65,9 +49,9 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	readonly #resyncOnNewSubscription: boolean;
 	readonly #selectionCache: Map<string, unknown>;
 
-	constructor(options: Partial<ReactTimeSyncInitOptions>) {
+	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
-			resyncOnNewSubscription = defaultReactTimeSyncOptions.resyncOnNewSubscription,
+			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
 			initialDatetime = defaultOptions.initialDatetime,
 			createNewDatetime = defaultOptions.createNewDatetime,
 			setInterval = defaultOptions.setInterval,
@@ -101,7 +85,7 @@ const timeSyncContext = createContext<ReactTimeSync | null>(null);
 
 type TimeSyncProviderProps = Readonly<
 	PropsWithChildren<{
-		options?: Partial<ReactTimeSyncInitOptions>;
+		options?: Partial<TimeSyncInitOptions>;
 	}>
 >;
 
@@ -122,7 +106,7 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	// be treated like a pseudo-ref value, where its values can only be used in
 	// very specific, React-approved ways
 	const [readonlySync] = useState(
-		() => new ReactTimeSync(options ?? defaultReactTimeSyncOptions),
+		() => new ReactTimeSync(options ?? defaultOptions),
 	);
 
 	return (

@@ -1,7 +1,8 @@
 /**
  * @todo What's left to do here:
  * 1. Fill out all incomplete methods
- * 2. Add tests
+ * 2. Make sure the class respects the resyncOnNewSubscription option
+ * 3. Add tests
  */
 export const IDEAL_REFRESH_ONE_SECOND = 1_000;
 export const IDEAL_REFRESH_ONE_MINUTE = 60 * 1_000;
@@ -35,10 +36,17 @@ export type TimeSyncInitOptions = Readonly<{
 	 * new interval to increase/decrease its update speed.)
 	 */
 	clearInterval: ClearInterval;
+
+	/**
+	 * Configures whether adding a new subscription will immediately create
+	 * a new time snapshot and use it to update all other subscriptions.
+	 */
+	resyncOnNewSubscription: boolean;
 }>;
 
 export const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
+	resyncOnNewSubscription: true,
 	createNewDatetime: () => new Date(),
 	setInterval: window.setInterval,
 	clearInterval: window.clearInterval,
@@ -83,6 +91,7 @@ interface TimeSyncApi {
  * composing your components to minimize the costs of re-renders.
  */
 export class TimeSync implements TimeSyncApi {
+	readonly #resyncOnNewSubscription: boolean;
 	readonly #createNewDatetime: (prev: Date) => Date;
 	readonly #setInterval: SetInterval;
 	readonly #clearInterval: ClearInterval;
@@ -94,6 +103,7 @@ export class TimeSync implements TimeSyncApi {
 	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
+			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
 			createNewDatetime = defaultOptions.createNewDatetime,
 			setInterval = defaultOptions.setInterval,
 			clearInterval = defaultOptions.clearInterval,
@@ -102,6 +112,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#setInterval = setInterval;
 		this.#clearInterval = clearInterval;
 		this.#createNewDatetime = createNewDatetime;
+		this.#resyncOnNewSubscription = resyncOnNewSubscription;
 
 		this.#latestDateSnapshot = initialDatetime;
 		this.#subscriptions = [];
