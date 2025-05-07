@@ -132,7 +132,6 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 							clearTimeout(openAppExternallyFailed);
 						});
 
-						console.log("URL", url);
 						window.location.href = url;
 						return;
 					}
