@@ -12,9 +12,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.4:
 //   - Add new field named `devcontainers` in the Agent.
+//
+// API v1.5:
+//   - Add new field named `running_agent_auth_tokens` to provisioner job metadata
 const (
 	CurrentMajor = 1
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 // CurrentVersion is the current provisionerd API version.

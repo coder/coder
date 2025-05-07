@@ -66,8 +66,6 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 		case <-inner.Done():
 			return
 		case reinitEvents <- claim:
-		default:
-			return
 		}
 	})
 	if err != nil {
