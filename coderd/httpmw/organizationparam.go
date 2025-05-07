@@ -11,12 +11,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 type (
-	organizationParamContextKey       struct{}
-	organizationMemberParamContextKey struct{}
+	organizationParamContextKey        struct{}
+	organizationMemberParamContextKey  struct{}
+	organizationMembersParamContextKey struct{}
 )
 
 // OrganizationParam returns the organization from the ExtractOrganizationParam handler.
@@ -36,6 +39,14 @@ func OrganizationMemberParam(r *http.Request) OrganizationMember {
 		panic("developer error: organization member param middleware not provided")
 	}
 	return organizationMember
+}
+
+func OrganizationMembersParam(r *http.Request) OrganizationMembers {
+	organizationMembers, ok := r.Context().Value(organizationMembersParamContextKey{}).(OrganizationMembers)
+	if !ok {
+		panic("developer error: organization members param middleware not provided")
+	}
+	return organizationMembers
 }
 
 // ExtractOrganizationParam grabs an organization from the "organization" URL parameter.
@@ -107,38 +118,26 @@ type OrganizationMember struct {
 
 // ExtractOrganizationMemberParam grabs a user membership from the "organization" and "user" URL parameter.
 // This middleware requires the ExtractUser and ExtractOrganization middleware higher in the stack
-func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.Handler {
+func ExtractOrganizationMemberParam(db database.Store, auth func(r *http.Request, action policy.Action, object rbac.Objecter) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			// We need to resolve the `{user}` URL parameter so that we can get the userID and
-			// username.  We do this as SystemRestricted since the caller might have permission
-			// to access the OrganizationMember object, but *not* the User object.  So, it is
-			// very important that we do not add the User object to the request context or otherwise
-			// leak it to the API handler.
-			// nolint:gocritic
-			user, ok := ExtractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
-			if !ok {
-				return
-			}
 			organization := OrganizationParam(r)
-
-			organizationMember, err := database.ExpectOne(db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-				OrganizationID: organization.ID,
-				UserID:         user.ID,
-				IncludeSystem:  false,
-			}))
-			if httpapi.Is404Error(err) {
-				httpapi.ResourceNotFound(rw)
+			_, members, done := ExtractOrganizationMember(ctx, auth, rw, r, db, organization.ID)
+			if done {
 				return
 			}
-			if err != nil {
+
+			if len(members) != 1 {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching organization member.",
-					Detail:  err.Error(),
+					// This is a developer error and should never happen.
+					Detail: fmt.Sprintf("Expected exactly one organization member, but got %d.", len(members)),
 				})
 				return
 			}
+
+			organizationMember := members[0]
 
 			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, OrganizationMember{
 				OrganizationMember: organizationMember.OrganizationMember,
@@ -151,8 +150,105 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 				// API handlers need this information for audit logging and returning the owner's
 				// username in response to creating a workspace. Additionally, the frontend consumes
 				// the Avatar URL and this allows the FE to avoid an extra request.
-				Username:  user.Username,
-				AvatarURL: user.AvatarURL,
+				Username:  organizationMember.Username,
+				AvatarURL: organizationMember.AvatarURL,
+			})
+
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
+// ExtractOrganizationMember extracts all user memberships from the "user" URL
+// parameter. If orgID is uuid.Nil, then it will return all memberships for the
+// user, otherwise it will only return memberships to the org.
+//
+// If `user` is returned, that means the caller can use the data. This is returned because
+// it is possible to have a user with 0 organizations. So the user != nil, with 0 memberships.
+func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, action policy.Action, object rbac.Objecter) bool, rw http.ResponseWriter, r *http.Request, db database.Store, orgID uuid.UUID) (*database.User, []database.OrganizationMembersRow, bool) {
+	// We need to resolve the `{user}` URL parameter so that we can get the userID and
+	// username.  We do this as SystemRestricted since the caller might have permission
+	// to access the OrganizationMember object, but *not* the User object.  So, it is
+	// very important that we do not add the User object to the request context or otherwise
+	// leak it to the API handler.
+	// nolint:gocritic
+	user, ok := ExtractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
+	if !ok {
+		return nil, nil, true
+	}
+
+	organizationMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: orgID,
+		UserID:         user.ID,
+		IncludeSystem:  false,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return nil, nil, true
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organization member.",
+			Detail:  err.Error(),
+		})
+		return nil, nil, true
+	}
+
+	if auth(r, policy.ActionRead, user) {
+		return &user, organizationMembers, true
+	}
+
+	// If the user cannot be read and 0 memberships exist, throw a 404 to not
+	// leak the user existance.
+	if len(organizationMembers) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return nil, nil, true
+	}
+
+	return nil, organizationMembers, false
+}
+
+type OrganizationMembers struct {
+	User        *database.User
+	Memberships []OrganizationMember
+}
+
+func (om OrganizationMembers) UserID() uuid.UUID {
+	if om.User != nil {
+		return om.User.ID
+	}
+
+	if len(om.Memberships) > 0 {
+		return om.Memberships[0].UserID
+	}
+	return uuid.Nil
+}
+
+// ExtractOrganizationMembersParam grabs all user organization memberships.
+// Only requires the "user" URL parameter.
+func ExtractOrganizationMembersParam(db database.Store, auth func(r *http.Request, action policy.Action, object rbac.Objecter) bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			// Fetch all memberships
+			user, members, done := ExtractOrganizationMember(ctx, auth, rw, r, db, uuid.Nil)
+			if done {
+				return
+			}
+
+			orgMembers := make([]OrganizationMember, 0, len(members))
+			for _, organizationMember := range members {
+				orgMembers = append(orgMembers, OrganizationMember{
+					OrganizationMember: organizationMember.OrganizationMember,
+					Username:           organizationMember.Username,
+					AvatarURL:          organizationMember.AvatarURL,
+				})
+			}
+
+			ctx = context.WithValue(ctx, organizationMembersParamContextKey{}, OrganizationMembers{
+				User:        user,
+				Memberships: orgMembers,
 			})
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
