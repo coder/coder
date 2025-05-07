@@ -16,13 +16,13 @@
  * Storybook decorator function used to inject baseline data dependencies into
  * our React components during testing.
  */
+import React from "react";
 import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
-	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
@@ -31,12 +31,19 @@ import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
+import { TimeSyncProvider } from "../src/hooks/useTimeSync";
 import themes from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 /** @type {readonly Decorator[]} */
-export const decorators = [withRouter, withQuery, withHelmet, withTheme];
+export const decorators = [
+	withRouter,
+	withQuery,
+	withHelmet,
+	withTheme,
+	withTimeSyncProvider,
+];
 
 /** @type {Preview["parameters"]} */
 export const parameters = {
@@ -98,6 +105,22 @@ function withHelmet(Story) {
 		<SafeHelmetProvider>
 			<Story />
 		</SafeHelmetProvider>
+	);
+}
+
+const storyDate = new Date("March 15, 2022");
+
+/** @type {Decorator} */
+function withTimeSyncProvider(Story) {
+	return (
+		<TimeSyncProvider
+			options={{
+				initialDatetime: storyDate,
+				resyncOnNewSubscription: false,
+			}}
+		>
+			<Story />
+		</TimeSyncProvider>
 	);
 }
 

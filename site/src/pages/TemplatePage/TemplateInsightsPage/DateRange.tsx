@@ -17,9 +17,9 @@ import {
 	startOfHour,
 	subDays,
 } from "date-fns";
+import { useTimeSync } from "hooks/useTimeSync";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
-import { useTimeSync } from "hooks/useTimeSync";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
@@ -43,7 +43,7 @@ interface DateRangeProps {
 }
 
 export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
-	const currentTime = useTimeSync({ maxRefreshIntervalMs: 60_000 });
+	const currentTime = useTimeSync({ idealRefreshIntervalMs: 60_000 });
 	const selectionStatusRef = useRef<"idle" | "selecting">("idle");
 	const [ranges, setRanges] = useState<RangesState>([
 		{

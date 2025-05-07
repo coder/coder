@@ -163,7 +163,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	};
 
 	const activityStatus = useTimeSync({
-		maxRefreshIntervalMs: 1_000,
+		idealRefreshIntervalMs: 1_000,
 		select: () => getWorkspaceActivityStatus(workspace),
 	});
 	const { message, tooltip, danger } = autostopDisplay(
