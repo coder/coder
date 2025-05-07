@@ -84,7 +84,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
       datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
 
-   The process is invisible to the developer - their workspace is ready faster than usual.
+   The developer doesn't see the claiming process—the workspace is ready faster than usual.
 
 You can view available prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
