@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
-import { useTimeSync } from "hooks/useTimeSync";
+import { useTimeSyncSelect } from "hooks/useTimeSync";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
@@ -28,8 +28,9 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	onSignIn,
 	redirectTo,
 }) => {
-	const year = useTimeSync({
+	const year = useTimeSyncSelect({
 		targetRefreshInterval: Number.POSITIVE_INFINITY,
+		selectDependencies: [],
 		select: (date) => date.getFullYear(),
 	});
 	const location = useLocation();

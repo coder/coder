@@ -44,7 +44,7 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { IDEAL_REFRESH_ONE_DAY, useTimeSync } from "hooks/useTimeSync";
+import { TARGET_REFRESH_ONE_DAY, useTimeSyncSelect } from "hooks/useTimeSync";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -70,8 +70,8 @@ export default function TemplateInsightsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const paramsInterval = searchParams.get("interval");
-	const insightsInterval = useTimeSync<InsightsInterval>({
-		targetRefreshInterval: IDEAL_REFRESH_ONE_DAY,
+	const insightsInterval = useTimeSyncSelect<InsightsInterval>({
+		targetRefreshInterval: TARGET_REFRESH_ONE_DAY,
 		selectDependencies: [paramsInterval],
 		select: (newDate) => {
 			const templateCreateDate = new Date(template.created_at);

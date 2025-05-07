@@ -19,7 +19,10 @@ import type {
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
-import { IDEAL_REFRESH_ONE_MINUTE, useTimeSync } from "hooks/useTimeSync";
+import {
+	TARGET_REFRESH_ONE_MINUTE,
+	useTimeSyncSelect,
+} from "hooks/useTimeSync";
 import type { FC } from "react";
 import { createAppLinkHref } from "utils/apps";
 
@@ -153,8 +156,9 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	agents,
 	referenceDate,
 }) => {
-	const comparisonDate = useTimeSync({
-		targetRefreshInterval: IDEAL_REFRESH_ONE_MINUTE,
+	const comparisonDate = useTimeSyncSelect({
+		targetRefreshInterval: TARGET_REFRESH_ONE_MINUTE,
+		selectDependencies: [referenceDate],
 		select: (dateState) => referenceDate ?? dateState,
 	});
 	const theme = useTheme();

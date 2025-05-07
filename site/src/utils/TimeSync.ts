@@ -4,10 +4,10 @@
  * 2. Make sure the class respects the resyncOnNewSubscription option
  * 3. Add tests
  */
-export const IDEAL_REFRESH_ONE_SECOND = 1_000;
-export const IDEAL_REFRESH_ONE_MINUTE = 60 * 1_000;
-export const IDEAL_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
-export const IDEAL_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
+export const TARGET_REFRESH_ONE_SECOND = 1_000;
+export const TARGET_REFRESH_ONE_MINUTE = 60 * 1_000;
+export const TARGET_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
+export const TARGET_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 
 export type SetInterval = (fn: () => void, intervalMs: number) => number;
 export type ClearInterval = (id: number | undefined) => void;
@@ -54,7 +54,7 @@ export const defaultOptions: TimeSyncInitOptions = {
 
 export type SubscriptionEntry = Readonly<{
 	id: string;
-	idealRefreshIntervalMs: number;
+	targetRefreshInterval: number;
 	onUpdate: (newDatetime: Date) => void;
 }>;
 
@@ -125,17 +125,15 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const prevFastestInterval =
-			this.#subscriptions[0]?.idealRefreshIntervalMs ??
-			Number.POSITIVE_INFINITY;
+			this.#subscriptions[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
 		if (this.#subscriptions.length > 1) {
 			this.#subscriptions.sort(
-				(e1, e2) => e1.idealRefreshIntervalMs - e2.idealRefreshIntervalMs,
+				(e1, e2) => e1.targetRefreshInterval - e2.targetRefreshInterval,
 			);
 		}
 
 		const newFastestInterval =
-			this.#subscriptions[0]?.idealRefreshIntervalMs ??
-			Number.POSITIVE_INFINITY;
+			this.#subscriptions[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
 		if (prevFastestInterval === newFastestInterval) {
 			return;
 		}
@@ -177,9 +175,9 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	subscribe(entry: SubscriptionEntry): void {
-		if (entry.idealRefreshIntervalMs <= 0) {
+		if (entry.targetRefreshInterval <= 0) {
 			throw new Error(
-				`Refresh interval ${entry.idealRefreshIntervalMs} must be a positive integer (or Infinity)`,
+				`Refresh interval ${entry.targetRefreshInterval} must be a positive integer (or Infinity)`,
 			);
 		}
 
@@ -196,7 +194,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#subscriptions[subIndex] = entry;
-		if (prev.idealRefreshIntervalMs !== entry.idealRefreshIntervalMs) {
+		if (prev.targetRefreshInterval !== entry.targetRefreshInterval) {
 			this.#reconcileRefreshIntervals();
 		}
 	}

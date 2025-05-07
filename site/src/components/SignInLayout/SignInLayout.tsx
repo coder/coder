@@ -1,10 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { useTimeSync } from "hooks/useTimeSync";
+import { useTimeSyncSelect } from "hooks/useTimeSync";
 import type { FC, PropsWithChildren } from "react";
 
 export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
-	const year = useTimeSync({
+	const year = useTimeSyncSelect({
 		targetRefreshInterval: Number.POSITIVE_INFINITY,
+		selectDependencies: [],
 		select: (date) => date.getFullYear(),
 	});
 

@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Welcome } from "components/Welcome/Welcome";
-import { useTimeSync } from "hooks/useTimeSync";
+import { useTimeSyncSelect } from "hooks/useTimeSync";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -10,8 +10,9 @@ type CliInstallPageViewProps = {
 };
 
 export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
-	const year = useTimeSync({
+	const year = useTimeSyncSelect({
 		targetRefreshInterval: Number.POSITIVE_INFINITY,
+		selectDependencies: [],
 		select: (date) => date.getFullYear(),
 	});
 

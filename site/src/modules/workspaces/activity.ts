@@ -10,10 +10,11 @@ export type WorkspaceActivityStatus =
 
 export function getWorkspaceActivityStatus(
 	workspace: Workspace,
+	currentDatetime: Date,
 ): WorkspaceActivityStatus {
 	const builtAt = dayjs(workspace.latest_build.created_at);
 	const usedAt = dayjs(workspace.last_used_at);
-	const now = dayjs();
+	const now = dayjs(currentDatetime);
 
 	if (workspace.latest_build.status !== "running") {
 		return "notRunning";

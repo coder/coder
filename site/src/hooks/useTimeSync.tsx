@@ -25,11 +25,13 @@ import {
 import { useEffectEvent } from "./hookPolyfills";
 
 export {
-	IDEAL_REFRESH_ONE_DAY,
-	IDEAL_REFRESH_ONE_HOUR,
-	IDEAL_REFRESH_ONE_MINUTE,
-	IDEAL_REFRESH_ONE_SECOND,
+	TARGET_REFRESH_ONE_DAY,
+	TARGET_REFRESH_ONE_HOUR,
+	TARGET_REFRESH_ONE_MINUTE,
+	TARGET_REFRESH_ONE_SECOND,
 } from "utils/TimeSync";
+
+type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 
 type SelectCallback = (newSnapshot: Date) => unknown;
 
@@ -47,6 +49,7 @@ type SelectionCacheEntry = Readonly<{ value: unknown }>;
 
 interface ReactTimeSyncApi {
 	subscribe: (entry: ReactSubscriptionEntry) => () => void;
+	getTimeSnapshot: () => Date;
 	getSelectionSnapshot: <T = unknown>(id: string) => T;
 	invalidateSelection: (id: string, select?: SelectCallback) => void;
 }
@@ -63,15 +66,19 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	// All functions that are part of the public interface must be defined as
 	// arrow functions, so that they work properly with React
 
+	getTimeSnapshot = () => {
+		return this.#timeSync.getTimeSnapshot();
+	};
+
 	subscribe = (entry: ReactSubscriptionEntry): (() => void) => {
-		const { select, id, idealRefreshIntervalMs, onUpdate } = entry;
+		const { select, id, targetRefreshInterval, onUpdate } = entry;
 
 		// Make sure that we subscribe first, in case TimeSync is configured to
 		// invalidate the snapshot on a new subscription. Want to remove risk of
 		// stale data
 		const patchedEntry: SubscriptionEntry = {
 			id,
-			idealRefreshIntervalMs,
+			targetRefreshInterval,
 			onUpdate: (newDate) => {
 				const prevSelection = this.getSelectionSnapshot(id);
 				const newSelection = select?.(newDate) ?? newDate;
@@ -157,7 +164,15 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	);
 };
 
-type UseTimeSyncOptions<T = Date> = Readonly<{
+function useTimeSyncContext(): ReactTimeSync {
+	const timeSync = useContext(timeSyncContext);
+	if (timeSync === null) {
+		throw new Error("Cannot call useTimeSync outside of a TimeSyncProvider");
+	}
+	return timeSync;
+}
+
+type UseTimeSyncOptions = Readonly<{
 	/**
 	 * targetRefreshInterval is the ideal interval of time, in milliseconds,
 	 * that defines how often the hook should refresh with the newest Date
@@ -172,117 +187,26 @@ type UseTimeSyncOptions<T = Date> = Readonly<{
 	 * sync with other useTimeSync users that are currently mounted on screen.
 	 */
 	targetRefreshInterval: number;
-
-	/**
-	 * selectDependencies acts like the dependency array for a useMemo callback.
-	 * Whenever any of the elements in the array change by value, that will
-	 * cause the select callback to re-run synchronously and produce a new,
-	 * up-to-date value for the current render.
-	 */
-	selectDependencies?: readonly unknown[];
-
-	/**
-	 * Allows you to transform any date values received from the TimeSync class.
-	 * Select functions work similarly to the selects from React Query and Redux
-	 * Toolkit – you don't need to memoize them, and they will only run when the
-	 * underlying TimeSync state has changed.
-	 *
-	 * Select functions must not be async. The hook will error out at the type
-	 * level if you provide one by mistake.
-	 */
-	select?: (latestDatetime: Date) => T extends Promise<unknown> ? never : T;
 }>;
 
-/**
- * useTimeSync provides React bindings for the TimeSync class, letting a React
- * component bind its update life cycles to interval updates from TimeSync. This
- * hook should be used anytime you would want to use a Date instance directly in
- * a component render path.
- *
- * By default, it returns the raw Date value from the most recent update, but
- * by providing a `select` callback in the options, you can get a transformed
- * version of the time value, using 100% pure functions.
- *
- * By specifying a value of positive Infinity, that indicates that the hook will
- * not update by itself. But if another component is mounted with a more
- * frequent update interval, both component instances will update on that
- * interval.
- */
-export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
-	const {
-		select,
-		selectDependencies: selectDeps,
-		targetRefreshInterval: idealRefreshIntervalMs,
-	} = options;
-	const timeSync = useContext(timeSyncContext);
-	if (timeSync === null) {
-		throw new Error("Cannot call useTimeSync outside of a TimeSyncProvider");
-	}
-
-	// Abusing useId a little bit here. It's mainly meant to be used for
-	// accessibility, but it also gives us a globally unique ID associated with
-	// whichever component instance is consuming this hook
+export function useTimeSync(options: UseTimeSyncOptions): Date {
+	const { targetRefreshInterval } = options;
 	const hookId = useId();
+	const timeSync = useTimeSyncContext();
 
-	// This is the one place where we're borderline breaking the React rules.
-	// useEffectEvent is meant to be used only in useEffect calls, and normally
-	// shouldn't be called inside a render. But its behavior lines up with
-	// useSyncExternalStore, letting us cheat a little. useSyncExternalStore's
-	// state getter callback is called in two scenarios:
-	// (1) Mid-render on mount
-	// (2) Whenever React is notified of a state change (outside of React).
-	//
-	// Case 2 is basically an effect with extra steps (and single-threaded JS
-	// gives us assurance about correctness). And for (1), useEffectEvent will
-	// be initialized with whatever callback you give it on mount. So for the
-	// mounting render alone, it's safe to call a useEffectEvent callback from
-	// inside a render.
-	const selectForOutsideReact = useEffectEvent((date: Date): T => {
-		const recast = date as Date & T;
-		return select?.(recast) ?? recast;
-	});
-
-	// We need to define this callback using useCallback instead of
-	// useEffectEvent because we want the memoization to be invalidated when the
-	// refresh interval changes. (When the subscription callback changes by
-	// reference, that causes useSyncExternalStore to redo the subscription with
-	// the new callback). All other values need to be included in the dependency
-	// array for correctness, but they should always maintain stable memory
-	// addresses
-	type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return timeSync.subscribe({
-				idealRefreshIntervalMs,
+				targetRefreshInterval,
 				id: hookId,
 				onUpdate: notifyReact,
-				select: selectForOutsideReact,
 			});
 		},
-		[timeSync, hookId, selectForOutsideReact, idealRefreshIntervalMs],
+		[hookId, timeSync, targetRefreshInterval],
 	);
 
-	const [prevDeps, setPrevDeps] = useState(selectDeps);
-	const depsAreInvalidated = areDepsInvalidated(prevDeps, selectDeps);
-
-	const selection = useSyncExternalStore<T>(subscribe, () => {
-		if (depsAreInvalidated) {
-			// Need to make sure that we use the un-memoized version of select
-			// here because we need to call select callback mid-render to
-			// guarantee no stale data. The memoized version only syncs AFTER
-			// the current render has finished in full.
-			timeSync.invalidateSelection(hookId, select);
-		}
-		return timeSync.getSelectionSnapshot(hookId);
-	});
-
-	// Setting state mid-render like this is valid, but we just need to make
-	// sure that we wait until after the useSyncExternalStore state getter runs
-	if (depsAreInvalidated) {
-		setPrevDeps(selectDeps);
-	}
-
-	return selection;
+	const snapshot = useSyncExternalStore(subscribe, timeSync.getTimeSnapshot);
+	return snapshot;
 }
 
 function areDepsInvalidated(
@@ -309,4 +233,109 @@ function areDepsInvalidated(
 	}
 
 	return false;
+}
+
+type UseTimeSyncSelectOptions<T = Date> = Readonly<
+	UseTimeSyncOptions & {
+		/**
+		 * selectDependencies acts like the dependency array for a useMemo
+		 * callback. Whenever any of the elements in the array change by value,
+		 * that will cause the select callback to re-run synchronously and
+		 * produce a new, up-to-date value for the current render.
+		 */
+		selectDependencies: readonly unknown[];
+
+		/**
+		 * Allows you to transform any date values received from the TimeSync
+		 * class. Select functions work similarly to the selects from React
+		 * Query and Redux Toolkit – you don't need to memoize them, and they
+		 * will only run when the underlying TimeSync state has changed.
+		 *
+		 * Select functions must not be async. The hook will error out at the
+		 * type level if you provide one by mistake.
+		 */
+		select: (latestDatetime: Date) => T extends Promise<unknown> ? never : T;
+	}
+>;
+
+/**
+ * useTimeSync provides React bindings for the TimeSync class, letting a React
+ * component bind its update life cycles to interval updates from TimeSync. This
+ * hook should be used anytime you would want to use a Date instance directly in
+ * a component render path.
+ *
+ * By default, it returns the raw Date value from the most recent update, but
+ * by providing a `select` callback in the options, you can get a transformed
+ * version of the time value, using 100% pure functions.
+ *
+ * By specifying a value of positive Infinity, that indicates that the hook will
+ * not update by itself. But if another component is mounted with a more
+ * frequent update interval, both component instances will update on that
+ * interval.
+ */
+export function useTimeSyncSelect<T = Date>(
+	options: UseTimeSyncSelectOptions<T>,
+): T {
+	const { select, selectDependencies, targetRefreshInterval } = options;
+	const hookId = useId();
+	const timeSync = useTimeSyncContext();
+
+	// This is the one place where we're borderline breaking the React rules.
+	// useEffectEvent is meant to be used only in useEffect calls, and normally
+	// shouldn't be called inside a render. But its behavior lines up with
+	// useSyncExternalStore, letting us cheat a little. useSyncExternalStore's
+	// state getter callback is called in two scenarios:
+	// (1) Mid-render on mount
+	// (2) Whenever React is notified of a state change (outside of React).
+	//
+	// Case 2 is basically an effect with extra steps (and single-threaded JS
+	// gives us assurance about correctness). And for (1), useEffectEvent will
+	// be initialized with whatever callback you give it on mount. So for the
+	// mounting render alone, it's safe to call a useEffectEvent callback from
+	// inside a render.
+	const selectForOutsideReact = useEffectEvent((date: Date): T => {
+		const recast = date as Date & T;
+		return select?.(recast) ?? recast;
+	});
+
+	// We need to define this callback using useCallback instead of
+	// useEffectEvent because we want the memoization to be invalidated when the
+	// refresh interval changes. (When the subscription callback changes by
+	// reference, that causes useSyncExternalStore to redo the subscription with
+	// the new callback). All other values need to be included in the dependency
+	// array for correctness, but they should always maintain stable memory
+	// addresses
+	const subscribe = useCallback<ReactSubscriptionCallback>(
+		(notifyReact) => {
+			return timeSync.subscribe({
+				targetRefreshInterval: targetRefreshInterval,
+				id: hookId,
+				onUpdate: notifyReact,
+				select: selectForOutsideReact,
+			});
+		},
+		[timeSync, hookId, selectForOutsideReact, targetRefreshInterval],
+	);
+
+	const [prevDeps, setPrevDeps] = useState(selectDependencies);
+	const depsAreInvalidated = areDepsInvalidated(prevDeps, selectDependencies);
+
+	const selection = useSyncExternalStore<T>(subscribe, () => {
+		if (depsAreInvalidated) {
+			// Need to make sure that we use the un-memoized version of select
+			// here because we need to call select callback mid-render to
+			// guarantee no stale data. The memoized version only syncs AFTER
+			// the current render has finished in full.
+			timeSync.invalidateSelection(hookId, select);
+		}
+		return timeSync.getSelectionSnapshot(hookId);
+	});
+
+	// Setting state mid-render like this is valid, but we just need to make
+	// sure that we wait until after the useSyncExternalStore state getter runs
+	if (depsAreInvalidated) {
+		setPrevDeps(selectDependencies);
+	}
+
+	return selection;
 }

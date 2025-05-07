@@ -15,7 +15,7 @@ import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import dayjs, { type Dayjs } from "dayjs";
-import { useTimeSync } from "hooks/useTimeSync";
+import { useTimeSyncSelect } from "hooks/useTimeSync";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -162,9 +162,10 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 		}, 500);
 	};
 
-	const activityStatus = useTimeSync({
+	const activityStatus = useTimeSyncSelect({
 		targetRefreshInterval: 1_000,
-		select: () => getWorkspaceActivityStatus(workspace),
+		selectDependencies: [workspace],
+		select: (currentDate) => getWorkspaceActivityStatus(workspace, currentDate),
 	});
 	const { message, tooltip, danger } = autostopDisplay(
 		workspace,

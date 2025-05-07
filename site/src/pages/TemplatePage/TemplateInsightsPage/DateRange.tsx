@@ -17,7 +17,7 @@ import {
 	startOfHour,
 	subDays,
 } from "date-fns";
-import { IDEAL_REFRESH_ONE_MINUTE, useTimeSync } from "hooks/useTimeSync";
+import { TARGET_REFRESH_ONE_MINUTE, useTimeSync } from "hooks/useTimeSync";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
 
@@ -44,7 +44,7 @@ interface DateRangeProps {
 
 export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 	const currentTime = useTimeSync({
-		targetRefreshInterval: IDEAL_REFRESH_ONE_MINUTE,
+		targetRefreshInterval: TARGET_REFRESH_ONE_MINUTE,
 	});
 	const selectionStatusRef = useRef<"idle" | "selecting">("idle");
 	const [ranges, setRanges] = useState<RangesState>([
