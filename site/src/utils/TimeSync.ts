@@ -98,6 +98,7 @@ export class TimeSync implements TimeSyncApi {
 	#latestDateSnapshot: Date;
 	#subscriptions: SubscriptionEntry[];
 	#latestIntervalId: number | undefined;
+	#currentRefreshInterval: number;
 
 	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
@@ -116,45 +117,82 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestDateSnapshot = initialDatetime;
 		this.#subscriptions = [];
 		this.#latestIntervalId = undefined;
+		this.#currentRefreshInterval = Number.POSITIVE_INFINITY;
 	}
 
-	#reconcileRefreshIntervals(): void {
-		if (this.#subscriptions.length === 0) {
-			this.#clearInterval(this.#latestIntervalId);
+	#onSubscriptionAdd(): void {
+		if (this.#resyncOnNewSubscription) {
+			this.#updateSnapshot();
+		}
+
+		// Sort by refresh speed, descending
+		this.#subscriptions.sort(
+			(e1, e2) => e1.targetRefreshInterval - e2.targetRefreshInterval,
+		);
+
+		const oldFastestInterval = this.#currentRefreshInterval;
+		const newFastestInterval =
+			this.#subscriptions[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
+		if (oldFastestInterval === newFastestInterval) {
 			return;
 		}
 
-		const prevFastestInterval =
-			this.#subscriptions[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
-		if (this.#subscriptions.length > 1) {
-			this.#subscriptions.sort(
-				(e1, e2) => e1.targetRefreshInterval - e2.targetRefreshInterval,
+		this.#currentRefreshInterval = newFastestInterval;
+		this.#clearInterval(this.#latestIntervalId);
+		this.#latestIntervalId = undefined;
+		if (this.#currentRefreshInterval === Number.POSITIVE_INFINITY) {
+			return;
+		}
+
+		const newTime = this.#createNewDatetime(this.#latestDateSnapshot);
+		const elapsed =
+			newTime.getMilliseconds() - this.#latestDateSnapshot.getMilliseconds();
+
+		const startNewIntervalFromScratch = () => {
+			this.#latestIntervalId = this.#setInterval(
+				() => this.#updateSnapshot(),
+				this.#currentRefreshInterval,
 			);
+		};
+
+		const unfulfilled = Math.max(0, this.#currentRefreshInterval - elapsed);
+		if (unfulfilled === 0) {
+			startNewIntervalFromScratch();
+			return;
+		}
+
+		// Feels a bit hokey to be setting a timeout via setInterval, but
+		// didn't want to add even more data dependencies to the constructor
+		// when setInterval can be used just fine in a pinch
+		this.#latestIntervalId = this.#setInterval(() => {
+			this.#clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = undefined;
+			startNewIntervalFromScratch();
+		}, unfulfilled);
+	}
+
+	/**
+	 * @todo This isn't done yet
+	 */
+	#onSubscriptionRemoval(): void {
+		if (this.#subscriptions.length === 0) {
+			this.#clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = undefined;
+			this.#currentRefreshInterval = Number.POSITIVE_INFINITY;
+			return;
 		}
 
 		const newFastestInterval =
 			this.#subscriptions[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
-		if (prevFastestInterval === newFastestInterval) {
+		if (newFastestInterval === this.#currentRefreshInterval) {
 			return;
 		}
-		if (newFastestInterval === Number.POSITIVE_INFINITY) {
-			this.#clearInterval(this.#latestIntervalId);
-			return;
-		}
-
-		/**
-		 * @todo Figure out the conditions when the interval should be set up,
-		 * and when/how it should be updated
-		 */
-		this.#latestIntervalId = this.#setInterval(() => {
-			this.#latestDateSnapshot = this.#createNewDatetime(
-				this.#latestDateSnapshot,
-			);
-			this.#flushUpdateToSubscriptions();
-		}, newFastestInterval);
 	}
 
-	#flushUpdateToSubscriptions(): void {
+	#updateSnapshot(): void {
+		this.#latestDateSnapshot = this.#createNewDatetime(
+			this.#latestDateSnapshot,
+		);
 		for (const subEntry of this.#subscriptions) {
 			subEntry.onUpdate(this.#latestDateSnapshot);
 		}
@@ -171,7 +209,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#subscriptions = updated;
-		this.#reconcileRefreshIntervals();
+		this.#onSubscriptionRemoval();
 	}
 
 	subscribe(entry: SubscriptionEntry): void {
@@ -184,7 +222,7 @@ export class TimeSync implements TimeSyncApi {
 		const subIndex = this.#subscriptions.findIndex((s) => s.id === entry.id);
 		if (subIndex === -1) {
 			this.#subscriptions.push(entry);
-			this.#reconcileRefreshIntervals();
+			this.#onSubscriptionAdd();
 			return;
 		}
 
@@ -195,7 +233,7 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#subscriptions[subIndex] = entry;
 		if (prev.targetRefreshInterval !== entry.targetRefreshInterval) {
-			this.#reconcileRefreshIntervals();
+			this.#onSubscriptionAdd();
 		}
 	}
 }

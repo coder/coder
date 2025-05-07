@@ -3,8 +3,6 @@
  *
  * 1. Fill out all incomplete methods
  * 2. Add tests
- * 3. See if there's a way to make sure that if you provide a type parameter to
- *    the hook, you must also provide a select function
  */
 import {
 	type FC,
@@ -308,7 +306,7 @@ export function useTimeSyncSelect<T = Date>(
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return timeSync.subscribe({
-				targetRefreshInterval: targetRefreshInterval,
+				targetRefreshInterval,
 				id: hookId,
 				onUpdate: notifyReact,
 				select: selectForOutsideReact,
