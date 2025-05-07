@@ -33,6 +33,7 @@ import {
 	useContext,
 	useEffect,
 	useId,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -140,6 +141,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 				onSubmit(request, owner);
 			},
 		});
+
+	const autofillByName = useMemo(
+		() =>
+			Object.fromEntries(
+				autofillParameters.map((param) => [param.name, param]),
+			),
+		[autofillParameters],
+	);
 
 	useEffect(() => {
 		if (error) {
@@ -509,6 +518,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 										return null;
 									}
 
+									const formValue =
+										form.values?.rich_parameter_values?.[index]?.value || "";
+
 									return (
 										<DynamicParameter
 											key={parameter.name}
@@ -518,6 +530,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
+											autofill={autofillByName[parameter.name]}
+											value={formValue}
 										/>
 									);
 								})}

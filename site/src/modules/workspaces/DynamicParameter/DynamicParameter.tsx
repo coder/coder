@@ -32,23 +32,27 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Info, Settings, TriangleAlert } from "lucide-react";
+import { Info, Link, Settings, TriangleAlert } from "lucide-react";
 import { type FC, useEffect, useId, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
 export interface DynamicParameterProps {
 	parameter: PreviewParameter;
+	value?: string;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
+	autofill?: AutofillBuildParameter;
 }
 
 export const DynamicParameter: FC<DynamicParameterProps> = ({
 	parameter,
+	value,
 	onChange,
 	disabled,
 	isPreset,
+	autofill,
 }) => {
 	const id = useId();
 
@@ -57,13 +61,18 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			className="flex flex-col gap-2"
 			data-testid={`parameter-field-${parameter.name}`}
 		>
-			<ParameterLabel parameter={parameter} isPreset={isPreset} />
+			<ParameterLabel
+				parameter={parameter}
+				isPreset={isPreset}
+				autofill={autofill}
+			/>
 			<div className="max-w-lg">
 				<ParameterField
+					id={id}
 					parameter={parameter}
+					value={value}
 					onChange={onChange}
 					disabled={disabled}
-					id={id}
 				/>
 			</div>
 			{parameter.diagnostics.length > 0 && (
@@ -76,9 +85,14 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 interface ParameterLabelProps {
 	parameter: PreviewParameter;
 	isPreset?: boolean;
+	autofill?: AutofillBuildParameter;
 }
 
-const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
+const ParameterLabel: FC<ParameterLabelProps> = ({
+	parameter,
+	isPreset,
+	autofill,
+}) => {
 	const hasDescription = parameter.description && parameter.description !== "";
 	const displayName = parameter.display_name
 		? parameter.display_name
@@ -137,6 +151,23 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 							</Tooltip>
 						</TooltipProvider>
 					)}
+					{autofill && (
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="flex items-center">
+										<Badge size="sm">
+											<Link />
+											URL Autofill
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									Autofilled from the URL
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
 				</Label>
 
 				{hasDescription && (
@@ -153,6 +184,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 
 interface ParameterFieldProps {
 	parameter: PreviewParameter;
+	value?: string;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
@@ -160,15 +192,19 @@ interface ParameterFieldProps {
 
 const ParameterField: FC<ParameterFieldProps> = ({
 	parameter,
+	value,
 	onChange,
 	disabled,
 	id,
 }) => {
-	const value = validValue(parameter.value);
-	const [localValue, setLocalValue] = useState(value);
+	const initialValue =
+		value !== undefined ? value : validValue(parameter.value);
+	const [localValue, setLocalValue] = useState(initialValue);
 
 	useEffect(() => {
-		setLocalValue(value);
+		if (value !== undefined) {
+			setLocalValue(value);
+		}
 	}, [value]);
 
 	switch (parameter.form_type) {
@@ -469,14 +505,14 @@ export const getInitialParameterValues = (
 			({ name }) => name === parameter.name,
 		);
 
+		const useAutofill =
+			autofillParam &&
+			isValidParameterOption(parameter, autofillParam) &&
+			autofillParam.value;
+
 		return {
 			name: parameter.name,
-			value:
-				autofillParam &&
-				isValidParameterOption(parameter, autofillParam) &&
-				autofillParam.value
-					? autofillParam.value
-					: validValue(parameter.value),
+			value: useAutofill ? autofillParam.value : validValue(parameter.value),
 		};
 	});
 };
@@ -489,6 +525,32 @@ const isValidParameterOption = (
 	previewParam: PreviewParameter,
 	buildParam: WorkspaceBuildParameter,
 ) => {
+	if (previewParam.form_type === "multi-select") {
+		console.log("buildParam.value", buildParam.value);
+		let values: string[] = [];
+		try {
+			const parsed = JSON.parse(buildParam.value);
+			if (Array.isArray(parsed)) {
+				values = parsed;
+			}
+		} catch (e) {
+			console.error(
+				"Error parsing parameter value with form_type multi-select",
+				e,
+			);
+			return false;
+		}
+
+		// If options exist, validate each value
+		if (previewParam.options.length > 0) {
+			const validValues = previewParam.options.map(
+				(option) => option.value.value,
+			);
+			return values.every((value) => validValues.includes(value));
+		}
+		return false;
+	}
+	// For parameters with options (dropdown, radio, etc.)
 	if (previewParam.options.length > 0) {
 		const validValues = previewParam.options.map(
 			(option) => option.value.value,
@@ -496,7 +558,8 @@ const isValidParameterOption = (
 		return validValues.includes(buildParam.value);
 	}
 
-	return false;
+	// For parameters without options (input, textarea, etc.)
+	return true;
 };
 
 export const useValidationSchemaForDynamicParameters = (
