@@ -97,11 +97,11 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 				<Label className="flex gap-2 flex-wrap text-sm font-medium">
 					<span className="flex">
 						{displayName}
-						{!parameter.required && (
+						{parameter.required && (
 							<span className="text-content-destructive">*</span>
 						)}
 					</span>
-					{parameter.mutable && (
+					{!parameter.mutable && (
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>

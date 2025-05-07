@@ -2988,6 +2988,25 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 	value: "5",
 };
 
+export const MockPreviewParameter: TypesGen.PreviewParameter = {
+	name: "parameter1",
+	display_name: "Parameter 1",
+	description: "This is a parameter",
+	type: "string",
+	mutable: true,
+	form_type: "input",
+	validations: [],
+	value: { valid: true, value: "" },
+	diagnostics: [],
+	options: [],
+	ephemeral: true,
+	required: true,
+	icon: "",
+	styling: {},
+	default_value: { valid: true, value: "" },
+	order: 0,
+};
+
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
 	{
 		id: "github",
