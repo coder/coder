@@ -1235,8 +1235,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
+					"org":                 "cern",
 					"workspace":           "my-workspace",
 					"workspace_build_num": "2",
+					"template":            "docker",
+					"template_version":    "angry_torvalds",
+					"preset":              "particle-accelerator",
 					"claimant":            "prebuilds-claimer",
 				},
 				Data: map[string]any{

@@ -5,6 +5,7 @@ VALUES ('89d9745a-816e-4695-a17f-3d0a229e2b8d',
 		E'There might be a problem with a recently claimed prebuilt workspace',
 		$$
 Workspace **{{.Labels.workspace}}** was claimed from a prebuilt workspace by **{{.Labels.claimant}}**.
+
 During the claim, Terraform destroyed and recreated the following resources
 because one or more immutable attributes changed:
 
@@ -16,12 +17,18 @@ When Terraform must change an immutable attribute, it replaces the entire resour
 If you’re using prebuilds to speed up provisioning, unexpected replacements will slow down
 workspace startup—even when claiming a prebuilt environment.
 
-For tips on preventing replacements and improving claim performance, see [this guide](https://coder.com/docs/TODO).
+For tips on preventing replacements and improving claim performance, see [this guide](https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces.md#preventing-resource-replacement).
+
+NOTE: this prebuilt workspace used the **{{.Labels.preset}}** preset.
 $$,
-		'Workspace Events',
+		'Template Events',
 		'[
 		{
 			"label": "View workspace build",
 			"url": "{{base_url}}/@{{.Labels.claimant}}/{{.Labels.workspace}}/builds/{{.Labels.workspace_build_num}}"
+		},
+		{
+			"label": "View template version",
+			"url": "{{base_url}}/templates/{{.Labels.org}}/{{.Labels.template}}/versions/{{.Labels.template_version}}"
 		}
 	]'::jsonb);

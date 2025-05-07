@@ -6,12 +6,15 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 type NoopReconciler struct{}
 
-func (NoopReconciler) Run(context.Context)                {}
-func (NoopReconciler) Stop(context.Context, error)        {}
+func (NoopReconciler) Run(context.Context)         {}
+func (NoopReconciler) Stop(context.Context, error) {}
+func (NoopReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
+}
 func (NoopReconciler) ReconcileAll(context.Context) error { return nil }
 func (NoopReconciler) SnapshotState(context.Context, database.Store) (*GlobalSnapshot, error) {
 	return &GlobalSnapshot{}, nil

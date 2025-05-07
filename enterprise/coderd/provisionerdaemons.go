@@ -19,12 +19,15 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -33,7 +36,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/websocket"
 )
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
@@ -327,6 +329,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("multiplex server: %s", err))
 		return
 	}
+	var prebuildsOrchestrator prebuilds.ReconciliationOrchestrator
+	if val := api.AGPL.PrebuildsReconciler.Load(); val != nil {
+		prebuildsOrchestrator = *val
+	}
 	mux := drpcmux.New()
 	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
 	srvCtx, srvCancel := context.WithCancel(ctx)
@@ -356,6 +362,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		prebuildsOrchestrator,
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

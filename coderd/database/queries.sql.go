@@ -6431,6 +6431,26 @@ func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRun
 	return items, nil
 }
 
+const getTemplatePresetsByID = `-- name: GetTemplatePresetsByID :one
+SELECT id, template_version_id, name, created_at, desired_instances, invalidate_after_secs
+FROM template_version_presets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetTemplatePresetsByID(ctx context.Context, id uuid.UUID) (TemplateVersionPreset, error) {
+	row := q.db.QueryRowContext(ctx, getTemplatePresetsByID, id)
+	var i TemplateVersionPreset
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.DesiredInstances,
+		&i.InvalidateAfterSecs,
+	)
+	return i, err
+}
+
 const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
 SELECT
 		t.id                        AS template_id,

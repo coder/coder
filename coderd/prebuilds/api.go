@@ -7,6 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 var (
@@ -27,6 +28,10 @@ type ReconciliationOrchestrator interface {
 	// Stop gracefully shuts down the orchestrator with the given cause.
 	// The cause is used for logging and error reporting.
 	Stop(ctx context.Context, cause error)
+
+	// TrackResourceReplacement handles a pathological situation whereby a terraform resource is replaced due to drift,
+	// which can obviate the whole point of pre-provisioning a prebuilt workspace.
+	TrackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement)
 }
 
 type Reconciler interface {

@@ -219,7 +219,7 @@ func TestMetricsCollector(t *testing.T) {
 									})
 									clock := quartz.NewMock(t)
 									db, pubsub := dbtestutil.NewDB(t)
-									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry())
+									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 									ctx := testutil.Context(t, testutil.WaitLong)
 
 									createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}

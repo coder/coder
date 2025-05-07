@@ -1418,6 +1418,13 @@ func (m queryMetricsStore) GetTemplateParameterInsights(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplatePresetsByID(ctx context.Context, id uuid.UUID) (database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplatePresetsByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplatePresetsByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplatePresetsWithPrebuilds(ctx, templateID)

@@ -1763,6 +1763,11 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)
 	}
 
+	var prebuildsOrchestrator prebuilds.ReconciliationOrchestrator
+	if val := api.PrebuildsReconciler.Load(); val != nil {
+		prebuildsOrchestrator = *val
+	}
+
 	mux := drpcmux.New()
 	api.Logger.Debug(dialCtx, "starting in-memory provisioner daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
@@ -1790,6 +1795,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		prebuildsOrchestrator,
 	)
 	if err != nil {
 		return nil, err

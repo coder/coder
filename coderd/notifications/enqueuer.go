@@ -50,7 +50,7 @@ type StoreEnqueuer struct {
 }
 
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
-func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
+func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (Enqueuer, error) {
 	var method database.NotificationMethod
 	// TODO(DanielleMaywood):
 	// Currently we do not want to allow setting `inbox` as the default notification method.
@@ -203,7 +203,7 @@ func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRo
 type NoopEnqueuer struct{}
 
 // NewNoopEnqueuer builds a NoopEnqueuer which is used to fulfill the contract for enqueuing notifications, if ExperimentNotifications is not set.
-func NewNoopEnqueuer() *NoopEnqueuer {
+func NewNoopEnqueuer() Enqueuer {
 	return &NoopEnqueuer{}
 }
 

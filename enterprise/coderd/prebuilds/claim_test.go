@@ -147,7 +147,7 @@ func TestClaimPrebuild(t *testing.T) {
 				EntitlementsUpdateInterval: time.Second,
 			})
 
-			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry())
+			reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 

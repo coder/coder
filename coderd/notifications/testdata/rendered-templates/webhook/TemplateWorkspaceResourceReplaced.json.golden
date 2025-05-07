@@ -13,10 +13,18 @@
       {
         "label": "View workspace build",
         "url": "http://test.com/@prebuilds-claimer/my-workspace/builds/2"
+      },
+      {
+        "label": "View template version",
+        "url": "http://test.com/templates/cern/docker/versions/angry_torvalds"
       }
     ],
     "labels": {
       "claimant": "prebuilds-claimer",
+      "org": "cern",
+      "preset": "particle-accelerator",
+      "template": "docker",
+      "template_version": "angry_torvalds",
       "workspace": "my-workspace",
       "workspace_build_num": "2"
     },
@@ -29,6 +37,6 @@
   },
   "title": "There might be a problem with a recently claimed prebuilt workspace",
   "title_markdown": "There might be a problem with a recently claimed prebuilt workspace",
-  "body": "Workspace my-workspace was claimed from a prebuilt workspace by prebuilds-claimer.\nDuring the claim, Terraform destroyed and recreated the following resources\nbecause one or more immutable attributes changed:\n\ndocker_container[0]  was replaced due to changes to env, hostname\n\nWhen Terraform must change an immutable attribute, it replaces the entire resource.\nIf you’re using prebuilds to speed up provisioning, unexpected replacements will slow down\nworkspace startup—even when claiming a prebuilt environment.\n\nFor tips on preventing replacements and improving claim performance, see this guide (https://coder.com/docs/TODO).",
-  "body_markdown": "\nWorkspace **my-workspace** was claimed from a prebuilt workspace by **prebuilds-claimer**.\nDuring the claim, Terraform destroyed and recreated the following resources\nbecause one or more immutable attributes changed:\n\n- _docker_container[0]_  was replaced due to changes to _env, hostname_\n\n\nWhen Terraform must change an immutable attribute, it replaces the entire resource.\nIf you’re using prebuilds to speed up provisioning, unexpected replacements will slow down\nworkspace startup—even when claiming a prebuilt environment.\n\nFor tips on preventing replacements and improving claim performance, see [this guide](https://coder.com/docs/TODO).\n"
+  "body": "Workspace my-workspace was claimed from a prebuilt workspace by prebuilds-claimer.\n\nDuring the claim, Terraform destroyed and recreated the following resources\nbecause one or more immutable attributes changed:\n\ndocker_container[0]  was replaced due to changes to env, hostname\n\nWhen Terraform must change an immutable attribute, it replaces the entire resource.\nIf you’re using prebuilds to speed up provisioning, unexpected replacements will slow down\nworkspace startup—even when claiming a prebuilt environment.\n\nFor tips on preventing replacements and improving claim performance, see this guide (https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces.md#preventing-resource-replacement).\n\nNOTE: this prebuilt workspace used the particle-accelerator preset.",
+  "body_markdown": "\nWorkspace **my-workspace** was claimed from a prebuilt workspace by **prebuilds-claimer**.\n\nDuring the claim, Terraform destroyed and recreated the following resources\nbecause one or more immutable attributes changed:\n\n- _docker_container[0]_  was replaced due to changes to _env, hostname_\n\n\nWhen Terraform must change an immutable attribute, it replaces the entire resource.\nIf you’re using prebuilds to speed up provisioning, unexpected replacements will slow down\nworkspace startup—even when claiming a prebuilt environment.\n\nFor tips on preventing replacements and improving claim performance, see [this guide](https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces.md#preventing-resource-replacement).\n\nNOTE: this prebuilt workspace used the **particle-accelerator** preset.\n"
 }

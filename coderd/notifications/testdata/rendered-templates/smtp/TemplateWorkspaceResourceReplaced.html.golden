@@ -14,6 +14,7 @@ Hi Bobby,
 
 Workspace my-workspace was claimed from a prebuilt workspace by prebuilds-c=
 laimer.
+
 During the claim, Terraform destroyed and recreated the following resources
 because one or more immutable attributes changed:
 
@@ -26,11 +27,17 @@ acements will slow down
 workspace startup=E2=80=94even when claiming a prebuilt environment.
 
 For tips on preventing replacements and improving claim performance, see th=
-is guide (https://coder.com/docs/TODO).
+is guide (https://coder.com/docs/admin/templates/extending-templates/prebui=
+lt-workspaces.md#preventing-resource-replacement).
+
+NOTE: this prebuilt workspace used the particle-accelerator preset.
 
 
 View workspace build: http://test.com/@prebuilds-claimer/my-workspace/build=
 s/2
+
+View template version: http://test.com/templates/cern/docker/versions/angry=
+_torvalds
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -63,9 +70,10 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>Workspace <strong>my-workspace</strong> was claimed from a prebu=
-ilt workspace by <strong>prebuilds-claimer</strong>.<br>
-During the claim, Terraform destroyed and recreated the following resources=
-<br>
+ilt workspace by <strong>prebuilds-claimer</strong>.</p>
+
+<p>During the claim, Terraform destroyed and recreated the following resour=
+ces<br>
 because one or more immutable attributes changed:</p>
 
 <ul>
@@ -81,7 +89,11 @@ acements will slow down<br>
 workspace startup=E2=80=94even when claiming a prebuilt environment.</p>
 
 <p>For tips on preventing replacements and improving claim performance, see=
- <a href=3D"https://coder.com/docs/TODO">this guide</a>.</p>
+ <a href=3D"https://coder.com/docs/admin/templates/extending-templates/preb=
+uilt-workspaces.md#preventing-resource-replacement">this guide</a>.</p>
+
+<p>NOTE: this prebuilt workspace used the <strong>particle-accelerator</str=
+ong> preset.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
@@ -90,6 +102,13 @@ workspace startup=E2=80=94even when claiming a prebuilt environment.</p>
 0617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0 =
 4px;">
           View workspace build
+        </a>
+       =20
+        <a href=3D"http://test.com/templates/cern/docker/versions/angry_tor=
+valds" style=3D"display: inline-block; padding: 13px 24px; background-color=
+: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; margi=
+n: 0 4px;">
+          View template version
         </a>
        =20
       </div>

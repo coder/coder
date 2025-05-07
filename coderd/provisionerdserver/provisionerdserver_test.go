@@ -23,9 +23,11 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
+
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/rbac"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -2738,6 +2740,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			HeartbeatFn:           ov.heartbeatFn,
 		},
 		notifEnq,
+		agplprebuilds.DefaultReconciler,
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon

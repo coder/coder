@@ -42,6 +42,11 @@ FROM templates t
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
 	AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
+-- name: GetTemplatePresetsByID :one
+SELECT *
+FROM template_version_presets
+WHERE id = $1;
+
 -- name: GetRunningPrebuiltWorkspaces :many
 SELECT
 		p.id,
