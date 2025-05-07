@@ -43,10 +43,7 @@ type ReactSubscriptionEntry = Readonly<
 // try to retrieve a value, it's easy to differentiate between a value being
 // undefined because that's an explicit selection value, versus it being
 // undefined because we forgot to set it in the cache
-type SelectionCacheEntry = Readonly<{
-	value: unknown;
-	select?: SelectCallback;
-}>;
+type SelectionCacheEntry = Readonly<{ value: unknown }>;
 
 interface ReactTimeSyncApi {
 	subscribe: (entry: ReactSubscriptionEntry) => () => void;
@@ -69,15 +66,6 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	subscribe = (entry: ReactSubscriptionEntry): (() => void) => {
 		const { select, id, idealRefreshIntervalMs, onUpdate } = entry;
 
-		const updateCacheEntry = () => {
-			const date = this.#timeSync.getTimeSnapshot();
-			const cacheValue = select?.(date) ?? date;
-			this.#selectionCache.set(id, {
-				value: cacheValue,
-				select,
-			});
-		};
-
 		// Make sure that we subscribe first, in case TimeSync is configured to
 		// invalidate the snapshot on a new subscription. Want to remove risk of
 		// stale data
@@ -91,13 +79,16 @@ class ReactTimeSync implements ReactTimeSyncApi {
 					return;
 				}
 
-				updateCacheEntry();
+				this.#selectionCache.set(id, { value: newSelection });
 				onUpdate(newDate);
 			},
 		};
 		this.#timeSync.subscribe(patchedEntry);
 
-		updateCacheEntry();
+		const date = this.#timeSync.getTimeSnapshot();
+		const cacheValue = select?.(date) ?? date;
+		this.#selectionCache.set(id, { value: cacheValue });
+
 		return () => this.#timeSync.unsubscribe(id);
 	};
 
@@ -127,13 +118,7 @@ class ReactTimeSync implements ReactTimeSyncApi {
 
 		const dateSnapshot = this.#timeSync.getTimeSnapshot();
 		const newSelection = select?.(dateSnapshot) ?? dateSnapshot;
-
-		// Keep the old select callback, because only that version will be
-		// memoized via useEffectEvent
-		this.#selectionCache.set(id, {
-			value: newSelection,
-			select: cacheEntry.select,
-		});
+		this.#selectionCache.set(id, { value: newSelection });
 	};
 }
 
