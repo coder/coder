@@ -957,11 +957,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
-				Metadata:                r.job.GetWorkspaceBuild().Metadata,
-				RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
-				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
-				VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
-				ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
+				Metadata:              r.job.GetWorkspaceBuild().Metadata,
+				RichParameterValues:   r.job.GetWorkspaceBuild().RichParameterValues,
+				VariableValues:        r.job.GetWorkspaceBuild().VariableValues,
+				ExternalAuthProviders: r.job.GetWorkspaceBuild().ExternalAuthProviders,
 			},
 		},
 	})
