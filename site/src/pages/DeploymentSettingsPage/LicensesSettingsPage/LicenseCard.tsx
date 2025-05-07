@@ -25,7 +25,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	onRemove,
 	isRemoving,
 }) => {
-	const time = useTimeSync({ idealRefreshIntervalMs: 30_000 });
+	const time = useTimeSync({ targetRefreshInterval: 30_000 });
 	const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
 		number | undefined
 	>(undefined);

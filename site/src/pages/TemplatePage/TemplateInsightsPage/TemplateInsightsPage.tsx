@@ -71,8 +71,8 @@ export default function TemplateInsightsPage() {
 
 	const paramsInterval = searchParams.get("interval");
 	const insightsInterval = useTimeSync<InsightsInterval>({
-		idealRefreshIntervalMs: IDEAL_REFRESH_ONE_DAY,
-		selectDeps: [paramsInterval],
+		targetRefreshInterval: IDEAL_REFRESH_ONE_DAY,
+		selectDependencies: [paramsInterval],
 		select: (newDate) => {
 			const templateCreateDate = new Date(template.created_at);
 			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDate;

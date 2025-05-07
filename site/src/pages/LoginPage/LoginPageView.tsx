@@ -29,7 +29,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	redirectTo,
 }) => {
 	const year = useTimeSync({
-		idealRefreshIntervalMs: Number.POSITIVE_INFINITY,
+		targetRefreshInterval: Number.POSITIVE_INFINITY,
 		select: (date) => date.getFullYear(),
 	});
 	const location = useLocation();

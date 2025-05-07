@@ -154,7 +154,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	referenceDate,
 }) => {
 	const comparisonDate = useTimeSync({
-		idealRefreshIntervalMs: IDEAL_REFRESH_ONE_MINUTE,
+		targetRefreshInterval: IDEAL_REFRESH_ONE_MINUTE,
 		select: (dateState) => referenceDate ?? dateState,
 	});
 	const theme = useTheme();

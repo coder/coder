@@ -11,7 +11,7 @@ type CliInstallPageViewProps = {
 
 export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 	const year = useTimeSync({
-		idealRefreshIntervalMs: Number.POSITIVE_INFINITY,
+		targetRefreshInterval: Number.POSITIVE_INFINITY,
 		select: (date) => date.getFullYear(),
 	});
 

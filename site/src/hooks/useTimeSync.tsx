@@ -158,8 +158,28 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 };
 
 type UseTimeSyncOptions<T = Date> = Readonly<{
-	idealRefreshIntervalMs: number;
-	selectDeps?: readonly unknown[];
+	/**
+	 * targetRefreshInterval is the ideal interval of time, in milliseconds,
+	 * that defines how often the hook should refresh with the newest Date
+	 * value from TimeSync.
+	 *
+	 * Note that a refresh is not the same as a re-render. If the hook is
+	 * refreshed with a new datetime, but its select callback produces the same
+	 * value as before, the hook will skip re-rendering.
+	 *
+	 * The hook reserves the right to refresh MORE frequently than the
+	 * specified value if it would guarantee that the hook does not get out of
+	 * sync with other useTimeSync users that are currently mounted on screen.
+	 */
+	targetRefreshInterval: number;
+
+	/**
+	 * selectDependencies acts like the dependency array for a useMemo callback.
+	 * Whenever any of the elements in the array change by value, that will
+	 * cause the select callback to re-run synchronously and produce a new,
+	 * up-to-date value for the current render.
+	 */
+	selectDependencies?: readonly unknown[];
 
 	/**
 	 * Allows you to transform any date values received from the TimeSync class.
@@ -189,7 +209,11 @@ type UseTimeSyncOptions<T = Date> = Readonly<{
  * interval.
  */
 export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
-	const { select, selectDeps, idealRefreshIntervalMs } = options;
+	const {
+		select,
+		selectDependencies: selectDeps,
+		targetRefreshInterval: idealRefreshIntervalMs,
+	} = options;
 	const timeSync = useContext(timeSyncContext);
 	if (timeSync === null) {
 		throw new Error("Cannot call useTimeSync outside of a TimeSyncProvider");
