@@ -307,6 +307,11 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
+	moduleFiles, err := getModulesArchive(e.workdir)
+	if err != nil {
+		return nil, err
+	}
+
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
@@ -314,6 +319,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		Presets:               state.Presets,
 		Plan:                  plan,
+		ModuleFiles:           moduleFiles,
 	}, nil
 }
 
