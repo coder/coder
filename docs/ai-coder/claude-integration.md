@@ -33,13 +33,24 @@ The easiest way to get started with Claude in Coder is to add the
 1. Add the Claude Code module to your template's `main.tf` file:
 
    ```hcl
+   # Add Claude Code module for integration
    module "claude-code" {
      source  = "registry.coder.com/modules/claude-code/coder"
      version = "1.2.1"
 
-     agent                   = var.agent  # This connects the module to your agent
-     experiment_use_screen   = true       # Enable reporting to Coder dashboard
-     experiment_report_tasks = true       # Show tasks in Coder UI
+     # Required - connects to your workspace agent
+     agent_id = coder_agent.main.id
+     
+     # Enable dashboard integration
+     experiment_use_screen   = true
+     experiment_report_tasks = true
+   }
+   
+   # Set environment variables for Claude configuration
+   resource "coder_env" "claude_api_key" {
+     agent_id = coder_agent.main.id
+     name     = "CLAUDE_API_KEY"
+     value    = var.anthropic_api_key
    }
    ```
 
@@ -54,14 +65,7 @@ The easiest way to get started with Claude in Coder is to add the
    }
    ```
 
-1. Add another section to pass the API key to the module:
-
-   ```hcl
-   module "claude-code" {
-     # ... existing settings from above
-     anthropic_api_key = var.anthropic_api_key
-   }
-   ```
+1. With the `coder_env` resource above, your API key is already properly configured. No additional code is needed.
 
 1. Push your template:
 
@@ -119,24 +123,46 @@ module "claude-code" {
 
 ## Customize your Claude setup
 
-You can customize Claude's behavior with additional options:
+You can customize Claude's behavior with additional environment variables:
 
 ```hcl
+# Set environment variables to customize Claude behavior
+
+# Authentication
+resource "coder_env" "claude_api_key" {
+  agent_id = coder_agent.main.id
+  name     = "CLAUDE_API_KEY"
+  value    = var.anthropic_api_key
+}
+
+# Choose a specific Claude model (use Sonnet for best performance)
+resource "coder_env" "claude_model" {
+  agent_id = coder_agent.main.id
+  name     = "CLAUDE_MODEL"
+  value    = "claude-3-sonnet-20240229"
+}
+
+# Custom instructions
+resource "coder_env" "claude_system_prompt" {
+  agent_id = coder_agent.main.id
+  name     = "CODER_MCP_CLAUDE_SYSTEM_PROMPT"
+  value    = "You are a Python expert focused on writing clean, efficient code."
+}
+
+# Add special capabilities through MCP
+resource "coder_env" "claude_mcp_instructions" {
+  agent_id = coder_agent.main.id
+  name     = "CODER_MCP_INSTRUCTIONS"
+  value    = "Use playwright-mcp and desktop-commander tools when available"
+}
+
+# Claude Code module with dashboard integration
 module "claude-code" {
   # ... basic settings from above
-  # full list at https://coder.com/docs/ai-coder/claude-integration#environment-variables-reference
-
-  # Choose a specific Claude model
-  model = "claude-3-7-sonnet-20240229"
-
-  # Give Claude specific instructions
-  custom_system_prompt = "You are a Python expert focused on writing clean, efficient code."
-
-  # Add special capabilities through MCP
-  additional_tools = ["playwright-mcp", "desktop-commander"]
-
-  # Set resource limits
-  timeout_seconds = 300  # Maximum time for a single request
+  source = "registry.coder.com/modules/claude-code/coder"
+  agent_id = coder_agent.main.id
+  experiment_use_screen = true
+  experiment_report_tasks = true
 }
 ```
 
