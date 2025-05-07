@@ -1,13 +1,17 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import { type FC, type MouseEvent, useState } from "react";
+import { type FC, useState } from "react";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
@@ -75,21 +79,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
 	let primaryTooltip = "";
 	if (app.health === "initializing") {
-		icon = (
-			// This is a hack to make the spinner appear in the center of the start
-			// icon space
-			<span
-				css={{
-					display: "flex",
-					width: "100%",
-					height: "100%",
-					alignItems: "center",
-					justifyContent: "center",
-				}}
-			>
-				<CircularProgress size={14} />
-			</span>
-		);
+		icon = <Spinner loading />;
 		primaryTooltip = "Initializing...";
 	}
 	if (app.health === "unhealthy") {
@@ -112,22 +102,13 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 		canClick = false;
 	}
 
-	const isPrivateApp = app.sharing_level === "owner";
+	const canShare = app.sharing_level !== "owner";
 
-	return (
-		<Tooltip title={primaryTooltip}>
-			<Link
-				color="inherit"
-				component={AgentButton}
-				startIcon={icon}
-				endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
-				disabled={!canClick}
-				href={href}
-				css={{
-					pointerEvents: canClick ? undefined : "none",
-					textDecoration: "none !important",
-				}}
-				onClick={async (event: MouseEvent<HTMLElement>) => {
+	const button = (
+		<AgentButton asChild>
+			<a
+				href={canClick ? href : undefined}
+				onClick={async (event) => {
 					if (!canClick) {
 						return;
 					}
@@ -187,8 +168,23 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					}
 				}}
 			>
+				{icon}
 				{appDisplayName}
-			</Link>
-		</Tooltip>
+				{canShare && <ShareIcon app={app} />}
+			</a>
+		</AgentButton>
 	);
+
+	if (primaryTooltip) {
+		return (
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>{button}</TooltipTrigger>
+					<TooltipContent>{primaryTooltip}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
+	}
+
+	return button;
 };

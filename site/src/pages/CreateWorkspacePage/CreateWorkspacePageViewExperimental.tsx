@@ -5,12 +5,17 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import { SelectFilter } from "components/Filter/SelectFilter";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Pill } from "components/Pill/Pill";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
@@ -153,11 +158,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "" },
+		{ label: "None", value: "None" },
 	]);
 	useEffect(() => {
 		setPresetOptions([
-			{ label: "None", value: "" },
+			{ label: "None", value: "None" },
 			...presets.map((preset) => ({
 				label: preset.Name,
 				value: preset.ID,
@@ -208,17 +213,23 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameters,
 	]);
 
+	// send the last user modified parameter and all touched parameters to the websocket
 	const sendDynamicParamsRequest = (
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs = Object.fromEntries(
-			form.values.rich_parameter_values?.map((value) => {
-				return [value.name, value.value];
-			}) ?? [],
-		);
-		// Update the input for the changed parameter
+		const formInputs: { [k: string]: string } = {};
 		formInputs[parameter.name] = value;
+		const parameters = form.values.rich_parameter_values ?? [];
+
+		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
+			if (isTouched && fieldName !== parameter.name) {
+				const param = parameters.find((p) => p.name === fieldName);
+				if (param?.value) {
+					formInputs[fieldName] = param.value;
+				}
+			}
+		}
 
 		sendMessage(formInputs);
 	};
@@ -233,6 +244,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				name: parameter.name,
 				value,
 			});
+			form.setFieldTouched(parameter.name, true);
 			sendDynamicParamsRequest(parameter, value);
 		},
 		500,
@@ -250,6 +262,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				name: parameter.name,
 				value,
 			});
+			form.setFieldTouched(parameter.name, true);
 			sendDynamicParamsRequest(parameter, value);
 		}
 	};
@@ -299,7 +312,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-6 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 
@@ -392,14 +405,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 					{externalAuth && externalAuth.length > 0 && (
 						<section>
 							<hgroup>
-								<h2 className="text-xl font-semibold mb-0">
+								<h2 className="text-xl font-semibold m-0">
 									External Authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.
 								</p>
 							</hgroup>
-							<div>
+							<div className="flex flex-col gap-4">
 								{Boolean(error) && !hasAllRequiredExternalAuth && (
 									<Alert severity="error">
 										To create a workspace using this template, please connect to
@@ -421,7 +434,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					)}
 
 					{parameters.length > 0 && (
-						<section className="flex flex-col gap-6">
+						<section className="flex flex-col gap-9">
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">Parameters</h2>
 								<p className="text-sm text-content-secondary m-0">
@@ -429,30 +442,39 @@ export const CreateWorkspacePageViewExperimental: FC<
 									parameters cannot be modified once the workspace is created.
 								</p>
 							</hgroup>
-							<Diagnostics diagnostics={diagnostics} />
+							{diagnostics.length > 0 && (
+								<Diagnostics diagnostics={diagnostics} />
+							)}
 							{presets.length > 0 && (
-								<Stack direction="column" spacing={2}>
-									<div className="flex flex-col gap-2">
-										<div className="flex gap-2 items-center">
-											<Label className="text-sm">Preset</Label>
-											<FeatureStageBadge contentType={"beta"} size="md" />
-										</div>
-										<div className="flex">
-											<SelectFilter
-												label="Preset"
-												options={presetOptions}
-												onSelect={(option) => {
+								<div className="flex flex-col gap-2">
+									<div className="flex gap-2 items-center">
+										<Label className="text-sm">Preset</Label>
+										<FeatureStageBadge contentType={"beta"} size="md" />
+									</div>
+									<div className="flex flex-col gap-4">
+										<div className="max-w-lg">
+											<Select
+												onValueChange={(option) => {
 													const index = presetOptions.findIndex(
-														(preset) => preset.value === option?.value,
+														(preset) => preset.value === option,
 													);
 													if (index === -1) {
 														return;
 													}
 													setSelectedPresetIndex(index);
 												}}
-												placeholder="Select a preset"
-												selectedOption={presetOptions[selectedPresetIndex]}
-											/>
+											>
+												<SelectTrigger>
+													<SelectValue placeholder={"Select a preset"} />
+												</SelectTrigger>
+												<SelectContent>
+													{presetOptions.map((option) => (
+														<SelectItem key={option.value} value={option.value}>
+															{option.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
 										</div>
 										<span className="flex items-center gap-3">
 											<Switch
@@ -465,7 +487,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 											</Label>
 										</span>
 									</div>
-								</Stack>
+								</div>
 							)}
 
 							<div className="flex flex-col gap-9">

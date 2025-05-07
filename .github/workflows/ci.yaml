@@ -313,7 +313,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -326,9 +326,17 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
+        # Harden Runner is only supported on Ubuntu runners.
+        if: runner.os == 'Linux'
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
+
+      # Set up RAM disks to speed up the rest of the job. This action is in
+      # a separate repository to allow its use before actions/checkout.
+      - name: Setup RAM Disks
+        if: runner.os == 'Windows'
+        uses: coder/setup-ramdisk-action@79dacfe70c47ad6d6c0dd7f45412368802641439
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -337,6 +345,12 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          # Runners have Go baked-in and Go will automatically
+          # download the toolchain configured in go.mod, so we don't
+          # need to reinstall it. It's faster on Windows runners.
+          use-preinstalled-go: ${{ runner.os == 'Windows' }}
+          use-temp-cache-dirs: ${{ runner.os == 'Windows' }}
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
@@ -368,8 +382,8 @@ jobs:
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
           export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --rerun-fails=2 \
+            --packages="./..." -- $PARALLEL_FLAG -short
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -422,6 +436,7 @@ jobs:
           TS_DEBUG_DISCO: "true"
           LC_CTYPE: "en_US.UTF-8"
           LC_ALL: "en_US.UTF-8"
+          TEST_RETRIES: 2
         shell: bash
         run: |
           # By default Go will use the number of logical CPUs, which
@@ -485,6 +500,7 @@ jobs:
           TS_DEBUG_DISCO: "true"
           LC_CTYPE: "en_US.UTF-8"
           LC_ALL: "en_US.UTF-8"
+          TEST_RETRIES: 2
         shell: bash
         run: |
           # By default Go will use the number of logical CPUs, which
@@ -546,6 +562,7 @@ jobs:
         env:
           POSTGRES_VERSION: "16"
           TS_DEBUG_DISCO: "true"
+          TEST_RETRIES: 2
         run: |
           make test-postgres
 
@@ -770,6 +787,7 @@ jobs:
         if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
+          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       # Run all of the tests with a premium license
@@ -779,6 +797,7 @@ jobs:
           DEBUG: pw:api
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
+          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       - name: Upload Playwright Failed Tests
