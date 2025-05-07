@@ -1,13 +1,17 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import { type FC, type MouseEvent, useState } from "react";
+import { type FC, useState } from "react";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
@@ -39,24 +43,15 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const appsHost = proxy.preferredWildcardHostname;
 	const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
 	const [iconError, setIconError] = useState(false);
-
 	const theme = useTheme();
 	const username = workspace.owner_name;
-
-	let appSlug = app.slug;
-	let appDisplayName = app.display_name;
-	if (!appSlug) {
-		appSlug = appDisplayName;
-	}
-	if (!appDisplayName) {
-		appDisplayName = appSlug;
-	}
+	const displayName = app.display_name || app.slug;
 
 	const href = createAppLinkHref(
 		window.location.protocol,
 		preferredPathBase,
 		appsHost,
-		appSlug,
+		app.slug,
 		username,
 		workspace,
 		agent,
@@ -75,21 +70,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
 	let primaryTooltip = "";
 	if (app.health === "initializing") {
-		icon = (
-			// This is a hack to make the spinner appear in the center of the start
-			// icon space
-			<span
-				css={{
-					display: "flex",
-					width: "100%",
-					height: "100%",
-					alignItems: "center",
-					justifyContent: "center",
-				}}
-			>
-				<CircularProgress size={14} />
-			</span>
-		);
+		icon = <Spinner loading />;
 		primaryTooltip = "Initializing...";
 	}
 	if (app.health === "unhealthy") {
@@ -112,22 +93,13 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 		canClick = false;
 	}
 
-	const isPrivateApp = app.sharing_level === "owner";
+	const canShare = app.sharing_level !== "owner";
 
-	return (
-		<Tooltip title={primaryTooltip}>
-			<Link
-				color="inherit"
-				component={AgentButton}
-				startIcon={icon}
-				endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
-				disabled={!canClick}
-				href={href}
-				css={{
-					pointerEvents: canClick ? undefined : "none",
-					textDecoration: "none !important",
-				}}
-				onClick={async (event: MouseEvent<HTMLElement>) => {
+	const button = (
+		<AgentButton asChild>
+			<a
+				href={canClick ? href : undefined}
+				onClick={async (event) => {
 					if (!canClick) {
 						return;
 					}
@@ -137,7 +109,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					// This is an external URI like "vscode://", so
 					// it needs to be opened with the browser protocol handler.
 					const shouldOpenAppExternally =
-						app.external && !app.url.startsWith("http");
+						app.external && app.url?.startsWith("http");
 
 					if (shouldOpenAppExternally) {
 						// This is a magic undocumented string that is replaced
@@ -159,9 +131,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 						// an error message will be displayed.
 						const openAppExternallyFailedTimeout = 500;
 						const openAppExternallyFailed = setTimeout(() => {
-							displayError(
-								`${app.display_name !== "" ? app.display_name : app.slug} must be installed first.`,
-							);
+							displayError(`${displayName} must be installed first.`);
 						}, openAppExternallyFailedTimeout);
 						window.addEventListener("blur", () => {
 							clearTimeout(openAppExternallyFailed);
@@ -175,7 +145,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 						case "slim-window": {
 							window.open(
 								href,
-								Language.appTitle(appDisplayName, generateRandomString(12)),
+								Language.appTitle(displayName, generateRandomString(12)),
 								"width=900,height=600",
 							);
 							return;
@@ -187,8 +157,23 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					}
 				}}
 			>
-				{appDisplayName}
-			</Link>
-		</Tooltip>
+				{icon}
+				{displayName}
+				{canShare && <ShareIcon app={app} />}
+			</a>
+		</AgentButton>
 	);
+
+	if (primaryTooltip) {
+		return (
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>{button}</TooltipTrigger>
+					<TooltipContent>{primaryTooltip}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
+	}
+
+	return button;
 };

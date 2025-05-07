@@ -3474,16 +3474,16 @@ export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
 	readonly id: string;
-	readonly url: string;
+	readonly url?: string;
 	readonly external: boolean;
 	readonly slug: string;
-	readonly display_name: string;
+	readonly display_name?: string;
 	readonly command?: string;
 	readonly icon?: string;
 	readonly subdomain: boolean;
 	readonly subdomain_name?: string;
 	readonly sharing_level: WorkspaceAppSharingLevel;
-	readonly healthcheck: Healthcheck;
+	readonly healthcheck?: Healthcheck;
 	readonly health: WorkspaceAppHealth;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;

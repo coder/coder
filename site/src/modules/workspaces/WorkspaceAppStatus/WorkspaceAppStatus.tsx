@@ -124,12 +124,11 @@ export const WorkspaceAppStatus = ({
 
 	let appHref: string | undefined;
 	if (app && agent) {
-		const appSlug = app.slug || app.display_name;
 		appHref = createAppLinkHref(
 			window.location.protocol,
 			preferredPathBase,
 			appsHost,
-			appSlug,
+			app.slug,
 			workspace.owner_name,
 			workspace,
 			agent,

@@ -11,7 +11,7 @@ export const createAppLinkHref = (
 	app: TypesGen.WorkspaceApp,
 ): string => {
 	if (app.external) {
-		return app.url;
+		return app.url as string;
 	}
 
 	// The backend redirects if the trailing slash isn't included, so we add it

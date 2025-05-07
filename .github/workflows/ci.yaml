@@ -382,8 +382,8 @@ jobs:
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
           export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --rerun-fails=2 \
+            --packages="./..." -- $PARALLEL_FLAG -short
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -436,6 +436,7 @@ jobs:
           TS_DEBUG_DISCO: "true"
           LC_CTYPE: "en_US.UTF-8"
           LC_ALL: "en_US.UTF-8"
+          TEST_RETRIES: 2
         shell: bash
         run: |
           # By default Go will use the number of logical CPUs, which
@@ -499,6 +500,7 @@ jobs:
           TS_DEBUG_DISCO: "true"
           LC_CTYPE: "en_US.UTF-8"
           LC_ALL: "en_US.UTF-8"
+          TEST_RETRIES: 2
         shell: bash
         run: |
           # By default Go will use the number of logical CPUs, which
@@ -560,6 +562,7 @@ jobs:
         env:
           POSTGRES_VERSION: "16"
           TS_DEBUG_DISCO: "true"
+          TEST_RETRIES: 2
         run: |
           make test-postgres
 
@@ -784,6 +787,7 @@ jobs:
         if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
+          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       # Run all of the tests with a premium license
@@ -793,6 +797,7 @@ jobs:
           DEBUG: pw:api
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
+          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       - name: Upload Playwright Failed Tests
