@@ -641,14 +641,19 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	const { data: apiKeyRes } = useQuery(apiKey());
 	const token = apiKeyRes?.key;
 
-	const resource = workspace.latest_build.resources
+	/**
+	 * Coder is pretty flexible and allows an enormous variety of use cases, such
+	 * as having multiple resources with many agents, but they are not common. The
+	 * most common scenario is to have one single compute resource with one single
+	 * agent containing all the apps. Lets test this getting the apps for the
+	 * first resource, and first agent - they are sorted to return the compute
+	 * resource first - and see what customers and ourselves, using dogfood, think
+	 * about that.
+	 */
+	const agent = workspace.latest_build.resources
 		.filter((r) => !r.hide)
-		.at(0);
-	if (!resource) {
-		return null;
-	}
-
-	const agent = resource.agents?.at(0);
+		.at(0)
+		?.agents?.at(0);
 	if (!agent) {
 		return null;
 	}
