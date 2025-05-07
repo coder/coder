@@ -441,7 +441,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if !bytes.Equal(configRaw, configModified) {
 				sshDir := filepath.Dir(sshConfigFile)
-				if err := os.MkdirAll(sshDir, os.ModePerm); err != nil {
+				if err := os.MkdirAll(sshDir, 0700); err != nil {
 					return xerrors.Errorf("failed to create directory %q: %w", sshDir, err)
 				}
 
