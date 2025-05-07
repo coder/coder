@@ -485,33 +485,33 @@ export const MockMemberPermissions = {
 };
 
 export const MockUserOwner: TypesGen.User = {
-	id: "owner",
-	username: "owner",
-	email: "owner@coder.com",
-	created_at: "2022-09-14T19:12:21Z",
-	updated_at: "2022-09-14T19:12:21Z",
+	id: "test-user",
+	username: "TestUser",
+	email: "test@coder.com",
+	created_at: "",
+	updated_at: "",
 	status: "active",
 	organization_ids: [MockOrganization.id],
 	roles: [MockOwnerRole],
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
-	last_seen_at: "2022-09-14T19:12:21Z",
+	last_seen_at: "",
 	login_type: "password",
-	name: "Owner",
+	name: "",
 };
 
 export const MockUserMember: TypesGen.User = {
-	id: "member",
-	username: "member",
-	email: "member@coder.com",
-	created_at: "2022-09-14T19:12:21Z",
-	updated_at: "2022-09-14T19:12:21Z",
+	id: "test-user-2",
+	username: "TestUser2",
+	email: "test2@coder.com",
+	created_at: "",
+	updated_at: "",
 	status: "active",
 	organization_ids: [MockOrganization.id],
 	roles: [],
 	avatar_url: "",
 	last_seen_at: "2022-09-14T19:12:21Z",
 	login_type: "oidc",
-	name: "Member",
+	name: "Mock User The Second",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
