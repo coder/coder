@@ -632,6 +632,7 @@ func (c *StoreReconciler) provision(
 
 func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
 	// Set authorization context since this may be called in the background (i.e. with a bare context).
+	// nolint:gocritic // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	// Since this may be called in a fire-and-forget fashion, we need to give up at some point.
 	trackCtx, trackCancel := context.WithTimeout(ctx, time.Minute)
@@ -642,6 +643,7 @@ func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspac
 	}
 }
 
+// nolint:revive // Shut up it's fine.
 func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -683,12 +685,12 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 	// Use the claiming build here (not prebuild) because both should be equivalent, and we might as well spot inconsistencies now.
 	templateVersion, err := c.store.GetTemplateVersionByID(ctx, build.TemplateVersionID)
 	if err != nil {
-		return xerrors.Errorf("fetch template version %q: %w", build.TemplateVersionID.String())
+		return xerrors.Errorf("fetch template version %q: %w", build.TemplateVersionID.String(), err)
 	}
 
 	org, err := c.store.GetOrganizationByID(ctx, workspace.OrganizationID)
 	if err != nil {
-		return xerrors.Errorf("fetch org %q: %w", workspace.OrganizationID.String())
+		return xerrors.Errorf("fetch org %q: %w", workspace.OrganizationID.String(), err)
 	}
 
 	// Track resource replacement in Prometheus metric.
