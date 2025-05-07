@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
+import { MockUserOwner } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import AppearancePage from "./AppearancePage";
 

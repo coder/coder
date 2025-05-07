@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
-import { MockBuildInfo } from "testHelpers/entities";
+import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 

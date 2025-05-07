@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { DetailedError } from "api/errors";
 import { chromatic } from "testHelpers/chromatic";
-import { MockTemplate } from "testHelpers/entities";
+import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 
 const meta: Meta<typeof CreateWorkspacePageViewExperimental> = {

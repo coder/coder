@@ -36,7 +36,7 @@ describe("CreateWorkspacePage", () => {
 	it("succeeds with default owner", async () => {
 		jest
 			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUser], count: 1 });
+			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
 		jest
 			.spyOn(API, "getWorkspaceQuota")
 			.mockResolvedValueOnce(MockWorkspaceQuota);
@@ -186,7 +186,7 @@ describe("CreateWorkspacePage", () => {
 			.mockResolvedValueOnce(MockWorkspaceQuota);
 		jest
 			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUser], count: 1 });
+			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
 		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
 		jest
 			.spyOn(API, "getTemplateVersionExternalAuth")
@@ -233,7 +233,7 @@ describe("CreateWorkspacePage", () => {
 			.mockResolvedValueOnce(MockWorkspaceQuota);
 		jest
 			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUser], count: 1 });
+			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
 		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
 		jest
 			.spyOn(API, "getTemplateVersionExternalAuth")

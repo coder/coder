@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { MockUserOwner } from "testHelpers/entities";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 
 const meta: Meta<typeof ResetPasswordDialog> = {
