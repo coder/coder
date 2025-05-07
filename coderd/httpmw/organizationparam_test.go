@@ -131,9 +131,7 @@ func TestOrganizationParam(t *testing.T) {
 			}),
 			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractOrganizationMemberParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
-				return true
-			}),
+			httpmw.ExtractOrganizationMemberParam(db),
 		)
 		rtr.Get("/", nil)
 		rtr.ServeHTTP(rw, r)
@@ -170,11 +168,10 @@ func TestOrganizationParam(t *testing.T) {
 			}),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractUserParam(db),
-			httpmw.ExtractOrganizationMemberParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
-				return true
-			}),
+			httpmw.ExtractOrganizationMemberParam(db),
 			httpmw.ExtractOrganizationMembersParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
-				return true
+				// Assume the caller cannot read the member
+				return false
 			}),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
@@ -202,7 +199,8 @@ func TestOrganizationParam(t *testing.T) {
 
 			orgMems := httpmw.OrganizationMembersParam(r)
 			assert.NotZero(t, orgMems)
-			assert.Equal(t, orgMem.UserID, orgMems[0].UserID)
+			assert.Equal(t, orgMem.UserID, orgMems.Memberships[0].UserID)
+			assert.Nil(t, orgMems.User, "user data should not be available, hard coded false authorize")
 		})
 
 		// Try by ID

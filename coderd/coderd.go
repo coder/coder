@@ -1076,7 +1076,7 @@ func New(options *Options) *API {
 
 						r.Group(func(r chi.Router) {
 							r.Use(
-								httpmw.ExtractOrganizationMemberParam(options.Database, api.HTTPAuth.Authorize),
+								httpmw.ExtractOrganizationMemberParam(options.Database),
 							)
 							r.Delete("/", api.deleteOrganizationMember)
 							r.Put("/roles", api.putMemberRoles)

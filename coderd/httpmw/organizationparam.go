@@ -118,12 +118,12 @@ type OrganizationMember struct {
 
 // ExtractOrganizationMemberParam grabs a user membership from the "organization" and "user" URL parameter.
 // This middleware requires the ExtractUser and ExtractOrganization middleware higher in the stack
-func ExtractOrganizationMemberParam(db database.Store, auth func(r *http.Request, action policy.Action, object rbac.Objecter) bool) func(http.Handler) http.Handler {
+func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			organization := OrganizationParam(r)
-			_, members, done := ExtractOrganizationMember(ctx, auth, rw, r, db, organization.ID)
+			_, members, done := ExtractOrganizationMember(ctx, nil, rw, r, db, organization.ID)
 			if done {
 				return
 			}
@@ -194,12 +194,12 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 		return nil, nil, true
 	}
 
-	if auth(r, policy.ActionRead, user) {
+	if auth != nil && auth(r, policy.ActionRead, user) {
 		return &user, organizationMembers, true
 	}
 
 	// If the user cannot be read and 0 memberships exist, throw a 404 to not
-	// leak the user existance.
+	// leak the user existence.
 	if len(organizationMembers) == 0 {
 		httpapi.ResourceNotFound(rw)
 		return nil, nil, true
@@ -209,7 +209,11 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 }
 
 type OrganizationMembers struct {
-	User        *database.User
+	// User is `nil` if the caller is not allowed access to the site wide
+	// user object.
+	User *database.User
+	// Memberships can only be length 0 if `user != nil`. If `user == nil`, then
+	// memberships will be at least length 1.
 	Memberships []OrganizationMember
 }
 
@@ -226,6 +230,9 @@ func (om OrganizationMembers) UserID() uuid.UUID {
 
 // ExtractOrganizationMembersParam grabs all user organization memberships.
 // Only requires the "user" URL parameter.
+//
+// Use this if you want to grab as much information for a user as you can.
+// From an organization context, site wide user information might not available.
 func ExtractOrganizationMembersParam(db database.Store, auth func(r *http.Request, action policy.Action, object rbac.Objecter) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
