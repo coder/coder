@@ -1,6 +1,6 @@
 import type { FC } from "react";
 
-export const NotFoundPage: FC = () => {
+const NotFoundPage: FC = () => {
 	return (
 		<div
 			css={{

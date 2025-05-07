@@ -81,7 +81,7 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
 
-export function currentUser(page: Page): LoginOptions {
+function currentUser(page: Page): LoginOptions {
 	const ctx = page.context();
 	// biome-ignore lint/suspicious/noExplicitAny: get the current user
 	const user = (ctx as any)[Symbol.for("currentUser")];
@@ -875,7 +875,7 @@ export const echoResponsesWithExternalAuth = (
 	};
 };
 
-export const fillParameters = async (
+const fillParameters = async (
 	page: Page,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
@@ -1042,7 +1042,9 @@ export async function openTerminalWindow(
 ): Promise<Page> {
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
-	await page.getByTestId("terminal").click({ timeout: 60_000 });
+	await page
+		.getByRole("link", { name: /terminal/i })
+		.click({ timeout: 60_000 });
 	const terminal = await pagePromise;
 	await terminal.waitForLoadState("domcontentloaded");
 

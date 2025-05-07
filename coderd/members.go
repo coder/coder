@@ -62,7 +62,8 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	}
 	if database.IsUniqueViolation(err, database.UniqueOrganizationMembersPkey) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Organization member already exists in this organization",
+			Message: "User is already an organization member",
+			Detail:  fmt.Sprintf("%s is already a member of %s", user.Username, organization.DisplayName),
 		})
 		return
 	}

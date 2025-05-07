@@ -200,12 +200,11 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 				const agent = agents.find((agent) => agent.id === status.agent_id);
 
 				if (currentApp && agent) {
-					const appSlug = currentApp.slug || currentApp.display_name;
 					appHref = createAppLinkHref(
 						window.location.protocol,
 						preferredPathBase,
 						appsHost,
-						appSlug,
+						currentApp.slug,
 						workspace.owner_name,
 						workspace,
 						agent,

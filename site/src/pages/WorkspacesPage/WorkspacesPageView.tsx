@@ -4,19 +4,19 @@ import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutl
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Divider from "@mui/material/Divider";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
-import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-} from "components/MoreMenu/MoreMenu";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
@@ -33,7 +33,7 @@ import {
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
 
-export const Language = {
+const Language = {
 	pageTitle: "Workspaces",
 	yourWorkspacesButton: "Your workspaces",
 	allWorkspacesButton: "All workspaces",
@@ -65,6 +65,8 @@ export interface WorkspacesPageViewProps {
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
 	canChangeVersions: boolean;
+	onActionSuccess: () => Promise<void>;
+	onActionError: (error: unknown) => void;
 }
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
@@ -88,6 +90,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	templatesFetchStatus,
 	canCreateTemplate,
 	canChangeVersions,
+	onActionSuccess,
+	onActionError,
 }) => {
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which does
 	// not exist. In this case, the page is not valid and we want to show a better
@@ -134,8 +138,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							{workspaces?.length === 1 ? "workspace" : "workspaces"}
 						</div>
 
-						<MoreMenu>
-							<MoreMenuTrigger>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
 								<LoadingButton
 									loading={isRunningBatchAction}
 									loadingPosition="end"
@@ -146,10 +150,9 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								>
 									Actions
 								</LoadingButton>
-							</MoreMenuTrigger>
-							<MoreMenuContent>
-								<MoreMenuItem
-									onClick={onStartAll}
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
 									disabled={
 										!checkedWorkspaces?.every(
 											(w) =>
@@ -157,28 +160,32 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 												!mustUpdateWorkspace(w, canChangeVersions),
 										)
 									}
+									onClick={onStartAll}
 								>
 									<PlayArrowOutlined /> Start
-								</MoreMenuItem>
-								<MoreMenuItem
-									onClick={onStopAll}
+								</DropdownMenuItem>
+								<DropdownMenuItem
 									disabled={
 										!checkedWorkspaces?.every(
 											(w) => w.latest_build.status === "running",
 										)
 									}
+									onClick={onStopAll}
 								>
 									<StopOutlined /> Stop
-								</MoreMenuItem>
-								<Divider />
-								<MoreMenuItem onClick={onUpdateAll}>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem onClick={onUpdateAll}>
 									<CloudQueue /> Update&hellip;
-								</MoreMenuItem>
-								<MoreMenuItem danger onClick={onDeleteAll}>
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={onDeleteAll}
+								>
 									<DeleteOutlined /> Delete&hellip;
-								</MoreMenuItem>
-							</MoreMenuContent>
-						</MoreMenu>
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</>
 				) : (
 					!invalidPageNumber && (
@@ -221,6 +228,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}
 					templates={templates}
+					onActionSuccess={onActionSuccess}
+					onActionError={onActionError}
 				/>
 			)}
 

@@ -31,7 +31,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 		>
 			<Stack direction="row" alignItems="baseline">
 				<div css={styles.agentStatusWrapper}>
-					<div css={styles.agentStatusPreview}></div>
+					<div css={styles.agentStatusPreview} />
 				</div>
 				<Stack
 					alignItems="baseline"

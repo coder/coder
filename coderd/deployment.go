@@ -1,7 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/kylecarbs/aisdk-go"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -83,4 +86,26 @@ func buildInfoHandler(resp codersdk.BuildInfoResponse) http.HandlerFunc {
 // @Router /deployment/ssh [get]
 func (api *API) sshConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, api.SSHConfig)
+}
+
+type LanguageModel struct {
+	codersdk.LanguageModel
+	Provider func(ctx context.Context, messages []aisdk.Message, thinking bool) (aisdk.DataStream, error)
+}
+
+// @Summary Get language models
+// @ID get-language-models
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.LanguageModelConfig
+// @Router /deployment/llms [get]
+func (api *API) deploymentLLMs(rw http.ResponseWriter, r *http.Request) {
+	models := make([]codersdk.LanguageModel, 0, len(api.LanguageModels))
+	for _, model := range api.LanguageModels {
+		models = append(models, model.LanguageModel)
+	}
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.LanguageModelConfig{
+		Models: models,
+	})
 }

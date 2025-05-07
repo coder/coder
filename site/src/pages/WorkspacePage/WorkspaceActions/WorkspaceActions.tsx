@@ -2,17 +2,22 @@ import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
-import Divider from "@mui/material/Divider";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import { Button } from "components/Button/Button";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { useAuthenticated } from "hooks/useAuthenticated";
+import { EllipsisVertical } from "lucide-react";
+import {
+	type ActionType,
+	abilitiesByWorkspaceStatus,
+} from "modules/workspaces/actions";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { mustUpdateWorkspace } from "utils/workspace";
@@ -31,7 +36,6 @@ import {
 import { DebugButton } from "./DebugButton";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
-import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;
@@ -52,7 +56,6 @@ export interface WorkspaceActionsProps {
 	children?: ReactNode;
 	canChangeVersions: boolean;
 	canDebug: boolean;
-	isOwner: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -73,20 +76,19 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isRestarting,
 	canChangeVersions,
 	canDebug,
-	isOwner,
 }) => {
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
 
 	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
+	const { user } = useAuthenticated();
+	const isOwner =
+		user.roles.find((role) => role.name === "owner") !== undefined;
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
-		canDebug,
+		{ canDebug, isOwner },
 	);
-	const showCancel =
-		canCancel &&
-		(workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
 	const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
 	const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
@@ -169,7 +171,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 							<Fragment key={action}>{buttonMapping[action]}</Fragment>
 						))}
 
-			{showCancel && <CancelButton handleAction={handleCancel} />}
+			{canCancel && <CancelButton handleAction={handleCancel} />}
 
 			<FavoriteButton
 				workspaceID={workspace.id}
@@ -177,56 +179,59 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			<MoreMenu>
-				<MoreMenuTrigger>
-					<TopbarIconButton
-						title="More options"
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						size="icon-lg"
+						variant="subtle"
+						aria-label="Workspace actions"
 						data-testid="workspace-options-button"
 						aria-controls="workspace-options"
 						disabled={!canAcceptJobs}
 					>
-						<MoreVertOutlined />
-					</TopbarIconButton>
-				</MoreMenuTrigger>
+						<EllipsisVertical aria-hidden="true" />
+						<span className="sr-only">Workspace actions</span>
+					</Button>
+				</DropdownMenuTrigger>
 
-				<MoreMenuContent id="workspace-options">
-					<MoreMenuItem onClick={handleSettings}>
+				<DropdownMenuContent id="workspace-options" align="end">
+					<DropdownMenuItem onClick={handleSettings}>
 						<SettingsIcon />
 						Settings
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
 					{canChangeVersions && (
-						<MoreMenuItem onClick={handleChangeVersion}>
+						<DropdownMenuItem onClick={handleChangeVersion}>
 							<HistoryIcon />
 							Change version&hellip;
-						</MoreMenuItem>
+						</DropdownMenuItem>
 					)}
 
-					<MoreMenuItem
+					<DropdownMenuItem
 						onClick={duplicateWorkspace}
 						disabled={!isDuplicationReady}
 					>
 						<DuplicateIcon />
 						Duplicate&hellip;
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
-					<MoreMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
+					<DropdownMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
 						<DownloadOutlined />
 						Download logs&hellip;
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
-					<Divider />
+					<DropdownMenuSeparator />
 
-					<MoreMenuItem
-						danger
+					<DropdownMenuItem
+						className="text-content-destructive focus:text-content-destructive"
 						onClick={handleDelete}
 						data-testid="delete-button"
 					>
 						<DeleteIcon />
 						Delete&hellip;
-					</MoreMenuItem>
-				</MoreMenuContent>
-			</MoreMenu>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 
 			<DownloadLogsDialog
 				workspace={workspace}

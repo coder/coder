@@ -33,8 +33,8 @@ const (
 	mutableParameterValue = "hello"
 )
 
-var (
-	mutableParamsResponse = &echo.Responses{
+func mutableParamsResponse() *echo.Responses {
+	return &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
@@ -54,8 +54,10 @@ var (
 		},
 		ProvisionApply: echo.ApplyComplete,
 	}
+}
 
-	immutableParamsResponse = &echo.Responses{
+func immutableParamsResponse() *echo.Responses {
+	return &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
@@ -74,7 +76,7 @@ var (
 		},
 		ProvisionApply: echo.ApplyComplete,
 	}
-)
+}
 
 func TestStart(t *testing.T) {
 	t.Parallel()
@@ -210,7 +212,7 @@ func TestStartWithParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, immutableParamsResponse)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, immutableParamsResponse())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -262,7 +264,7 @@ func TestStartWithParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {

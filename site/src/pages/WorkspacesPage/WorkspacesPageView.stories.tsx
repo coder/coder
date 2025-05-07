@@ -26,7 +26,7 @@ import {
 	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -144,8 +144,10 @@ const meta: Meta<typeof WorkspacesPageView> = {
 				data: MockBuildInfo,
 			},
 		],
+		user: MockUser,
 	},
 	decorators: [
+		withAuthProvider,
 		withDashboardProvider,
 		(Story) => (
 			<ProxyContext.Provider

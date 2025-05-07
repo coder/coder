@@ -8,7 +8,6 @@ import type {
 	GroupSyncSettings,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
-	ProvisionerJobStatus,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -182,20 +181,20 @@ export const provisionerDaemons = (
 	};
 };
 
-export const getProvisionerDaemonGroupsKey = (organization: string) => [
+const getProvisionerDaemonGroupsKey = (organization: string) => [
 	"organization",
 	organization,
 	"provisionerDaemons",
 ];
 
-export const provisionerDaemonGroups = (organization: string) => {
+const provisionerDaemonGroups = (organization: string) => {
 	return {
 		queryKey: getProvisionerDaemonGroupsKey(organization),
 		queryFn: () => API.getProvisionerDaemonGroupsByOrganization(organization),
 	};
 };
 
-export const getGroupIdpSyncSettingsKey = (organization: string) => [
+const getGroupIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
 	"groupIdpSyncSettings",
@@ -220,7 +219,7 @@ export const patchGroupSyncSettings = (
 	};
 };
 
-export const getRoleIdpSyncSettingsKey = (organization: string) => [
+const getRoleIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
 	"roleIdpSyncSettings",
@@ -350,7 +349,7 @@ export const workspacePermissionsByOrganization = (
 	};
 };
 
-export const getOrganizationIdpSyncClaimFieldValuesKey = (
+const getOrganizationIdpSyncClaimFieldValuesKey = (
 	organization: string,
 	field: string,
 ) => [organization, "idpSync", "fieldValues", field];

@@ -3,6 +3,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
+	withAuthProvider,
 	withDashboardProvider,
 	withDesktopViewport,
 } from "testHelpers/storybook";
@@ -14,7 +15,10 @@ const meta: Meta<typeof WorkspaceActions> = {
 	args: {
 		isUpdating: false,
 	},
-	decorators: [withDashboardProvider, withDesktopViewport],
+	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
+	parameters: {
+		user: Mocks.MockUser,
+	},
 };
 
 export default meta;
@@ -163,14 +167,15 @@ export const CancelShownForOwner: Story = {
 			...Mocks.MockStartingWorkspace,
 			template_allow_user_cancel_workspace_jobs: false,
 		},
-		isOwner: true,
 	},
 };
 
 export const CancelShownForUser: Story = {
 	args: {
 		workspace: Mocks.MockStartingWorkspace,
-		isOwner: false,
+	},
+	parameters: {
+		user: Mocks.MockUser2,
 	},
 };
 
@@ -180,7 +185,9 @@ export const CancelHiddenForUser: Story = {
 			...Mocks.MockStartingWorkspace,
 			template_allow_user_cancel_workspace_jobs: false,
 		},
-		isOwner: false,
+	},
+	parameters: {
+		user: Mocks.MockUser2,
 	},
 };
 
@@ -202,9 +209,11 @@ export const OpenDownloadLogs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(canvas.getByText("Download logs", { exact: false }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
 		const screen = within(document.body);
+		await userEvent.click(screen.getByText("Download logs…"));
 		await expect(screen.getByTestId("dialog")).toBeInTheDocument();
 	},
 };
@@ -215,8 +224,11 @@ export const CanDeleteDormantWorkspace: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		const deleteButton = canvas.getByText("Delete…");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
+		const screen = within(document.body);
+		const deleteButton = screen.getByText("Delete…");
 		await expect(deleteButton).toBeEnabled();
 	},
 };

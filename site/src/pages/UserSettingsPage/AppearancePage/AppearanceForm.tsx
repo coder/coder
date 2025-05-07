@@ -132,7 +132,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	);
 };
 
-export function toTerminalFontName(value: string): TerminalFontName {
+function toTerminalFontName(value: string): TerminalFontName {
 	return TerminalFontNames.includes(value as TerminalFontName)
 		? (value as TerminalFontName)
 		: "";

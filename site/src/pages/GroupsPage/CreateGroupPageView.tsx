@@ -114,4 +114,3 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 		</>
 	);
 };
-export default CreateGroupPageView;

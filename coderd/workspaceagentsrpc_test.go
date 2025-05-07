@@ -32,6 +32,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
+		LastUsedAt:     dbtime.Now().Add(-time.Minute),
 	}).WithAgent().Do()
 
 	ac := agentsdk.New(client.URL)

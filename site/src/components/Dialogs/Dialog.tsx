@@ -35,7 +35,14 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
 	return (
 		<>
 			{onCancel && (
-				<Button disabled={confirmLoading} onClick={onCancel} variant="outline">
+				<Button
+					disabled={confirmLoading}
+					onClick={(e) => {
+						e.stopPropagation();
+						onCancel();
+					}}
+					variant="outline"
+				>
 					{cancelText}
 				</Button>
 			)}

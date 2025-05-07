@@ -1,7 +1,7 @@
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templateExamples, templates } from "api/queries/templates";
 import { useFilter } from "components/Filter/Filter";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -10,7 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
-export const TemplatesPage: FC = () => {
+const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
 

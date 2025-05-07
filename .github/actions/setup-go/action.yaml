@@ -5,17 +5,42 @@ inputs:
   version:
     description: "The Go version to use."
     default: "1.24.2"
+  use-preinstalled-go:
+    description: "Whether to use preinstalled Go."
+    default: "false"
+  use-temp-cache-dirs:
+    description: "Whether to use temporary GOCACHE and GOMODCACHE directories."
+    default: "false"
 runs:
   using: "composite"
   steps:
+    - name: Override GOCACHE and GOMODCACHE
+      shell: bash
+      if: inputs.use-temp-cache-dirs == 'true'
+      run: |
+        # cd to another directory to ensure we're not inside a Go project.
+        # That'd trigger Go to download the toolchain for that project.
+        cd "$RUNNER_TEMP"
+        # RUNNER_TEMP should be backed by a RAM disk on Windows if
+        # coder/setup-ramdisk-action was used
+        export GOCACHE_DIR="$RUNNER_TEMP""\go-cache"
+        export GOMODCACHE_DIR="$RUNNER_TEMP""\go-mod-cache"
+        export GOPATH_DIR="$RUNNER_TEMP""\go-path"
+        mkdir -p "$GOCACHE_DIR"
+        mkdir -p "$GOMODCACHE_DIR"
+        mkdir -p "$GOPATH_DIR"
+        go env -w GOCACHE="$GOCACHE_DIR"
+        go env -w GOMODCACHE="$GOMODCACHE_DIR"
+        go env -w GOPATH="$GOPATH_DIR"
+
     - name: Setup Go
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
-        go-version: ${{ inputs.version }}
+        go-version: ${{ inputs.use-preinstalled-go == 'false' && inputs.version || '' }}
 
     - name: Install gotestsum
       shell: bash
-      run: go install gotest.tools/gotestsum@latest
+      run: go install gotest.tools/gotestsum@3f7ff0ec4aeb6f95f5d67c998b71f272aa8a8b41 # v1.12.1
 
     # It isn't necessary that we ever do this, but it helps
     # separate the "setup" from the "run" times.

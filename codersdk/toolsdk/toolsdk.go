@@ -2,7 +2,9 @@ package toolsdk
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/google/uuid"
@@ -13,372 +15,482 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-// HandlerFunc is a function that handles a tool call.
-type HandlerFunc[T any] func(ctx context.Context, args map[string]any) (T, error)
+func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
+	d := Deps{
+		coderClient: client,
+	}
+	for _, opt := range opts {
+		opt(&d)
+	}
+	if d.coderClient == nil {
+		return Deps{}, xerrors.New("developer error: coder client may not be nil")
+	}
+	return d, nil
+}
 
-type Tool[T any] struct {
+func WithAgentClient(client *agentsdk.Client) func(*Deps) {
+	return func(d *Deps) {
+		d.agentClient = client
+	}
+}
+
+func WithAppStatusSlug(slug string) func(*Deps) {
+	return func(d *Deps) {
+		d.appStatusSlug = slug
+	}
+}
+
+// Deps provides access to tool dependencies.
+type Deps struct {
+	coderClient   *codersdk.Client
+	agentClient   *agentsdk.Client
+	appStatusSlug string
+}
+
+// HandlerFunc is a typed function that handles a tool call.
+type HandlerFunc[Arg, Ret any] func(context.Context, Deps, Arg) (Ret, error)
+
+// Tool consists of an aisdk.Tool and a corresponding typed handler function.
+type Tool[Arg, Ret any] struct {
 	aisdk.Tool
-	Handler HandlerFunc[T]
+	Handler HandlerFunc[Arg, Ret]
 }
 
-// Generic returns a Tool[any] that can be used to call the tool.
-func (t Tool[T]) Generic() Tool[any] {
-	return Tool[any]{
+// Generic returns a type-erased version of a TypedTool where the arguments and
+// return values are converted to/from json.RawMessage.
+// This allows the tool to be referenced without knowing the concrete arguments
+// or return values. The original TypedHandlerFunc is wrapped to handle type
+// conversion.
+func (t Tool[Arg, Ret]) Generic() GenericTool {
+	return GenericTool{
 		Tool: t.Tool,
-		Handler: func(ctx context.Context, args map[string]any) (any, error) {
-			return t.Handler(ctx, args)
-		},
+		Handler: wrap(func(ctx context.Context, deps Deps, args json.RawMessage) (json.RawMessage, error) {
+			var typedArgs Arg
+			if err := json.Unmarshal(args, &typedArgs); err != nil {
+				return nil, xerrors.Errorf("failed to unmarshal args: %w", err)
+			}
+			ret, err := t.Handler(ctx, deps, typedArgs)
+			var buf bytes.Buffer
+			if err := json.NewEncoder(&buf).Encode(ret); err != nil {
+				return json.RawMessage{}, err
+			}
+			return buf.Bytes(), err
+		}, WithCleanContext, WithRecover),
 	}
 }
 
-var (
-	// All is a list of all tools that can be used in the Coder CLI.
-	// When you add a new tool, be sure to include it here!
-	All = []Tool[any]{
-		CreateTemplateVersion.Generic(),
-		CreateTemplate.Generic(),
-		CreateWorkspace.Generic(),
-		CreateWorkspaceBuild.Generic(),
-		DeleteTemplate.Generic(),
-		GetAuthenticatedUser.Generic(),
-		GetTemplateVersionLogs.Generic(),
-		GetWorkspace.Generic(),
-		GetWorkspaceAgentLogs.Generic(),
-		GetWorkspaceBuildLogs.Generic(),
-		ListWorkspaces.Generic(),
-		ListTemplates.Generic(),
-		ListTemplateVersionParameters.Generic(),
-		ReportTask.Generic(),
-		UploadTarFile.Generic(),
-		UpdateTemplateActiveVersion.Generic(),
-	}
+// GenericTool is a type-erased wrapper for GenericTool.
+// This allows referencing the tool without knowing the concrete argument or
+// return type. The Handler function allows calling the tool with known types.
+type GenericTool struct {
+	aisdk.Tool
+	Handler GenericHandlerFunc
+}
 
-	ReportTask = Tool[string]{
-		Tool: aisdk.Tool{
-			Name:        "coder_report_task",
-			Description: "Report progress on a user task in Coder.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"summary": map[string]any{
-						"type":        "string",
-						"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length.",
-					},
-					"link": map[string]any{
-						"type":        "string",
-						"description": "A link to a relevant resource, such as a PR or issue.",
-					},
-					"state": map[string]any{
-						"type":        "string",
-						"description": "The state of your task. This can be one of the following: working, complete, or failure. Select the state that best represents your current progress.",
-						"enum": []string{
-							string(codersdk.WorkspaceAppStatusStateWorking),
-							string(codersdk.WorkspaceAppStatusStateComplete),
-							string(codersdk.WorkspaceAppStatusStateFailure),
-						},
+// GenericHandlerFunc is a function that handles a tool call.
+type GenericHandlerFunc func(context.Context, Deps, json.RawMessage) (json.RawMessage, error)
+
+// NoArgs just represents an empty argument struct.
+type NoArgs struct{}
+
+// WithRecover wraps a HandlerFunc to recover from panics and return an error.
+func WithRecover(h GenericHandlerFunc) GenericHandlerFunc {
+	return func(ctx context.Context, deps Deps, args json.RawMessage) (ret json.RawMessage, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = xerrors.Errorf("tool handler panic: %v", r)
+			}
+		}()
+		return h(ctx, deps, args)
+	}
+}
+
+// WithCleanContext wraps a HandlerFunc to provide it with a new context.
+// This ensures that no data is passed using context.Value.
+// If a deadline is set on the parent context, it will be passed to the child
+// context.
+func WithCleanContext(h GenericHandlerFunc) GenericHandlerFunc {
+	return func(parent context.Context, deps Deps, args json.RawMessage) (ret json.RawMessage, err error) {
+		child, childCancel := context.WithCancel(context.Background())
+		defer childCancel()
+		// Ensure that the child context has the same deadline as the parent
+		// context.
+		if deadline, ok := parent.Deadline(); ok {
+			deadlineCtx, deadlineCancel := context.WithDeadline(child, deadline)
+			defer deadlineCancel()
+			child = deadlineCtx
+		}
+		// Ensure that cancellation propagates from the parent context to the child context.
+		go func() {
+			select {
+			case <-child.Done():
+				return
+			case <-parent.Done():
+				childCancel()
+			}
+		}()
+		return h(child, deps, args)
+	}
+}
+
+// wrap wraps the provided GenericHandlerFunc with the provided middleware functions.
+func wrap(hf GenericHandlerFunc, mw ...func(GenericHandlerFunc) GenericHandlerFunc) GenericHandlerFunc {
+	for _, m := range mw {
+		hf = m(hf)
+	}
+	return hf
+}
+
+// All is a list of all tools that can be used in the Coder CLI.
+// When you add a new tool, be sure to include it here!
+var All = []GenericTool{
+	CreateTemplate.Generic(),
+	CreateTemplateVersion.Generic(),
+	CreateWorkspace.Generic(),
+	CreateWorkspaceBuild.Generic(),
+	DeleteTemplate.Generic(),
+	ListTemplates.Generic(),
+	ListTemplateVersionParameters.Generic(),
+	ListWorkspaces.Generic(),
+	GetAuthenticatedUser.Generic(),
+	GetTemplateVersionLogs.Generic(),
+	GetWorkspace.Generic(),
+	GetWorkspaceAgentLogs.Generic(),
+	GetWorkspaceBuildLogs.Generic(),
+	ReportTask.Generic(),
+	UploadTarFile.Generic(),
+	UpdateTemplateActiveVersion.Generic(),
+}
+
+type ReportTaskArgs struct {
+	Link    string `json:"link"`
+	State   string `json:"state"`
+	Summary string `json:"summary"`
+}
+
+var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        "coder_report_task",
+		Description: "Report progress on a user task in Coder.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"summary": map[string]any{
+					"type":        "string",
+					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length.",
+				},
+				"link": map[string]any{
+					"type":        "string",
+					"description": "A link to a relevant resource, such as a PR or issue.",
+				},
+				"state": map[string]any{
+					"type":        "string",
+					"description": "The state of your task. This can be one of the following: working, complete, or failure. Select the state that best represents your current progress.",
+					"enum": []string{
+						string(codersdk.WorkspaceAppStatusStateWorking),
+						string(codersdk.WorkspaceAppStatusStateComplete),
+						string(codersdk.WorkspaceAppStatusStateFailure),
 					},
 				},
-				Required: []string{"summary", "link", "state"},
 			},
+			Required: []string{"summary", "link", "state"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (string, error) {
-			agentClient, err := agentClientFromContext(ctx)
-			if err != nil {
-				return "", xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
-			}
-			appSlug, ok := workspaceAppStatusSlugFromContext(ctx)
-			if !ok {
-				return "", xerrors.New("workspace app status slug not found in context")
-			}
-			summary, ok := args["summary"].(string)
-			if !ok {
-				return "", xerrors.New("summary must be a string")
-			}
-			if len(summary) > 160 {
-				return "", xerrors.New("summary must be less than 160 characters")
-			}
-			link, ok := args["link"].(string)
-			if !ok {
-				return "", xerrors.New("link must be a string")
-			}
-			state, ok := args["state"].(string)
-			if !ok {
-				return "", xerrors.New("state must be a string")
-			}
+	},
+	Handler: func(ctx context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
+		if deps.agentClient == nil {
+			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
+		}
+		if deps.appStatusSlug == "" {
+			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_MCP_APP_STATUS_SLUG is not set")
+		}
+		if len(args.Summary) > 160 {
+			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
+		}
+		if err := deps.agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: deps.appStatusSlug,
+			Message: args.Summary,
+			URI:     args.Link,
+			State:   codersdk.WorkspaceAppStatusState(args.State),
+		}); err != nil {
+			return codersdk.Response{}, err
+		}
+		return codersdk.Response{
+			Message: "Thanks for reporting!",
+		}, nil
+	},
+}
 
-			if err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-				AppSlug: appSlug,
-				Message: summary,
-				URI:     link,
-				State:   codersdk.WorkspaceAppStatusState(state),
-			}); err != nil {
-				return "", err
-			}
-			return "Thanks for reporting!", nil
-		},
-	}
+type GetWorkspaceArgs struct {
+	WorkspaceID string `json:"workspace_id"`
+}
 
-	GetWorkspace = Tool[codersdk.Workspace]{
-		Tool: aisdk.Tool{
-			Name: "coder_get_workspace",
-			Description: `Get a workspace by ID.
+var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
+	Tool: aisdk.Tool{
+		Name: "coder_get_workspace",
+		Description: `Get a workspace by ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"workspace_id": map[string]any{
-						"type": "string",
-					},
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"workspace_id"},
 			},
+			Required: []string{"workspace_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (codersdk.Workspace, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return codersdk.Workspace{}, err
-			}
-			workspaceID, err := uuidFromArgs(args, "workspace_id")
-			if err != nil {
-				return codersdk.Workspace{}, err
-			}
-			return client.Workspace(ctx, workspaceID)
-		},
-	}
+	},
+	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
+		wsID, err := uuid.Parse(args.WorkspaceID)
+		if err != nil {
+			return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
+		}
+		return deps.coderClient.Workspace(ctx, wsID)
+	},
+}
 
-	CreateWorkspace = Tool[codersdk.Workspace]{
-		Tool: aisdk.Tool{
-			Name: "coder_create_workspace",
-			Description: `Create a new workspace in Coder.
+type CreateWorkspaceArgs struct {
+	Name              string            `json:"name"`
+	RichParameters    map[string]string `json:"rich_parameters"`
+	TemplateVersionID string            `json:"template_version_id"`
+	User              string            `json:"user"`
+}
+
+var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
+	Tool: aisdk.Tool{
+		Name: "coder_create_workspace",
+		Description: `Create a new workspace in Coder.
 
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
 `,
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"user": map[string]any{
-						"type":        "string",
-						"description": "Username or ID of the user to create the workspace for. Use the `me` keyword to create a workspace for the authenticated user.",
-					},
-					"template_version_id": map[string]any{
-						"type":        "string",
-						"description": "ID of the template version to create the workspace from.",
-					},
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Name of the workspace to create.",
-					},
-					"rich_parameters": map[string]any{
-						"type":        "object",
-						"description": "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
-					},
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"user": map[string]any{
+					"type":        "string",
+					"description": "Username or ID of the user to create the workspace for. Use the `me` keyword to create a workspace for the authenticated user.",
 				},
-				Required: []string{"user", "template_version_id", "name", "rich_parameters"},
+				"template_version_id": map[string]any{
+					"type":        "string",
+					"description": "ID of the template version to create the workspace from.",
+				},
+				"name": map[string]any{
+					"type":        "string",
+					"description": "Name of the workspace to create.",
+				},
+				"rich_parameters": map[string]any{
+					"type":        "object",
+					"description": "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
+				},
 			},
+			Required: []string{"user", "template_version_id", "name", "rich_parameters"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (codersdk.Workspace, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return codersdk.Workspace{}, err
-			}
-			templateVersionID, err := uuidFromArgs(args, "template_version_id")
-			if err != nil {
-				return codersdk.Workspace{}, err
-			}
-			name, ok := args["name"].(string)
-			if !ok {
-				return codersdk.Workspace{}, xerrors.New("workspace name must be a string")
-			}
-			workspace, err := client.CreateUserWorkspace(ctx, "me", codersdk.CreateWorkspaceRequest{
-				TemplateVersionID: templateVersionID,
-				Name:              name,
+	},
+	Handler: func(ctx context.Context, deps Deps, args CreateWorkspaceArgs) (codersdk.Workspace, error) {
+		tvID, err := uuid.Parse(args.TemplateVersionID)
+		if err != nil {
+			return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
+		}
+		if args.User == "" {
+			args.User = codersdk.Me
+		}
+		var buildParams []codersdk.WorkspaceBuildParameter
+		for k, v := range args.RichParameters {
+			buildParams = append(buildParams, codersdk.WorkspaceBuildParameter{
+				Name:  k,
+				Value: v,
 			})
-			if err != nil {
-				return codersdk.Workspace{}, err
-			}
-			return workspace, nil
-		},
-	}
+		}
+		workspace, err := deps.coderClient.CreateUserWorkspace(ctx, args.User, codersdk.CreateWorkspaceRequest{
+			TemplateVersionID:   tvID,
+			Name:                args.Name,
+			RichParameterValues: buildParams,
+		})
+		if err != nil {
+			return codersdk.Workspace{}, err
+		}
+		return workspace, nil
+	},
+}
 
-	ListWorkspaces = Tool[[]MinimalWorkspace]{
-		Tool: aisdk.Tool{
-			Name:        "coder_list_workspaces",
-			Description: "Lists workspaces for the authenticated user.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"owner": map[string]any{
-						"type":        "string",
-						"description": "The owner of the workspaces to list. Use \"me\" to list workspaces for the authenticated user. If you do not specify an owner, \"me\" will be assumed by default.",
-					},
+type ListWorkspacesArgs struct {
+	Owner string `json:"owner"`
+}
+
+var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
+	Tool: aisdk.Tool{
+		Name:        "coder_list_workspaces",
+		Description: "Lists workspaces for the authenticated user.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"owner": map[string]any{
+					"type":        "string",
+					"description": "The owner of the workspaces to list. Use \"me\" to list workspaces for the authenticated user. If you do not specify an owner, \"me\" will be assumed by default.",
 				},
 			},
+			Required: []string{},
 		},
-		Handler: func(ctx context.Context, args map[string]any) ([]MinimalWorkspace, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return nil, err
+	},
+	Handler: func(ctx context.Context, deps Deps, args ListWorkspacesArgs) ([]MinimalWorkspace, error) {
+		owner := args.Owner
+		if owner == "" {
+			owner = codersdk.Me
+		}
+		workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Owner: owner,
+		})
+		if err != nil {
+			return nil, err
+		}
+		minimalWorkspaces := make([]MinimalWorkspace, len(workspaces.Workspaces))
+		for i, workspace := range workspaces.Workspaces {
+			minimalWorkspaces[i] = MinimalWorkspace{
+				ID:                      workspace.ID.String(),
+				Name:                    workspace.Name,
+				TemplateID:              workspace.TemplateID.String(),
+				TemplateName:            workspace.TemplateName,
+				TemplateDisplayName:     workspace.TemplateDisplayName,
+				TemplateIcon:            workspace.TemplateIcon,
+				TemplateActiveVersionID: workspace.TemplateActiveVersionID,
+				Outdated:                workspace.Outdated,
 			}
-			owner, ok := args["owner"].(string)
-			if !ok {
-				owner = codersdk.Me
-			}
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-				Owner: owner,
-			})
-			if err != nil {
-				return nil, err
-			}
-			minimalWorkspaces := make([]MinimalWorkspace, len(workspaces.Workspaces))
-			for i, workspace := range workspaces.Workspaces {
-				minimalWorkspaces[i] = MinimalWorkspace{
-					ID:                      workspace.ID.String(),
-					Name:                    workspace.Name,
-					TemplateID:              workspace.TemplateID.String(),
-					TemplateName:            workspace.TemplateName,
-					TemplateDisplayName:     workspace.TemplateDisplayName,
-					TemplateIcon:            workspace.TemplateIcon,
-					TemplateActiveVersionID: workspace.TemplateActiveVersionID,
-					Outdated:                workspace.Outdated,
-				}
-			}
-			return minimalWorkspaces, nil
-		},
-	}
+		}
+		return minimalWorkspaces, nil
+	},
+}
 
-	ListTemplates = Tool[[]MinimalTemplate]{
-		Tool: aisdk.Tool{
-			Name:        "coder_list_templates",
-			Description: "Lists templates for the authenticated user.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{},
-				Required:   []string{},
-			},
+var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
+	Tool: aisdk.Tool{
+		Name:        "coder_list_templates",
+		Description: "Lists templates for the authenticated user.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{},
+			Required:   []string{},
 		},
-		Handler: func(ctx context.Context, _ map[string]any) ([]MinimalTemplate, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return nil, err
+	},
+	Handler: func(ctx context.Context, deps Deps, _ NoArgs) ([]MinimalTemplate, error) {
+		templates, err := deps.coderClient.Templates(ctx, codersdk.TemplateFilter{})
+		if err != nil {
+			return nil, err
+		}
+		minimalTemplates := make([]MinimalTemplate, len(templates))
+		for i, template := range templates {
+			minimalTemplates[i] = MinimalTemplate{
+				DisplayName:     template.DisplayName,
+				ID:              template.ID.String(),
+				Name:            template.Name,
+				Description:     template.Description,
+				ActiveVersionID: template.ActiveVersionID,
+				ActiveUserCount: template.ActiveUserCount,
 			}
-			templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
-			if err != nil {
-				return nil, err
-			}
-			minimalTemplates := make([]MinimalTemplate, len(templates))
-			for i, template := range templates {
-				minimalTemplates[i] = MinimalTemplate{
-					DisplayName:     template.DisplayName,
-					ID:              template.ID.String(),
-					Name:            template.Name,
-					Description:     template.Description,
-					ActiveVersionID: template.ActiveVersionID,
-					ActiveUserCount: template.ActiveUserCount,
-				}
-			}
-			return minimalTemplates, nil
-		},
-	}
+		}
+		return minimalTemplates, nil
+	},
+}
 
-	ListTemplateVersionParameters = Tool[[]codersdk.TemplateVersionParameter]{
-		Tool: aisdk.Tool{
-			Name:        "coder_template_version_parameters",
-			Description: "Get the parameters for a template version. You can refer to these as workspace parameters to the user, as they are typically important for creating a workspace.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"template_version_id": map[string]any{
-						"type": "string",
-					},
+type ListTemplateVersionParametersArgs struct {
+	TemplateVersionID string `json:"template_version_id"`
+}
+
+var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []codersdk.TemplateVersionParameter]{
+	Tool: aisdk.Tool{
+		Name:        "coder_template_version_parameters",
+		Description: "Get the parameters for a template version. You can refer to these as workspace parameters to the user, as they are typically important for creating a workspace.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"template_version_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"template_version_id"},
 			},
+			Required: []string{"template_version_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) ([]codersdk.TemplateVersionParameter, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return nil, err
-			}
-			templateVersionID, err := uuidFromArgs(args, "template_version_id")
-			if err != nil {
-				return nil, err
-			}
-			parameters, err := client.TemplateVersionRichParameters(ctx, templateVersionID)
-			if err != nil {
-				return nil, err
-			}
-			return parameters, nil
-		},
-	}
+	},
+	Handler: func(ctx context.Context, deps Deps, args ListTemplateVersionParametersArgs) ([]codersdk.TemplateVersionParameter, error) {
+		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
+		if err != nil {
+			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
+		}
+		parameters, err := deps.coderClient.TemplateVersionRichParameters(ctx, templateVersionID)
+		if err != nil {
+			return nil, err
+		}
+		return parameters, nil
+	},
+}
 
-	GetAuthenticatedUser = Tool[codersdk.User]{
-		Tool: aisdk.Tool{
-			Name:        "coder_get_authenticated_user",
-			Description: "Get the currently authenticated user, similar to the `whoami` command.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{},
-				Required:   []string{},
-			},
+var GetAuthenticatedUser = Tool[NoArgs, codersdk.User]{
+	Tool: aisdk.Tool{
+		Name:        "coder_get_authenticated_user",
+		Description: "Get the currently authenticated user, similar to the `whoami` command.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{},
+			Required:   []string{},
 		},
-		Handler: func(ctx context.Context, _ map[string]any) (codersdk.User, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return codersdk.User{}, err
-			}
-			return client.User(ctx, "me")
-		},
-	}
+	},
+	Handler: func(ctx context.Context, deps Deps, _ NoArgs) (codersdk.User, error) {
+		return deps.coderClient.User(ctx, "me")
+	},
+}
 
-	CreateWorkspaceBuild = Tool[codersdk.WorkspaceBuild]{
-		Tool: aisdk.Tool{
-			Name:        "coder_create_workspace_build",
-			Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"workspace_id": map[string]any{
-						"type": "string",
-					},
-					"transition": map[string]any{
-						"type":        "string",
-						"description": "The transition to perform. Must be one of: start, stop, delete",
-						"enum":        []string{"start", "stop", "delete"},
-					},
-					"template_version_id": map[string]any{
-						"type":        "string",
-						"description": "(Optional) The template version ID to use for the workspace build. If not provided, the previously built version will be used.",
-					},
+type CreateWorkspaceBuildArgs struct {
+	TemplateVersionID string `json:"template_version_id"`
+	Transition        string `json:"transition"`
+	WorkspaceID       string `json:"workspace_id"`
+}
+
+var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
+	Tool: aisdk.Tool{
+		Name:        "coder_create_workspace_build",
+		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"workspace_id", "transition"},
+				"transition": map[string]any{
+					"type":        "string",
+					"description": "The transition to perform. Must be one of: start, stop, delete",
+					"enum":        []string{"start", "stop", "delete"},
+				},
+				"template_version_id": map[string]any{
+					"type":        "string",
+					"description": "(Optional) The template version ID to use for the workspace build. If not provided, the previously built version will be used.",
+				},
 			},
+			Required: []string{"workspace_id", "transition"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (codersdk.WorkspaceBuild, error) {
-			client, err := clientFromContext(ctx)
+	},
+	Handler: func(ctx context.Context, deps Deps, args CreateWorkspaceBuildArgs) (codersdk.WorkspaceBuild, error) {
+		workspaceID, err := uuid.Parse(args.WorkspaceID)
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("workspace_id must be a valid UUID: %w", err)
+		}
+		var templateVersionID uuid.UUID
+		if args.TemplateVersionID != "" {
+			tvID, err := uuid.Parse(args.TemplateVersionID)
 			if err != nil {
-				return codersdk.WorkspaceBuild{}, err
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 			}
-			workspaceID, err := uuidFromArgs(args, "workspace_id")
-			if err != nil {
-				return codersdk.WorkspaceBuild{}, err
-			}
-			rawTransition, ok := args["transition"].(string)
-			if !ok {
-				return codersdk.WorkspaceBuild{}, xerrors.New("transition must be a string")
-			}
-			templateVersionID, err := uuidFromArgs(args, "template_version_id")
-			if err != nil {
-				return codersdk.WorkspaceBuild{}, err
-			}
-			cbr := codersdk.CreateWorkspaceBuildRequest{
-				Transition: codersdk.WorkspaceTransition(rawTransition),
-			}
-			if templateVersionID != uuid.Nil {
-				cbr.TemplateVersionID = templateVersionID
-			}
-			return client.CreateWorkspaceBuild(ctx, workspaceID, cbr)
-		},
-	}
+			templateVersionID = tvID
+		}
+		cbr := codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransition(args.Transition),
+		}
+		if templateVersionID != uuid.Nil {
+			cbr.TemplateVersionID = templateVersionID
+		}
+		return deps.coderClient.CreateWorkspaceBuild(ctx, workspaceID, cbr)
+	},
+}
 
-	CreateTemplateVersion = Tool[codersdk.TemplateVersion]{
-		Tool: aisdk.Tool{
-			Name: "coder_create_template_version",
-			Description: `Create a new template version. This is a precursor to creating a template, or you can update an existing template.
+type CreateTemplateVersionArgs struct {
+	FileID     string `json:"file_id"`
+	TemplateID string `json:"template_id"`
+}
+
+var CreateTemplateVersion = Tool[CreateTemplateVersionArgs, codersdk.TemplateVersion]{
+	Tool: aisdk.Tool{
+		Name: "coder_create_template_version",
+		Description: `Create a new template version. This is a precursor to creating a template, or you can update an existing template.
 
 Templates are Terraform defining a development environment. The provisioned infrastructure must run
 an Agent that connects to the Coder Control Plane to provide a rich experience.
@@ -479,7 +591,7 @@ This resource provides the following fields:
 - init_script: The script to run on provisioned infrastructure to fetch and start the agent.
 - token: Set the environment variable CODER_AGENT_TOKEN to this value to authenticate the agent.
 
-The agent MUST be installed and started using the init_script.
+The agent MUST be installed and started using the init_script. A utility like curl or wget to fetch the agent binary must exist in the provisioned infrastructure.
 
 Expose terminal or HTTP applications running in a workspace with:
 
@@ -599,13 +711,20 @@ resource "google_compute_instance" "dev" {
     auto_delete = false
     source      = google_compute_disk.root.name
   }
+  // In order to use google-instance-identity, a service account *must* be provided.
   service_account {
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
+  # ONLY FOR WINDOWS:
+  # metadata = {
+  #   windows-startup-script-ps1 = coder_agent.main.init_script
+  # }
   # The startup script runs as root with no $HOME environment set up, so instead of directly
   # running the agent init script, create a user (with a homedir, default shell and sudo
   # permissions) and execute the init script as that user.
+  #
+  # The agent MUST be started in here.
   metadata_startup_script = <<EOMETA
 #!/usr/bin/env sh
 set -eux
@@ -821,364 +940,347 @@ resource "kubernetes_deployment" "main" {
 
 The file_id provided is a reference to a tar file you have uploaded containing the Terraform.
 `,
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"template_id": map[string]any{
-						"type": "string",
-					},
-					"file_id": map[string]any{
-						"type": "string",
-					},
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"template_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"file_id"},
-			},
-		},
-		Handler: func(ctx context.Context, args map[string]any) (codersdk.TemplateVersion, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return codersdk.TemplateVersion{}, err
-			}
-			me, err := client.User(ctx, "me")
-			if err != nil {
-				return codersdk.TemplateVersion{}, err
-			}
-			fileID, err := uuidFromArgs(args, "file_id")
-			if err != nil {
-				return codersdk.TemplateVersion{}, err
-			}
-			var templateID uuid.UUID
-			if args["template_id"] != nil {
-				templateID, err = uuidFromArgs(args, "template_id")
-				if err != nil {
-					return codersdk.TemplateVersion{}, err
-				}
-			}
-			templateVersion, err := client.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
-				Message:       "Created by AI",
-				StorageMethod: codersdk.ProvisionerStorageMethodFile,
-				FileID:        fileID,
-				Provisioner:   codersdk.ProvisionerTypeTerraform,
-				TemplateID:    templateID,
-			})
-			if err != nil {
-				return codersdk.TemplateVersion{}, err
-			}
-			return templateVersion, nil
-		},
-	}
-
-	GetWorkspaceAgentLogs = Tool[[]string]{
-		Tool: aisdk.Tool{
-			Name: "coder_get_workspace_agent_logs",
-			Description: `Get the logs of a workspace agent.
-
-More logs may appear after this call. It does not wait for the agent to finish.`,
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"workspace_agent_id": map[string]any{
-						"type": "string",
-					},
+				"file_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"workspace_agent_id"},
 			},
+			Required: []string{"file_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) ([]string, error) {
-			client, err := clientFromContext(ctx)
+	},
+	Handler: func(ctx context.Context, deps Deps, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
+		me, err := deps.coderClient.User(ctx, "me")
+		if err != nil {
+			return codersdk.TemplateVersion{}, err
+		}
+		fileID, err := uuid.Parse(args.FileID)
+		if err != nil {
+			return codersdk.TemplateVersion{}, xerrors.Errorf("file_id must be a valid UUID: %w", err)
+		}
+		var templateID uuid.UUID
+		if args.TemplateID != "" {
+			tid, err := uuid.Parse(args.TemplateID)
 			if err != nil {
-				return nil, err
+				return codersdk.TemplateVersion{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 			}
-			workspaceAgentID, err := uuidFromArgs(args, "workspace_agent_id")
-			if err != nil {
-				return nil, err
-			}
-			logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, workspaceAgentID, 0, false)
-			if err != nil {
-				return nil, err
-			}
-			defer closer.Close()
-			var acc []string
-			for logChunk := range logs {
-				for _, log := range logChunk {
-					acc = append(acc, log.Output)
-				}
-			}
-			return acc, nil
-		},
-	}
+			templateID = tid
+		}
+		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
+			Message:       "Created by AI",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			FileID:        fileID,
+			Provisioner:   codersdk.ProvisionerTypeTerraform,
+			TemplateID:    templateID,
+		})
+		if err != nil {
+			return codersdk.TemplateVersion{}, err
+		}
+		return templateVersion, nil
+	},
+}
 
-	GetWorkspaceBuildLogs = Tool[[]string]{
-		Tool: aisdk.Tool{
-			Name: "coder_get_workspace_build_logs",
-			Description: `Get the logs of a workspace build.
+type GetWorkspaceAgentLogsArgs struct {
+	WorkspaceAgentID string `json:"workspace_agent_id"`
+}
 
-Useful for checking whether a workspace builds successfully or not.`,
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"workspace_build_id": map[string]any{
-						"type": "string",
-					},
+var GetWorkspaceAgentLogs = Tool[GetWorkspaceAgentLogsArgs, []string]{
+	Tool: aisdk.Tool{
+		Name: "coder_get_workspace_agent_logs",
+		Description: `Get the logs of a workspace agent.
+
+		More logs may appear after this call. It does not wait for the agent to finish.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace_agent_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"workspace_build_id"},
 			},
+			Required: []string{"workspace_agent_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) ([]string, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return nil, err
-			}
-			workspaceBuildID, err := uuidFromArgs(args, "workspace_build_id")
-			if err != nil {
-				return nil, err
-			}
-			logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspaceBuildID, 0)
-			if err != nil {
-				return nil, err
-			}
-			defer closer.Close()
-			var acc []string
-			for log := range logs {
+	},
+	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceAgentLogsArgs) ([]string, error) {
+		workspaceAgentID, err := uuid.Parse(args.WorkspaceAgentID)
+		if err != nil {
+			return nil, xerrors.Errorf("workspace_agent_id must be a valid UUID: %w", err)
+		}
+		logs, closer, err := deps.coderClient.WorkspaceAgentLogsAfter(ctx, workspaceAgentID, 0, false)
+		if err != nil {
+			return nil, err
+		}
+		defer closer.Close()
+		var acc []string
+		for logChunk := range logs {
+			for _, log := range logChunk {
 				acc = append(acc, log.Output)
 			}
-			return acc, nil
-		},
-	}
+		}
+		return acc, nil
+	},
+}
 
-	GetTemplateVersionLogs = Tool[[]string]{
-		Tool: aisdk.Tool{
-			Name:        "coder_get_template_version_logs",
-			Description: "Get the logs of a template version. This is useful to check whether a template version successfully imports or not.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"template_version_id": map[string]any{
-						"type": "string",
-					},
+type GetWorkspaceBuildLogsArgs struct {
+	WorkspaceBuildID string `json:"workspace_build_id"`
+}
+
+var GetWorkspaceBuildLogs = Tool[GetWorkspaceBuildLogsArgs, []string]{
+	Tool: aisdk.Tool{
+		Name: "coder_get_workspace_build_logs",
+		Description: `Get the logs of a workspace build.
+
+		Useful for checking whether a workspace builds successfully or not.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace_build_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"template_version_id"},
 			},
+			Required: []string{"workspace_build_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) ([]string, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return nil, err
-			}
-			templateVersionID, err := uuidFromArgs(args, "template_version_id")
-			if err != nil {
-				return nil, err
-			}
+	},
+	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceBuildLogsArgs) ([]string, error) {
+		workspaceBuildID, err := uuid.Parse(args.WorkspaceBuildID)
+		if err != nil {
+			return nil, xerrors.Errorf("workspace_build_id must be a valid UUID: %w", err)
+		}
+		logs, closer, err := deps.coderClient.WorkspaceBuildLogsAfter(ctx, workspaceBuildID, 0)
+		if err != nil {
+			return nil, err
+		}
+		defer closer.Close()
+		var acc []string
+		for log := range logs {
+			acc = append(acc, log.Output)
+		}
+		return acc, nil
+	},
+}
 
-			logs, closer, err := client.TemplateVersionLogsAfter(ctx, templateVersionID, 0)
-			if err != nil {
-				return nil, err
-			}
-			defer closer.Close()
-			var acc []string
-			for log := range logs {
-				acc = append(acc, log.Output)
-			}
-			return acc, nil
-		},
-	}
+type GetTemplateVersionLogsArgs struct {
+	TemplateVersionID string `json:"template_version_id"`
+}
 
-	UpdateTemplateActiveVersion = Tool[string]{
-		Tool: aisdk.Tool{
-			Name:        "coder_update_template_active_version",
-			Description: "Update the active version of a template. This is helpful when iterating on templates.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"template_id": map[string]any{
-						"type": "string",
-					},
-					"template_version_id": map[string]any{
-						"type": "string",
-					},
+var GetTemplateVersionLogs = Tool[GetTemplateVersionLogsArgs, []string]{
+	Tool: aisdk.Tool{
+		Name:        "coder_get_template_version_logs",
+		Description: "Get the logs of a template version. This is useful to check whether a template version successfully imports or not.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"template_version_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"template_id", "template_version_id"},
 			},
+			Required: []string{"template_version_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (string, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return "", err
-			}
-			templateID, err := uuidFromArgs(args, "template_id")
-			if err != nil {
-				return "", err
-			}
-			templateVersionID, err := uuidFromArgs(args, "template_version_id")
-			if err != nil {
-				return "", err
-			}
-			err = client.UpdateActiveTemplateVersion(ctx, templateID, codersdk.UpdateActiveTemplateVersion{
-				ID: templateVersionID,
-			})
-			if err != nil {
-				return "", err
-			}
-			return "Successfully updated active version!", nil
-		},
-	}
+	},
+	Handler: func(ctx context.Context, deps Deps, args GetTemplateVersionLogsArgs) ([]string, error) {
+		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
+		if err != nil {
+			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
+		}
 
-	UploadTarFile = Tool[codersdk.UploadResponse]{
-		Tool: aisdk.Tool{
-			Name:        "coder_upload_tar_file",
-			Description: `Create and upload a tar file by key/value mapping of file names to file contents. Use this to create template versions. Reference the tool description of "create_template_version" to understand template requirements.`,
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"mime_type": map[string]any{
-						"type": "string",
-					},
-					"files": map[string]any{
-						"type":        "object",
-						"description": "A map of file names to file contents.",
-					},
+		logs, closer, err := deps.coderClient.TemplateVersionLogsAfter(ctx, templateVersionID, 0)
+		if err != nil {
+			return nil, err
+		}
+		defer closer.Close()
+		var acc []string
+		for log := range logs {
+			acc = append(acc, log.Output)
+		}
+		return acc, nil
+	},
+}
+
+type UpdateTemplateActiveVersionArgs struct {
+	TemplateID        string `json:"template_id"`
+	TemplateVersionID string `json:"template_version_id"`
+}
+
+var UpdateTemplateActiveVersion = Tool[UpdateTemplateActiveVersionArgs, string]{
+	Tool: aisdk.Tool{
+		Name:        "coder_update_template_active_version",
+		Description: "Update the active version of a template. This is helpful when iterating on templates.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"template_id": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"mime_type", "files"},
+				"template_version_id": map[string]any{
+					"type": "string",
+				},
 			},
+			Required: []string{"template_id", "template_version_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (codersdk.UploadResponse, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return codersdk.UploadResponse{}, err
-			}
+	},
+	Handler: func(ctx context.Context, deps Deps, args UpdateTemplateActiveVersionArgs) (string, error) {
+		templateID, err := uuid.Parse(args.TemplateID)
+		if err != nil {
+			return "", xerrors.Errorf("template_id must be a valid UUID: %w", err)
+		}
+		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
+		if err != nil {
+			return "", xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
+		}
+		err = deps.coderClient.UpdateActiveTemplateVersion(ctx, templateID, codersdk.UpdateActiveTemplateVersion{
+			ID: templateVersionID,
+		})
+		if err != nil {
+			return "", err
+		}
+		return "Successfully updated active version!", nil
+	},
+}
 
-			files, ok := args["files"].(map[string]any)
-			if !ok {
-				return codersdk.UploadResponse{}, xerrors.New("files must be a map")
-			}
+type UploadTarFileArgs struct {
+	Files map[string]string `json:"files"`
+}
 
-			pipeReader, pipeWriter := io.Pipe()
-			go func() {
-				defer pipeWriter.Close()
-				tarWriter := tar.NewWriter(pipeWriter)
-				for name, content := range files {
-					contentStr, ok := content.(string)
-					if !ok {
-						_ = pipeWriter.CloseWithError(xerrors.New("file content must be a string"))
-						return
-					}
-					header := &tar.Header{
-						Name: name,
-						Size: int64(len(contentStr)),
-						Mode: 0o644,
-					}
-					if err := tarWriter.WriteHeader(header); err != nil {
-						_ = pipeWriter.CloseWithError(err)
-						return
-					}
-					if _, err := tarWriter.Write([]byte(contentStr)); err != nil {
-						_ = pipeWriter.CloseWithError(err)
-						return
-					}
-				}
-				if err := tarWriter.Close(); err != nil {
-					_ = pipeWriter.CloseWithError(err)
-				}
+var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
+	Tool: aisdk.Tool{
+		Name:        "coder_upload_tar_file",
+		Description: `Create and upload a tar file by key/value mapping of file names to file contents. Use this to create template versions. Reference the tool description of "create_template_version" to understand template requirements.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"files": map[string]any{
+					"type":        "object",
+					"description": "A map of file names to file contents.",
+				},
+			},
+			Required: []string{"files"},
+		},
+	},
+	Handler: func(ctx context.Context, deps Deps, args UploadTarFileArgs) (codersdk.UploadResponse, error) {
+		pipeReader, pipeWriter := io.Pipe()
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				_ = pipeWriter.Close()
+				close(done)
 			}()
-
-			resp, err := client.Upload(ctx, codersdk.ContentTypeTar, pipeReader)
-			if err != nil {
-				return codersdk.UploadResponse{}, err
+			tarWriter := tar.NewWriter(pipeWriter)
+			for name, content := range args.Files {
+				header := &tar.Header{
+					Name: name,
+					Size: int64(len(content)),
+					Mode: 0o644,
+				}
+				if err := tarWriter.WriteHeader(header); err != nil {
+					_ = pipeWriter.CloseWithError(err)
+					return
+				}
+				if _, err := tarWriter.Write([]byte(content)); err != nil {
+					_ = pipeWriter.CloseWithError(err)
+					return
+				}
 			}
-			return resp, nil
-		},
-	}
+			if err := tarWriter.Close(); err != nil {
+				_ = pipeWriter.CloseWithError(err)
+			}
+		}()
 
-	CreateTemplate = Tool[codersdk.Template]{
-		Tool: aisdk.Tool{
-			Name:        "coder_create_template",
-			Description: "Create a new template in Coder. First, you must create a template version.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"name": map[string]any{
-						"type": "string",
-					},
-					"display_name": map[string]any{
-						"type": "string",
-					},
-					"description": map[string]any{
-						"type": "string",
-					},
-					"icon": map[string]any{
-						"type":        "string",
-						"description": "A URL to an icon to use.",
-					},
-					"version_id": map[string]any{
-						"type":        "string",
-						"description": "The ID of the version to use.",
-					},
+		resp, err := deps.coderClient.Upload(ctx, codersdk.ContentTypeTar, pipeReader)
+		if err != nil {
+			_ = pipeReader.CloseWithError(err)
+			<-done
+			return codersdk.UploadResponse{}, err
+		}
+		<-done
+		return resp, nil
+	},
+}
+
+type CreateTemplateArgs struct {
+	Description string `json:"description"`
+	DisplayName string `json:"display_name"`
+	Icon        string `json:"icon"`
+	Name        string `json:"name"`
+	VersionID   string `json:"version_id"`
+}
+
+var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
+	Tool: aisdk.Tool{
+		Name:        "coder_create_template",
+		Description: "Create a new template in Coder. First, you must create a template version.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"name": map[string]any{
+					"type": "string",
 				},
-				Required: []string{"name", "display_name", "description", "version_id"},
-			},
-		},
-		Handler: func(ctx context.Context, args map[string]any) (codersdk.Template, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return codersdk.Template{}, err
-			}
-			me, err := client.User(ctx, "me")
-			if err != nil {
-				return codersdk.Template{}, err
-			}
-			versionID, err := uuidFromArgs(args, "version_id")
-			if err != nil {
-				return codersdk.Template{}, err
-			}
-			name, ok := args["name"].(string)
-			if !ok {
-				return codersdk.Template{}, xerrors.New("name must be a string")
-			}
-			displayName, ok := args["display_name"].(string)
-			if !ok {
-				return codersdk.Template{}, xerrors.New("display_name must be a string")
-			}
-			description, ok := args["description"].(string)
-			if !ok {
-				return codersdk.Template{}, xerrors.New("description must be a string")
-			}
-
-			template, err := client.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
-				Name:        name,
-				DisplayName: displayName,
-				Description: description,
-				VersionID:   versionID,
-			})
-			if err != nil {
-				return codersdk.Template{}, err
-			}
-			return template, nil
-		},
-	}
-
-	DeleteTemplate = Tool[string]{
-		Tool: aisdk.Tool{
-			Name:        "coder_delete_template",
-			Description: "Delete a template. This is irreversible.",
-			Schema: aisdk.Schema{
-				Properties: map[string]any{
-					"template_id": map[string]any{
-						"type": "string",
-					},
+				"display_name": map[string]any{
+					"type": "string",
+				},
+				"description": map[string]any{
+					"type": "string",
+				},
+				"icon": map[string]any{
+					"type":        "string",
+					"description": "A URL to an icon to use.",
+				},
+				"version_id": map[string]any{
+					"type":        "string",
+					"description": "The ID of the version to use.",
 				},
 			},
+			Required: []string{"name", "display_name", "description", "version_id"},
 		},
-		Handler: func(ctx context.Context, args map[string]any) (string, error) {
-			client, err := clientFromContext(ctx)
-			if err != nil {
-				return "", err
-			}
+	},
+	Handler: func(ctx context.Context, deps Deps, args CreateTemplateArgs) (codersdk.Template, error) {
+		me, err := deps.coderClient.User(ctx, "me")
+		if err != nil {
+			return codersdk.Template{}, err
+		}
+		versionID, err := uuid.Parse(args.VersionID)
+		if err != nil {
+			return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
+		}
+		template, err := deps.coderClient.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
+			Name:        args.Name,
+			DisplayName: args.DisplayName,
+			Description: args.Description,
+			VersionID:   versionID,
+		})
+		if err != nil {
+			return codersdk.Template{}, err
+		}
+		return template, nil
+	},
+}
 
-			templateID, err := uuidFromArgs(args, "template_id")
-			if err != nil {
-				return "", err
-			}
-			err = client.DeleteTemplate(ctx, templateID)
-			if err != nil {
-				return "", err
-			}
-			return "Successfully deleted template!", nil
+type DeleteTemplateArgs struct {
+	TemplateID string `json:"template_id"`
+}
+
+var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        "coder_delete_template",
+		Description: "Delete a template. This is irreversible.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"template_id": map[string]any{
+					"type": "string",
+				},
+			},
+			Required: []string{"template_id"},
 		},
-	}
-)
+	},
+	Handler: func(ctx context.Context, deps Deps, args DeleteTemplateArgs) (codersdk.Response, error) {
+		templateID, err := uuid.Parse(args.TemplateID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
+		}
+		err = deps.coderClient.DeleteTemplate(ctx, templateID)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		return codersdk.Response{
+			Message: "Template deleted successfully.",
+		}, nil
+	},
+}
 
 type MinimalWorkspace struct {
 	ID                      string    `json:"id"`
@@ -1198,62 +1300,4 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
-}
-
-func clientFromContext(ctx context.Context) (*codersdk.Client, error) {
-	client, ok := ctx.Value(clientContextKey{}).(*codersdk.Client)
-	if !ok {
-		return nil, xerrors.New("client required in context")
-	}
-	return client, nil
-}
-
-type clientContextKey struct{}
-
-func WithClient(ctx context.Context, client *codersdk.Client) context.Context {
-	return context.WithValue(ctx, clientContextKey{}, client)
-}
-
-type agentClientContextKey struct{}
-
-func WithAgentClient(ctx context.Context, client *agentsdk.Client) context.Context {
-	return context.WithValue(ctx, agentClientContextKey{}, client)
-}
-
-func agentClientFromContext(ctx context.Context) (*agentsdk.Client, error) {
-	client, ok := ctx.Value(agentClientContextKey{}).(*agentsdk.Client)
-	if !ok {
-		return nil, xerrors.New("agent client required in context")
-	}
-	return client, nil
-}
-
-type workspaceAppStatusSlugContextKey struct{}
-
-func WithWorkspaceAppStatusSlug(ctx context.Context, slug string) context.Context {
-	return context.WithValue(ctx, workspaceAppStatusSlugContextKey{}, slug)
-}
-
-func workspaceAppStatusSlugFromContext(ctx context.Context) (string, bool) {
-	slug, ok := ctx.Value(workspaceAppStatusSlugContextKey{}).(string)
-	if !ok || slug == "" {
-		return "", false
-	}
-	return slug, true
-}
-
-func uuidFromArgs(args map[string]any, key string) (uuid.UUID, error) {
-	argKey, ok := args[key]
-	if !ok {
-		return uuid.Nil, nil // No error if key is not present
-	}
-	raw, ok := argKey.(string)
-	if !ok {
-		return uuid.Nil, xerrors.Errorf("%s must be a string", key)
-	}
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("failed to parse %s: %w", key, err)
-	}
-	return id, nil
 }

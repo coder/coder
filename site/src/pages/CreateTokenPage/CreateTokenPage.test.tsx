@@ -5,7 +5,7 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { CreateTokenPage } from "./CreateTokenPage";
+import CreateTokenPage from "./CreateTokenPage";
 
 describe("TokenPage", () => {
 	it("shows the success modal", async () => {

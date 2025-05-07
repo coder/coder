@@ -353,6 +353,10 @@ resource "coder_agent" "dev" {
     # Allow synchronization between scripts.
     trap 'touch /tmp/.coder-startup-script.done' EXIT
 
+    # Increase the shutdown timeout of the docker service for improved cleanup.
+    # The 240 was picked as it's lower than the 300 seconds we set for the
+    # container shutdown grace period.
+    sudo sh -c 'jq ". += {\"shutdown-timeout\": 240}" /etc/docker/daemon.json > /tmp/daemon.json.new && mv /tmp/daemon.json.new /etc/docker/daemon.json'
     # Start Docker service
     sudo service docker start
     # Install playwright dependencies
