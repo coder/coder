@@ -143,6 +143,7 @@ func (m *Manager) Run(ctx context.Context) {
 	m.runOnce.Do(func() {
 		// Closes when Stop() is called or context is canceled.
 		go func() {
+			m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
 			err := m.loop(ctx)
 			if err != nil {
 				m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
@@ -174,9 +175,8 @@ func (m *Manager) loop(ctx context.Context) error {
 
 	var eg errgroup.Group
 
-	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
 	eg.Go(func() error {
+		// run the notifier which will handle dequeueing and dispatching notifications.
 		return m.notifier.run(m.success, m.failure)
 	})
 
