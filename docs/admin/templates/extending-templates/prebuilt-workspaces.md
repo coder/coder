@@ -30,7 +30,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 
 ## Enable prebuilt workspaces for template presets
 
-In your template, add a `prebuilds` block within a `coder_workspace_preset` definition to identify how many prebuilt
+In your template, add a `prebuilds` block within a `coder_workspace_preset` definition to identify the number of prebuilt
 instances your Coder deployment should maintain:
 
    ```hcl
@@ -71,7 +71,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. The agent starts its bootstrap procedures and completes its startup scripts.
    1. The agent reports `ready` status.
 
-   Only once the agent reports `ready` is the prebuilt workspace considered eligible.
+      After the agent reports `ready`, the prebuilt workspace considered eligible to be claimed.
 
    Prebuilt workspaces that fail during provisioning are retried with a backoff to prevent transient failures.
 
@@ -84,12 +84,11 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
       datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
 
-   The process is transparent to the developer - they simply see a workspace ready faster than normal.
+   The process is invisible to the developer - their workspace is ready faster than usual.
 
 You can view available prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
 ![A prebuilt workspace in the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
-
 _Note the search term `owner:prebuilds`._
 
 ### Template updates and the prebuilt workspace lifecycle
