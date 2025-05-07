@@ -70,16 +70,17 @@ export default function TemplateInsightsPage() {
 	const { template } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
+	const paramsInterval = searchParams.get("interval");
 	const insightsInterval = useTimeSync<InsightsInterval>({
 		idealRefreshIntervalMs: IDEAL_REFRESH_ONE_DAY,
-		select: (newDatetime) => {
+		selectDeps: [paramsInterval],
+		select: (newDate) => {
 			const templateCreateDate = new Date(template.created_at);
-			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDatetime;
+			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDate;
 			const defaultInterval = hasFiveWeeksOrMore ? "week" : "day";
 
-			const paramsValue = searchParams.get("interval");
-			if (paramsValue === "week" || paramsValue === "day") {
-				return paramsValue;
+			if (paramsInterval === "week" || paramsInterval === "day") {
+				return paramsInterval;
 			}
 			return defaultInterval;
 		},
