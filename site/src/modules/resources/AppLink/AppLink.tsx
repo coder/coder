@@ -43,24 +43,15 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const appsHost = proxy.preferredWildcardHostname;
 	const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
 	const [iconError, setIconError] = useState(false);
-
 	const theme = useTheme();
 	const username = workspace.owner_name;
-
-	let appSlug = app.slug;
-	let appDisplayName = app.display_name;
-	if (!appSlug) {
-		appSlug = appDisplayName;
-	}
-	if (!appDisplayName) {
-		appDisplayName = appSlug;
-	}
+	const displayName = app.display_name || app.slug;
 
 	const href = createAppLinkHref(
 		window.location.protocol,
 		preferredPathBase,
 		appsHost,
-		appSlug,
+		app.slug,
 		username,
 		workspace,
 		agent,
@@ -118,7 +109,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					// This is an external URI like "vscode://", so
 					// it needs to be opened with the browser protocol handler.
 					const shouldOpenAppExternally =
-						app.external && !app.url.startsWith("http");
+						app.external && app.url?.startsWith("http");
 
 					if (shouldOpenAppExternally) {
 						// This is a magic undocumented string that is replaced
@@ -140,9 +131,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 						// an error message will be displayed.
 						const openAppExternallyFailedTimeout = 500;
 						const openAppExternallyFailed = setTimeout(() => {
-							displayError(
-								`${app.display_name !== "" ? app.display_name : app.slug} must be installed first.`,
-							);
+							displayError(`${displayName} must be installed first.`);
 						}, openAppExternallyFailedTimeout);
 						window.addEventListener("blur", () => {
 							clearTimeout(openAppExternallyFailed);
@@ -156,7 +145,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 						case "slim-window": {
 							window.open(
 								href,
-								Language.appTitle(appDisplayName, generateRandomString(12)),
+								Language.appTitle(displayName, generateRandomString(12)),
 								"width=900,height=600",
 							);
 							return;
@@ -169,7 +158,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 				}}
 			>
 				{icon}
-				{appDisplayName}
+				{displayName}
 				{canShare && <ShareIcon app={app} />}
 			</a>
 		</AgentButton>

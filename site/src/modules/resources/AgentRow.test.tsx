@@ -150,9 +150,9 @@ describe.each<{
 
 		for (const app of props.agent.apps) {
 			if (app.hidden) {
-				expect(screen.queryByText(app.display_name)).toBeNull();
+				expect(screen.queryByText(app.display_name as string)).toBeNull();
 			} else {
-				expect(screen.getByText(app.display_name)).toBeVisible();
+				expect(screen.getByText(app.display_name as string)).toBeVisible();
 			}
 		}
 	});
