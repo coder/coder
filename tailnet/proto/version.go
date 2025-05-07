@@ -45,6 +45,12 @@ import (
 //     PushResourcesMonitoringUsage RPCs on the Agent API.
 //   - Added support for reporting connection events for auditing via the
 //     ReportConnection RPC on the Agent API.
+//
+// API v2.5:
+//   - Shipped in Coder v2.{{placeholder}} // TODO Steven: Replace with the correct version
+//   - Add previous parameter values to 'WorkspaceBuild' jobs. Provisioner passes
+//     the previous values for the `terraform apply` to enforce monotonicity
+//     in the terraform provider.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 5

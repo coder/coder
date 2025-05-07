@@ -324,7 +324,6 @@ message PlanRequest {
     repeated RichParameterValue rich_parameter_values = 2;
     repeated VariableValue variable_values = 3;
     repeated ExternalAuthProvider external_auth_providers = 4;
-    repeated RichParameterValue previous_parameter_values = 5;
 }
 
 // PlanComplete indicates a request to plan completed.
