@@ -1,3 +1,21 @@
+// @ts-check
+/**
+ * @file Defines the main configuration file for all of our Storybook tests.
+ * This file must be a JSX/JS file, but we can at least add some type safety via
+ * the ts-check directive.
+ * @see {@link https://storybook.js.org/docs/configure#configure-story-rendering}
+ *
+ * @typedef {import("react").ReactElement} ReactElement
+ * @typedef {import("react").PropsWithChildren} PropsWithChildren
+ * @typedef {import("react").FC<PropsWithChildren>} FC
+ *
+ * @typedef {import("@storybook/react").StoryContext} StoryContext
+ * @typedef {import("@storybook/react").Preview} Preview
+ *
+ * @typedef {(Story: FC, Context: StoryContext) => React.JSX.Element} Decorator A
+ * Storybook decorator function used to inject baseline data dependencies into
+ * our React components during testing.
+ */
 import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
