@@ -488,7 +488,7 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
-	github.com/coder/preview v0.0.2-0.20250506195323-154d86b5a92a
+	github.com/coder/preview v0.0.2-0.20250507145135-60f7cbb73a32
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.25.0
