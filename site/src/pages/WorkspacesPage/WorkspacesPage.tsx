@@ -1,6 +1,7 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates } from "api/queries/templates";
+import { workspaces } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
@@ -19,7 +20,6 @@ import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
-import { useWorkspaceUpdate, useWorkspacesData } from "./data";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
 
 function useSafeSearchParams() {
@@ -45,9 +45,7 @@ const WorkspacesPage: FC = () => {
 	const pagination = usePagination({ searchParamsResult });
 	const { permissions, user: me } = useAuthenticated();
 	const { entitlements } = useDashboard();
-
 	const templatesQuery = useQuery(templates());
-
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
 			templatesQuery.data?.map((template) => template.organization_id),
@@ -73,12 +71,17 @@ const WorkspacesPage: FC = () => {
 		onFilterChange: () => pagination.goToPage(1),
 	});
 
-	const { data, error, queryKey, refetch } = useWorkspacesData({
+	const workspacesQueryOptions = workspaces({
 		...pagination,
 		q: filterProps.filter.query,
 	});
+	const { data, error, refetch } = useQuery({
+		...workspacesQueryOptions,
+		refetchInterval: (_, query) => {
+			return query.state.error ? false : 5_000;
+		},
+	});
 
-	const updateWorkspace = useWorkspaceUpdate(queryKey);
 	const [checkedWorkspaces, setCheckedWorkspaces] = useState<
 		readonly Workspace[]
 	>([]);
@@ -123,9 +126,6 @@ const WorkspacesPage: FC = () => {
 				limit={pagination.limit}
 				onPageChange={pagination.goToPage}
 				filterProps={filterProps}
-				onUpdateWorkspace={(workspace) => {
-					updateWorkspace.mutate(workspace);
-				}}
 				isRunningBatchAction={batchActions.isLoading}
 				onDeleteAll={() => setConfirmingBatchAction("delete")}
 				onUpdateAll={() => setConfirmingBatchAction("update")}
@@ -133,7 +133,7 @@ const WorkspacesPage: FC = () => {
 				onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
 				onActionSuccess={async () => {
 					await queryClient.invalidateQueries({
-						queryKey,
+						queryKey: workspacesQueryOptions.queryKey,
 					});
 				}}
 				onActionError={(error) => {

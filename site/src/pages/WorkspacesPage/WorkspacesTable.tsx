@@ -83,7 +83,6 @@ export interface WorkspacesTableProps {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
-	onUpdateWorkspace: (workspace: Workspace) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	canCheckWorkspaces: boolean;
 	templates?: Template[];
@@ -96,7 +95,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
-	onUpdateWorkspace,
 	onCheckChange,
 	canCheckWorkspaces,
 	templates,
@@ -229,16 +227,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.name}
 												{workspace.favorite && <Star className="w-4 h-4" />}
 												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip
-														organizationName={workspace.organization_name}
-														templateName={workspace.template_name}
-														latestVersionId={
-															workspace.template_active_version_id
-														}
-														onUpdateVersion={() => {
-															onUpdateWorkspace(workspace);
-														}}
-													/>
+													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
 											</Stack>
 										}

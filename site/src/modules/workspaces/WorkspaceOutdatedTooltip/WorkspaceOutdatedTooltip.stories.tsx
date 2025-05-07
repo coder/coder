@@ -1,7 +1,10 @@
-import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
-import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
+import {
+	MockTemplate,
+	MockTemplateVersion,
+	MockWorkspace,
+} from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 
@@ -18,9 +21,11 @@ const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
 		],
 	},
 	args: {
-		onUpdateVersion: action("onUpdateVersion"),
-		templateName: MockTemplate.display_name,
-		latestVersionId: MockTemplateVersion.id,
+		workspace: {
+			...MockWorkspace,
+			template_name: MockTemplate.display_name,
+			template_active_version_id: MockTemplateVersion.id,
+		},
 	},
 };
 
