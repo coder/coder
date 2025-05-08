@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -69,9 +71,12 @@ func TestUserList(t *testing.T) {
 	t.Run("NoURLFileErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
 
+		executable, err := os.Executable()
+		require.NoError(t, err)
+
 		inv, _ := clitest.New(t, "users", "list")
-		err := inv.Run()
-		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+		err = inv.Run()
+		require.Contains(t, err.Error(), fmt.Sprintf("Try logging in using '%s login <url>'.", executable))
 	})
 	t.Run("SessionAuthErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()

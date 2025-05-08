@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"testing"
@@ -90,9 +91,13 @@ func TestLogout(t *testing.T) {
 		logout.Stdout = pty.Output()
 
 		go func() {
+			executable, err := os.Executable()
+			require.NoError(t, err)
+			require.NotEqual(t, "", executable)
+
 			defer close(logoutChan)
-			err := logout.Run()
-			assert.ErrorContains(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
+			err = logout.Run()
+			require.Contains(t, err.Error(), fmt.Sprintf("Try logging in using '%s login <url>'.", executable))
 		}()
 
 		<-logoutChan
