@@ -31,6 +31,7 @@ type ReconciliationOrchestrator interface {
 
 	// TrackResourceReplacement handles a pathological situation whereby a terraform resource is replaced due to drift,
 	// which can obviate the whole point of pre-provisioning a prebuilt workspace.
+	// See more detail at https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces.md#preventing-resource-replacement.
 	TrackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement)
 }
 

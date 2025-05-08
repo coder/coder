@@ -1747,6 +1747,109 @@ func TestCompleteJob(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("PrebuiltWorkspaceClaimWithResourceReplacements", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a mock prebuild orchestrator which stores calls to TrackResourceReplacement.
+		done := make(chan struct{})
+		orchestrator := &mockPrebuildsOrchestrator{
+			ReconciliationOrchestrator: agplprebuilds.DefaultReconciler,
+			done:                       done,
+		}
+		srv, db, ps, pd := setup(t, false, &overrides{
+			prebuildsOrchestrator: orchestrator,
+		})
+
+		// Given: a workspace build which simulates claiming a prebuild.
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			Name:           "template",
+			Provisioner:    database.ProvisionerTypeEcho,
+			OrganizationID: pd.OrganizationID,
+		})
+		file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+		workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: pd.OrganizationID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			JobID: uuid.New(),
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspaceTable.ID,
+			InitiatorID:       user.ID,
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: build.ID,
+
+				// Mark the job as a prebuilt workspace claim.
+				PrebuildClaimedByUser: uuid.New(),
+				IsPrebuild:            false,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: pd.OrganizationID,
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		require.NoError(t, err)
+
+		// When: a replacement is encountered.
+		replacements := []*sdkproto.ResourceReplacement{
+			{
+				Resource: "docker_container[0]",
+				Paths:    []string{"env"},
+			},
+		}
+
+		// Then: CompleteJob makes a call to TrackResourceReplacement.
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State:                []byte{},
+					ResourceReplacements: replacements,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Then: the replacements are as we expected.
+		testutil.RequireReceive(ctx, t, done)
+		require.Equal(t, replacements, orchestrator.replacements)
+	})
+}
+
+type mockPrebuildsOrchestrator struct {
+	agplprebuilds.ReconciliationOrchestrator
+
+	replacements []*sdkproto.ResourceReplacement
+	done         chan struct{}
+}
+
+func (m *mockPrebuildsOrchestrator) TrackResourceReplacement(_ context.Context, _, _, _ uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
+	m.replacements = replacements
+	m.done <- struct{}{}
 }
 
 func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
@@ -2632,6 +2735,7 @@ type overrides struct {
 	heartbeatInterval           time.Duration
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
+	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -2713,6 +2817,13 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	})
 	require.NoError(t, err)
 
+	prebuildsOrchestrator := ov.prebuildsOrchestrator
+	if prebuildsOrchestrator == nil {
+		prebuildsOrchestrator = agplprebuilds.DefaultReconciler
+	}
+	var op atomic.Pointer[agplprebuilds.ReconciliationOrchestrator]
+	op.Store(&prebuildsOrchestrator)
+
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
 		&url.URL{},
@@ -2740,7 +2851,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			HeartbeatFn:           ov.heartbeatFn,
 		},
 		notifEnq,
-		agplprebuilds.DefaultReconciler,
+		&op,
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon

@@ -639,7 +639,7 @@ func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspac
 	defer trackCancel()
 
 	if err := c.trackResourceReplacement(trackCtx, workspaceID, buildID, claimantID, replacements); err != nil {
-		c.logger.Error(ctx, "failed to send resource replacement notification(s)", slog.Error(err))
+		c.logger.Error(ctx, "failed to track resource replacement", slog.Error(err))
 	}
 }
 
@@ -719,8 +719,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 	var errs multierror.Error
 
 	for _, templateAdmin := range templateAdmins {
-		enqueuer := *c.notifEnq.Load()
-		if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
+		if _, err := (*c.notifEnq.Load()).EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
 			map[string]string{
 				"org":                 org.Name,
 				"workspace":           workspace.Name,
@@ -734,7 +733,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 				"replacements": repls,
 			}, "prebuilds_reconciler",
 			// Associate this notification with all the related entities.
-			workspace.ID, workspace.OwnerID, workspace.TemplateID, templateVersion.ID, workspace.OrganizationID,
+			workspace.ID, workspace.OwnerID, workspace.TemplateID, templateVersion.ID, prebuildPreset.ID, workspace.OrganizationID,
 		); err != nil {
 			errs.Errors = append(errs.Errors, xerrors.Errorf("send notification to %q: %w", templateAdmin.ID.String(), err))
 			continue

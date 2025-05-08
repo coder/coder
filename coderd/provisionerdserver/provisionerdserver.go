@@ -109,7 +109,7 @@ type server struct {
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
 	NotificationsEnqueuer       notifications.Enqueuer
-	PrebuildsOrchestrator       prebuilds.ReconciliationOrchestrator
+	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -164,7 +164,7 @@ func NewServer(lifecycleCtx context.Context,
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
 	enqueuer notifications.Enqueuer,
-	prebuildsOrchestrator prebuilds.ReconciliationOrchestrator,
+	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -1731,10 +1731,13 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 		}
 
-		// Track resource replacements, if there are any.
-		if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); len(resourceReplacements) > 0 {
-			// Fire and forget.
-			go s.PrebuildsOrchestrator.TrackResourceReplacement(context.Background(), workspace.ID, workspaceBuild.ID, input.PrebuildClaimedByUser, resourceReplacements)
+		if s.PrebuildsOrchestrator != nil {
+			// Track resource replacements, if there are any.
+			orchestrator := s.PrebuildsOrchestrator.Load()
+			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
+				// Fire and forget.
+				go (*orchestrator).TrackResourceReplacement(context.Background(), workspace.ID, workspaceBuild.ID, input.PrebuildClaimedByUser, resourceReplacements)
+			}
 		}
 
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{

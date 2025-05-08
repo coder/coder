@@ -16,30 +16,42 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
+const (
+	namespace = "coderd_prebuilt_workspaces_"
+
+	MetricCreatedCount              = namespace + "created_total"
+	MetricFailedCount               = namespace + "failed_total"
+	MetricClaimedCount              = namespace + "claimed_total"
+	MetricResourceReplacementsCount = namespace + "resource_replacements_total"
+	MetricDesiredGauge              = namespace + "desired"
+	MetricRunningGauge              = namespace + "running"
+	MetricEligibleGauge             = namespace + "eligible"
+)
+
 var (
 	labels               = []string{"template_name", "preset_name", "organization_name"}
 	createdPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_created_total",
+		MetricCreatedCount,
 		"Total number of prebuilt workspaces that have been created to meet the desired instance count of each "+
 			"template preset.",
 		labels,
 		nil,
 	)
 	failedPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_failed_total",
+		MetricFailedCount,
 		"Total number of prebuilt workspaces that failed to build.",
 		labels,
 		nil,
 	)
 	claimedPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_claimed_total",
+		MetricClaimedCount,
 		"Total number of prebuilt workspaces which were claimed by users. Claiming refers to creating a workspace "+
 			"with a preset selected for which eligible prebuilt workspaces are available and one is reassigned to a user.",
 		labels,
 		nil,
 	)
 	resourceReplacementsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_resource_replacements_total",
+		MetricResourceReplacementsCount,
 		"Total number of prebuilt workspaces whose resource(s) got replaced upon being claimed. "+
 			"In Terraform, drift on immutable attributes results in resource replacement. "+
 			"This represents a worst-case scenario for prebuilt workspaces because the pre-provisioned resource "+
@@ -49,20 +61,20 @@ var (
 		nil,
 	)
 	desiredPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_desired",
+		MetricDesiredGauge,
 		"Target number of prebuilt workspaces that should be available for each template preset.",
 		labels,
 		nil,
 	)
 	runningPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_running",
+		MetricRunningGauge,
 		"Current number of prebuilt workspaces that are in a running state. These workspaces have started "+
 			"successfully but may not yet be claimable by users (see coderd_prebuilt_workspaces_eligible).",
 		labels,
 		nil,
 	)
 	eligiblePrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_eligible",
+		MetricEligibleGauge,
 		"Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that "+
 			"have completed their build process with their agent reporting 'ready' status.",
 		labels,
@@ -162,5 +174,10 @@ func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, pres
 	if _, ok := mc.replacementsCounter[key]; !ok {
 		mc.replacementsCounter[key] = &atomic.Int64{}
 	}
+
+	// We only track _that_ a resource replacement occurred, not how many.
+	// Just one is enough to ruin a prebuild, but we can't know apriori which replacement would cause this.
+	// For example, say we have 2 replacements: a docker_container and a null_resource; we don't know which one might
+	// cause an issue (or indeed if either would), so we just track the replacement.
 	mc.replacementsCounter[key].Add(1)
 }
