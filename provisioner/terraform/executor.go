@@ -309,7 +309,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	moduleFiles, err := getModulesArchive(e.workdir)
 	if err != nil {
-		return nil, err
+		// TODO: we probably want to persist this error or make it louder eventually
+		e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
 	}
 
 	return &proto.PlanComplete{
