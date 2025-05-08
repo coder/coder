@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import { MockUser } from "testHelpers/entities";
+import { MockUserOwner } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import AppearancePage from "./AppearancePage";
 
@@ -10,7 +10,7 @@ describe("appearance page", () => {
 		renderWithAuth(<AppearancePage />);
 
 		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUser,
+			...MockUserOwner,
 			theme_preference: "dark",
 			terminal_font: "fira-code",
 		});
@@ -26,7 +26,7 @@ describe("appearance page", () => {
 		renderWithAuth(<AppearancePage />);
 
 		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUser,
+			...MockUserOwner,
 			terminal_font: "ibm-plex-mono",
 			theme_preference: "light",
 		});
@@ -46,7 +46,7 @@ describe("appearance page", () => {
 		renderWithAuth(<AppearancePage />);
 
 		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUser,
+			...MockUserOwner,
 			terminal_font: "fira-code",
 			theme_preference: "dark",
 		});
@@ -69,12 +69,12 @@ describe("appearance page", () => {
 		jest
 			.spyOn(API, "updateAppearanceSettings")
 			.mockResolvedValueOnce({
-				...MockUser,
+				...MockUserOwner,
 				terminal_font: "fira-code",
 				theme_preference: "dark",
 			})
 			.mockResolvedValueOnce({
-				...MockUser,
+				...MockUserOwner,
 				terminal_font: "ibm-plex-mono",
 				theme_preference: "dark",
 			});

@@ -106,12 +106,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
 					event.preventDefault();
 
-					// This is an external URI like "vscode://", so
-					// it needs to be opened with the browser protocol handler.
-					const shouldOpenAppExternally =
-						app.external && app.url?.startsWith("http");
-
-					if (shouldOpenAppExternally) {
+					if (app.external) {
 						// This is a magic undocumented string that is replaced
 						// with a brand-new session token from the backend.
 						// This only exists for external URLs, and should only

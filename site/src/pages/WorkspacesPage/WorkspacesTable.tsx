@@ -3,6 +3,7 @@ import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
+import { apiKey } from "api/queries/users";
 import {
 	cancelBuild,
 	deleteWorkspace,
@@ -19,6 +20,8 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
@@ -49,7 +52,17 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { BanIcon, PlayIcon, RefreshCcwIcon, SquareIcon } from "lucide-react";
+import {
+	BanIcon,
+	PlayIcon,
+	RefreshCcwIcon,
+	SquareTerminalIcon,
+} from "lucide-react";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+} from "modules/apps/apps";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -59,6 +72,7 @@ import {
 	useWorkspaceUpdate,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
 import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
+import type React from "react";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -523,6 +537,10 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	return (
 		<TableCell>
 			<div className="flex gap-1 justify-end">
+				{workspace.latest_build.status === "running" && (
+					<WorkspaceApps workspace={workspace} />
+				)}
+
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
@@ -544,18 +562,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
 					</>
-				)}
-
-				{abilities.actions.includes("stop") && (
-					<PrimaryAction
-						onClick={() => {
-							stopWorkspaceMutation.mutate({});
-						}}
-						isLoading={stopWorkspaceMutation.isLoading}
-						label="Stop workspace"
-					>
-						<SquareIcon />
-					</PrimaryAction>
 				)}
 
 				{abilities.canCancel && (
@@ -583,9 +589,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 };
 
 type PrimaryActionProps = PropsWithChildren<{
-	onClick: () => void;
-	isLoading: boolean;
 	label: string;
+	isLoading?: boolean;
+	onClick: () => void;
 }>;
 
 const PrimaryAction: FC<PrimaryActionProps> = ({
@@ -608,6 +614,130 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+};
+
+type WorkspaceAppsProps = {
+	workspace: Workspace;
+};
+
+const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+	const { data: apiKeyRes } = useQuery(apiKey());
+	const token = apiKeyRes?.key;
+
+	/**
+	 * Coder is pretty flexible and allows an enormous variety of use cases, such
+	 * as having multiple resources with many agents, but they are not common. The
+	 * most common scenario is to have one single compute resource with one single
+	 * agent containing all the apps. Lets test this getting the apps for the
+	 * first resource, and first agent - they are sorted to return the compute
+	 * resource first - and see what customers and ourselves, using dogfood, think
+	 * about that.
+	 */
+	const agent = workspace.latest_build.resources
+		.filter((r) => !r.hide)
+		.at(0)
+		?.agents?.at(0);
+	if (!agent) {
+		return null;
+	}
+
+	const buttons: ReactNode[] = [];
+
+	if (agent.display_apps.includes("vscode")) {
+		buttons.push(
+			<AppLink
+				isLoading={!token}
+				label="Open VSCode"
+				href={getVSCodeHref("vscode", {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					agent: agent.name,
+					token: apiKeyRes?.key ?? "",
+					folder: agent.expanded_directory,
+				})}
+			>
+				<VSCodeIcon />
+			</AppLink>,
+		);
+	}
+
+	if (agent.display_apps.includes("vscode_insiders")) {
+		buttons.push(
+			<AppLink
+				label="Open VSCode Insiders"
+				isLoading={!token}
+				href={getVSCodeHref("vscode-insiders", {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					agent: agent.name,
+					token: apiKeyRes?.key ?? "",
+					folder: agent.expanded_directory,
+				})}
+			>
+				<VSCodeInsidersIcon />
+			</AppLink>,
+		);
+	}
+
+	if (agent.display_apps.includes("web_terminal")) {
+		const href = getTerminalHref({
+			username: workspace.owner_name,
+			workspace: workspace.name,
+			agent: agent.name,
+		});
+		buttons.push(
+			<AppLink
+				href={href}
+				onClick={(e) => {
+					e.preventDefault();
+					openAppInNewWindow("Terminal", href);
+				}}
+				label="Open Terminal"
+			>
+				<SquareTerminalIcon />
+			</AppLink>,
+		);
+	}
+
+	return buttons;
+};
+
+type AppLinkProps = PropsWithChildren<{
+	label: string;
+	href: string;
+	isLoading?: boolean;
+	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}>;
+
+const AppLink: FC<AppLinkProps> = ({
+	href,
+	isLoading,
+	label,
+	children,
+	onClick,
+}) => {
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button variant="outline" size="icon-lg" asChild>
+						<a
+							className={isLoading ? "animate-pulse" : ""}
+							href={href}
+							onClick={(e) => {
+								e.stopPropagation();
+								onClick?.(e);
+							}}
+						>
+							{children}
+							<span className="sr-only">{label}</span>
+						</a>
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent>{label}</TooltipContent>

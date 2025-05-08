@@ -21,7 +21,7 @@ import {
 	MockProxyLatencies,
 	MockStoppedWorkspace,
 	MockTemplate,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
 	mockApiError,
@@ -105,7 +105,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		organizations: MockMenu,
 	},
 	values: {
-		owner: MockUser.username,
+		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
@@ -144,7 +144,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 				data: MockBuildInfo,
 			},
 		],
-		user: MockUser,
+		user: MockUserOwner,
 	},
 	decorators: [
 		withAuthProvider,
