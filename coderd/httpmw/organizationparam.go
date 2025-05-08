@@ -194,6 +194,7 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 		return nil, nil, true
 	}
 
+	// Only return the user data if the caller can read the user object.
 	if auth != nil && auth(r, policy.ActionRead, user) {
 		return &user, organizationMembers, false
 	}

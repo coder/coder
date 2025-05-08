@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -128,58 +127,4 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 		return database.User{}, false
 	}
 	return user, true
-}
-
-// ExtractUserID will work if the requester can access any OrganizationMember that
-// belongs to the user.
-func ExtractUserID(db database.Store) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-			// We need to resolve the `{user}` URL parameter so that we can get the userID and
-			// username.  We do this as SystemRestricted since the caller might have permission
-			// to access the OrganizationMember object, but *not* the User object.  So, it is
-			// very important that we do not add the User object to the request context or otherwise
-			// leak it to the API handler.
-			// nolint:gocritic
-			user, ok := ExtractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
-			if !ok {
-				return
-			}
-			organization := OrganizationParam(r)
-
-			organizationMember, err := database.ExpectOne(db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-				OrganizationID: organization.ID,
-				UserID:         user.ID,
-				IncludeSystem:  false,
-			}))
-			if httpapi.Is404Error(err) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching organization member.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, OrganizationMember{
-				OrganizationMember: organizationMember.OrganizationMember,
-				// Here we're making two exceptions to the rule about not leaking data about the user
-				// to the API handler, which is to include the username and avatar URL.
-				// If the caller has permission to read the OrganizationMember, then we're explicitly
-				// saying here that they also have permission to see the member's username and avatar.
-				// This is OK!
-				//
-				// API handlers need this information for audit logging and returning the owner's
-				// username in response to creating a workspace. Additionally, the frontend consumes
-				// the Avatar URL and this allows the FE to avoid an extra request.
-				Username:  user.Username,
-				AvatarURL: user.AvatarURL,
-			})
-			next.ServeHTTP(rw, r.WithContext(ctx))
-		})
-	}
 }
