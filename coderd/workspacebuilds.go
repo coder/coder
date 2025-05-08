@@ -232,7 +232,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	owner := httpmw.UserParam(r)
+	mems := httpmw.OrganizationMembersParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 	buildNumber, err := strconv.ParseInt(chi.URLParam(r, "buildnumber"), 10, 32)
 	if err != nil {
@@ -244,7 +244,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: owner.ID,
+		OwnerID: mems.UserID(),
 		Name:    workspaceName,
 	})
 	if httpapi.Is404Error(err) {
