@@ -447,7 +447,7 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		// If the caller can find the organization membership in the same org
 		// as the template, then they can continue.
 		orgIndex := slices.IndexFunc(mems.Memberships, func(mem httpmw.OrganizationMember) bool {
-			return mem.OrganizationID == template.ID
+			return mem.OrganizationID == template.OrganizationID
 		})
 		if orgIndex == -1 {
 			httpapi.ResourceNotFound(rw)
