@@ -1,4 +1,4 @@
-import GroupAdd from "@mui/icons-material/GroupAddOutlined";
+import { GroupAdd as GroupAdd } from "lucide-react";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";

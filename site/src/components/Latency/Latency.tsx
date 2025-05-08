@@ -1,5 +1,5 @@
+import { HelpOutline as HelpCircle } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import HelpOutline from "@mui/icons-material/HelpOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";

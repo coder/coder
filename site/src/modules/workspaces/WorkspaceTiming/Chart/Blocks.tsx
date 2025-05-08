@@ -1,5 +1,5 @@
+import { MoreHorizOutlined as MoreHorizOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
 import { type FC, useEffect, useRef, useState } from "react";
 
 const spaceBetweenBlocks = 4;

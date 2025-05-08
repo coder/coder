@@ -1,6 +1,5 @@
+import { AddIcon as AddIcon, KeyboardArrowRight as KeyboardArrowRight } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Button from "@mui/material/Button";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";

@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
+import { ChevronDown as KeyboardArrowDown, ChevronUp as KeyboardArrowUp } from "lucide-react";
 import type { FC } from "react";
 
 interface ArrowProps {

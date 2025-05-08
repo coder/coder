@@ -1,6 +1,4 @@
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
-import StopOutlined from "@mui/icons-material/StopOutlined";
+import { DeleteOutlined as DeleteOutlined, PlayArrowOutlined as PlayArrowOutlined, StopOutlined as StopOutlined } from "lucide-react";
 import type { WorkspaceTransition } from "api/typesGenerated";
 import type { ComponentProps } from "react";
 

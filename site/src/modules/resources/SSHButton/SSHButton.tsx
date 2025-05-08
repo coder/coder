@@ -1,5 +1,5 @@
+import { KeyboardArrowDown as ChevronDown } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import Button from "@mui/material/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {

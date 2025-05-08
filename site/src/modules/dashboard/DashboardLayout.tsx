@@ -1,4 +1,4 @@
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import { InfoOutlined as InfoOutlined } from "lucide-react";
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
 import { Button } from "components/Button/Button";

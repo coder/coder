@@ -1,13 +1,6 @@
+import { AppsIcon as AppsIcon, CheckCircle as CheckCircle, ErrorIcon as ErrorIcon, HelpOutline as HelpCircle, HourglassEmpty as HourglassEmpty, InsertDriveFile as InsertDriveFile, OpenInNew as ExternalLink, Warning as AlertTriangle } from "lucide-react";
 import type { Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
-import AppsIcon from "@mui/icons-material/Apps";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import HelpOutline from "@mui/icons-material/HelpOutline";
-import HourglassEmpty from "@mui/icons-material/HourglassEmpty";
-import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
-import OpenInNew from "@mui/icons-material/OpenInNew";
-import Warning from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";

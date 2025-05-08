@@ -1,8 +1,5 @@
+import { CheckCircleOutlined as CheckCircleOutlined, CloseIcon as CloseIcon, DoNotDisturbOnOutlined as DoNotDisturbOnOutlined, Sell as Sell } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import CloseIcon from "@mui/icons-material/Close";
-import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import Sell from "@mui/icons-material/Sell";
 import IconButton from "@mui/material/IconButton";
 import { Pill } from "components/Pill/Pill";
 import type { ComponentProps, FC } from "react";

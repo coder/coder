@@ -1,4 +1,4 @@
-import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
+import { OpenIcon as OpenIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";

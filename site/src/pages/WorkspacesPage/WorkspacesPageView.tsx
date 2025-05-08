@@ -1,8 +1,4 @@
-import CloudQueue from "@mui/icons-material/CloudQueue";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
-import StopOutlined from "@mui/icons-material/StopOutlined";
+import { CloudQueue as CloudQueue, DeleteOutlined as DeleteOutlined, KeyboardArrowDownOutlined as KeyboardArrowDownOutlined, PlayArrowOutlined as PlayArrowOutlined, StopOutlined as StopOutlined } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";

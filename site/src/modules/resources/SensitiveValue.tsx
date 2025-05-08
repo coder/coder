@@ -1,6 +1,5 @@
+import { VisibilityOffOutlined as VisibilityOffOutlined, VisibilityOutlined as VisibilityOutlined } from "lucide-react";
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";

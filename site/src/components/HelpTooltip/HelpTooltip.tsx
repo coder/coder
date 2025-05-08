@@ -5,8 +5,7 @@ import {
 	css,
 	useTheme,
 } from "@emotion/react";
-import HelpIcon from "@mui/icons-material/HelpOutline";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import { HelpCircle as HelpIcon, ExternalLink as OpenInNewIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import { Stack } from "components/Stack/Stack";
 import {

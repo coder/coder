@@ -1,4 +1,4 @@
-import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
+import { ArrowDownwardOutlined as ArrowDownwardOutlined } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import type { Workspace } from "api/typesGenerated";

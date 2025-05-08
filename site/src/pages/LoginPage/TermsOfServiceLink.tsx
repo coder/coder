@@ -1,4 +1,4 @@
-import LaunchIcon from "@mui/icons-material/LaunchOutlined";
+import { LaunchIcon as LaunchIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import type { FC } from "react";
 

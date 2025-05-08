@@ -1,4 +1,4 @@
-import GitHubIcon from "@mui/icons-material/GitHub";
+import { GitHubIcon as GitHubIcon } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";

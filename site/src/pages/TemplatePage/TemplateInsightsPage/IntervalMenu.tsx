@@ -1,5 +1,4 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
+import { CheckOutlined as CheckOutlined, ExpandMoreOutlined as ExpandMoreOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";

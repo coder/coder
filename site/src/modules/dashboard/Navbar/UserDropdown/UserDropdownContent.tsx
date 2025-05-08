@@ -1,16 +1,10 @@
+import { AccountIcon as AccountIcon, BugIcon as BugIcon, ChatIcon as ChatIcon, LogoutIcon as LogoutIcon, InstallDesktopIcon as InstallDesktopIcon, LaunchIcon as LaunchIcon, DocsIcon as DocsIcon } from "lucide-react";
 import {
 	type CSSObject,
 	type Interpolation,
 	type Theme,
 	css,
 } from "@emotion/react";
-import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
-import BugIcon from "@mui/icons-material/BugReportOutlined";
-import ChatIcon from "@mui/icons-material/ChatOutlined";
-import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
-import LaunchIcon from "@mui/icons-material/LaunchOutlined";
-import DocsIcon from "@mui/icons-material/MenuBook";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
 import type { SvgIconProps } from "@mui/material/SvgIcon";

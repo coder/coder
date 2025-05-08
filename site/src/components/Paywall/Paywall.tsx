@@ -1,5 +1,5 @@
+import { TaskAltIcon as TaskAltIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";

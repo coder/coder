@@ -1,7 +1,6 @@
+import { HistoryOutlined as HistoryOutlined, HubOutlined as HubOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
 import type { WorkspaceApp } from "api/typesGenerated";

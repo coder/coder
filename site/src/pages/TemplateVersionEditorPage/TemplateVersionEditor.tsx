@@ -1,8 +1,5 @@
+import { CreateIcon as CreateIcon, ArrowBackOutlined as ArrowBackOutlined, CloseOutlined as X, WarningOutlined as WarningOutlined } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CreateIcon from "@mui/icons-material/AddOutlined";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";

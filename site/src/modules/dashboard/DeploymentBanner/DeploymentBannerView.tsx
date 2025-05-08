@@ -1,13 +1,6 @@
+import { BuildingIcon as BuildingIcon, DownloadIcon as DownloadIcon, UploadIcon as UploadIcon, CollectedIcon as CollectedIcon, ErrorIcon as ErrorIcon, RefreshIcon as RefreshIcon, LatencyIcon as LatencyIcon, WebTerminalIcon as WebTerminalIcon } from "lucide-react";
 import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import BuildingIcon from "@mui/icons-material/Build";
-import DownloadIcon from "@mui/icons-material/CloudDownload";
-import UploadIcon from "@mui/icons-material/CloudUpload";
-import CollectedIcon from "@mui/icons-material/Compare";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import LatencyIcon from "@mui/icons-material/SettingsEthernet";
-import WebTerminalIcon from "@mui/icons-material/WebAsset";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";

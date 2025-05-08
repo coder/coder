@@ -1,10 +1,5 @@
+import { CloseIcon as CloseIcon, KeyboardArrowDown as ChevronDown, LockIcon as LockIcon, LockOpenIcon as LockOpenIcon, OpenInNewOutlined as ExternalLink, SensorsIcon as SensorsIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/Close";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
-import SensorsIcon from "@mui/icons-material/Sensors";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";

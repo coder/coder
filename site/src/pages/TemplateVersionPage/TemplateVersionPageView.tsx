@@ -1,5 +1,4 @@
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
+import { AddIcon as AddIcon, EditIcon as EditIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import type { TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

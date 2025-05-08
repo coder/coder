@@ -1,7 +1,5 @@
+import { ChevronRightIcon as ChevronRightIcon, ExpandMoreIcon as ExpandMoreIcon, FormatAlignLeftOutlined as FormatAlignLeftOutlined } from "lucide-react";
 import { css } from "@emotion/react";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import FormatAlignLeftOutlined from "@mui/icons-material/FormatAlignLeftOutlined";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";

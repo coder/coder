@@ -1,7 +1,5 @@
+import { CheckCircleOutlined as CheckCircleOutlined, GitHubIcon as GitHubIcon, KeyIcon as KeyIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";

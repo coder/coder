@@ -1,6 +1,4 @@
-import CheckIcon from "@mui/icons-material/CheckOutlined";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import QueuedIcon from "@mui/icons-material/HourglassEmpty";
+import { CheckIcon as CheckIcon, ErrorIcon as ErrorIcon, QueuedIcon as QueuedIcon } from "lucide-react";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
 import type { FC, ReactNode } from "react";

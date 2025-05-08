@@ -1,4 +1,4 @@
-import PersonAdd from "@mui/icons-material/PersonAdd";
+import { PersonAdd as PersonAdd } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { getErrorMessage } from "api/errors";
 import type {

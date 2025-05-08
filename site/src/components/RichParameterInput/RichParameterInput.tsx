@@ -1,6 +1,5 @@
+import { ErrorOutline as ErrorOutline, SettingsIcon as SettingsIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import SettingsIcon from "@mui/icons-material/Settings";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";

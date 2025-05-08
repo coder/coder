@@ -1,5 +1,5 @@
+import { PersonAdd as PersonAdd } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import PersonAdd from "@mui/icons-material/PersonAdd";
 import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectProps } from "@mui/material/Select";

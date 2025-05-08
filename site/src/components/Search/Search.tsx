@@ -1,5 +1,5 @@
+import { SearchOutlined as Search } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
 // biome-ignore lint/nursery/noRestrictedImports: use it to have the component prop
 import Box, { type BoxProps } from "@mui/material/Box";
 import visuallyHidden from "@mui/utils/visuallyHidden";

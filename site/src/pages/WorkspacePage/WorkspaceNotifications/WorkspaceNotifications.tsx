@@ -1,6 +1,5 @@
+import { InfoOutlined as InfoOutlined, WarningRounded as WarningRounded } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import WarningRounded from "@mui/icons-material/WarningRounded";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
 	Template,

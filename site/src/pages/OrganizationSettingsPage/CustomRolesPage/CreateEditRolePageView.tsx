@@ -1,6 +1,5 @@
+import { VisibilityOffOutlinedIcon as VisibilityOffOutlinedIcon, VisibilityOutlinedIcon as VisibilityOutlinedIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Table from "@mui/material/Table";

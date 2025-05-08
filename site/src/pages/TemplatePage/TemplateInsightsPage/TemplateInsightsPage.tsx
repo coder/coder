@@ -1,7 +1,5 @@
+import { CancelOutlined as CancelOutlined, CheckCircleOutlined as CheckCircleOutlined, LinkOutlined as LinkOutlined } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";

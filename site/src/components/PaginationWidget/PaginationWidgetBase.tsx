@@ -1,6 +1,5 @@
+import { KeyboardArrowLeft as KeyboardArrowLeft, KeyboardArrowRight as KeyboardArrowRight } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { FC } from "react";
 import { NumberedPageButton, PlaceholderPageButton } from "./PageButtons";

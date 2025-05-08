@@ -1,5 +1,5 @@
+import { WarningRounded as WarningRounded } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import WarningRounded from "@mui/icons-material/WarningRounded";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgent } from "api/typesGenerated";

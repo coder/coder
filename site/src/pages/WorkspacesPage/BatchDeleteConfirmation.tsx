@@ -1,6 +1,5 @@
+import { PersonOutlinedIcon as PersonOutlinedIcon, ScheduleIcon as ScheduleIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
-import ScheduleIcon from "@mui/icons-material/Schedule";
 import { visuallyHidden } from "@mui/utils";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";

@@ -1,7 +1,7 @@
+import { ArrowRightAltOutlined as ArrowRightAltOutlined } from "lucide-react";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
 import Button from "@mui/material/Button";
 import {
 	Popover,

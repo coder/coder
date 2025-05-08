@@ -1,6 +1,5 @@
+import { InfoIcon as InfoIcon, RefreshIcon as RefreshIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";

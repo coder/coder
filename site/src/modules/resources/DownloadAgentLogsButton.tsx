@@ -1,4 +1,4 @@
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
+import { DownloadOutlined as DownloadOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";

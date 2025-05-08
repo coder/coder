@@ -1,5 +1,5 @@
+import { InfoIcon as InfoIcon } from "lucide-react";
 import { css } from "@emotion/css";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";

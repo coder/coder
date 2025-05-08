@@ -1,4 +1,4 @@
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { ErrorOutline as ErrorOutline } from "lucide-react";
 import Tooltip, {
 	type TooltipProps,
 	tooltipClasses,

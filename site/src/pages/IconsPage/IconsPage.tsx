@@ -1,6 +1,5 @@
+import { ClearIcon as ClearIcon, SearchIcon as SearchIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import ClearIcon from "@mui/icons-material/CloseOutlined";
-import SearchIcon from "@mui/icons-material/SearchOutlined";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";

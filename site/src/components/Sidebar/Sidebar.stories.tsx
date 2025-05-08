@@ -1,8 +1,4 @@
-import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
-import SecurityIcon from "@mui/icons-material/LockOutlined";
-import AccountIcon from "@mui/icons-material/Person";
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import { ScheduleIcon as ScheduleIcon, FingerprintOutlinedIcon as FingerprintOutlinedIcon, SecurityIcon as SecurityIcon, AccountIcon as AccountIcon, VpnKeyOutlined as VpnKeyOutlined } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Avatar } from "components/Avatar/Avatar";
 import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";

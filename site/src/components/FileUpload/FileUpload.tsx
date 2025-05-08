@@ -1,7 +1,5 @@
+import { UploadIcon as UploadIcon, RemoveIcon as RemoveIcon, FileIcon as FileIcon } from "lucide-react";
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
-import RemoveIcon from "@mui/icons-material/DeleteOutline";
-import FileIcon from "@mui/icons-material/FolderOutlined";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import { Stack } from "components/Stack/Stack";

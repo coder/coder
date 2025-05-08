@@ -1,5 +1,5 @@
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import Check from "@mui/icons-material/Check";
+import { Check } from "lucide-react";
 import IconButton from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import { useClipboard } from "hooks/useClipboard";

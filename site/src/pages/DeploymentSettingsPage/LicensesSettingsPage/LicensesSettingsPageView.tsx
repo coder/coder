@@ -1,6 +1,5 @@
+import { AddIcon as AddIcon, RefreshIcon as RefreshIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";

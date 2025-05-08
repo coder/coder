@@ -1,7 +1,5 @@
+import { AddIcon as AddIcon, RemoveIcon as RemoveIcon, ScheduleOutlined as ScheduleOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";

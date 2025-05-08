@@ -1,5 +1,5 @@
+import { InfoOutlined as InfoOutlined } from "lucide-react";
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";

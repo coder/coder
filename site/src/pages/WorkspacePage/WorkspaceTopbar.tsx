@@ -1,7 +1,5 @@
+import { ArrowBackOutlined as ArrowBackOutlined, DeleteOutline as DeleteOutline, QuotaIcon as QuotaIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";

@@ -1,5 +1,5 @@
+import { ErrorOutlineIcon as ErrorOutlineIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";

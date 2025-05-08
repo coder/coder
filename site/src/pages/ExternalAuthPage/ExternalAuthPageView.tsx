@@ -1,6 +1,5 @@
+import { OpenInNewIcon as OpenInNewIcon, RefreshIcon as RefreshIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";

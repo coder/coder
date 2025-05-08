@@ -1,6 +1,5 @@
+import { Business as Business, Person as User } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import Business from "@mui/icons-material/Business";
-import Person from "@mui/icons-material/Person";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthMessage, ProvisionerDaemon } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";

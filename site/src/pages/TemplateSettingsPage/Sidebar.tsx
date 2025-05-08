@@ -1,7 +1,4 @@
-import VariablesIcon from "@mui/icons-material/CodeOutlined";
-import SecurityIcon from "@mui/icons-material/LockOutlined";
-import GeneralIcon from "@mui/icons-material/SettingsOutlined";
-import ScheduleIcon from "@mui/icons-material/TimerOutlined";
+import { VariablesIcon as VariablesIcon, SecurityIcon as SecurityIcon, GeneralIcon as GeneralIcon, ScheduleIcon as ScheduleIcon } from "lucide-react";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {

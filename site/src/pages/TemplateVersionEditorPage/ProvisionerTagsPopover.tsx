@@ -1,4 +1,4 @@
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
+import { ExpandMoreOutlined as ExpandMoreOutlined } from "lucide-react";
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
 import type { ProvisionerDaemon } from "api/typesGenerated";

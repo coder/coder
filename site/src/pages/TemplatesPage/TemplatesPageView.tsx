@@ -1,5 +1,5 @@
+import { ArrowForwardOutlined as ArrowForwardOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import MuiButton from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";

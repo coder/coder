@@ -1,5 +1,5 @@
+import { OpenInNewIcon as OpenInNewIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import AlertTitle from "@mui/material/AlertTitle";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";

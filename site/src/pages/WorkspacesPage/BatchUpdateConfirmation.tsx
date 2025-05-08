@@ -1,8 +1,5 @@
+import { InstallDesktopIcon as InstallDesktopIcon, PersonOutlinedIcon as PersonOutlinedIcon, ScheduleIcon as ScheduleIcon, SettingsSuggestIcon as SettingsSuggestIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
-import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

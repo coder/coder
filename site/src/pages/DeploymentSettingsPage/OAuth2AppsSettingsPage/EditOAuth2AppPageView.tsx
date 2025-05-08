@@ -1,5 +1,5 @@
+import { CopyIcon as CopyIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";

@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { ChevronDown as KeyboardArrowDown, ExternalLink as OpenInNewOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";

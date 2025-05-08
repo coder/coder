@@ -1,4 +1,4 @@
-import UserIcon from "@mui/icons-material/PersonOutline";
+import { UserIcon as UserIcon } from "lucide-react";
 import Checkbox from "@mui/material/Checkbox";
 import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";

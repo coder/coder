@@ -1,6 +1,5 @@
+import { PlusIcon as PlusIcon, ViewCodeIcon as ViewCodeIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import PlusIcon from "@mui/icons-material/AddOutlined";
-import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

@@ -1,7 +1,5 @@
+import { DeleteOutline as DeleteOutline, PersonAdd as PersonAdd, SettingsOutlined as SettingsOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";

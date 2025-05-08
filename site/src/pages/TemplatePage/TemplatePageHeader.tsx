@@ -1,8 +1,4 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import EditIcon from "@mui/icons-material/EditOutlined";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import { AddIcon as AddIcon, DeleteIcon as DeleteIcon, EditIcon as EditIcon, CopyIcon as CopyIcon, SettingsIcon as SettingsIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import { workspaces } from "api/queries/workspaces";
 import type {

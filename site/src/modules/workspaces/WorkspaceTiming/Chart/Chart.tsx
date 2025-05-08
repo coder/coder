@@ -1,5 +1,5 @@
+import { ChevronRight as ChevronRight } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import ChevronRight from "@mui/icons-material/ChevronRight";
 import {
 	SearchField,
 	type SearchFieldProps,

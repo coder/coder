@@ -1,5 +1,5 @@
+import { CloseIcon as CloseIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
 	type SnackbarProps as MuiSnackbarProps,

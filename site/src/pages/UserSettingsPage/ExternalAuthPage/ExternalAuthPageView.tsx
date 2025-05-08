@@ -1,5 +1,5 @@
+import { AutorenewIcon as AutorenewIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import AutorenewIcon from "@mui/icons-material/Autorenew";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";

@@ -1,6 +1,4 @@
-import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import LaunchOutlinedIcon from "@mui/icons-material/LaunchOutlined";
-import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
+import { GroupOutlinedIcon as GroupOutlinedIcon, LaunchOutlinedIcon as LaunchOutlinedIcon, PublicOutlinedIcon as PublicOutlinedIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 

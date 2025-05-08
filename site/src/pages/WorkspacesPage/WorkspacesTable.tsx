@@ -1,5 +1,4 @@
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import Star from "@mui/icons-material/Star";
+import { KeyboardArrowRight as KeyboardArrowRight, Star as Star } from "lucide-react";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";

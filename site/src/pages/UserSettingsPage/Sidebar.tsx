@@ -1,10 +1,4 @@
-import AppearanceIcon from "@mui/icons-material/Brush";
-import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
-import SecurityIcon from "@mui/icons-material/LockOutlined";
-import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
-import AccountIcon from "@mui/icons-material/Person";
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import { AppearanceIcon as AppearanceIcon, ScheduleIcon as ScheduleIcon, FingerprintOutlinedIcon as FingerprintOutlinedIcon, SecurityIcon as SecurityIcon, NotificationsIcon as NotificationsIcon, AccountIcon as AccountIcon, VpnKeyOutlined as VpnKeyOutlined } from "lucide-react";
 import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitIcon } from "components/Icons/GitIcon";

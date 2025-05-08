@@ -1,4 +1,4 @@
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import { InfoOutlined as InfoOutlined } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Pill, PillSpinner } from "./Pill";
 

@@ -1,8 +1,4 @@
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
-import HistoryIcon from "@mui/icons-material/HistoryOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import { DeleteIcon as DeleteIcon, DownloadOutlined as DownloadOutlined, DuplicateIcon as DuplicateIcon, HistoryIcon as HistoryIcon, SettingsIcon as SettingsIcon } from "lucide-react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {

@@ -1,4 +1,4 @@
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import { ChevronDown as KeyboardArrowDown } from "lucide-react";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";

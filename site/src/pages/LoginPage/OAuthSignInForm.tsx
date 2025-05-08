@@ -1,5 +1,4 @@
-import GitHubIcon from "@mui/icons-material/GitHub";
-import KeyIcon from "@mui/icons-material/VpnKey";
+import { GitHubIcon as GitHubIcon, KeyIcon as KeyIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import { visuallyHidden } from "@mui/utils";
 import type { AuthMethods } from "api/typesGenerated";

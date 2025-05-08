@@ -1,6 +1,5 @@
+import { AddOutlined as AddOutlined, KeyboardArrowRight as KeyboardArrowRight } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
-import AddOutlined from "@mui/icons-material/AddOutlined";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Skeleton from "@mui/material/Skeleton";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";

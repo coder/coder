@@ -1,5 +1,5 @@
+import { RefreshIcon as RefreshIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
-import RefreshIcon from "@mui/icons-material/RefreshOutlined";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import {
 	HelpTooltip,

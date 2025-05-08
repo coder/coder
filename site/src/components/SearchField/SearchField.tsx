@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/CloseOutlined";
-import SearchIcon from "@mui/icons-material/SearchOutlined";
+import { X as CloseIcon, Search as SearchIcon } from "lucide-react";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
