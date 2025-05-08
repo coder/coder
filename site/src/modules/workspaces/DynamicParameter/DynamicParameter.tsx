@@ -232,7 +232,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			);
 
 		case "multi-select": {
-			const values = parseStringArrayValue(value);
+			const values = parseStringArrayValue(value ?? "");
 
 			// Map parameter options to MultiSelectCombobox options format
 			const options: Option[] = parameter.options.map((opt) => ({
@@ -277,7 +277,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "tag-select": {
-			const values = parseStringArrayValue(value);
+			const values = parseStringArrayValue(value ?? "");
 
 			return (
 				<TagInput
@@ -525,8 +525,8 @@ const isValidParameterOption = (
 	previewParam: PreviewParameter,
 	buildParam: WorkspaceBuildParameter,
 ) => {
+	// multi-select is the only list(string) type with options
 	if (previewParam.form_type === "multi-select") {
-		console.log("buildParam.value", buildParam.value);
 		let values: string[] = [];
 		try {
 			const parsed = JSON.parse(buildParam.value);
@@ -541,16 +541,16 @@ const isValidParameterOption = (
 			return false;
 		}
 
-		// If options exist, validate each value
 		if (previewParam.options.length > 0) {
 			const validValues = previewParam.options.map(
 				(option) => option.value.value,
 			);
-			return values.every((value) => validValues.includes(value));
+			return values.some((value) => validValues.includes(value));
 		}
 		return false;
 	}
-	// For parameters with options (dropdown, radio, etc.)
+
+	// For parameters with options (dropdown, radio)
 	if (previewParam.options.length > 0) {
 		const validValues = previewParam.options.map(
 			(option) => option.value.value,
@@ -558,7 +558,7 @@ const isValidParameterOption = (
 		return validValues.includes(buildParam.value);
 	}
 
-	// For parameters without options (input, textarea, etc.)
+	// For parameters without options (input,textarea,switch,checkbox,tag-select)
 	return true;
 };
 
