@@ -1,4 +1,4 @@
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import { ChevronRightIcon } from "lucide-react";
 import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
@@ -303,7 +303,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							/>
 							<TableCell>
 								<div className="flex">
-									<KeyboardArrowRight className="text-content-secondary size-icon-sm" />
+									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
 								</div>
 							</TableCell>
 						</WorkspacesRow>
@@ -385,7 +385,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell>
 					<div className="flex">
-						<KeyboardArrowRight className="text-content-disabled size-icon-sm" />
+						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
 					</div>
 				</TableCell>
 			</TableRowSkeleton>

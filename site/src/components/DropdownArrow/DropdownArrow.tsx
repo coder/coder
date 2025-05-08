@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface ArrowProps {
@@ -14,7 +13,7 @@ export const DropdownArrow: FC<ArrowProps> = ({
 	color,
 	close,
 }) => {
-	const Arrow = close ? KeyboardArrowUp : KeyboardArrowDown;
+	const Arrow = close ? ChevronUpIcon : ChevronDownIcon;
 
 	return (
 		<Arrow

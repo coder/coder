@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CloseIcon from "@mui/icons-material/Close";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import LockIcon from "@mui/icons-material/Lock";
+import { ChevronDownIcon } from "lucide-react";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import SensorsIcon from "@mui/icons-material/Sensors";
@@ -82,7 +82,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 					disabled={!portsQuery.data}
 					size="small"
 					variant="text"
-					endIcon={<KeyboardArrowDown />}
+					endIcon={<ChevronDownIcon className="size-4" />}
 					css={{ fontSize: 13, padding: "8px 12px" }}
 					startIcon={
 						portsQuery.data ? (

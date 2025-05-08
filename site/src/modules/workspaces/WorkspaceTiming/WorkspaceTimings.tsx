@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
@@ -102,9 +101,9 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				onClick={() => setIsOpen((o) => !o)}
 			>
 				{isOpen ? (
-					<KeyboardArrowUp css={{ fontSize: 16, marginRight: 16 }} />
+					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
 				) : (
-					<KeyboardArrowDown css={{ fontSize: 16, marginRight: 16 }} />
+					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
 				)}
 				<span>Build timeline</span>
 				<span

@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import { ChevronDownIcon } from "lucide-react";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
@@ -267,7 +267,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 			<Button
 				onClick={() => setIsOpen(true)}
 				ref={anchorRef}
-				endIcon={<KeyboardArrowDown />}
+				endIcon={<ChevronDownIcon className="size-4" />}
 			>
 				Filters
 			</Button>

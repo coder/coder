@@ -1,4 +1,4 @@
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import { ChevronDownIcon } from "lucide-react";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
@@ -126,7 +126,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 						});
 					}}
 					inputProps={{ "aria-label": "Time unit" }}
-					IconComponent={KeyboardArrowDown}
+					IconComponent={ChevronDownIcon}
 				>
 					<MenuItem value="hours">Hours</MenuItem>
 					<MenuItem

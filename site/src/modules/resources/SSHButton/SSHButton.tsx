@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import { ChevronDownIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
@@ -36,7 +36,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 				<Button
 					size="small"
 					variant="text"
-					endIcon={<KeyboardArrowDown />}
+					endIcon={<ChevronDownIcon className="size-4" />}
 					css={{ fontSize: 13, padding: "8px 12px" }}
 				>
 					Connect via SSH
@@ -98,7 +98,7 @@ export const AgentDevcontainerSSHButton: FC<
 				<Button
 					size="small"
 					variant="text"
-					endIcon={<KeyboardArrowDown />}
+					endIcon={<ChevronDownIcon className="size-4" />}
 					css={{ fontSize: 13, padding: "8px 12px" }}
 				>
 					Connect via SSH

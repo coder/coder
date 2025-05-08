@@ -1,8 +1,8 @@
 import CloudQueue from "@mui/icons-material/CloudQueue";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import StopOutlined from "@mui/icons-material/StopOutlined";
+import { ChevronDownIcon } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
@@ -144,7 +144,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									variant="text"
 									size="small"
 									css={{ borderRadius: 9999, marginLeft: "auto" }}
-									endIcon={<KeyboardArrowDownOutlined />}
+									endIcon={<ChevronDownIcon className="size-4" />}
 								>
 									Actions
 								</LoadingButton>
