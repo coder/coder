@@ -696,7 +696,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				href={href}
 				onClick={(e) => {
 					e.preventDefault();
-					openAppInNewWindow("Terminal", href);
+					openAppInNewWindow(href);
 				}}
 				label="Open Terminal"
 			>

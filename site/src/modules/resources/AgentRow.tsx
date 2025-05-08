@@ -40,6 +40,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { apiKey } from "api/queries/users";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -163,6 +164,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 		refetchInterval: 10_000,
 	});
 
+	const { data: apiKeyResponse } = useQuery(apiKey());
+
 	return (
 		<Stack
 			key={agent.id}
@@ -239,6 +242,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								)}
 								{visibleApps.map((app) => (
 									<AppLink
+										token={apiKeyResponse?.key}
 										key={app.slug}
 										app={app}
 										agent={agent}
