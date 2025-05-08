@@ -139,7 +139,7 @@ func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
 // Manager requires system-level permissions to interact with the store.
 // Run is only intended to be run once.
 func (m *Manager) Run(ctx context.Context) {
-	m.log.Info(ctx, "notification manager started")
+	m.log.Debug(ctx, "notification manager started")
 
 	m.runOnce.Do(func() {
 		// Closes when Stop() is called or context is canceled.
@@ -157,7 +157,7 @@ func (m *Manager) Run(ctx context.Context) {
 func (m *Manager) loop(ctx context.Context) error {
 	defer func() {
 		close(m.done)
-		m.log.Info(context.Background(), "notification manager stopped")
+		m.log.Debug(context.Background(), "notification manager stopped")
 	}()
 
 	m.mu.Lock()
@@ -359,7 +359,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 	m.closed = true
 
-	m.log.Info(context.Background(), "graceful stop requested")
+	m.log.Debug(context.Background(), "graceful stop requested")
 
 	// If the notifier hasn't been started, we don't need to wait for anything.
 	// This is only really during testing when we want to enqueue messages only but not deliver them.
@@ -388,7 +388,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 		m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
 		return ctx.Err()
 	case <-m.done:
-		m.log.Info(context.Background(), "gracefully stopped")
+		m.log.Debug(context.Background(), "gracefully stopped")
 		return nil
 	}
 }
