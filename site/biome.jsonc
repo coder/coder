@@ -36,7 +36,6 @@
 					"options": {
 						"paths": {
 							"@mui/material": "Use @mui/material/<name> instead. See: https://material-ui.com/guides/minimizing-bundle-size/.",
-							"@mui/icons-material": "Use @mui/icons-material/<name> instead. See: https://material-ui.com/guides/minimizing-bundle-size/.",
 							"@mui/material/Avatar": "Use components/Avatar/Avatar instead.",
 							"@mui/material/Alert": "Use components/Alert/Alert instead.",
 							"@mui/material/Popover": "Use components/Popover/Popover instead.",
