@@ -14,7 +14,7 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
-import { createAppLinkHref } from "utils/apps";
+import { getAppHref } from "modules/apps/apps";
 
 const formatURI = (uri: string) => {
 	try {
@@ -61,11 +61,13 @@ export const WorkspaceAppStatus = ({
 	status,
 	agent,
 	app,
+	token,
 }: {
 	workspace: Workspace;
 	status?: APIWorkspaceAppStatus | null;
 	app?: WorkspaceApp;
 	agent?: WorkspaceAgent;
+	token?: string;
 }) => {
 	const theme = useTheme();
 	const { proxy } = useProxy();
@@ -124,16 +126,13 @@ export const WorkspaceAppStatus = ({
 
 	let appHref: string | undefined;
 	if (app && agent) {
-		appHref = createAppLinkHref(
-			window.location.protocol,
-			preferredPathBase,
-			appsHost,
-			app.slug,
-			workspace.owner_name,
-			workspace,
+		appHref = getAppHref(app, {
 			agent,
-			app,
-		);
+			workspace,
+			token,
+			host: appsHost,
+			path: preferredPathBase,
+		});
 	}
 
 	return (

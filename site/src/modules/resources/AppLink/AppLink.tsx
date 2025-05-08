@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
@@ -11,17 +10,15 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import { type FC, useState } from "react";
-import { createAppLinkHref } from "utils/apps";
-import { generateRandomString } from "utils/random";
-import { AgentButton } from "../AgentButton";
-import { BaseIcon } from "./BaseIcon";
-import { ShareIcon } from "./ShareIcon";
 import {
-	createAppHref,
+	getAppHref,
 	needsSessionToken,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import { type FC, useState } from "react";
+import { AgentButton } from "../AgentButton";
+import { BaseIcon } from "./BaseIcon";
+import { ShareIcon } from "./ShareIcon";
 
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	port_forwarding_helper: "Ports",
@@ -49,7 +46,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent, token }) => {
 	const [iconError, setIconError] = useState(false);
 	const theme = useTheme();
 	const displayName = app.display_name ?? app.slug;
-	const href = createAppHref(app, {
+	const href = getAppHref(app, {
 		agent,
 		workspace,
 		token,

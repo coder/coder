@@ -54,6 +54,7 @@ export interface WorkspaceProps {
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	token?: string;
 }
 
 /**
@@ -86,6 +87,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	timings,
+	token,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -271,6 +273,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							>
 								{selectedResource.agents?.map((agent) => (
 									<AgentRow
+										token={token}
 										key={agent.id}
 										agent={agent}
 										workspace={workspace}
@@ -382,6 +385,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 										}}
 									>
 										<AppStatuses
+											token={token}
 											apps={
 												selectedResource.agents?.flatMap(
 													(agent) => agent.apps ?? [],

@@ -19,8 +19,8 @@ import type {
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import { getAppHref } from "modules/apps/apps";
 import type { FC } from "react";
-import { createAppLinkHref } from "utils/apps";
 
 const getStatusColor = (
 	theme: Theme,
@@ -138,6 +138,7 @@ export interface AppStatusesProps {
 	agents: ReadonlyArray<WorkspaceAgent>;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
+	token?: string;
 }
 
 // Extend the API status type to include the app icon and the app itself
@@ -151,6 +152,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	workspace,
 	agents,
 	referenceDate,
+	token,
 }) => {
 	const theme = useTheme();
 	const { proxy } = useProxy();
@@ -198,16 +200,13 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 				const agent = agents.find((agent) => agent.id === status.agent_id);
 
 				if (currentApp && agent) {
-					appHref = createAppLinkHref(
-						window.location.protocol,
-						preferredPathBase,
-						appsHost,
-						currentApp.slug,
-						workspace.owner_name,
-						workspace,
+					appHref = getAppHref(currentApp, {
 						agent,
-						currentApp,
-					);
+						workspace,
+						host: appsHost,
+						path: preferredPathBase,
+						token,
+					});
 				}
 
 				// Determine if app link should be shown

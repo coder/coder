@@ -42,12 +42,14 @@ interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
 	workspace: TypesGen.Workspace;
 	permissions: WorkspacePermissions;
+	token?: string;
 }
 
 export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	workspace,
 	template,
 	permissions,
+	token,
 }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
@@ -228,6 +230,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 			</Helmet>
 
 			<Workspace
+				token={token}
 				permissions={permissions}
 				isUpdating={workspaceUpdate.isUpdating}
 				isRestarting={isRestarting}

@@ -8,7 +8,7 @@ import type {
 // with a brand-new session token from the backend.
 // This only exists for external URLs, and should only
 // be used internally, and is highly subject to break.
-const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
+export const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
 
 type GetVSCodeHrefParams = {
 	owner: string;
@@ -73,7 +73,7 @@ type CreateAppHrefParams = {
 	token?: string;
 };
 
-export const createAppHref = (
+export const getAppHref = (
 	app: WorkspaceApp,
 	{ path, token, workspace, agent, host }: CreateAppHrefParams,
 ): string => {
