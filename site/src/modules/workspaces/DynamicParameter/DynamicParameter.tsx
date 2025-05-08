@@ -181,10 +181,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				>
 					<SelectTrigger>
 						<SelectValue
-							placeholder={
-								(parameter.styling as { placeholder?: string })?.placeholder ||
-								"Select option"
-							}
+							placeholder={parameter.styling?.placeholder || "Select option"}
 						/>
 					</SelectTrigger>
 					<SelectContent>
@@ -245,10 +242,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						onChange(JSON.stringify(values));
 					}}
 					hidePlaceholderWhenSelected
-					placeholder={
-						(parameter.styling as { placeholder?: string })?.placeholder ||
-						"Select option"
-					}
+					placeholder={parameter.styling?.placeholder || "Select option"}
 					emptyIndicator={
 						<p className="text-center text-md text-content-primary">
 							No results found
@@ -304,9 +298,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						}}
 						disabled={disabled}
 					/>
-					<Label htmlFor={parameter.name}>
-						{parameter.display_name || parameter.name}
-					</Label>
+					<Label htmlFor={parameter.name}>{parameter.styling?.label}</Label>
 				</div>
 			);
 
@@ -343,9 +335,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						target.style.height = `${target.scrollHeight}px`;
 					}}
 					disabled={disabled}
-					placeholder={
-						(parameter.styling as { placeholder?: string })?.placeholder
-					}
+					placeholder={parameter.styling?.placeholder}
 					required={parameter.required}
 				/>
 			);
@@ -377,9 +367,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					}}
 					disabled={disabled}
 					required={parameter.required}
-					placeholder={
-						(parameter.styling as { placeholder?: string })?.placeholder
-					}
+					placeholder={parameter.styling?.placeholder}
 					{...inputProps}
 				/>
 			);
