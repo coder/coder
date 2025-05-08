@@ -4,7 +4,7 @@ import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -17,7 +17,7 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 		isAddingMember: false,
 		isUpdatingMemberRoles: false,
 		canViewMembers: true,
-		me: MockUser,
+		me: MockUserOwner,
 		members: [
 			{ ...MockOrganizationMember, groups: [] },
 			{ ...MockOrganizationMember2, groups: [] },

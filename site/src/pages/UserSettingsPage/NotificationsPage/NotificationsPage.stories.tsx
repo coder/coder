@@ -11,7 +11,7 @@ import {
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
 	MockNotificationTemplates,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import {
 	withAuthProvider,
@@ -27,7 +27,7 @@ const meta = {
 		experiments: ["notifications"],
 		queries: [
 			{
-				key: userNotificationPreferencesKey(MockUser.id),
+				key: userNotificationPreferencesKey(MockUserOwner.id),
 				data: MockNotificationPreferences,
 			},
 			{
@@ -39,7 +39,7 @@ const meta = {
 				data: MockNotificationMethodsResponse,
 			},
 		],
-		user: MockUser,
+		user: MockUserOwner,
 		permissions: { viewDeploymentConfig: true },
 	},
 	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
