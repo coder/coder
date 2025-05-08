@@ -44,7 +44,6 @@ type Manager struct {
 	store Store
 	log   slog.Logger
 
-	notifier *notifier
 	handlers map[database.NotificationMethod]Handler
 	method   database.NotificationMethod
 	helpers  template.FuncMap
@@ -53,11 +52,13 @@ type Manager struct {
 
 	success, failure chan dispatchResult
 
-	runOnce  sync.Once
-	stopOnce sync.Once
-	doneOnce sync.Once
-	stop     chan any
-	done     chan any
+	mu       sync.Mutex // Protects following.
+	closed   bool
+	notifier *notifier
+
+	runOnce sync.Once
+	stop    chan any
+	done    chan any
 
 	// clock is for testing only
 	clock quartz.Clock
@@ -138,10 +139,9 @@ func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
 // Manager requires system-level permissions to interact with the store.
 // Run is only intended to be run once.
 func (m *Manager) Run(ctx context.Context) {
-	m.log.Info(ctx, "started")
+	m.log.Info(ctx, "notification manager started")
 
 	m.runOnce.Do(func() {
-		m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
 		// Closes when Stop() is called or context is canceled.
 		go func() {
 			err := m.loop(ctx)
@@ -156,29 +156,25 @@ func (m *Manager) Run(ctx context.Context) {
 // events, creating a notifier, and publishing bulk dispatch result updates to the store.
 func (m *Manager) loop(ctx context.Context) error {
 	defer func() {
-		m.doneOnce.Do(func() {
-			close(m.done)
-		})
+		close(m.done)
 		m.log.Info(context.Background(), "notification manager stopped")
 	}()
 
-	// Caught a terminal signal before notifier was created, exit immediately.
-	select {
-	case <-m.stop:
-		m.log.Warn(ctx, "gracefully stopped")
-		return xerrors.Errorf("gracefully stopped")
-	case <-ctx.Done():
-		m.log.Error(ctx, "ungracefully stopped", slog.Error(ctx.Err()))
-		return xerrors.Errorf("notifications: %w", ctx.Err())
-	default:
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return xerrors.New("manager already closed")
 	}
 
 	var eg errgroup.Group
 
+	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
 	eg.Go(func() error {
 		// run the notifier which will handle dequeueing and dispatching notifications.
 		return m.notifier.run(m.success, m.failure)
 	})
+
+	m.mu.Unlock()
 
 	// Periodically flush notification state changes to the store.
 	eg.Go(func() error {
@@ -355,48 +351,46 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 
 // Stop stops the notifier and waits until it has stopped.
 func (m *Manager) Stop(ctx context.Context) error {
-	var err error
-	m.stopOnce.Do(func() {
-		select {
-		case <-ctx.Done():
-			err = ctx.Err()
-			return
-		default:
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return nil
+	}
+	m.closed = true
+
+	m.log.Info(context.Background(), "graceful stop requested")
+
+	// If the notifier hasn't been started, we don't need to wait for anything.
+	// This is only really during testing when we want to enqueue messages only but not deliver them.
+	if m.notifier != nil {
+		m.notifier.stop()
+	}
+
+	// Signal the stop channel to cause loop to exit.
+	close(m.stop)
+
+	if m.notifier == nil {
+		return nil
+	}
+
+	m.mu.Unlock()     // Unlock to avoid blocking loop.
+	defer m.mu.Lock() // Re-lock the mutex due to earlier defer.
+
+	// Wait for the manager loop to exit or the context to be canceled, whichever comes first.
+	select {
+	case <-ctx.Done():
+		var errStr string
+		if ctx.Err() != nil {
+			errStr = ctx.Err().Error()
 		}
-
-		m.log.Info(context.Background(), "graceful stop requested")
-
-		// If the notifier hasn't been started, we don't need to wait for anything.
-		// This is only really during testing when we want to enqueue messages only but not deliver them.
-		if m.notifier == nil {
-			m.doneOnce.Do(func() {
-				close(m.done)
-			})
-		} else {
-			m.notifier.stop()
-		}
-
-		// Signal the stop channel to cause loop to exit.
-		close(m.stop)
-
-		// Wait for the manager loop to exit or the context to be canceled, whichever comes first.
-		select {
-		case <-ctx.Done():
-			var errStr string
-			if ctx.Err() != nil {
-				errStr = ctx.Err().Error()
-			}
-			// For some reason, slog.Error returns {} for a context error.
-			m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
-			err = ctx.Err()
-			return
-		case <-m.done:
-			m.log.Info(context.Background(), "gracefully stopped")
-			return
-		}
-	})
-
-	return err
+		// For some reason, slog.Error returns {} for a context error.
+		m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
+		return ctx.Err()
+	case <-m.done:
+		m.log.Info(context.Background(), "gracefully stopped")
+		return nil
+	}
 }
 
 type dispatchResult struct {
