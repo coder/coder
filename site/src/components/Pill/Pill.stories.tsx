@@ -1,4 +1,4 @@
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import { InfoIcon } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Pill, PillSpinner } from "./Pill";
 
@@ -68,7 +68,7 @@ export const WithIcon: Story = {
 	args: {
 		children: "Information",
 		type: "info",
-		icon: <InfoOutlined />,
+		icon: <InfoIcon aria-hidden="true" className="size-icon-sm" />,
 	},
 };
 

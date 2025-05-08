@@ -1,4 +1,4 @@
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { CircleAlertIcon } from "lucide-react";
 import Tooltip, {
 	type TooltipProps,
 	tooltipClasses,
@@ -31,10 +31,10 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
 				<FailureTooltip
 					title={
 						<div css={{ display: "flex", alignItems: "center", gap: 10 }}>
-							<ErrorOutline
+							<CircleAlertIcon
+								aria-hidden="true"
+								className="size-icon-xs"
 								css={(theme) => ({
-									width: 14,
-									height: 14,
 									color: theme.palette.error.light,
 								})}
 							/>

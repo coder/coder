@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import TaskAltIcon from "@mui/icons-material/TaskAlt";
+import { CircleCheckBigIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
@@ -77,7 +77,9 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 
 const FeatureIcon: FC = () => {
 	return (
-		<TaskAltIcon
+		<CircleCheckBigIcon
+			aria-hidden="true"
+			className="size-icon-sm"
 			css={[
 				(theme) => ({
 					color: theme.branding.premium.border,

@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import { InfoIcon } from "lucide-react";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
@@ -251,7 +251,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={infoNotifications}
 					severity="info"
-					icon={<InfoOutlined />}
+					icon={<InfoIcon aria-hidden="true" className="size-icon-sm" />}
 				/>
 			)}
 

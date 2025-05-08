@@ -1,5 +1,5 @@
 import type { Theme } from "@emotion/react";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import { CircleAlertIcon } from "lucide-react";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
 import StopIcon from "@mui/icons-material/StopOutlined";
@@ -227,7 +227,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "danger",
 				text: "Deleted",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "canceling":
 			return {
@@ -239,13 +239,13 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Canceled",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "failed":
 			return {
 				type: "error",
 				text: "Failed",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "pending":
 			return {

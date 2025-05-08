@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import { CircleAlertIcon } from "lucide-react";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -74,12 +74,12 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 		primaryTooltip = "Initializing...";
 	}
 	if (app.health === "unhealthy") {
-		icon = <ErrorOutlineIcon css={{ color: theme.palette.warning.light }} />;
+		icon = <CircleAlertIcon aria-hidden="true" className="size-icon-sm" css={{ color: theme.palette.warning.light }} />;
 		primaryTooltip = "Unhealthy";
 	}
 	if (!appsHost && app.subdomain) {
 		canClick = false;
-		icon = <ErrorOutlineIcon css={{ color: theme.palette.grey[300] }} />;
+		icon = <CircleAlertIcon aria-hidden="true" className="size-icon-sm" css={{ color: theme.palette.grey[300] }} />;
 		primaryTooltip =
 			"Your admin has not configured subdomain application access";
 	}

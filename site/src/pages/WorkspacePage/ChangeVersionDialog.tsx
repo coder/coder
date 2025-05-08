@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
+import { InfoIcon } from "lucide-react";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -106,7 +106,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 														>
 															{option.name}
 															{option.message && (
-																<InfoIcon css={{ width: 12, height: 12 }} />
+																<InfoIcon aria-hidden="true" className="size-icon-xs" />
 															)}
 														</Stack>
 														{template?.active_version_id === option.id && (
