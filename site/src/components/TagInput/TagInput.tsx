@@ -2,14 +2,14 @@ import Chip from "@mui/material/Chip";
 import FormHelperText from "@mui/material/FormHelperText";
 import { type FC, useId, useMemo } from "react";
 
-export type MultiTextFieldProps = {
+export type TagInputProps = {
 	label: string;
 	id?: string;
 	values: string[];
 	onChange: (values: string[]) => void;
 };
 
-export const MultiTextField: FC<MultiTextFieldProps> = ({
+export const TagInput: FC<TagInputProps> = ({
 	label,
 	id,
 	values,

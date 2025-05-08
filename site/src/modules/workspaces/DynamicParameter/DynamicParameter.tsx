@@ -15,7 +15,6 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import { MultiTextField } from "components/RichParameterInput/MultiTextField";
 import {
 	Select,
 	SelectContent,
@@ -25,6 +24,7 @@ import {
 } from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Switch } from "components/Switch/Switch";
+import { TagInput } from "components/TagInput/TagInput";
 import { Textarea } from "components/Textarea/Textarea";
 import {
 	Tooltip,
@@ -250,7 +250,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const values = parseStringArrayValue(value);
 
 			return (
-				<MultiTextField
+				<TagInput
 					id={parameter.name}
 					label={parameter.display_name || parameter.name}
 					values={values}
