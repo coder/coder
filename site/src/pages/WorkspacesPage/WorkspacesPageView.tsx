@@ -53,7 +53,6 @@ export interface WorkspacesPageViewProps {
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
-	onUpdateWorkspace: (workspace: Workspace) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	isRunningBatchAction: boolean;
 	onDeleteAll: () => void;
@@ -76,7 +75,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	count,
 	filterProps,
 	onPageChange,
-	onUpdateWorkspace,
 	page,
 	checkedWorkspaces,
 	onCheckChange,
@@ -223,7 +221,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateTemplate={canCreateTemplate}
 					workspaces={workspaces}
 					isUsingFilter={filterProps.filter.used}
-					onUpdateWorkspace={onUpdateWorkspace}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}

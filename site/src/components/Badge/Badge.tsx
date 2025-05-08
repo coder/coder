@@ -19,7 +19,7 @@ const badgeVariants = cva(
 				warning:
 					"border border-solid border-border-warning bg-surface-orange text-content-warning shadow",
 				destructive:
-					"border border-solid border-border-destructive bg-surface-red text-content-highlight-red shadow",
+					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
 			},
 			size: {
 				xs: "text-2xs font-regular h-5 [&_svg]:hidden rounded px-1.5",
