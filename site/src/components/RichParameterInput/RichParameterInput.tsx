@@ -19,7 +19,7 @@ import type {
 	AutofillBuildParameter,
 	AutofillSource,
 } from "utils/richParameters";
-import { MultiTextField } from "./MultiTextField";
+import { TagInput } from "../TagInput/TagInput";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
 	return parameter.type === "bool";
@@ -372,7 +372,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 		}
 
 		return (
-			<MultiTextField
+			<TagInput
 				id={parameter.name}
 				data-testid="parameter-field-list-of-string"
 				label={props.label as string}

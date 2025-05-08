@@ -24,6 +24,7 @@ import {
 } from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Switch } from "components/Switch/Switch";
+import { TagInput } from "components/TagInput/TagInput";
 import { Textarea } from "components/Textarea/Textarea";
 import {
 	Tooltip,
@@ -195,21 +196,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			);
 
 		case "multi-select": {
-			let values: string[] = [];
-
-			if (value) {
-				try {
-					const parsed = JSON.parse(value);
-					if (Array.isArray(parsed)) {
-						values = parsed;
-					}
-				} catch (e) {
-					console.error(
-						"Error parsing parameter value with form_type multi-select",
-						e,
-					);
-				}
-			}
+			const values = parseStringArrayValue(value);
 
 			// Map parameter options to MultiSelectCombobox options format
 			const options: Option[] = parameter.options.map((opt) => ({
@@ -249,6 +236,21 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						</p>
 					}
 					disabled={disabled}
+				/>
+			);
+		}
+
+		case "tag-select": {
+			const values = parseStringArrayValue(value);
+
+			return (
+				<TagInput
+					id={parameter.name}
+					label={parameter.display_name || parameter.name}
+					values={values}
+					onChange={(values) => {
+						onChange(JSON.stringify(values));
+					}}
 				/>
 			);
 		}
@@ -373,6 +375,23 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			);
 		}
 	}
+};
+
+const parseStringArrayValue = (value: string): string[] => {
+	let values: string[] = [];
+
+	if (value) {
+		try {
+			const parsed = JSON.parse(value);
+			if (Array.isArray(parsed)) {
+				values = parsed;
+			}
+		} catch (e) {
+			console.error("Error parsing parameter of type list(string)", e);
+		}
+	}
+
+	return values;
 };
 
 interface OptionDisplayProps {
