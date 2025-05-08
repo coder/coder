@@ -1,7 +1,6 @@
 import { watchWorkspace } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import { template as templateQueryOptions } from "api/queries/templates";
-import { apiKey } from "api/queries/users";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
@@ -111,8 +110,6 @@ const WorkspacePage: FC = () => {
 		workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
 	const isLoading = !workspace || !template || !permissions;
 
-	const { data: apiKeyResponse } = useQuery(apiKey());
-
 	return (
 		<>
 			<AnnouncementBanners />
@@ -129,7 +126,6 @@ const WorkspacePage: FC = () => {
 					<Loader />
 				) : (
 					<WorkspaceReadyPage
-						token={apiKeyResponse?.key}
 						workspace={workspace}
 						template={template}
 						permissions={permissions}

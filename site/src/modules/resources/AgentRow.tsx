@@ -54,7 +54,6 @@ export interface AgentRowProps {
 	onUpdateAgent: () => void;
 	template: Template;
 	storybookAgentMetadata?: WorkspaceAgentMetadata[];
-	token?: string;
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
@@ -70,7 +69,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	onUpdateAgent,
 	storybookAgentMetadata,
 	sshPrefix,
-	token,
 }) => {
 	// Apps visibility
 	const visibleApps = agent.apps.filter((app) => !app.hidden);
@@ -241,7 +239,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 								)}
 								{visibleApps.map((app) => (
 									<AppLink
-										token={token}
 										key={app.slug}
 										app={app}
 										agent={agent}

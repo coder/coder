@@ -65,7 +65,7 @@ export const openAppInNewWindow = (href: string) => {
 	window.open(href, "_blank", "width=900,height=600");
 };
 
-type CreateAppHrefParams = {
+export type GetAppHrefParams = {
 	path: string;
 	host: string;
 	workspace: Workspace;
@@ -75,7 +75,7 @@ type CreateAppHrefParams = {
 
 export const getAppHref = (
 	app: WorkspaceApp,
-	{ path, token, workspace, agent, host }: CreateAppHrefParams,
+	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
 		return needsSessionToken(app)

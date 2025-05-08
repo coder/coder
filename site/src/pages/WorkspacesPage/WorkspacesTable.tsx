@@ -3,6 +3,7 @@ import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
+import { apiKey } from "api/queries/users";
 import {
 	cancelBuild,
 	deleteWorkspace,
@@ -102,7 +103,6 @@ export interface WorkspacesTableProps {
 	canCreateTemplate: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
-	token?: string;
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -115,7 +115,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	canCreateTemplate,
 	onActionSuccess,
 	onActionError,
-	token,
 }) => {
 	const dashboard = useDashboard();
 	const workspaceIDToAppByStatus = useMemo(() => {
@@ -270,7 +269,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										agent={workspaceIDToAppByStatus[workspace.id]?.agent}
 										app={workspaceIDToAppByStatus[workspace.id]?.app}
 										status={workspace.latest_app_status}
-										token={token}
 									/>
 								</TableCell>
 							)}
@@ -449,14 +447,12 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 
 type WorkspaceActionsCellProps = {
 	workspace: Workspace;
-	token?: string;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 };
 
 const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	workspace,
-	token,
 	onActionSuccess,
 	onActionError,
 }) => {
@@ -542,7 +538,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		<TableCell>
 			<div className="flex gap-1 justify-end">
 				{workspace.latest_build.status === "running" && (
-					<WorkspaceApps workspace={workspace} token={token} />
+					<WorkspaceApps workspace={workspace} />
 				)}
 
 				{abilities.actions.includes("start") && (
@@ -628,10 +624,12 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 
 type WorkspaceAppsProps = {
 	workspace: Workspace;
-	token?: string;
 };
 
-const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace, token }) => {
+const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+	const { data: apiKeyResponse } = useQuery(apiKey());
+	const token = apiKeyResponse?.key;
+
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
 	 * as having multiple resources with many agents, but they are not common. The

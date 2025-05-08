@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import type * as TypesGen from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -10,11 +9,8 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import {
-	getAppHref,
-	needsSessionToken,
-	openAppInNewWindow,
-} from "modules/apps/apps";
+import { needsSessionToken } from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
@@ -28,31 +24,18 @@ export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	web_terminal: "Terminal",
 };
 
-const Language = {
-	appTitle: (appName: string, identifier: string): string =>
-		`${appName} - ${identifier}`,
-};
-
 export interface AppLinkProps {
 	workspace: TypesGen.Workspace;
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;
-	token?: string;
 }
 
-export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent, token }) => {
+export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const { proxy } = useProxy();
 	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
 	const theme = useTheme();
-	const displayName = app.display_name ?? app.slug;
-	const href = getAppHref(app, {
-		agent,
-		workspace,
-		token,
-		path: proxy.preferredPathAppURL,
-		host: proxy.preferredWildcardHostname,
-	});
+	const link = useAppLink(app, { agent, workspace });
 
 	// canClick is ONLY false when it's a subdomain app and the admin hasn't
 	// enabled wildcard access URL or the session token is being fetched.
@@ -82,7 +65,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent, token }) => {
 			"Your admin has not configured subdomain application access";
 	}
 
-	if (!token && needsSessionToken(app)) {
+	if (needsSessionToken(app) && !link.hasToken) {
 		canClick = false;
 	}
 
@@ -97,37 +80,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent, token }) => {
 
 	const button = (
 		<AgentButton asChild>
-			<a
-				href={canClick ? href : undefined}
-				onClick={(event) => {
-					if (!canClick) {
-						return;
-					}
-
-					if (app.external) {
-						// When browser recognizes the protocol and is able to navigate to the app,
-						// it will blur away, and will stop the timer. Otherwise,
-						// an error message will be displayed.
-						const openAppExternallyFailedTimeout = 500;
-						const openAppExternallyFailed = setTimeout(() => {
-							displayError(`${displayName} must be installed first.`);
-						}, openAppExternallyFailedTimeout);
-						window.addEventListener("blur", () => {
-							clearTimeout(openAppExternallyFailed);
-						});
-					}
-
-					switch (app.open_in) {
-						case "slim-window": {
-							event.preventDefault();
-							openAppInNewWindow(href);
-							return;
-						}
-					}
-				}}
-			>
+			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
 				{icon}
-				{displayName}
+				{link.label}
 				{canShare && <ShareIcon app={app} />}
 			</a>
 		</AgentButton>
