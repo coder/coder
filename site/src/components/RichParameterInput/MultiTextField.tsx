@@ -1,7 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Chip from "@mui/material/Chip";
 import FormHelperText from "@mui/material/FormHelperText";
-import type { FC } from "react";
+import { type FC, useId, useMemo } from "react";
 
 export type MultiTextFieldProps = {
 	label: string;
@@ -16,12 +15,25 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
 	values,
 	onChange,
 }) => {
+	const baseId = useId();
+
+	const itemIds = useMemo(() => {
+		return Array.from(
+			{ length: values.length },
+			(_, index) => `${baseId}-item-${index}`,
+		);
+	}, [baseId, values.length]);
+
 	return (
 		<div>
-			<label css={styles.root}>
+			<label
+				className="flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border border-border border-solid relative rounded-md
+				focus-within:border-content-link focus-within:border-2 focus-within:-top-px focus-within:-left-px"
+			>
 				{values.map((value, index) => (
 					<Chip
-						key={index}
+						key={itemIds[index]}
+						className="rounded-md bg-surface-secondary text-content-secondary h-7"
 						label={value}
 						size="small"
 						onDelete={() => {
@@ -32,7 +44,7 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
 				<input
 					id={id}
 					aria-label={label}
-					css={styles.input}
+					className="flex-grow text-inherit p-0 border-none bg-transparent focus:outline-none"
 					onKeyDown={(event) => {
 						if (event.key === ",") {
 							event.preventDefault();
@@ -64,42 +76,9 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
 				/>
 			</label>
 
-			<FormHelperText>{'Type "," to separate the values'}</FormHelperText>
+			<FormHelperText className="text-content-secondary text-xs">
+				{'Type "," to separate the values'}
+			</FormHelperText>
 		</div>
 	);
 };
-
-const styles = {
-	root: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 8,
-		minHeight: 48, // Chip height + paddings
-		padding: "10px 14px",
-		fontSize: 16,
-		display: "flex",
-		flexWrap: "wrap",
-		gap: 8,
-		position: "relative",
-		margin: "8px 0 4px", // Have same margin than TextField
-
-		"&:has(input:focus)": {
-			borderColor: theme.palette.primary.main,
-			borderWidth: 2,
-			// Compensate for the border width
-			top: -1,
-			left: -1,
-		},
-	}),
-
-	input: {
-		flexGrow: 1,
-		fontSize: "inherit",
-		padding: 0,
-		border: "none",
-		background: "none",
-
-		"&:focus": {
-			outline: "none",
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;
