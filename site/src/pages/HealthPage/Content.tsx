@@ -1,8 +1,8 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { CheckCircleIcon } from "lucide-react";
+import { XCircleIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
@@ -57,7 +57,7 @@ interface HealthIconProps {
 export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
 	const theme = useTheme();
 	const color = healthyColor(theme, severity);
-	const Icon = severity === "error" ? ErrorOutline : CheckCircleOutlined;
+	const Icon = severity === "error" ? AlertCircleIcon : CheckCircleIcon;
 
 	return <Icon css={{ width: size, height: size, color }} />;
 };
@@ -201,9 +201,9 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 		<Pill
 			icon={
 				value ? (
-					<CheckCircleOutlined css={{ color }} />
+					<CheckCircleIcon css={{ color }} />
 				) : (
-					<DoNotDisturbOnOutlined css={{ color }} />
+					<XCircleIcon css={{ color }} />
 				)
 			}
 			{...divProps}

@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import DeleteIcon from "@mui/icons-material/Delete";
-import GitHub from "@mui/icons-material/GitHub";
-import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
-import KeyOutlined from "@mui/icons-material/KeyOutlined";
-import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
-import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
+import { TrashIcon } from "lucide-react";
+import { GithubIcon } from "lucide-react";
+import { EyeOffIcon } from "lucide-react";
+import { KeyIcon } from "lucide-react";
+import { KeyRoundIcon } from "lucide-react";
+import { ShieldIcon } from "lucide-react";
 import Skeleton from "@mui/material/Skeleton";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
@@ -236,7 +236,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 											onClick={() => onDeleteUser(user)}
 											disabled={user.id === actorID}
 										>
-											<DeleteIcon />
+											<TrashIcon />
 											Delete&hellip;
 										</DropdownMenuItem>
 									</DropdownMenuContent>
@@ -261,22 +261,22 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 
 	if (value === "password") {
 		displayName = "Password";
-		icon = <PasswordOutlined css={styles.icon} />;
+		icon = <KeyRoundIcon css={styles.icon} />;
 	} else if (value === "none") {
 		displayName = "None";
-		icon = <HideSourceOutlined css={styles.icon} />;
+		icon = <EyeOffIcon css={styles.icon} />;
 	} else if (value === "github") {
 		displayName = "GitHub";
-		icon = <GitHub css={styles.icon} />;
+		icon = <GithubIcon css={styles.icon} />;
 	} else if (value === "token") {
 		displayName = "Token";
-		icon = <KeyOutlined css={styles.icon} />;
+		icon = <KeyIcon css={styles.icon} />;
 	} else if (value === "oidc") {
 		displayName =
 			authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
 		icon =
 			authMethods.oidc.iconUrl === "" ? (
-				<ShieldOutlined css={styles.icon} />
+				<ShieldIcon css={styles.icon} />
 			) : (
 				<img
 					alt="Open ID Connect icon"

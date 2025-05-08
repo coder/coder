@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
+import { MapPinIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import type {
 	HealthMessage,
@@ -106,7 +106,7 @@ const DERPPage: FC = () => {
 								return (
 									<Button
 										startIcon={
-											<LocationOnOutlined
+											<MapPinIcon
 												css={{
 													width: 16,
 													height: 16,

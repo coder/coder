@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
+import { CodeIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -49,7 +49,7 @@ const WebsocketPage = () => {
 
 				<section>
 					<Tooltip title="Code">
-						<Pill icon={<CodeOutlined />}>{websocket.code}</Pill>
+						<Pill icon={<CodeIcon />}>{websocket.code}</Pill>
 					</Tooltip>
 				</section>
 

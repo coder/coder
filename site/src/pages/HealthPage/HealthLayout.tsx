@@ -1,7 +1,7 @@
 import { cx } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import ReplayIcon from "@mui/icons-material/Replay";
+import { BellOffIcon } from "lucide-react";
+import { RefreshCwIcon } from "lucide-react";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
@@ -116,7 +116,7 @@ export const HealthLayout: FC = () => {
 											{isRefreshing ? (
 												<CircularProgress size={16} />
 											) : (
-												<ReplayIcon css={{ width: 20, height: 20 }} />
+												<RefreshCwIcon css={{ width: 20, height: 20 }} />
 											)}
 										</IconButton>
 									</Tooltip>
@@ -191,7 +191,7 @@ export const HealthLayout: FC = () => {
 											/>
 											{label}
 											{healthSection.dismissed && (
-												<NotificationsOffOutlined
+												<BellOffIcon
 													css={{
 														fontSize: 14,
 														marginLeft: "auto",

@@ -1,5 +1,5 @@
-import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import NotificationOutlined from "@mui/icons-material/NotificationsOutlined";
+import { BellOffIcon } from "lucide-react";
+import { BellIcon } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Skeleton from "@mui/material/Skeleton";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
@@ -37,7 +37,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				disabled={healthSettingsQuery.isLoading}
 				loading={enableMutation.isLoading}
 				loadingPosition="start"
-				startIcon={<NotificationsOffOutlined />}
+				startIcon={<BellOffIcon />}
 				onClick={async () => {
 					const updatedSettings = dismissed_healthchecks.filter(
 						(dismissedHealthcheck) =>
@@ -59,7 +59,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 			disabled={healthSettingsQuery.isLoading}
 			loading={dismissMutation.isLoading}
 			loadingPosition="start"
-			startIcon={<NotificationOutlined />}
+			startIcon={<BellIcon />}
 			onClick={async () => {
 				const updatedSettings = [...dismissed_healthchecks, props.healthcheck];
 				await dismissMutation.mutateAsync({

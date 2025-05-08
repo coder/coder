@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
-import PublicOutlined from "@mui/icons-material/PublicOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
+import { GlobeIcon } from "lucide-react";
+import { TagIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -111,14 +111,14 @@ const WorkspaceProxyPage: FC = () => {
 								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 									{region.wildcard_hostname && (
 										<Tooltip title="Wildcard Hostname">
-											<Pill icon={<PublicOutlined />}>
+											<Pill icon={<GlobeIcon />}>
 												{region.wildcard_hostname}
 											</Pill>
 										</Tooltip>
 									)}
 									{region.version && (
 										<Tooltip title="Version">
-											<Pill icon={<TagOutlined />}>{region.version}</Pill>
+											<Pill icon={<TagIcon />}>{region.version}</Pill>
 										</Tooltip>
 									)}
 									{region.derp_enabled && (

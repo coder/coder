@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
+import { ArrowLeftIcon } from "lucide-react";
+import { CodeIcon } from "lucide-react";
+import { TagIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
@@ -63,7 +63,7 @@ const DERPRegionPage: FC = () => {
 						}}
 						to="/health/derp"
 					>
-						<ArrowBackOutlined
+						<ArrowLeftIcon
 							css={{ fontSize: 12, verticalAlign: "middle", marginRight: 8 }}
 						/>
 						Back to DERP
@@ -91,10 +91,10 @@ const DERPRegionPage: FC = () => {
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 						<Tooltip title="Region ID">
-							<Pill icon={<TagOutlined />}>{region!.RegionID}</Pill>
+							<Pill icon={<TagIcon />}>{region!.RegionID}</Pill>
 						</Tooltip>
 						<Tooltip title="Region Code">
-							<Pill icon={<CodeOutlined />}>{region!.RegionCode}</Pill>
+							<Pill icon={<CodeIcon />}>{region!.RegionCode}</Pill>
 						</Tooltip>
 						<BooleanPill value={region!.EmbeddedRelay}>
 							Embedded Relay

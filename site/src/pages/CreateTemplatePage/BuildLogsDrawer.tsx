@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Close from "@mui/icons-material/Close";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
+import { XIcon } from "lucide-react";
+import { AlertTriangleIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
@@ -66,7 +66,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 				<header css={styles.header}>
 					<h3 css={styles.title}>Creating template...</h3>
 					<IconButton size="small" onClick={drawerProps.onClose}>
-						<Close css={styles.closeIcon} />
+						<XIcon css={styles.closeIcon} />
 						<span style={visuallyHidden}>Close build logs</span>
 					</IconButton>
 				</header>
@@ -113,7 +113,7 @@ const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
 	return (
 		<div css={bannerStyles.root}>
 			<div css={bannerStyles.content}>
-				<WarningOutlined css={bannerStyles.icon} />
+				<AlertTriangleIcon css={bannerStyles.icon} />
 				<h4 css={bannerStyles.title}>Missing variables</h4>
 				<p css={bannerStyles.description}>
 					During the build process, we identified some missing variables. Rest

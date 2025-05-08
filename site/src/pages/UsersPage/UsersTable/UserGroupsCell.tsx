@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import GroupIcon from "@mui/icons-material/Group";
+import { UsersIcon } from "lucide-react";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import type { Group } from "api/typesGenerated";
@@ -42,7 +42,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 							type="button"
 						>
 							<div className="flex flex-row gap-2 items-center">
-								<GroupIcon
+								<UsersIcon
 									css={{
 										width: "1rem",
 										height: "1rem",
