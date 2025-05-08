@@ -21,7 +21,23 @@ describe("getAppHref", () => {
 		expect(href).toBe(externalApp.url);
 	});
 
-	it("returns the URL with the session token replaced when external app needs session token ", () => {
+	it("returns the URL with the session token replaced when external app needs session token", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `vscode://example.com?token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe("vscode://example.com?token=user-session-token");
+	});
+
+	it("doesn't return the URL with the session token replaced when using the HTTP protocol", () => {
 		const externalApp = {
 			...MockWorkspaceApp,
 			external: true,
@@ -34,7 +50,7 @@ describe("getAppHref", () => {
 			workspace: MockWorkspace,
 			token: "user-session-token",
 		});
-		expect(href).toBe("https://example.com?token=user-session-token");
+		expect(href).toBe(externalApp.url);
 	});
 
 	it("returns a path when app doesn't use a subdomain", () => {
@@ -49,7 +65,7 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			"/path-base/@username/Test-Workspace.a-workspace-agent/apps/app-slug/",
+			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 
@@ -62,10 +78,10 @@ describe("getAppHref", () => {
 			host: "*.apps-host.tld",
 			agent: MockWorkspaceAgent,
 			workspace: MockWorkspace,
-			path: "/path-base",
+			path: "",
 		});
 		expect(href).toBe(
-			"/path-base/@username/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la",
+			`/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la`,
 		);
 	});
 
@@ -81,7 +97,7 @@ describe("getAppHref", () => {
 			workspace: MockWorkspace,
 			path: "/path-base",
 		});
-		expect(href).toBe("https://hellocoder.apps-host.tld/");
+		expect(href).toBe("http://hellocoder.apps-host.tld/");
 	});
 
 	it("returns a path when app has a subdomain but no subdomain name", () => {
@@ -97,7 +113,7 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			"/path-base/@username/Test-Workspace.a-workspace-agent/apps/app-slug/",
+			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 });
