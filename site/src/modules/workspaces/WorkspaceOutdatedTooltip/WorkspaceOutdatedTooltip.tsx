@@ -1,4 +1,3 @@
-import { InfoIcon as InfoIcon, RefreshIcon as RefreshIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
@@ -16,6 +15,7 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import { InfoIcon, RefreshIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";

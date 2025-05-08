@@ -1,4 +1,3 @@
-import { CloseIcon as CloseIcon, KeyboardArrowDown as ChevronDown, LockIcon as LockIcon, LockOpenIcon as LockOpenIcon, OpenInNewOutlined as ExternalLink, SensorsIcon as SensorsIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
@@ -37,6 +36,7 @@ import {
 } from "components/deprecated/Popover/Popover";
 import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { CloseIcon, LockIcon, LockOpenIcon, SensorsIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";

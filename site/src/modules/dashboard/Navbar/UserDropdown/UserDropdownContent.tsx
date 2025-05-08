@@ -1,4 +1,3 @@
-import { AccountIcon as AccountIcon, BugIcon as BugIcon, ChatIcon as ChatIcon, LogoutIcon as LogoutIcon, InstallDesktopIcon as InstallDesktopIcon, LaunchIcon as LaunchIcon, DocsIcon as DocsIcon } from "lucide-react";
 import {
 	type CSSObject,
 	type Interpolation,
@@ -14,6 +13,15 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import {
+	AccountIcon,
+	BugIcon,
+	ChatIcon,
+	DocsIcon,
+	InstallDesktopIcon,
+	LaunchIcon,
+	LogoutIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 

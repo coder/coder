@@ -1,4 +1,3 @@
-import { CopyIcon as CopyIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
@@ -24,6 +23,7 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { CopyIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";

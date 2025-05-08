@@ -1,10 +1,10 @@
-import { BellOffIcon } from "lucide-react";
-import { BellIcon } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Skeleton from "@mui/material/Skeleton";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
 import type { HealthSection } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { BellOffIcon } from "lucide-react";
+import { BellIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {

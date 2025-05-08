@@ -1,5 +1,5 @@
-import { LaunchIcon as LaunchIcon } from "lucide-react";
 import Link from "@mui/material/Link";
+import { LaunchIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface TermsOfServiceLinkProps {

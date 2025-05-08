@@ -1,4 +1,3 @@
-import { RefreshIcon as RefreshIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import {
@@ -11,6 +10,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { RefreshIcon } from "lucide-react";
 import type { FC } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
 

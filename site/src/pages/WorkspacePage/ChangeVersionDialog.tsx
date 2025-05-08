@@ -1,4 +1,3 @@
-import { InfoIcon as InfoIcon } from "lucide-react";
 import { css } from "@emotion/css";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -14,6 +13,7 @@ import { FormFields } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { InfoIcon } from "lucide-react";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useRef, useState } from "react";
 import { createDayString } from "utils/createDayString";

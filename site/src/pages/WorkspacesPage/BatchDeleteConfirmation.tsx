@@ -1,4 +1,3 @@
-import { PersonOutlinedIcon as PersonOutlinedIcon, ScheduleIcon as ScheduleIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
 import type { Workspace } from "api/typesGenerated";
@@ -7,6 +6,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { PersonOutlinedIcon, ScheduleIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { getResourceIconPath } from "utils/workspace";
 

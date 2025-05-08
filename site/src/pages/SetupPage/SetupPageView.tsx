@@ -1,4 +1,3 @@
-import { GitHubIcon as GitHubIcon } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -17,6 +16,7 @@ import { PasswordField } from "components/PasswordField/PasswordField";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
+import { GitHubIcon } from "lucide-react";
 import type { ChangeEvent, FC } from "react";
 import {
 	getFormHelpers,

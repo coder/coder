@@ -1,4 +1,3 @@
-import { AddIcon as AddIcon, DeleteIcon as DeleteIcon, EditIcon as EditIcon, CopyIcon as CopyIcon, SettingsIcon as SettingsIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import { workspaces } from "api/queries/workspaces";
 import type {
@@ -26,6 +25,13 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import {
+	AddIcon,
+	CopyIcon,
+	DeleteIcon,
+	EditIcon,
+	SettingsIcon,
+} from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";

@@ -1,9 +1,13 @@
-import { ChevronRightIcon as ChevronRightIcon, ExpandMoreIcon as ExpandMoreIcon, FormatAlignLeftOutlined as FormatAlignLeftOutlined } from "lucide-react";
 import { css } from "@emotion/react";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
+import {
+	ChevronRightIcon,
+	ExpandMoreIcon,
+	FormatAlignLeftOutlined,
+} from "lucide-react";
 import { type CSSProperties, type ElementType, type FC, useState } from "react";
 import type { FileTree } from "utils/filetree";
 

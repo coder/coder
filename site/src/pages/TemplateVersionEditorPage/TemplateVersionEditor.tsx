@@ -1,4 +1,3 @@
-import { CreateIcon as CreateIcon, ArrowBackOutlined as ArrowBackOutlined, CloseOutlined as X, WarningOutlined as WarningOutlined } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -24,6 +23,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { ArrowBackOutlined, CreateIcon, WarningOutlined } from "lucide-react";
 import { PlayIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";

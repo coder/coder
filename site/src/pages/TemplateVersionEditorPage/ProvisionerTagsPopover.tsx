@@ -1,4 +1,3 @@
-import { ExpandMoreOutlined as ExpandMoreOutlined } from "lucide-react";
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
 import type { ProvisionerDaemon } from "api/typesGenerated";
@@ -9,6 +8,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { ExpandMoreOutlined } from "lucide-react";
 import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
 import { docs } from "utils/docs";

@@ -1,4 +1,3 @@
-import { OpenInNewIcon as OpenInNewIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import AlertTitle from "@mui/material/AlertTitle";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -8,6 +7,7 @@ import type { ExternalAuthDevice } from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { CopyButton } from "components/CopyButton/CopyButton";
+import { OpenInNewIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface GitDeviceAuthProps {

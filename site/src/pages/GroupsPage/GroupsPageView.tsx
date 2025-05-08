@@ -1,4 +1,3 @@
-import { AddOutlined as AddOutlined, KeyboardArrowRight as KeyboardArrowRight } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type { Group } from "api/typesGenerated";
@@ -23,6 +22,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
+import { AddOutlined, KeyboardArrowRight } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";

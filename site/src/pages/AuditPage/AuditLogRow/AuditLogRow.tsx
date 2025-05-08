@@ -1,4 +1,3 @@
-import { InfoOutlined as InfoOutlined } from "lucide-react";
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
@@ -10,6 +9,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { InfoOutlined } from "lucide-react";
 import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";

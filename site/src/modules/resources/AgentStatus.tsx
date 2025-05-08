@@ -1,4 +1,3 @@
-import { WarningRounded as WarningRounded } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -11,6 +10,7 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { WarningRounded } from "lucide-react";
 import type { FC } from "react";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d

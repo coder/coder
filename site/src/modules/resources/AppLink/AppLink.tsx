@@ -1,4 +1,3 @@
-import { ErrorOutlineIcon as ErrorOutlineIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
@@ -11,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
+import { ErrorOutlineIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";

@@ -1,10 +1,10 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
+import Link from "@mui/material/Link";
+import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import { CheckCircleIcon } from "lucide-react";
 import { XCircleIcon } from "lucide-react";
 import { AlertCircleIcon } from "lucide-react";
-import Link from "@mui/material/Link";
-import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
 	type ComponentProps,
 	type FC,

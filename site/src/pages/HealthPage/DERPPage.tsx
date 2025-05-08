@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import { MapPinIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import type {
 	HealthMessage,
@@ -8,6 +7,7 @@ import type {
 	NetcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext } from "react-router-dom";

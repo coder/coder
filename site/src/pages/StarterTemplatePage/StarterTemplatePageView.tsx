@@ -1,4 +1,3 @@
-import { PlusIcon as PlusIcon, ViewCodeIcon as ViewCodeIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import type { TemplateExample } from "api/typesGenerated";
@@ -13,6 +12,7 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
+import { PlusIcon, ViewCodeIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 

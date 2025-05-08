@@ -1,4 +1,3 @@
-import { KeyboardArrowRight as KeyboardArrowRight, Star as Star } from "lucide-react";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
@@ -51,6 +50,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { KeyboardArrowRight, Star } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,

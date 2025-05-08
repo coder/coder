@@ -1,4 +1,3 @@
-import { AddIcon as AddIcon, KeyboardArrowRight as KeyboardArrowRight } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Table from "@mui/material/Table";
@@ -18,6 +17,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { AddIcon, KeyboardArrowRight } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
 

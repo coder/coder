@@ -1,9 +1,9 @@
-import { DownloadOutlined as DownloadOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
+import { DownloadOutlined } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQueryClient } from "react-query";
 

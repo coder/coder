@@ -1,7 +1,5 @@
 import { cx } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import { BellOffIcon } from "lucide-react";
-import { RefreshCwIcon } from "lucide-react";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
@@ -11,6 +9,8 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import kebabCase from "lodash/fp/kebabCase";
+import { BellOffIcon } from "lucide-react";
+import { RefreshCwIcon } from "lucide-react";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
 import { Helmet } from "react-helmet-async";

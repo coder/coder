@@ -1,6 +1,6 @@
-import { CheckIcon as CheckIcon, ErrorIcon as ErrorIcon, QueuedIcon as QueuedIcon } from "lucide-react";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
+import { CheckIcon, ErrorIcon, QueuedIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 import { getPendingStatusLabel } from "utils/provisionerJob";

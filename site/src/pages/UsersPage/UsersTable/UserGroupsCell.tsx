@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import { UsersIcon } from "lucide-react";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import type { Group } from "api/typesGenerated";
@@ -11,6 +10,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { UsersIcon } from "lucide-react";
 import type { FC } from "react";
 
 type GroupsCellProps = {

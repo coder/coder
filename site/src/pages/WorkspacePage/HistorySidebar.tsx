@@ -1,4 +1,3 @@
-import { ArrowDownwardOutlined as ArrowDownwardOutlined } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import type { Workspace } from "api/typesGenerated";
@@ -8,6 +7,7 @@ import {
 	SidebarItem,
 	SidebarLink,
 } from "components/FullPageLayout/Sidebar";
+import { ArrowDownwardOutlined } from "lucide-react";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,

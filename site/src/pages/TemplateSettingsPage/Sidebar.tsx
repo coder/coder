@@ -1,4 +1,3 @@
-import { VariablesIcon as VariablesIcon, SecurityIcon as SecurityIcon, GeneralIcon as GeneralIcon, ScheduleIcon as ScheduleIcon } from "lucide-react";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -6,6 +5,12 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import {
+	GeneralIcon,
+	ScheduleIcon,
+	SecurityIcon,
+	VariablesIcon,
+} from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 

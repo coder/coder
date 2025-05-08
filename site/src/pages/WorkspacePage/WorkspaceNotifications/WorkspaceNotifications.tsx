@@ -1,4 +1,3 @@
-import { InfoOutlined as InfoOutlined, WarningRounded as WarningRounded } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
@@ -10,6 +9,7 @@ import type {
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
 import dayjs from "dayjs";
+import { InfoOutlined, WarningRounded } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useEffect, useState } from "react";

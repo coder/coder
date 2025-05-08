@@ -1,4 +1,3 @@
-import { PersonAdd as PersonAdd } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
@@ -31,6 +30,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { PersonAdd } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";

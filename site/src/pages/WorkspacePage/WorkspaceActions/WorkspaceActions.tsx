@@ -1,4 +1,3 @@
-import { DeleteIcon as DeleteIcon, DownloadOutlined as DownloadOutlined, DuplicateIcon as DuplicateIcon, HistoryIcon as HistoryIcon, SettingsIcon as SettingsIcon } from "lucide-react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -9,6 +8,13 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks/useAuthenticated";
+import {
+	DeleteIcon,
+	DownloadOutlined,
+	DuplicateIcon,
+	HistoryIcon,
+	SettingsIcon,
+} from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	type ActionType,

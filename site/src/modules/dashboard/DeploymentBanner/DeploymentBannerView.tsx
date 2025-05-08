@@ -1,4 +1,3 @@
-import { BuildingIcon as BuildingIcon, DownloadIcon as DownloadIcon, UploadIcon as UploadIcon, CollectedIcon as CollectedIcon, ErrorIcon as ErrorIcon, RefreshIcon as RefreshIcon, LatencyIcon as LatencyIcon, WebTerminalIcon as WebTerminalIcon } from "lucide-react";
 import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
@@ -17,6 +16,16 @@ import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import {
+	BuildingIcon,
+	CollectedIcon,
+	DownloadIcon,
+	ErrorIcon,
+	LatencyIcon,
+	RefreshIcon,
+	UploadIcon,
+	WebTerminalIcon,
+} from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,

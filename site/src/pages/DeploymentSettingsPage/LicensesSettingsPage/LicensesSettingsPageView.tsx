@@ -1,4 +1,3 @@
-import { AddIcon as AddIcon, RefreshIcon as RefreshIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
@@ -14,6 +13,7 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
+import { AddIcon, RefreshIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";

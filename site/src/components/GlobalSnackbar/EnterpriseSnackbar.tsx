@@ -1,10 +1,10 @@
-import { CloseIcon as CloseIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
 	type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { CloseIcon } from "lucide-react";
 import type { FC } from "react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";

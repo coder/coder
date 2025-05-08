@@ -1,6 +1,6 @@
-import { ErrorSharp as ErrorSharp, InfoOutlined as InfoOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import type { TimingStage } from "api/typesGenerated";
+import { ErrorSharp, InfoOutlined } from "lucide-react";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";

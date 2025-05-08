@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
-import { GlobeIcon } from "lucide-react";
-import { TagIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { GlobeIcon } from "lucide-react";
+import { TagIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";

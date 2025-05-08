@@ -1,4 +1,4 @@
-import { ArrowRightAltOutlined as ArrowRightAltOutlined } from "lucide-react";
+import { ArrowRightAltOutlined } from "lucide-react";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import type { Interpolation, Theme } from "@emotion/react";

@@ -1,4 +1,3 @@
-import { AddIcon as AddIcon, EditIcon as EditIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import type { TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -11,6 +10,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
+import { AddIcon, EditIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";

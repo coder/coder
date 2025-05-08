@@ -1,4 +1,3 @@
-import { OpenIcon as OpenIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -12,6 +11,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { OpenIcon } from "lucide-react";
 import { ChevronDownIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";

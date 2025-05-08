@@ -1,4 +1,3 @@
-import { AppearanceIcon as AppearanceIcon, ScheduleIcon as ScheduleIcon, FingerprintOutlinedIcon as FingerprintOutlinedIcon, SecurityIcon as SecurityIcon, NotificationsIcon as NotificationsIcon, AccountIcon as AccountIcon, VpnKeyOutlined as VpnKeyOutlined } from "lucide-react";
 import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitIcon } from "components/Icons/GitIcon";
@@ -7,6 +6,15 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import {
+	AccountIcon,
+	AppearanceIcon,
+	FingerprintOutlinedIcon,
+	NotificationsIcon,
+	ScheduleIcon,
+	SecurityIcon,
+	VpnKeyOutlined,
+} from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 

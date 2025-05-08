@@ -1,4 +1,3 @@
-import { OpenInNewOutlined as ExternalLink } from "lucide-react";
 import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import MUITooltip, {

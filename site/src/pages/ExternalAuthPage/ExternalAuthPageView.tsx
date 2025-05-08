@@ -1,4 +1,3 @@
-import { OpenInNewIcon as OpenInNewIcon, RefreshIcon as RefreshIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -9,6 +8,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
+import { OpenInNewIcon, RefreshIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 export interface ExternalAuthPageViewProps {

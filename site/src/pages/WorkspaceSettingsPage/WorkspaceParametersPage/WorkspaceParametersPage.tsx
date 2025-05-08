@@ -1,4 +1,3 @@
-import { OpenInNewOutlined as ExternalLink } from "lucide-react";
 import Button from "@mui/material/Button";
 import { API } from "api/api";
 import { isApiValidationError } from "api/errors";

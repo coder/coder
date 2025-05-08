@@ -5,7 +5,6 @@ import {
 	css,
 	useTheme,
 } from "@emotion/react";
-import { HelpCircle as HelpIcon, ExternalLink as OpenInNewIcon } from "lucide-react";
 import Link from "@mui/material/Link";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -16,6 +15,10 @@ import {
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
+import {
+	HelpCircle as HelpIcon,
+	ExternalLink as OpenInNewIcon,
+} from "lucide-react";
 import {
 	type FC,
 	type HTMLAttributes,

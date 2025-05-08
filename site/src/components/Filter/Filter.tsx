@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import { ChevronDown as KeyboardArrowDown, ExternalLink as OpenInNewOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
@@ -14,6 +13,10 @@ import {
 import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
+import {
+	ChevronDown as KeyboardArrowDown,
+	ExternalLink as OpenInNewOutlined,
+} from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import type { useSearchParams } from "react-router-dom";
 

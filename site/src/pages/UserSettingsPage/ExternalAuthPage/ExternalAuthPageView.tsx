@@ -1,4 +1,3 @@
-import { AutorenewIcon as AutorenewIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Table from "@mui/material/Table";
@@ -27,6 +26,7 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { AutorenewIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";

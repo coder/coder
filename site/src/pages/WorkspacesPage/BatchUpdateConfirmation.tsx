@@ -1,4 +1,3 @@
-import { InstallDesktopIcon as InstallDesktopIcon, PersonOutlinedIcon as PersonOutlinedIcon, ScheduleIcon as ScheduleIcon, SettingsSuggestIcon as SettingsSuggestIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
@@ -9,6 +8,12 @@ import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import {
+	InstallDesktopIcon,
+	PersonOutlinedIcon,
+	ScheduleIcon,
+	SettingsSuggestIcon,
+} from "lucide-react";
 import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueries } from "react-query";
 

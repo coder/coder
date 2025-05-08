@@ -1,7 +1,7 @@
-import { EditOutlined as EditOutlined, RadioButtonCheckedOutlined as RadioButtonCheckedOutlined } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/set";
+import { EditOutlined, RadioButtonCheckedOutlined } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";

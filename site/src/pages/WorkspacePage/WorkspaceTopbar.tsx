@@ -1,4 +1,3 @@
-import { ArrowBackOutlined as ArrowBackOutlined, DeleteOutline as DeleteOutline, QuotaIcon as QuotaIcon } from "lucide-react";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -16,6 +15,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { ArrowBackOutlined, DeleteOutline, QuotaIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";

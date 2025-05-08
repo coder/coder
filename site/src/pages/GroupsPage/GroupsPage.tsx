@@ -1,4 +1,3 @@
-import { GroupAdd as GroupAdd } from "lucide-react";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";
@@ -12,6 +11,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { GroupAdd } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";

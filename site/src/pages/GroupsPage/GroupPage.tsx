@@ -1,4 +1,3 @@
-import { DeleteOutline as DeleteOutline, PersonAdd as PersonAdd, SettingsOutlined as SettingsOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
@@ -49,6 +48,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { DeleteOutline, PersonAdd, SettingsOutlined } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";

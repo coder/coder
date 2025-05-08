@@ -1,9 +1,9 @@
-import { UploadIcon as UploadIcon, RemoveIcon as RemoveIcon, FileIcon as FileIcon } from "lucide-react";
 import { type Interpolation, type Theme, css } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import { Stack } from "components/Stack/Stack";
 import { useClickable } from "hooks/useClickable";
+import { FileIcon, RemoveIcon, UploadIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 
 export interface FileUploadProps {

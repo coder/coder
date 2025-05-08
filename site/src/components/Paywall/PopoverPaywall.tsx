@@ -1,9 +1,9 @@
-import { TaskAltIcon as TaskAltIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
+import { TaskAltIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 export interface PopoverPaywallProps {

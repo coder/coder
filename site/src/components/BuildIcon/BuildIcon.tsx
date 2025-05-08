@@ -1,5 +1,5 @@
-import { DeleteOutlined as DeleteOutlined, PlayArrowOutlined as PlayArrowOutlined, StopOutlined as StopOutlined } from "lucide-react";
 import type { WorkspaceTransition } from "api/typesGenerated";
+import { DeleteOutlined, PlayArrowOutlined, StopOutlined } from "lucide-react";
 import type { ComponentProps } from "react";
 
 type SVGIcon = typeof PlayArrowOutlined;

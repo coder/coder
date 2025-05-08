@@ -1,4 +1,3 @@
-import { ArrowForwardOutlined as ArrowForwardOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import MuiButton from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -38,6 +37,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { ArrowForwardOutlined } from "lucide-react";
 import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";

@@ -1,4 +1,3 @@
-import { PersonAdd as PersonAdd } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { getErrorMessage } from "api/errors";
 import type {
@@ -35,6 +34,7 @@ import {
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
+import { PersonAdd } from "lucide-react";
 import { EllipsisVertical, TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";

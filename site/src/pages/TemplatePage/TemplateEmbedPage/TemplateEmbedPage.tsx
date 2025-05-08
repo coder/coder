@@ -1,4 +1,3 @@
-import { CheckOutlined as CheckOutlined, FileCopyOutlined as FileCopyOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
@@ -9,6 +8,7 @@ import { FormSection, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useClipboard } from "hooks/useClipboard";
+import { CheckOutlined, FileCopyOutlined } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";

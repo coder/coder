@@ -1,7 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { ArrowLeftIcon } from "lucide-react";
-import { CodeIcon } from "lucide-react";
-import { TagIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
@@ -11,6 +8,9 @@ import type {
 	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { ArrowLeftIcon } from "lucide-react";
+import { CodeIcon } from "lucide-react";
+import { TagIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";

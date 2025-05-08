@@ -1,4 +1,3 @@
-import { SearchOutlined as Search } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 // biome-ignore lint/nursery/noRestrictedImports: use it to have the component prop
 import Box, { type BoxProps } from "@mui/material/Box";

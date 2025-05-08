@@ -1,14 +1,14 @@
 import type { Theme } from "@emotion/react";
-import { AlertCircleIcon } from "lucide-react";
-import { HourglassIcon } from "lucide-react";
-import { PlayIcon } from "lucide-react";
-import { StopIcon } from "lucide-react";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
+import { AlertCircleIcon } from "lucide-react";
+import { HourglassIcon } from "lucide-react";
+import { PlayIcon } from "lucide-react";
+import { StopIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 

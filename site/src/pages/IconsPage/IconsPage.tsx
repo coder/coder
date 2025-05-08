@@ -1,4 +1,3 @@
-import { ClearIcon as ClearIcon, SearchIcon as SearchIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -14,6 +13,7 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
+import { ClearIcon, SearchIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import {

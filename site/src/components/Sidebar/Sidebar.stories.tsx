@@ -1,6 +1,12 @@
-import { ScheduleIcon as ScheduleIcon, FingerprintOutlinedIcon as FingerprintOutlinedIcon, SecurityIcon as SecurityIcon, AccountIcon as AccountIcon, VpnKeyOutlined as VpnKeyOutlined } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Avatar } from "components/Avatar/Avatar";
+import {
+	AccountIcon,
+	FingerprintOutlinedIcon,
+	ScheduleIcon,
+	SecurityIcon,
+	VpnKeyOutlined,
+} from "lucide-react";
 import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
 
 const meta: Meta<typeof Sidebar> = {

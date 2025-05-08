@@ -1,4 +1,3 @@
-import { AppsIcon as AppsIcon, CheckCircle as CheckCircle, ErrorIcon as ErrorIcon, InsertDriveFile as InsertDriveFile, OpenInNew as ExternalLink, Warning as AlertTriangle } from "lucide-react";
 import type { Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -9,6 +8,12 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
+import {
+	AppsIcon,
+	CheckCircle,
+	ErrorIcon,
+	InsertDriveFile,
+} from "lucide-react";
 import { createAppLinkHref } from "utils/apps";
 
 const formatURI = (uri: string) => {

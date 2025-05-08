@@ -1,10 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { TrashIcon } from "lucide-react";
-import { GithubIcon } from "lucide-react";
-import { EyeOffIcon } from "lucide-react";
-import { KeyIcon } from "lucide-react";
-import { KeyRoundIcon } from "lucide-react";
-import { ShieldIcon } from "lucide-react";
 import Skeleton from "@mui/material/Skeleton";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
@@ -29,6 +23,12 @@ import {
 } from "components/TableLoader/TableLoader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { TrashIcon } from "lucide-react";
+import { GithubIcon } from "lucide-react";
+import { EyeOffIcon } from "lucide-react";
+import { KeyIcon } from "lucide-react";
+import { KeyRoundIcon } from "lucide-react";
+import { ShieldIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";

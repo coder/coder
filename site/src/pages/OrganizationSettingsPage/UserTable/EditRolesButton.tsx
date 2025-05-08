@@ -1,4 +1,3 @@
-import { UserIcon as UserIcon } from "lucide-react";
 import Checkbox from "@mui/material/Checkbox";
 import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
@@ -17,6 +16,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
 const roleDescriptions: Record<string, string> = {

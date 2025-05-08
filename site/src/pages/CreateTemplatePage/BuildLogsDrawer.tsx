@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { XIcon } from "lucide-react";
-import { AlertTriangleIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
@@ -8,6 +6,8 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
+import { XIcon } from "lucide-react";
+import { AlertTriangleIcon } from "lucide-react";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";

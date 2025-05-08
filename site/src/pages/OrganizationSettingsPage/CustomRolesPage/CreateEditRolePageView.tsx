@@ -1,4 +1,3 @@
-import { VisibilityOffOutlinedIcon as VisibilityOffOutlinedIcon, VisibilityOutlinedIcon as VisibilityOutlinedIcon } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -31,6 +30,10 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
+import {
+	VisibilityOffOutlinedIcon,
+	VisibilityOutlinedIcon,
+} from "lucide-react";
 import { type ChangeEvent, type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFormHelpers, nameValidator } from "utils/formUtils";

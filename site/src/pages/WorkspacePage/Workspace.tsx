@@ -1,4 +1,3 @@
-import { HistoryOutlined as HistoryOutlined, HubOutlined as HubOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import AlertTitle from "@mui/material/AlertTitle";
@@ -7,6 +6,7 @@ import type { WorkspaceApp } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { HistoryOutlined, HubOutlined } from "lucide-react";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";

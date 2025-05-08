@@ -1,4 +1,3 @@
-import { DeleteOutlineIcon as DeleteOutlineIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Table from "@mui/material/Table";
@@ -15,6 +14,7 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { DeleteOutlineIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 dayjs.extend(relativeTime);

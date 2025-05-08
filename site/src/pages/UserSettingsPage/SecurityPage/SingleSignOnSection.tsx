@@ -1,4 +1,3 @@
-import { CheckCircleOutlined as CheckCircleOutlined, GitHubIcon as GitHubIcon, KeyIcon as KeyIcon } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
@@ -14,6 +13,7 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import { CheckCircleOutlined, GitHubIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { docs } from "utils/docs";

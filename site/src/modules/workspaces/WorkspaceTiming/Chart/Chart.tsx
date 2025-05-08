@@ -1,9 +1,9 @@
-import { ChevronRight as ChevronRight } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
+import { ChevronRight } from "lucide-react";
 import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
 import type { BarColors } from "./Bar";

@@ -1,7 +1,7 @@
-import { CheckOutlined as CheckOutlined, ExpandMoreOutlined as ExpandMoreOutlined } from "lucide-react";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import { CheckOutlined, ExpandMoreOutlined } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 
 const insightsIntervals = {

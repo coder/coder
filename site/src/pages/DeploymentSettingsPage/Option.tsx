@@ -1,6 +1,6 @@
-import { BuildCircleOutlinedIcon as BuildCircleOutlinedIcon } from "lucide-react";
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { BuildCircleOutlinedIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 

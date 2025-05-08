@@ -1,4 +1,3 @@
-import { CancelOutlined as CancelOutlined, CheckCircleOutlined as CheckCircleOutlined, LinkOutlined as LinkOutlined } from "lucide-react";
 import { useTheme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
@@ -43,6 +42,11 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import {
+	CancelOutlined,
+	CheckCircleOutlined,
+	LinkOutlined,
+} from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,

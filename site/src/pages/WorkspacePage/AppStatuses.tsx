@@ -1,4 +1,3 @@
-import { AppsIcon as AppsIcon, CheckCircle as CheckCircle, ErrorIcon as ErrorIcon, HelpOutline as HelpCircle, HourglassEmpty as HourglassEmpty, InsertDriveFile as InsertDriveFile, OpenInNew as ExternalLink, Warning as AlertTriangle } from "lucide-react";
 import type { Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -12,6 +11,13 @@ import type {
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import {
+	AppsIcon,
+	CheckCircle,
+	ErrorIcon,
+	HourglassEmpty,
+	InsertDriveFile,
+} from "lucide-react";
 import type { FC } from "react";
 import { createAppLinkHref } from "utils/apps";
 

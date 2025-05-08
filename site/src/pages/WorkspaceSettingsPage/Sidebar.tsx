@@ -1,4 +1,3 @@
-import { ParameterIcon as ParameterIcon, GeneralIcon as GeneralIcon, ScheduleIcon as ScheduleIcon } from "lucide-react";
 import type { Workspace } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -6,6 +5,7 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { GeneralIcon, ParameterIcon, ScheduleIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface SidebarProps {

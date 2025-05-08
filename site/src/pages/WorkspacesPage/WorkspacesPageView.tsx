@@ -1,4 +1,3 @@
-import { CloudQueue as CloudQueue, DeleteOutlined as DeleteOutlined, KeyboardArrowDownOutlined as KeyboardArrowDownOutlined, PlayArrowOutlined as PlayArrowOutlined, StopOutlined as StopOutlined } from "lucide-react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
@@ -18,6 +17,13 @@ import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import {
+	CloudQueue,
+	DeleteOutlined,
+	KeyboardArrowDownOutlined,
+	PlayArrowOutlined,
+	StopOutlined,
+} from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";

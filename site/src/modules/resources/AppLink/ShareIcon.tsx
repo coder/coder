@@ -1,6 +1,10 @@
-import { GroupOutlinedIcon as GroupOutlinedIcon, LaunchOutlinedIcon as LaunchOutlinedIcon, PublicOutlinedIcon as PublicOutlinedIcon } from "lucide-react";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
+import {
+	GroupOutlinedIcon,
+	LaunchOutlinedIcon,
+	PublicOutlinedIcon,
+} from "lucide-react";
 
 export interface ShareIconProps {
 	app: TypesGen.WorkspaceApp;

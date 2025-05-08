@@ -1,4 +1,3 @@
-import { CheckOutlined as CheckOutlined } from "lucide-react";
 import Button, { type ButtonProps } from "@mui/material/Button";
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
@@ -12,6 +11,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { CheckOutlined } from "lucide-react";
 import {
 	Children,
 	type FC,

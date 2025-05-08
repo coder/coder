@@ -1,4 +1,3 @@
-import { KeyboardArrowDown as ChevronDown, KeyboardArrowUp as ChevronUp } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";

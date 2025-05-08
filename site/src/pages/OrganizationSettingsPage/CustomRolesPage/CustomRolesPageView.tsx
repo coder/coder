@@ -1,4 +1,3 @@
-import { AddIcon as AddIcon, AddOutlined as AddOutlined } from "lucide-react";
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -26,6 +25,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import { AddIcon, AddOutlined } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
