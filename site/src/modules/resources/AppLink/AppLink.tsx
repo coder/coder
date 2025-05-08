@@ -17,6 +17,7 @@ import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
+import { url } from "node:inspector";
 
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	port_forwarding_helper: "Ports",
@@ -106,7 +107,11 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
 					event.preventDefault();
 
-					if (app.external) {
+					// HTTP links should never need the session token, since Cookies
+					// handle sharing it when you access the Coder Dashboard. We should
+					// never be forwarding the bare session token to other domains!
+					const isHttp = app.url?.startsWith("http");
+					if (app.external && !isHttp) {
 						// This is a magic undocumented string that is replaced
 						// with a brand-new session token from the backend.
 						// This only exists for external URLs, and should only
