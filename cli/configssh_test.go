@@ -172,6 +172,10 @@ func TestConfigSSH(t *testing.T) {
 func TestConfigSSH_MissingDirectory(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
