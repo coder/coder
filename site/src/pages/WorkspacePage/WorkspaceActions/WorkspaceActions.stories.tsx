@@ -3,6 +3,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
+	withAuthProvider,
 	withDashboardProvider,
 	withDesktopViewport,
 } from "testHelpers/storybook";
@@ -14,7 +15,10 @@ const meta: Meta<typeof WorkspaceActions> = {
 	args: {
 		isUpdating: false,
 	},
-	decorators: [withDashboardProvider, withDesktopViewport],
+	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
+	parameters: {
+		user: Mocks.MockUserOwner,
+	},
 };
 
 export default meta;
@@ -163,14 +167,15 @@ export const CancelShownForOwner: Story = {
 			...Mocks.MockStartingWorkspace,
 			template_allow_user_cancel_workspace_jobs: false,
 		},
-		isOwner: true,
 	},
 };
 
 export const CancelShownForUser: Story = {
 	args: {
 		workspace: Mocks.MockStartingWorkspace,
-		isOwner: false,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
 	},
 };
 
@@ -180,7 +185,9 @@ export const CancelHiddenForUser: Story = {
 			...Mocks.MockStartingWorkspace,
 			template_allow_user_cancel_workspace_jobs: false,
 		},
-		isOwner: false,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
 	},
 };
 

@@ -91,8 +91,10 @@ describe("AgentRowPreviewApps", () => {
 		"<AgentRowPreview agent={$testName} /> displays appropriately",
 		({ workspaceAgent }) => {
 			renderComponent(<AgentRowPreview agent={workspaceAgent} />);
-			for (const module of workspaceAgent.apps) {
-				expect(screen.getByText(module.display_name)).toBeInTheDocument();
+			for (const app of workspaceAgent.apps) {
+				expect(
+					screen.getByText(app.display_name as string),
+				).toBeInTheDocument();
 			}
 
 			for (const app of workspaceAgent.display_apps) {

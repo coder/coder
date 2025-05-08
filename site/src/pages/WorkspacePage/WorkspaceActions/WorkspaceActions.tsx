@@ -12,7 +12,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { useAuthenticated } from "hooks/useAuthenticated";
 import { EllipsisVertical } from "lucide-react";
+import {
+	type ActionType,
+	abilitiesByWorkspaceStatus,
+} from "modules/workspaces/actions";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { mustUpdateWorkspace } from "utils/workspace";
@@ -31,7 +36,6 @@ import {
 import { DebugButton } from "./DebugButton";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
-import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;
@@ -52,7 +56,6 @@ export interface WorkspaceActionsProps {
 	children?: ReactNode;
 	canChangeVersions: boolean;
 	canDebug: boolean;
-	isOwner: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -73,20 +76,19 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isRestarting,
 	canChangeVersions,
 	canDebug,
-	isOwner,
 }) => {
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
 
 	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
+	const { user } = useAuthenticated();
+	const isOwner =
+		user.roles.find((role) => role.name === "owner") !== undefined;
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
-		canDebug,
+		{ canDebug, isOwner },
 	);
-	const showCancel =
-		canCancel &&
-		(workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
 	const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
 	const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
@@ -169,7 +171,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 							<Fragment key={action}>{buttonMapping[action]}</Fragment>
 						))}
 
-			{showCancel && <CancelButton handleAction={handleCancel} />}
+			{canCancel && <CancelButton handleAction={handleCancel} />}
 
 			<FavoriteButton
 				workspaceID={workspace.id}

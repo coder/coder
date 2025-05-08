@@ -41,6 +41,7 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/files"
@@ -155,6 +156,7 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
+	LanguageModels                 ai.LanguageModels
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
@@ -851,7 +853,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		httpmw.CSRF(options.DeploymentValues.HTTPCookies),
+		// httpmw.CSRF(options.DeploymentValues.HTTPCookies),
 	)
 
 	// This incurs a performance hit from the middleware, but is required to make sure
@@ -956,6 +958,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Get("/llms", api.deploymentLLMs)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -997,6 +1000,21 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
+		})
+		// Chats are an experimental feature
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgenticChat),
+			)
+			r.Get("/", api.listChats)
+			r.Post("/", api.postChats)
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Get("/", api.chat)
+				r.Get("/messages", api.chatMessages)
+				r.Post("/messages", api.postChatMessages)
+			})
 		})
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
@@ -1171,15 +1189,25 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParamOptional(options.Database))
+						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 						// Creating workspaces does not require permissions on the user, only the
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
 						r.Post("/workspaces", api.postUserWorkspaces)
+						r.Route("/workspace/{workspacename}", func(r chi.Router) {
+							r.Get("/", api.workspaceByOwnerAndName)
+							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
+						})
+					})
+
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
 
 						// Similarly to creating a workspace, evaluating parameters for a
 						// new workspace should also match the authz story of
 						// postWorkspacesByOrganization
+						// TODO: Do not require site wide read user permission. Make this work
+						//   with org member permissions.
 						r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 							r.Use(
 								httpmw.ExtractTemplateVersionParam(options.Database),
@@ -1187,10 +1215,6 @@ func New(options *Options) *API {
 							)
 							r.Get("/parameters", api.templateVersionDynamicParameters)
 						})
-					})
-
-					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParam(options.Database))
 
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
@@ -1232,10 +1256,7 @@ func New(options *Options) *API {
 							r.Get("/", api.organizationsByUser)
 							r.Get("/{organizationname}", api.organizationByUserAndName)
 						})
-						r.Route("/workspace/{workspacename}", func(r chi.Router) {
-							r.Get("/", api.workspaceByOwnerAndName)
-							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
-						})
+
 						r.Get("/gitsshkey", api.gitSSHKey)
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/notifications", func(r chi.Router) {

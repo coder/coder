@@ -215,6 +215,8 @@ type data struct {
 
 	// New tables
 	auditLogs                            []database.AuditLog
+	chats                                []database.Chat
+	chatMessages                         []database.ChatMessage
 	cryptoKeys                           []database.CryptoKey
 	dbcryptKeys                          []database.DBCryptKey
 	files                                []database.File
@@ -1885,6 +1887,19 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 	return nil
 }
 
+func (q *FakeQuerier) DeleteChat(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, chat := range q.chats {
+		if chat.ID == id {
+			q.chats = append(q.chats[:i], q.chats[i+1:]...)
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
 }
@@ -2864,6 +2879,47 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Roles:    roles,
 		Groups:   groups,
 	}, nil
+}
+
+func (q *FakeQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, chat := range q.chats {
+		if chat.ID == id {
+			return chat, nil
+		}
+	}
+	return database.Chat{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	messages := []database.ChatMessage{}
+	for _, chatMessage := range q.chatMessages {
+		if chatMessage.ChatID == chatID {
+			messages = append(messages, chatMessage)
+		}
+	}
+	return messages, nil
+}
+
+func (q *FakeQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	chats := []database.Chat{}
+	for _, chat := range q.chats {
+		if chat.OwnerID == ownerID {
+			chats = append(chats, chat)
+		}
+	}
+	sort.Slice(chats, func(i, j int) bool {
+		return chats[i].CreatedAt.After(chats[j].CreatedAt)
+	})
+	return chats, nil
 }
 
 func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
@@ -8385,6 +8441,66 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
+func (q *FakeQuerier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	chat := database.Chat{
+		ID:        uuid.New(),
+		CreatedAt: arg.CreatedAt,
+		UpdatedAt: arg.UpdatedAt,
+		OwnerID:   arg.OwnerID,
+		Title:     arg.Title,
+	}
+	q.chats = append(q.chats, chat)
+
+	return chat, nil
+}
+
+func (q *FakeQuerier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	id := int64(0)
+	if len(q.chatMessages) > 0 {
+		id = q.chatMessages[len(q.chatMessages)-1].ID
+	}
+
+	messages := make([]database.ChatMessage, 0)
+
+	rawMessages := make([]json.RawMessage, 0)
+	err = json.Unmarshal(arg.Content, &rawMessages)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, content := range rawMessages {
+		id++
+		_ = content
+		messages = append(messages, database.ChatMessage{
+			ID:        id,
+			ChatID:    arg.ChatID,
+			CreatedAt: arg.CreatedAt,
+			Model:     arg.Model,
+			Provider:  arg.Provider,
+			Content:   content,
+		})
+	}
+
+	q.chatMessages = append(q.chatMessages, messages...)
+	return messages, nil
+}
+
 func (q *FakeQuerier) InsertCryptoKey(_ context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10339,6 +10455,27 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		q.apiKeys[index] = apiKey
 		return nil
 	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, chat := range q.chats {
+		if chat.ID == arg.ID {
+			q.chats[i].Title = arg.Title
+			q.chats[i].UpdatedAt = arg.UpdatedAt
+			q.chats[i] = chat
+			return nil
+		}
+	}
+
 	return sql.ErrNoRows
 }
 

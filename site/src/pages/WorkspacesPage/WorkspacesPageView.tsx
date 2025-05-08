@@ -53,7 +53,6 @@ export interface WorkspacesPageViewProps {
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
-	onUpdateWorkspace: (workspace: Workspace) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	isRunningBatchAction: boolean;
 	onDeleteAll: () => void;
@@ -65,6 +64,8 @@ export interface WorkspacesPageViewProps {
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
 	canChangeVersions: boolean;
+	onActionSuccess: () => Promise<void>;
+	onActionError: (error: unknown) => void;
 }
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
@@ -74,7 +75,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	count,
 	filterProps,
 	onPageChange,
-	onUpdateWorkspace,
 	page,
 	checkedWorkspaces,
 	onCheckChange,
@@ -88,6 +88,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	templatesFetchStatus,
 	canCreateTemplate,
 	canChangeVersions,
+	onActionSuccess,
+	onActionError,
 }) => {
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which does
 	// not exist. In this case, the page is not valid and we want to show a better
@@ -219,11 +221,12 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateTemplate={canCreateTemplate}
 					workspaces={workspaces}
 					isUsingFilter={filterProps.filter.used}
-					onUpdateWorkspace={onUpdateWorkspace}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}
 					templates={templates}
+					onActionSuccess={onActionSuccess}
+					onActionError={onActionError}
 				/>
 			)}
 

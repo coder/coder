@@ -264,7 +264,7 @@ describe("WorkspacesPage", () => {
 		await user.click(getWorkspaceCheckbox(workspaces[0]));
 		await user.click(getWorkspaceCheckbox(workspaces[1]));
 		await user.click(screen.getByRole("button", { name: /actions/i }));
-		const stopButton = await screen.findByText(/stop/i);
+		const stopButton = await screen.findByRole("menuitem", { name: /stop/i });
 		await user.click(stopButton);
 
 		await waitFor(() => {
@@ -291,7 +291,7 @@ describe("WorkspacesPage", () => {
 		await user.click(getWorkspaceCheckbox(workspaces[0]));
 		await user.click(getWorkspaceCheckbox(workspaces[1]));
 		await user.click(screen.getByRole("button", { name: /actions/i }));
-		const startButton = await screen.findByText(/start/i);
+		const startButton = await screen.findByRole("menuitem", { name: /start/i });
 		await user.click(startButton);
 
 		await waitFor(() => {

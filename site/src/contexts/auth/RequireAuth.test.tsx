@@ -3,7 +3,7 @@ import { useAuthenticated } from "hooks";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MockPermissions, MockUser } from "testHelpers/entities";
+import { MockPermissions, MockUserOwner } from "testHelpers/entities";
 import {
 	createTestQueryClient,
 	renderWithAuth,
@@ -82,7 +82,7 @@ describe("useAuthenticated", () => {
 
 		expect(() => {
 			renderHook(() => useAuthenticated(), {
-				wrapper: createAuthWrapper({ user: MockUser }),
+				wrapper: createAuthWrapper({ user: MockUserOwner }),
 			});
 		}).toThrow("Permissions are not available.");
 
@@ -93,7 +93,7 @@ describe("useAuthenticated", () => {
 		expect(() => {
 			renderHook(() => useAuthenticated(), {
 				wrapper: createAuthWrapper({
-					user: MockUser,
+					user: MockUserOwner,
 					permissions: MockPermissions,
 				}),
 			});

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockGroup as MockGroup1,
-	MockUser,
+	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
@@ -11,7 +11,7 @@ const MockGroup2 = {
 	...MockGroup1,
 	avatar_url: "",
 	display_name: "Goofy Goobers",
-	members: [MockUser],
+	members: [MockUserOwner],
 };
 
 const mockError = mockApiError({

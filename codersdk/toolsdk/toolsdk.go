@@ -22,9 +22,8 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	for _, opt := range opts {
 		opt(&d)
 	}
-	if d.coderClient == nil {
-		return Deps{}, xerrors.New("developer error: coder client may not be nil")
-	}
+	// Allow nil client for unauthenticated operation
+	// This enables tools that don't require user authentication to function
 	return d, nil
 }
 
@@ -54,6 +53,11 @@ type HandlerFunc[Arg, Ret any] func(context.Context, Deps, Arg) (Ret, error)
 type Tool[Arg, Ret any] struct {
 	aisdk.Tool
 	Handler HandlerFunc[Arg, Ret]
+
+	// UserClientOptional indicates whether this tool can function without a valid
+	// user authentication token. If true, the tool will be available even when
+	// running in an unauthenticated mode with just an agent token.
+	UserClientOptional bool
 }
 
 // Generic returns a type-erased version of a TypedTool where the arguments and
@@ -63,7 +67,8 @@ type Tool[Arg, Ret any] struct {
 // conversion.
 func (t Tool[Arg, Ret]) Generic() GenericTool {
 	return GenericTool{
-		Tool: t.Tool,
+		Tool:               t.Tool,
+		UserClientOptional: t.UserClientOptional,
 		Handler: wrap(func(ctx context.Context, deps Deps, args json.RawMessage) (json.RawMessage, error) {
 			var typedArgs Arg
 			if err := json.Unmarshal(args, &typedArgs); err != nil {
@@ -85,6 +90,11 @@ func (t Tool[Arg, Ret]) Generic() GenericTool {
 type GenericTool struct {
 	aisdk.Tool
 	Handler GenericHandlerFunc
+
+	// UserClientOptional indicates whether this tool can function without a valid
+	// user authentication token. If true, the tool will be available even when
+	// running in an unauthenticated mode with just an agent token.
+	UserClientOptional bool
 }
 
 // GenericHandlerFunc is a function that handles a tool call.
@@ -195,6 +205,7 @@ var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 			Required: []string{"summary", "link", "state"},
 		},
 	},
+	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
 		if deps.agentClient == nil {
 			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
@@ -591,7 +602,7 @@ This resource provides the following fields:
 - init_script: The script to run on provisioned infrastructure to fetch and start the agent.
 - token: Set the environment variable CODER_AGENT_TOKEN to this value to authenticate the agent.
 
-The agent MUST be installed and started using the init_script.
+The agent MUST be installed and started using the init_script. A utility like curl or wget to fetch the agent binary must exist in the provisioned infrastructure.
 
 Expose terminal or HTTP applications running in a workspace with:
 
@@ -711,13 +722,20 @@ resource "google_compute_instance" "dev" {
     auto_delete = false
     source      = google_compute_disk.root.name
   }
+  // In order to use google-instance-identity, a service account *must* be provided.
   service_account {
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
+  # ONLY FOR WINDOWS:
+  # metadata = {
+  #   windows-startup-script-ps1 = coder_agent.main.init_script
+  # }
   # The startup script runs as root with no $HOME environment set up, so instead of directly
   # running the agent init script, create a user (with a homedir, default shell and sudo
   # permissions) and execute the init script as that user.
+  #
+  # The agent MUST be started in here.
   metadata_startup_script = <<EOMETA
 #!/usr/bin/env sh
 set -eux
