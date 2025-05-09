@@ -13,7 +13,7 @@ CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
 # Format date as "Month DD, YYYY"
 format_date() {
-	date -d "$1" +"%B %d, %Y"
+	TZ=UTC date -d "$1" +"%B %d, %Y"
 }
 
 get_latest_patch() {
@@ -74,7 +74,7 @@ get_release_date() {
 		echo ""
 	else
 		# Extract date in YYYY-MM-DD format
-		date -d "$tag_date" +"%Y-%m-%d"
+		TZ=UTC date -d "$tag_date" +"%Y-%m-%d"
 	fi
 }
 
