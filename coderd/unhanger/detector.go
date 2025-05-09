@@ -287,11 +287,21 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		lowestLogID = newLogs[0].ID
 
-		// Mark the job as failed.
 		now = dbtime.Now()
+		// If we are unhanging a job that was never picked up by the
+		// provisioner, we need to set the started_at time to the current
+		// time so that the build duration is correct.
+		if !job.StartedAt.Valid {
+			job.StartedAt = sql.NullTime{
+				Time:  now,
+				Valid: true,
+			}
+		}
+		// Mark the job as failed.
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
 			UpdatedAt: now,
+			StartedAt: job.StartedAt,
 			CompletedAt: sql.NullTime{
 				Time:  now,
 				Valid: true,
