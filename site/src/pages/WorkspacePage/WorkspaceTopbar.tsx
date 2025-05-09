@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -18,6 +17,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
@@ -199,7 +199,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				{shouldDisplayDormantData && (
 					<TopbarData>
 						<TopbarIcon>
-							<DeleteOutline />
+							<TrashIcon />
 						</TopbarIcon>
 						<Link
 							component={RouterLink}
