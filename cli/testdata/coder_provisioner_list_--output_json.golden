@@ -7,7 +7,7 @@
     "last_seen_at": "====[timestamp]=====",
     "name": "test",
     "version": "v0.0.0-devel",
-    "api_version": "1.4",
+    "api_version": "1.5",
     "provisioners": [
       "echo"
     ],
