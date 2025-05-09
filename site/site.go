@@ -109,7 +109,7 @@ func New(opts *Options) *Handler {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", binHandler(opts.BinFS, newBinHashCache(opts.BinHashes)))
+	mux.Handle("/bin/", binHandler(opts.BinFS, newBinMetadataCache(opts.BinFS, opts.BinHashes)))
 	mux.Handle("/", http.FileServer(
 		http.FS(
 			// OnlyFiles is a wrapper around the file system that prevents directory
@@ -134,7 +134,7 @@ func New(opts *Options) *Handler {
 	return handler
 }
 
-func binHandler(binFS http.FileSystem, binHashCache *binHashCache) http.Handler {
+func binHandler(binFS http.FileSystem, binMetadataCache *binMetadataCache) http.Handler {
 	return http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Convert underscores in the filename to hyphens. We eventually want to
 		// change our hyphen-based filenames to underscores, but we need to
@@ -156,7 +156,7 @@ func binHandler(binFS http.FileSystem, binHashCache *binHashCache) http.Handler 
 			return
 		}
 
-		f, err := binFS.Open(name)
+		metadata, err := binMetadataCache.getMetadata(name)
 		if xerrors.Is(err, os.ErrNotExist) {
 			http.NotFound(rw, r)
 			return
@@ -165,7 +165,6 @@ func binHandler(binFS http.FileSystem, binHashCache *binHashCache) http.Handler 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer f.Close()
 
 		// http.FileServer will not set Content-Length when performing chunked
 		// transport encoding, which is used for large files like our binaries
@@ -175,23 +174,13 @@ func binHandler(binFS http.FileSystem, binHashCache *binHashCache) http.Handler 
 		// value of this header with the amount of bytes written to disk after
 		// decompression to show progress. Without this, they cannot show
 		// progress without disabling compression.
-		stat, err := f.Stat()
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		//
 		// There isn't really a spec for a length header for the "inner" content
 		// size, but some nginx modules use this header.
-		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", stat.Size()))
+		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", metadata.sizeBytes))
 
-		// Get and set ETag header.
-		hash, err := binHashCache.getHash(name, f)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// ETag header needs to be quoted.
-		rw.Header().Set("ETag", fmt.Sprintf(`%q`, hash))
+		// Get and set ETag header. Must be quoted.
+		rw.Header().Set("ETag", fmt.Sprintf(`%q`, metadata.sha1Hash))
 
 		// http.FileServer will see the ETag header and automatically handle
 		// If-Match and If-None-Match headers on the request properly.
@@ -979,59 +968,95 @@ func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPa
 	}
 }
 
-type binHashCache struct {
-	hashes map[string]string
-	mut    sync.RWMutex
-	sf     singleflight.Group
-	sem    chan struct{}
+type binMetadata struct {
+	sizeBytes int64 // -1 if not known yet
+	// SHA1 was chosen because it's fast to compute and reasonable for
+	// determining if a file has changed. The ETag is not used a security
+	// measure.
+	sha1Hash string // always set if in the cache
 }
 
-func newBinHashCache(binHashes map[string]string) *binHashCache {
-	b := &binHashCache{
-		hashes: make(map[string]string, len(binHashes)),
-		mut:    sync.RWMutex{},
-		sf:     singleflight.Group{},
-		sem:    make(chan struct{}, 4),
+type binMetadataCache struct {
+	binFS          http.FileSystem
+	originalHashes map[string]string
+
+	metadata map[string]binMetadata
+	mut      sync.RWMutex
+	sf       singleflight.Group
+	sem      chan struct{}
+}
+
+func newBinMetadataCache(binFS http.FileSystem, binSha1Hashes map[string]string) *binMetadataCache {
+	b := &binMetadataCache{
+		binFS:          binFS,
+		originalHashes: make(map[string]string, len(binSha1Hashes)),
+
+		metadata: make(map[string]binMetadata, len(binSha1Hashes)),
+		mut:      sync.RWMutex{},
+		sf:       singleflight.Group{},
+		sem:      make(chan struct{}, 4),
 	}
-	// Make a copy since we're gonna be mutating it.
-	for k, v := range binHashes {
-		b.hashes[k] = v
+
+	// Previously we copied binSha1Hashes to the cache immediately. Since we now
+	// read other information like size from the file, we can't do that. Instead
+	// we copy the hashes to a different map that will be used to populate the
+	// cache on the first request.
+	for k, v := range binSha1Hashes {
+		b.originalHashes[k] = v
 	}
 
 	return b
 }
 
-func (b *binHashCache) getHash(name string, f http.File) (string, error) {
+func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
 	b.mut.RLock()
-	hash, ok := b.hashes[name]
+	metadata, ok := b.metadata[name]
 	b.mut.RUnlock()
 	if ok {
-		return hash, nil
+		return metadata, nil
 	}
 
 	// Avoid DOS by using a pool, and only doing work once per file.
-	v, err, _ := b.sf.Do(name, func() (interface{}, error) {
+	v, err, _ := b.sf.Do(name, func() (any, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
 
-		h := sha1.New() //#nosec // Not used for cryptography.
-		_, err := io.Copy(h, f)
+		f, err := b.binFS.Open(name)
 		if err != nil {
-			return "", err
+			return binMetadata{}, err
+		}
+		defer f.Close()
+
+		var metadata binMetadata
+
+		stat, err := f.Stat()
+		if err != nil {
+			return binMetadata{}, err
+		}
+		metadata.sizeBytes = stat.Size()
+
+		if hash, ok := b.originalHashes[name]; ok {
+			metadata.sha1Hash = hash
+		} else {
+			h := sha1.New() //#nosec // Not used for cryptography.
+			_, err := io.Copy(h, f)
+			if err != nil {
+				return binMetadata{}, err
+			}
+			metadata.sha1Hash = hex.EncodeToString(h.Sum(nil))
 		}
 
-		hash := hex.EncodeToString(h.Sum(nil))
 		b.mut.Lock()
-		b.hashes[name] = hash
+		b.metadata[name] = metadata
 		b.mut.Unlock()
-		return hash, nil
+		return metadata, nil
 	})
 	if err != nil {
-		return "", err
+		return binMetadata{}, err
 	}
 
 	//nolint:forcetypeassert
-	return strings.ToLower(v.(string)), nil
+	return v.(binMetadata), nil
 }
 
 func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
