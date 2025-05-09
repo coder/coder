@@ -1,5 +1,4 @@
 import CloudQueue from "@mui/icons-material/CloudQueue";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
@@ -19,7 +18,7 @@ import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import { PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import { ChevronDownIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
@@ -142,7 +141,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									variant="text"
 									size="small"
 									css={{ borderRadius: 9999, marginLeft: "auto" }}
-									endIcon={<KeyboardArrowDownOutlined />}
+									endIcon={<ChevronDownIcon className="size-4" />}
 								>
 									Actions
 								</LoadingButton>
