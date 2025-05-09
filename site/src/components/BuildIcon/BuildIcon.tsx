@@ -1,17 +1,15 @@
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
-import StopOutlined from "@mui/icons-material/StopOutlined";
 import type { WorkspaceTransition } from "api/typesGenerated";
+import { PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
-type SVGIcon = typeof PlayArrowOutlined;
+type SVGIcon = typeof PlayIcon;
 
 type SVGIconProps = ComponentProps<SVGIcon>;
 
 const iconByTransition: Record<WorkspaceTransition, SVGIcon> = {
-	start: PlayArrowOutlined,
-	stop: StopOutlined,
-	delete: DeleteOutlined,
+	start: PlayIcon,
+	stop: SquareIcon,
+	delete: TrashIcon,
 };
 
 export const BuildIcon = (
