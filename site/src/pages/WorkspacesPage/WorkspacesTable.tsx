@@ -652,6 +652,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (agent.display_apps.includes("vscode")) {
 		buttons.push(
 			<AppLink
+				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
 				href={getVSCodeHref("vscode", {
@@ -670,6 +671,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (agent.display_apps.includes("vscode_insiders")) {
 		buttons.push(
 			<AppLink
+				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
@@ -693,6 +695,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		});
 		buttons.push(
 			<AppLink
+				key="terminal"
 				href={href}
 				onClick={(e) => {
 					e.preventDefault();
