@@ -97,7 +97,7 @@ func TestLogout(t *testing.T) {
 		go func() {
 			defer close(logoutChan)
 			err = logout.Run()
-			require.Contains(t, err.Error(), fmt.Sprintf("Try logging in using '%s login <url>'.", executable))
+			assert.Contains(t, err.Error(), fmt.Sprintf("Try logging in using '%s login <url>'.", executable))
 		}()
 
 		<-logoutChan
