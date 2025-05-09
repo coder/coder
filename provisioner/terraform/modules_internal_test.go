@@ -25,9 +25,14 @@ func TestGetModulesArchive(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that all of the files it should contain are correct
-	r := bytes.NewBuffer(archive)
-	tarfs := archivefs.FromTarReader(r)
-	content, err := fs.ReadFile(tarfs, ".terraform/modules/example_module/main.tf")
+	b := bytes.NewBuffer(archive)
+	tarfs := archivefs.FromTarReader(b)
+
+	content, err := fs.ReadFile(tarfs, ".terraform/modules/modules.json")
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(content), `{"Modules":[{"Key":"","Source":"","Dir":"."},`))
+
+	content, err = fs.ReadFile(tarfs, ".terraform/modules/example_module/main.tf")
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(content), "terraform {"))
 	if runtime.GOOS != "windows" {
@@ -35,6 +40,9 @@ func TestGetModulesArchive(t *testing.T) {
 	} else {
 		require.Len(t, content, 3812)
 	}
+
+	_, err = fs.ReadFile(tarfs, ".terraform/modules/stuff_that_should_not_be_included/nothing.txt")
+	require.Error(t, err)
 
 	// It should always be byte-identical to optimize storage
 	hashBytes := sha256.Sum256(archive)

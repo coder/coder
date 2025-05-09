@@ -258,6 +258,7 @@ message Module {
     string source = 1;
     string version = 2;
     string key = 3;
+    string dir = 4;
 }
 
 // WorkspaceTransition is the desired outcome of a build

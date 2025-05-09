@@ -279,6 +279,7 @@ export interface Module {
   source: string;
   version: string;
   key: string;
+  dir: string;
 }
 
 export interface Role {
@@ -952,6 +953,9 @@ export const Module = {
     }
     if (message.key !== "") {
       writer.uint32(26).string(message.key);
+    }
+    if (message.dir !== "") {
+      writer.uint32(34).string(message.dir);
     }
     return writer;
   },
