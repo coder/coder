@@ -17,7 +17,7 @@ import {
 } from "./Content";
 import { DismissWarningButton } from "./DismissWarningButton";
 
-export const WebsocketPage = () => {
+const WebsocketPage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { websocket } = healthStatus;
 	const theme = useTheme();

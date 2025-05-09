@@ -82,3 +82,5 @@ result
 
 # dlv debug binaries for go tests
 __debug_bin*
+
+**/.claude/settings.local.json

@@ -53,8 +53,10 @@ test("add and remove a group", async ({ page }) => {
 	await expect(row).toBeVisible();
 
 	// Now remove the group
-	await row.getByLabel("More options").click();
-	await page.getByText("Remove").click();
+	await row.getByRole("button", { name: "Open menu" }).click();
+	const menu = page.getByRole("menu");
+	await menu.getByText("Remove").click();
+
 	await expect(page.getByText("Group removed successfully!")).toBeVisible();
 	await expect(row).not.toBeVisible();
 });

@@ -164,7 +164,7 @@ type ParameterResolver struct {
 // resolves the correct value.  It returns the value of the parameter, if valid, and an error if invalid.
 func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) (value string, err error) {
 	prevV := r.findLastValue(p)
-	if !p.Mutable && v != nil && prevV != nil {
+	if !p.Mutable && v != nil && prevV != nil && v.Value != prevV.Value {
 		return "", xerrors.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
 	}
 	if p.Required && v == nil && prevV == nil {
@@ -188,6 +188,26 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 		return "", err
 	}
 	return resolvedValue.Value, nil
+}
+
+// Resolve returns the value of the parameter. It does not do any validation,
+// and is meant for use with the new dynamic parameters code path.
+func (r *ParameterResolver) Resolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) string {
+	prevV := r.findLastValue(p)
+	// First, the provided value
+	resolvedValue := v
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
+		resolvedValue = prevV
+	}
+	// Last, default value
+	if resolvedValue == nil {
+		resolvedValue = &WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.DefaultValue,
+		}
+	}
+	return resolvedValue.Value
 }
 
 // findLastValue finds the value from the previous build and returns it, or nil if the parameter had no value in the

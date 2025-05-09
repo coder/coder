@@ -3,7 +3,7 @@ import { authMethods, updatePassword } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Section } from "../Section";
@@ -13,7 +13,7 @@ import {
 	useSingleSignOnSection,
 } from "./SingleSignOnSection";
 
-export const SecurityPage: FC = () => {
+const SecurityPage: FC = () => {
 	const { user: me } = useAuthenticated();
 	const updatePasswordMutation = useMutation(updatePassword());
 	const authMethodsQuery = useQuery(authMethods());

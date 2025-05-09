@@ -133,19 +133,15 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-export function workspacesKey(config: WorkspacesRequest = {}) {
+function workspacesKey(config: WorkspacesRequest = {}) {
 	const { q, limit } = config;
 	return ["workspaces", { q, limit }] as const;
 }
 
 export function workspaces(config: WorkspacesRequest = {}) {
-	// Duplicates some of the work from workspacesKey, but that felt better than
-	// letting invisible properties sneak into the query logic
-	const { q, limit } = config;
-
 	return {
 		queryKey: workspacesKey(config),
-		queryFn: () => API.getWorkspaces({ q, limit }),
+		queryFn: () => API.getWorkspaces(config),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
@@ -281,7 +277,10 @@ const updateWorkspaceBuild = async (
 		build.workspace_owner_name,
 		build.workspace_name,
 	);
-	const previousData = queryClient.getQueryData(workspaceKey) as Workspace;
+	const previousData = queryClient.getQueryData<Workspace>(workspaceKey);
+	if (!previousData) {
+		return;
+	}
 
 	// Check if the build returned is newer than the previous build that could be
 	// updated from web socket

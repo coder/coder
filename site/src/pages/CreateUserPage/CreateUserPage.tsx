@@ -9,11 +9,11 @@ import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
-export const Language = {
+const Language = {
 	unknownError: "Oops, an unknown error occurred.",
 };
 
-export const CreateUserPage: FC = () => {
+const CreateUserPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));

@@ -1,6 +1,5 @@
 import * as path from "node:path";
 import react from "@vitejs/plugin-react";
-import { buildSync } from "esbuild";
 import { visualizer } from "rollup-plugin-visualizer";
 import { type PluginOption, defineConfig } from "vite";
 import checker from "vite-plugin-checker";

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { DERPPage } from "./DERPPage";
+import DERPPage from "./DERPPage";
 import { generateMeta } from "./storybook";
 
 const meta: Meta = {

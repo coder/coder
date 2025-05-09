@@ -72,6 +72,10 @@ type ReconciliationActions struct {
 	BackoffUntil time.Time
 }
 
+func (ra *ReconciliationActions) IsNoop() bool {
+	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
+}
+
 // CalculateState computes the current state of prebuilds for a preset, including:
 // - Actual: Number of currently running prebuilds
 // - Desired: Number of prebuilds desired as defined in the preset

@@ -19,18 +19,19 @@ import type {
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import {
@@ -289,19 +290,26 @@ export const TemplatePermissionsPageView: FC<
 
 											<TableCell>
 												{canUpdatePermissions && (
-													<MoreMenu>
-														<MoreMenuTrigger>
-															<ThreeDotsButton />
-														</MoreMenuTrigger>
-														<MoreMenuContent>
-															<MoreMenuItem
-																danger
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
 																onClick={() => onRemoveGroup(group)}
 															>
 																Remove
-															</MoreMenuItem>
-														</MoreMenuContent>
-													</MoreMenu>
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
 												)}
 											</TableCell>
 										</TableRow>
@@ -338,19 +346,26 @@ export const TemplatePermissionsPageView: FC<
 
 											<TableCell>
 												{canUpdatePermissions && (
-													<MoreMenu>
-														<MoreMenuTrigger>
-															<ThreeDotsButton />
-														</MoreMenuTrigger>
-														<MoreMenuContent>
-															<MoreMenuItem
-																danger
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
 																onClick={() => onRemoveUser(user)}
 															>
 																Remove
-															</MoreMenuItem>
-														</MoreMenuContent>
-													</MoreMenu>
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
 												)}
 											</TableCell>
 										</TableRow>

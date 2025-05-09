@@ -26,7 +26,7 @@ import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-export const TemplateVersionEditorPage: FC = () => {
+const TemplateVersionEditorPage: FC = () => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();

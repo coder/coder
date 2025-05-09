@@ -26,7 +26,7 @@ import { AuditFilter } from "./AuditFilter";
 import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 
-export const Language = {
+const Language = {
 	title: "Audit",
 	subtitle: "View events in your audit log.",
 };

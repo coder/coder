@@ -78,14 +78,6 @@ export const premiumTestsRequired = Boolean(
 
 export const license = process.env.CODER_E2E_LICENSE ?? "";
 
-/**
- * Certain parts of the UI change when organizations are enabled. Organizations
- * are enabled by a license entitlement, and license configuration is guaranteed
- * to run before any other tests, so having this as a bit of "global state" is
- * fine.
- */
-export const organizationsEnabled = Boolean(license);
-
 // Disabling terraform tests is optional for environments without Docker + Terraform.
 // By default, we opt into these tests.
 export const requireTerraformTests = !process.env.CODER_E2E_DISABLE_TERRAFORM;

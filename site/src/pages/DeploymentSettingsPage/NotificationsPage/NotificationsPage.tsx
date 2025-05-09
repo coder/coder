@@ -4,7 +4,6 @@ import {
 	selectTemplatesByGroup,
 	systemNotificationTemplates,
 } from "api/queries/notifications";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import {
 	SettingsHeader,
@@ -26,7 +25,7 @@ import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
 import { Troubleshooting } from "./Troubleshooting";
 
-export const NotificationsPage: FC = () => {
+const NotificationsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const [templatesByGroup, dispatchMethods] = useQueries({
 		queries: [

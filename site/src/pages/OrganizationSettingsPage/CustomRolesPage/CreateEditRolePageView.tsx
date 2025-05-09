@@ -50,7 +50,7 @@ export type CreateEditRolePageViewProps = {
 	allResources?: boolean;
 };
 
-export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
+const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 	role,
 	onSubmit,
 	error,

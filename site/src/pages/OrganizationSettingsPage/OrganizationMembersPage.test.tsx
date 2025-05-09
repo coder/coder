@@ -7,7 +7,7 @@ import {
 	MockOrganization,
 	MockOrganizationAuditorRole,
 	MockOrganizationPermissions,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import {
 	renderWithOrganizationSettingsLayout,
@@ -46,15 +46,19 @@ const renderPage = async () => {
 
 const removeMember = async () => {
 	const user = userEvent.setup();
-	// Click on the "More options" button to display the "Remove" option
-	const moreButtons = await screen.findAllByLabelText("More options");
-	// get MockUser2
-	const selectedMoreButton = moreButtons[0];
 
-	await user.click(selectedMoreButton);
+	const users = await screen.findAllByText(/.*@coder.com/);
+	const userRow = users[1].closest("tr");
+	if (!userRow) {
+		throw new Error("Error on get the first user row");
+	}
+	const menuButton = await within(userRow).findByRole("button", {
+		name: "Open menu",
+	});
+	await user.click(menuButton);
 
-	const removeButton = screen.getByText(/Remove/);
-	await user.click(removeButton);
+	const removeOption = await screen.findByRole("menuitem", { name: "Remove" });
+	await user.click(removeOption);
 
 	const dialog = await within(document.body).findByRole("dialog");
 	await user.click(within(dialog).getByRole("button", { name: "Remove" }));
@@ -98,11 +102,11 @@ describe("OrganizationMembersPage", () => {
 			it("updates the roles", async () => {
 				server.use(
 					http.put(
-						`/api/v2/organizations/:organizationId/members/${MockUser.id}/roles`,
+						`/api/v2/organizations/:organizationId/members/${MockUserOwner.id}/roles`,
 						async () => {
 							return HttpResponse.json({
-								...MockUser,
-								roles: [...MockUser.roles, MockOrganizationAuditorRole],
+								...MockUserOwner,
+								roles: [...MockUserOwner.roles, MockOrganizationAuditorRole],
 							});
 						},
 					),
@@ -118,7 +122,7 @@ describe("OrganizationMembersPage", () => {
 			it("shows an error message", async () => {
 				server.use(
 					http.put(
-						`/api/v2/organizations/:organizationId/members/${MockUser.id}/roles`,
+						`/api/v2/organizations/:organizationId/members/${MockUserOwner.id}/roles`,
 						() => {
 							return HttpResponse.json(
 								{ message: "Error on updating the user roles." },

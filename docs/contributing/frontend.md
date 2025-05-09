@@ -131,7 +131,7 @@ export const WithQuota: Story = {
     parameters: {
         queries: [
             {
-                key: getWorkspaceQuotaQueryKey(MockUser.username),
+                key: getWorkspaceQuotaQueryKey(MockUserOwner.username),
                 data: {
                     credits_consumed: 2,
                     budget: 40,

@@ -15,7 +15,7 @@ interface CopyButtonProps {
 	tooltipTitle?: string;
 }
 
-export const Language = {
+const Language = {
 	tooltipTitle: "Copy to clipboard",
 	ariaLabel: "Copy to clipboard",
 };

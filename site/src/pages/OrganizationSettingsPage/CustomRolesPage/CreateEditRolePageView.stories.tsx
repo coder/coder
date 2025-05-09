@@ -6,7 +6,7 @@ import {
 	assignableRole,
 	mockApiError,
 } from "testHelpers/entities";
-import { CreateEditRolePageView } from "./CreateEditRolePageView";
+import CreateEditRolePageView from "./CreateEditRolePageView";
 
 const meta: Meta<typeof CreateEditRolePageView> = {
 	title: "pages/OrganizationCreateEditRolePage",

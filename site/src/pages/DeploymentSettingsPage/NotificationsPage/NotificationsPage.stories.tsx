@@ -8,7 +8,7 @@ import {
 	MockNotificationMethodsResponse,
 	MockNotificationTemplates,
 } from "testHelpers/entities";
-import { NotificationsPage } from "./NotificationsPage";
+import NotificationsPage from "./NotificationsPage";
 import { baseMeta } from "./storybookUtils";
 
 const meta: Meta<typeof NotificationsPage> = {

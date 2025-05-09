@@ -29,6 +29,7 @@
 		--surface-orange: 34 100% 92%;
 		--surface-sky: 201 94% 86%;
 		--surface-red: 0 93% 94%;
+		--surface-purple: 251 91% 95%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
 		--border-warning: 30.66, 97.16%, 72.35%;
@@ -41,6 +42,7 @@
 		--highlight-green: 143 64% 24%;
 		--highlight-grey: 240 5% 65%;
 		--highlight-sky: 201 90% 27%;
+		--highlight-red: 0 74% 42%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
@@ -69,6 +71,7 @@
 		--surface-orange: 13 81% 15%;
 		--surface-sky: 204 80% 16%;
 		--surface-red: 0 75% 15%;
+		--surface-purple: 261 73% 23%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
 		--border-warning: 30.66, 97.16%, 72.35%;
@@ -80,6 +83,7 @@
 		--highlight-green: 141 79% 85%;
 		--highlight-grey: 240 4% 46%;
 		--highlight-sky: 198 93% 60%;
+		--highlight-red: 0 91% 71%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;

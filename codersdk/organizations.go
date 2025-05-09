@@ -227,6 +227,7 @@ type CreateWorkspaceRequest struct {
 	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	EnableDynamicParameters bool                      `json:"enable_dynamic_parameters,omitempty"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

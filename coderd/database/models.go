@@ -2570,6 +2570,23 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+type Chat struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Title     string    `db:"title" json:"title"`
+}
+
+type ChatMessage struct {
+	ID        int64           `db:"id" json:"id"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Model     string          `db:"model" json:"model"`
+	Provider  string          `db:"provider" json:"provider"`
+	Content   json.RawMessage `db:"content" json:"content"`
+}
+
 type CryptoKey struct {
 	Feature     CryptoKeyFeature `db:"feature" json:"feature"`
 	Sequence    int32            `db:"sequence" json:"sequence"`

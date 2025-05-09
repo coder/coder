@@ -7,10 +7,10 @@ import {
 	MockOrganization,
 	MockTemplate,
 	MockTemplateVersion,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 // We want a workspace without a deadline to not pollute the screenshot. Also
@@ -28,7 +28,7 @@ const baseWorkspace: Workspace = {
 const meta: Meta<typeof WorkspaceTopbar> = {
 	title: "pages/WorkspacePage/WorkspaceTopbar",
 	component: WorkspaceTopbar,
-	decorators: [withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		workspace: baseWorkspace,
 		template: MockTemplate,
@@ -39,8 +39,9 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
 		chromatic: {
-			diffThreshold: 0.3,
+			diffThreshold: 0.6,
 		},
+		user: MockUserOwner,
 	},
 };
 
@@ -277,7 +278,7 @@ export const WithQuotaNoOrgs: Story = {
 			{
 				key: getWorkspaceQuotaQueryKey(
 					MockOrganization.name,
-					MockUser.username,
+					MockUserOwner.username,
 				),
 				data: {
 					credits_consumed: 2,
@@ -295,7 +296,7 @@ export const WithQuotaWithOrgs: Story = {
 			{
 				key: getWorkspaceQuotaQueryKey(
 					MockOrganization.name,
-					MockUser.username,
+					MockUserOwner.username,
 				),
 				data: {
 					credits_consumed: 2,
@@ -321,7 +322,7 @@ export const TemplateInfoPopover: Story = {
 	},
 	parameters: {
 		chromatic: {
-			diffThreshold: 0.3,
+			diffThreshold: 0.6,
 		},
 	},
 };

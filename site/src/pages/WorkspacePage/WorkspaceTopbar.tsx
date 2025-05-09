@@ -35,7 +35,7 @@ export type WorkspaceError =
 	| "buildError"
 	| "cancellationError";
 
-export type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
+type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -55,7 +55,6 @@ export interface WorkspaceProps {
 	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	isOwner: boolean;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	latestVersion?: TypesGen.TemplateVersion;
@@ -81,7 +80,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	canDebugMode,
 	handleRetry,
 	handleDebug,
-	isOwner,
 	template,
 	latestVersion,
 	permissions,
@@ -262,7 +260,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						canChangeVersions={canChangeVersions}
 						isUpdating={isUpdating}
 						isRestarting={isRestarting}
-						isOwner={isOwner}
 					/>
 				</div>
 			)}

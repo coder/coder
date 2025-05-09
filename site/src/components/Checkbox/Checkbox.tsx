@@ -24,7 +24,7 @@ export const Checkbox = React.forwardRef<
     	disabled:cursor-not-allowed disabled:bg-surface-primary disabled:data-[state=checked]:bg-surface-tertiary
     	data-[state=unchecked]:bg-surface-primary
     	data-[state=checked]:bg-surface-invert-primary data-[state=checked]:text-content-invert
-    	hover:border-border-hover hover:data-[state=checked]:bg-surface-invert-secondary`,
+    	hover:enabled:border-border-hover hover:data-[state=checked]:bg-surface-invert-secondary`,
 			className,
 		)}
 		{...props}

@@ -1,4 +1,4 @@
-import type { ApiErrorResponse } from "api/errors";
+import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
@@ -12,7 +12,7 @@ import type {
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
@@ -29,7 +29,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
-export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 import { API } from "api/api";
 import {
@@ -95,9 +95,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	// Initialize the WebSocket connection when there is a valid template version ID
 	useEffect(() => {
-		if (!realizedVersionId) {
-			return;
-		}
+		if (!realizedVersionId) return;
 
 		const socket = API.templateVersionDynamicParameters(
 			owner.id,
@@ -105,7 +103,19 @@ const CreateWorkspacePageExperimental: FC = () => {
 			{
 				onMessage,
 				onError: (error) => {
-					setWsError(error);
+					if (ws.current === socket) {
+						setWsError(error);
+					}
+				},
+				onClose: () => {
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
 				},
 			},
 		);
@@ -141,7 +151,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	} = useExternalAuth(realizedVersionId);
 
 	const isLoadingFormData =
-		ws.current?.readyState !== WebSocket.OPEN ||
+		ws.current?.readyState === WebSocket.CONNECTING ||
 		templateQuery.isLoading ||
 		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
@@ -282,6 +292,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 						const workspace = await createWorkspaceMutation.mutateAsync({
 							...workspaceRequest,
+							enable_dynamic_parameters: true,
 							userId: owner.id,
 						});
 						onCreateWorkspace(workspace);

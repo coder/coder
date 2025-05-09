@@ -35,7 +35,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
-	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -341,27 +340,27 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 
 func TestWorkspaceAgentAppStatus(t *testing.T) {
 	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user2.ID,
+	}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+		a[0].Apps = []*proto.App{
+			{
+				Slug: "vscode",
+			},
+		}
+		return a
+	}).Do()
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(r.AgentToken)
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user2.ID,
-		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-			a[0].Apps = []*proto.App{
-				{
-					Slug: "vscode",
-				},
-			}
-			return a
-		}).Do()
-
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "vscode",
 			Message: "testing",
@@ -381,6 +380,51 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		// Deprecated fields should be ignored.
 		require.Empty(t, agent.Apps[0].Statuses[0].Icon)
 		require.False(t, agent.Apps[0].Statuses[0].NeedsUserAttention)
+	})
+
+	t.Run("FailUnknownApp", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "unknown",
+			Message: "testing",
+			URI:     "https://example.com",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.ErrorContains(t, err, "No app found with slug")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("FailUnknownState", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: "testing",
+			URI:     "https://example.com",
+			State:   "unknown",
+		})
+		require.ErrorContains(t, err, "Invalid state")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("FailTooLong", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: strings.Repeat("a", 161),
+			URI:     "https://example.com",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.ErrorContains(t, err, "Message is too long")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 }
 
@@ -1171,8 +1215,8 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 			return agents
 		}).Do()
-		_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
-			opts.ContainerLister = agentcontainers.NewDocker(agentexec.DefaultExecer)
+		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+			o.ExperimentalDevcontainersEnabled = true
 		})
 		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 		require.Len(t, resources, 1, "expected one resource")
@@ -1273,8 +1317,9 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 					return agents
 				}).Do()
-				_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
-					opts.ContainerLister = mcl
+				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.ExperimentalDevcontainersEnabled = true
+					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 				require.Len(t, resources, 1, "expected one resource")

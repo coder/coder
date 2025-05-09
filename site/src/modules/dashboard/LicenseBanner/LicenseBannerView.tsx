@@ -11,7 +11,7 @@ import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
 import { type FC, useState } from "react";
 
-export const Language = {
+const Language = {
 	licenseIssue: "License Issue",
 	licenseIssues: (num: number): string => `${num} License Issues`,
 	upgrade: "Contact sales@coder.com.",

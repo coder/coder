@@ -751,3 +751,16 @@ func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agent
 		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
 	}
 }
+
+func Chat(chat database.Chat) codersdk.Chat {
+	return codersdk.Chat{
+		ID:        chat.ID,
+		Title:     chat.Title,
+		CreatedAt: chat.CreatedAt,
+		UpdatedAt: chat.UpdatedAt,
+	}
+}
+
+func Chats(chats []database.Chat) []codersdk.Chat {
+	return List(chats, Chat)
+}

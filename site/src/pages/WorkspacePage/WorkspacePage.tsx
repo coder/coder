@@ -17,7 +17,7 @@ import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { type WorkspacePermissions, workspaceChecks } from "./permissions";
 
-export const WorkspacePage: FC = () => {
+const WorkspacePage: FC = () => {
 	const queryClient = useQueryClient();
 	const params = useParams() as {
 		username: string;

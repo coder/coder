@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import * as Mocks from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { Workspace } from "./Workspace";
 import type { WorkspacePermissions } from "./permissions";
 
@@ -40,8 +40,10 @@ const meta: Meta<typeof Workspace> = {
 				data: Mocks.MockListeningPortsResponse,
 			},
 		],
+		user: Mocks.MockUserOwner,
 	},
 	decorators: [
+		withAuthProvider,
 		withDashboardProvider,
 		(Story) => (
 			<ProxyContext.Provider

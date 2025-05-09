@@ -35,8 +35,9 @@ type executor struct {
 	mut        *sync.Mutex
 	binaryPath string
 	// cachePath and workdir must not be used by multiple processes at once.
-	cachePath string
-	workdir   string
+	cachePath     string
+	cliConfigPath string
+	workdir       string
 	// used to capture execution times at various stages
 	timings *timingAggregator
 }
@@ -49,6 +50,9 @@ func (e *executor) basicEnv() []string {
 	// cache directory. It's unknown why this is.
 	if e.cachePath != "" && runtime.GOOS == "linux" {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
+	}
+	if e.cliConfigPath != "" {
+		env = append(env, "TF_CLI_CONFIG_FILE="+e.cliConfigPath)
 	}
 	return env
 }

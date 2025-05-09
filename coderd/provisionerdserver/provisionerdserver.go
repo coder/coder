@@ -515,7 +515,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		var workspaceOwnerOIDCAccessToken string
-		if s.OIDCConfig != nil {
+		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
+		// pointing to a typed nil.
+		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
 			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
@@ -2469,10 +2471,11 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
-	DryRun           bool      `json:"dry_run"`
-	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
-	LogLevel         string    `json:"log_level,omitempty"`
+	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
+	DryRun                bool      `json:"dry_run"`
+	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
+	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
+	LogLevel              string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.
