@@ -68,11 +68,11 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	subscribe = (entry: ReactSubscriptionEntry): (() => void) => {
 		const { select, id, targetRefreshInterval, onUpdate } = entry;
 
-		const patchedEntry: SubscriptionEntry = {
+		const fullEntry: SubscriptionEntry = {
 			id,
 			targetRefreshInterval,
 			onUpdate: (newDate) => {
-				const prevSelection = this.getSelectionSnapshot(id);
+				const prevSelection = this.#selectionCache.get(id)?.value;
 				const newSelection = select?.(newDate) ?? newDate;
 				if (areValuesDeepEqual(prevSelection, newSelection)) {
 					return;
@@ -83,7 +83,7 @@ class ReactTimeSync implements ReactTimeSyncApi {
 			},
 		};
 
-		this.#timeSync.subscribe(patchedEntry);
+		this.#timeSync.subscribe(fullEntry);
 		return () => this.#timeSync.unsubscribe(id);
 	};
 
@@ -114,13 +114,13 @@ class ReactTimeSync implements ReactTimeSyncApi {
 		const dateSnapshot = this.#timeSync.getTimeSnapshot();
 		const newSelection = select?.(dateSnapshot) ?? dateSnapshot;
 
-		const prevSelection = this.#selectionCache.get(id);
-		if (prevSelection === undefined) {
+		const cacheEntry = this.#selectionCache.get(id);
+		if (cacheEntry === undefined) {
 			this.#selectionCache.set(id, { value: newSelection });
 			return;
 		}
 
-		if (!areValuesDeepEqual(newSelection, prevSelection.value)) {
+		if (!areValuesDeepEqual(newSelection, cacheEntry.value)) {
 			this.#selectionCache.set(id, { value: newSelection });
 		}
 	};
