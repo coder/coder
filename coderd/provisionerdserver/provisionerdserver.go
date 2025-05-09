@@ -553,6 +553,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				WorkspaceID: workspaceBuild.WorkspaceID,
 				BuildNumber: buildNum,
 			})
+
+			// If the error is ErrNoRows, then assume previous values are empty.
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				return nil, xerrors.Errorf("get last build with number=%d: %w", buildNum, err)
 			}

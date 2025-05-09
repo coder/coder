@@ -62,8 +62,8 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		return xerrors.Errorf("parameter value is required")
 	}
 
-	if value == "" { // parameter is optional, so take the default value
-		value = richParameter.DefaultValue
+	if current == "" { // parameter is optional, so take the default value
+		current = richParameter.DefaultValue
 	}
 
 	if len(richParameter.Options) > 0 {
@@ -101,13 +101,7 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		Error:       richParameter.ValidationError,
 		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
-	var prev *string
-	// Empty strings should be rejected, however the previous behavior was to
-	// accept the empty string ("") as a `nil` previous value.
-	if lastBuildParameter != nil && lastBuildParameter.Value != "" {
-		prev = &lastBuildParameter.Value
-	}
-	return validation.Valid(richParameter.Type, value, prev)
+	return validation.Valid(richParameter.Type, current, previous)
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {

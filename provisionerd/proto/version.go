@@ -12,9 +12,14 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.4:
 //   - Add new field named `devcontainers` in the Agent.
+//
+// API v1.5:
+//   - Add previous parameter values to 'WorkspaceBuild' jobs. Provisioner passes
+//     the previous values for the `terraform apply` to enforce monotonicity
+//     in the terraform provider.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 // CurrentVersion is the current provisionerd API version.
