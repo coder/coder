@@ -12,8 +12,9 @@ permissions:
 
 jobs:
   test-go-pg:
-    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
-    if: github.ref == 'refs/heads/main'
+    # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
+    # when changing runner sizes
+    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -31,6 +32,22 @@ jobs:
         with:
           egress-policy: audit
 
+      # macOS indexes all new files in the background. Our Postgres tests
+      # create and destroy thousands of databases on disk, and Spotlight
+      # tries to index all of them, seriously slowing down the tests.
+      - name: Disable Spotlight Indexing
+        if: runner.os == 'macOS'
+        run: |
+          sudo mdutil -a -i off
+          sudo mdutil -X /
+          sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+
+      # Set up RAM disks to speed up the rest of the job. This action is in
+      # a separate repository to allow its use before actions/checkout.
+      - name: Setup RAM Disks
+        if: runner.os == 'Windows'
+        uses: coder/setup-ramdisk-action@79dacfe70c47ad6d6c0dd7f45412368802641439
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -38,14 +55,15 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          # Runners have Go baked-in and Go will automatically
+          # download the toolchain configured in go.mod, so we don't
+          # need to reinstall it. It's faster on Windows runners.
+          use-preinstalled-go: ${{ runner.os == 'Windows' }}
+          use-temp-cache-dirs: ${{ runner.os == 'Windows' }}
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
-
-      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
-      - name: Setup ImDisk
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/setup-imdisk
 
       - name: Test with PostgreSQL Database
         env:
@@ -55,6 +73,19 @@ jobs:
           LC_ALL: "en_US.UTF-8"
         shell: bash
         run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            # Create a temp dir on the R: ramdisk drive for Windows. The default
+            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
+          fi
+          if [ "${{ runner.os }}" == "macOS" ]; then
+            # Postgres runs faster on a ramdisk on macOS too
+            mkdir -p /tmp/tmpfs
+            sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg
+          fi
+
           # if macOS, install google-chrome for scaletests
           # As another concern, should we really have this kind of external dependency
           # requirement on standard CI?
@@ -72,19 +103,29 @@ jobs:
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
 
+          # Golang's default for these 2 variables is the number of logical CPUs.
+          # Our Windows and Linux runners have 16 cores, so they match up there.
+          NUM_PARALLEL_PACKAGES=16
+          NUM_PARALLEL_TESTS=16
           if [ "${{ runner.os }}" == "Windows" ]; then
-            # Create a temp dir on the R: ramdisk drive for Windows. The default
-            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
-            mkdir -p "R:/temp/embedded-pg"
-            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
-          else
-            go run scripts/embedded-pg/main.go
+            # On Windows Postgres chokes up when we have 16x16=256 tests
+            # running in parallel, and dbtestutil.NewDB starts to take more than
+            # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
+            # Postgres tends not to choke.
+            NUM_PARALLEL_PACKAGES=8
+          fi
+          if [ "${{ runner.os }}" == "macOS" ]; then
+            # Our macOS runners have 8 cores. We leave NUM_PARALLEL_TESTS at 16
+            # because the tests complete faster and Postgres doesn't choke. It seems
+            # that macOS's tmpfs is faster than the one on Windows.
+            NUM_PARALLEL_PACKAGES=8
           fi
 
-          # Reduce test parallelism, mirroring what we do for race tests.
-          # We'd been encountering issues with timing related flakes, and
-          # this seems to help.
-          DB=ci gotestsum --format standard-quiet -- -v -short -count=1 -parallel 4 -p 4 ./...
+          # We rerun failing tests to counteract flakiness coming from Postgres
+          # choking on macOS and Windows sometimes.
+          DB=ci gotestsum --rerun-fails=2 --rerun-fails-max-failures=1000 \
+            --format standard-quiet --packages "./..." \
+            -- -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS -count=1
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
