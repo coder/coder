@@ -4873,6 +4873,27 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
+	s.Run("GetTemplatePresetsByID", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		t := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
+			TemplateVersionID: tv.ID,
+			Name:              "my-preset",
+			DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+		})
+		check.Args(preset.ID).
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
 	s.Run("GetPresetByID", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		user := dbgen.User(s.T(), db, database.User{})

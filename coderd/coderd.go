@@ -1793,6 +1793,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		&api.PrebuildsReconciler,
 	)
 	if err != nil {
 		return nil, err

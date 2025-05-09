@@ -2524,6 +2524,13 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
+func (q *querier) GetTemplatePresetsByID(ctx context.Context, id uuid.UUID) (database.TemplateVersionPreset, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+	return q.db.GetTemplatePresetsByID(ctx, id)
+}
+
 func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 	// Presets and prebuilds are part of the template, so if you can access templates - you can access them as well.

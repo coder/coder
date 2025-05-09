@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
@@ -17,6 +18,12 @@ type FakeEnqueuer struct {
 	authorizer rbac.Authorizer
 	mu         sync.Mutex
 	sent       []*FakeNotification
+}
+
+var _ notifications.Enqueuer = &FakeEnqueuer{}
+
+func NewFakeEnqueuer() notifications.Enqueuer {
+	return &FakeEnqueuer{}
 }
 
 type FakeNotification struct {

@@ -6072,6 +6072,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetTemplatePresetsByID(ctx context.Context, id uuid.UUID) (database.TemplateVersionPreset, error) {
+	return database.TemplateVersionPreset{}, ErrUnimplemented
+}
+
 func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	return nil, ErrUnimplemented
 }

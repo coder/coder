@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -108,6 +109,7 @@ type server struct {
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
 	NotificationsEnqueuer       notifications.Enqueuer
+	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -143,8 +145,7 @@ func (t Tags) Valid() error {
 	return nil
 }
 
-func NewServer(
-	lifecycleCtx context.Context,
+func NewServer(lifecycleCtx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
 	organizationID uuid.UUID,
@@ -163,6 +164,7 @@ func NewServer(
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
 	enqueuer notifications.Enqueuer,
+	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -227,6 +229,7 @@ func NewServer(
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
 		heartbeatInterval:           options.HeartbeatInterval,
 		heartbeatFn:                 options.HeartbeatFn,
+		PrebuildsOrchestrator:       prebuildsOrchestrator,
 	}
 
 	if s.heartbeatFn == nil {
@@ -617,6 +620,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		var prebuildClaimedForUserID string
+		if input.PrebuildClaimedByUser != uuid.Nil {
+			prebuildClaimedForUserID = input.PrebuildClaimedByUser.String()
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:      workspaceBuild.ID.String(),
@@ -646,6 +654,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					IsPrebuild:                    input.IsPrebuild,
+					PrebuildClaimForUserId:        prebuildClaimedForUserID,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1720,6 +1729,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				Status:           http.StatusOK,
 				AdditionalFields: wriBytes,
 			})
+		}
+
+		if s.PrebuildsOrchestrator != nil {
+			// Track resource replacements, if there are any.
+			orchestrator := s.PrebuildsOrchestrator.Load()
+			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
+				// Fire and forget.
+				go (*orchestrator).TrackResourceReplacement(context.Background(), workspace.ID, workspaceBuild.ID, input.PrebuildClaimedByUser, resourceReplacements)
+			}
 		}
 
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
