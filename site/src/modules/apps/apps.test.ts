@@ -53,6 +53,22 @@ describe("getAppHref", () => {
 		expect(href).toBe(externalApp.url);
 	});
 
+	it("doesn't return the URL with the session token replaced when using unauthorized protocol", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `ftp://example.com?token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			path: "/path-base",
+			token: "user-session-token",
+		});
+		expect(href).toBe(externalApp.url);
+	});
+
 	it("returns a path when app doesn't use a subdomain", () => {
 		const app = {
 			...MockWorkspaceApp,
