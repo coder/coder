@@ -22,6 +22,10 @@ message AcquiredJob {
         provisioner.Metadata metadata = 7;
         bytes state = 8;
         string log_level = 9;
+        // previous_parameter_values is used to pass the values of the previous
+        // workspace build. Omit these values if the workspace is being created
+        // for the first time.
+        repeated provisioner.RichParameterValue previous_parameter_values = 10;
     }
     message TemplateImport {
         provisioner.Metadata metadata = 1;
