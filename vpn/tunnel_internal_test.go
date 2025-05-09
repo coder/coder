@@ -699,7 +699,8 @@ func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock *
 	t.Cleanup(func() { _ = mp.Close() })
 	t.Cleanup(func() { _ = tp.Close() })
 	logger := testutil.Logger(t)
-
+	// We're creating a trap for the mClock to ensure that
+	// AdvanceNext() is not called before the ticker is created.
 	trap := mClock.Trap().NewTicker()
 	defer trap.Close()
 
@@ -722,7 +723,7 @@ func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock *
 	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	mgr.start()
-
+	// We're releasing the trap to allow the clock to advance the ticker.
 	trap.MustWait(ctx).Release()
 	return tun, mgr
 }
