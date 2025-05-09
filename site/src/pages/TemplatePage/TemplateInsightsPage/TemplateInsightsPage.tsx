@@ -69,15 +69,14 @@ export default function TemplateInsightsPage() {
 	const { template } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
-	const paramsInterval = searchParams.get("interval");
 	const insightsInterval = useTimeSyncSelect<InsightsInterval>({
 		targetRefreshInterval: TARGET_REFRESH_ONE_DAY,
-		selectDependencies: [paramsInterval],
 		select: (newDate) => {
 			const templateCreateDate = new Date(template.created_at);
 			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDate;
 			const defaultInterval = hasFiveWeeksOrMore ? "week" : "day";
 
+			const paramsInterval = searchParams.get("interval");
 			if (paramsInterval === "week" || paramsInterval === "day") {
 				return paramsInterval;
 			}

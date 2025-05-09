@@ -158,7 +158,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 }) => {
 	const comparisonDate = useTimeSyncSelect({
 		targetRefreshInterval: TARGET_REFRESH_ONE_MINUTE,
-		selectDependencies: [referenceDate],
 		select: (dateState) => referenceDate ?? dateState,
 	});
 	const theme = useTheme();

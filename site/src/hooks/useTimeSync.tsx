@@ -68,8 +68,56 @@ class ReactTimeSync implements ReactTimeSyncApi {
 		this.#selectionCache = new Map();
 	}
 
+	#areValuesDeepEqual(value1: unknown, value2: unknown): boolean {
+		// JavaScript is fun and doesn't have a 100% foolproof comparison
+		// operation. Object.is covers the most cases, but you still need to
+		// compare 0 values, because even though JS programmers almost never
+		// care about +0 vs -0, Object.is does treat them as not being equal
+		if (Object.is(value1, value2)) {
+			return true;
+		}
+		if (value1 === 0 && value2 === 0) {
+			return true;
+		}
+
+		if (value1 instanceof Date && value2 instanceof Date) {
+			return value1.getMilliseconds() === value2.getMilliseconds();
+		}
+
+		// Can't reliably compare functions; just have to treat them as always
+		// different. Hopefully no one is storing functions in state for this
+		// hook, though
+		if (typeof value1 === "function" || typeof value2 === "function") {
+			return false;
+		}
+
+		if (Array.isArray(value1)) {
+			if (!Array.isArray(value2)) {
+				return false;
+			}
+			if (value1.length !== value2.length) {
+				return false;
+			}
+			return value1.every((el, i) => this.#areValuesDeepEqual(el, value2[i]));
+		}
+
+		const obj1 = value1 as Record<string, unknown>;
+		const obj2 = value1 as Record<string, unknown>;
+		if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+			return false;
+		}
+		for (const key in obj1) {
+			if (!this.#areValuesDeepEqual(obj1[key], obj2[key])) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	// All functions that are part of the public interface must be defined as
-	// arrow functions, so that they work properly with React
+	// arrow functions, so they can be passed around React without losing their
+	// `this` context
 
 	getTimeSnapshot = () => {
 		return this.#timeSync.getTimeSnapshot();
@@ -123,14 +171,16 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	};
 
 	invalidateSelection = (id: string, select?: SelectCallback): void => {
-		const cacheEntry = this.#selectionCache.get(id);
-		if (cacheEntry === undefined) {
+		const prevSelection = this.#selectionCache.get(id);
+		if (prevSelection === undefined) {
 			return;
 		}
 
 		const dateSnapshot = this.#timeSync.getTimeSnapshot();
 		const newSelection = select?.(dateSnapshot) ?? dateSnapshot;
-		this.#selectionCache.set(id, { value: newSelection });
+		if (!this.#areValuesDeepEqual(newSelection, prevSelection.value)) {
+			this.#selectionCache.set(id, { value: newSelection });
+		}
 	};
 }
 
@@ -214,42 +264,8 @@ export function useTimeSync(options: UseTimeSyncOptions): Date {
 	return snapshot;
 }
 
-function areDepsInvalidated(
-	oldDeps: readonly unknown[] | undefined,
-	newDeps: readonly unknown[] | undefined,
-): boolean {
-	if (oldDeps === undefined) {
-		if (newDeps === undefined) {
-			return false;
-		}
-		return true;
-	}
-
-	const oldRecast = oldDeps as readonly unknown[];
-	const newRecast = oldDeps as readonly unknown[];
-	if (oldRecast.length !== newRecast.length) {
-		return true;
-	}
-
-	for (const [index, el] of oldRecast.entries()) {
-		if (el !== newRecast[index]) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 type UseTimeSyncSelectOptions<T> = Readonly<
 	UseTimeSyncOptions & {
-		/**
-		 * selectDependencies acts like the dependency array for a useMemo
-		 * callback. Whenever any of the elements in the array change by value,
-		 * that will cause the select callback to re-run synchronously and
-		 * produce a new, up-to-date value for the current render.
-		 */
-		selectDependencies: readonly unknown[];
-
 		/**
 		 * Allows you to transform any date values received from the TimeSync
 		 * class. Select functions work similarly to the selects from React
@@ -279,7 +295,7 @@ type UseTimeSyncSelectOptions<T> = Readonly<
  * interval.
  */
 export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
-	const { select, selectDependencies, targetRefreshInterval } = options;
+	const { select, targetRefreshInterval } = options;
 	const hookId = useId();
 	const timeSync = useTimeSyncContext();
 
@@ -296,7 +312,7 @@ export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
 	// be initialized with whatever callback you give it on mount. So for the
 	// mounting render alone, it's safe to call a useEffectEvent callback from
 	// inside a render.
-	const selectForOutsideReact = useEffectEvent((date: Date): T => {
+	const externalSelect = useEffectEvent((date: Date): T => {
 		const recast = date as Date & T;
 		return select?.(recast) ?? recast;
 	});
@@ -314,31 +330,20 @@ export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
 				targetRefreshInterval,
 				id: hookId,
 				onUpdate: notifyReact,
-				select: selectForOutsideReact,
+				select: externalSelect,
 			});
 		},
-		[timeSync, hookId, selectForOutsideReact, targetRefreshInterval],
+		[timeSync, hookId, externalSelect, targetRefreshInterval],
 	);
 
-	const [prevDeps, setPrevDeps] = useState(selectDependencies);
-	const depsAreInvalidated = areDepsInvalidated(prevDeps, selectDependencies);
-
 	const selection = useSyncExternalStore<T>(subscribe, () => {
-		if (depsAreInvalidated) {
-			// Need to make sure that we use the un-memoized version of select
-			// here because we need to call select callback mid-render to
-			// guarantee no stale data. The memoized version only syncs AFTER
-			// the current render has finished in full.
-			timeSync.invalidateSelection(hookId, select);
-		}
+		// Need to make sure that we use the un-memoized version of select
+		// here because we need to call select callback mid-render to
+		// guarantee no stale data. The memoized version only syncs AFTER
+		// the current render has finished in full.
+		timeSync.invalidateSelection(hookId, select);
 		return timeSync.getSelectionSnapshot(hookId);
 	});
-
-	// Setting state mid-render like this is valid, but we just need to make
-	// sure that we wait until after the useSyncExternalStore state getter runs
-	if (depsAreInvalidated) {
-		setPrevDeps(selectDependencies);
-	}
 
 	return selection;
 }

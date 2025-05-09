@@ -164,7 +164,6 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
 	const activityStatus = useTimeSyncSelect({
 		targetRefreshInterval: 1_000,
-		selectDependencies: [workspace],
 		select: (currentDate) => getWorkspaceActivityStatus(workspace, currentDate),
 	});
 	const { message, tooltip, danger } = autostopDisplay(

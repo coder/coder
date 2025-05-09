@@ -30,7 +30,6 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 }) => {
 	const year = useTimeSyncSelect({
 		targetRefreshInterval: Number.POSITIVE_INFINITY,
-		selectDependencies: [],
 		select: (date) => date.getFullYear(),
 	});
 	const location = useLocation();
