@@ -6286,6 +6286,71 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 	return items, nil
 }
 
+const getPresetsAtFailureLimit = `-- name: GetPresetsAtFailureLimit :many
+WITH filtered_builds AS (
+	-- Only select builds which are for prebuild creations
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	FROM template_version_presets tvp
+			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
+			INNER JOIN workspaces w ON wlb.workspace_id = w.id
+			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
+			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
+	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+		AND wlb.transition = 'start'::workspace_transition
+		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+),
+time_sorted_builds AS (
+	-- Group builds by preset, then sort each group by created_at.
+	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
+	FROM filtered_builds fb
+)
+SELECT
+	tsb.template_version_id,
+	tsb.preset_id
+FROM time_sorted_builds tsb
+WHERE tsb.rn <= $1::bigint
+	AND tsb.job_status = 'failed'::provisioner_job_status
+GROUP BY tsb.template_version_id, tsb.preset_id
+HAVING COUNT(*) = $1::bigint
+`
+
+type GetPresetsAtFailureLimitRow struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.UUID `db:"preset_id" json:"preset_id"`
+}
+
+// GetPresetsAtFailureLimit groups workspace builds by preset ID.
+// Each preset is associated with exactly one template version ID.
+// For each preset, the query checks the last hard_limit builds.
+// If all of them failed, the preset is considered to have hit the hard failure limit.
+// The query returns a list of preset IDs that have reached this failure threshold.
+// Only active template versions with configured presets are considered.
+// For each preset, check the last hard_limit builds.
+// If all of them failed, the preset is considered to have hit the hard failure limit.
+func (q *sqlQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]GetPresetsAtFailureLimitRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetsAtFailureLimit, hardLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPresetsAtFailureLimitRow
+	for rows.Next() {
+		var i GetPresetsAtFailureLimitRow
+		if err := rows.Scan(&i.TemplateVersionID, &i.PresetID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPresetsBackoff = `-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations

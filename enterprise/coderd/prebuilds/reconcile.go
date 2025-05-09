@@ -243,6 +243,11 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		var eg errgroup.Group
 		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
+			if snapshot.IsHardLimited(preset.ID) {
+				logger.Debug(ctx, "skipping hard limited preset", slog.F("preset_id", preset.ID), slog.F("name", preset.Name))
+				continue
+			}
+
 			ps, err := snapshot.FilterByPreset(preset.ID)
 			if err != nil {
 				logger.Warn(ctx, "failed to find preset snapshot", slog.Error(err), slog.F("preset_id", preset.ID.String()))
@@ -292,6 +297,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 		if len(presetsWithPrebuilds) == 0 {
 			return nil
 		}
+
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -307,7 +313,18 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
 
-		state = prebuilds.NewGlobalSnapshot(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, c.cfg.FailureHardLimit.Value())
+		if err != nil {
+			return xerrors.Errorf("failed to get hard limited presets: %w", err)
+		}
+
+		state = prebuilds.NewGlobalSnapshot(
+			presetsWithPrebuilds,
+			allRunningPrebuilds,
+			allPrebuildsInProgress,
+			presetsBackoff,
+			hardLimitedPresets,
+		)
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
