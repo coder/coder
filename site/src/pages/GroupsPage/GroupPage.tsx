@@ -133,7 +133,7 @@ const GroupPage: FC = () => {
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
-							startIcon={<TrashIcon />}
+							startIcon={<TrashIcon className="size-icon-xs" />}
 							css={styles.removeButton}
 						>
 							Delete&hellip;
