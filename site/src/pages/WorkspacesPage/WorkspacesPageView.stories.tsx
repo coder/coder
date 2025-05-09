@@ -21,12 +21,12 @@ import {
 	MockProxyLatencies,
 	MockStoppedWorkspace,
 	MockTemplate,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -105,7 +105,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		organizations: MockMenu,
 	},
 	values: {
-		owner: MockUser.username,
+		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
@@ -144,8 +144,10 @@ const meta: Meta<typeof WorkspacesPageView> = {
 				data: MockBuildInfo,
 			},
 		],
+		user: MockUserOwner,
 	},
 	decorators: [
+		withAuthProvider,
 		withDashboardProvider,
 		(Story) => (
 			<ProxyContext.Provider

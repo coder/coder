@@ -289,9 +289,15 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
 
-		_, err = creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
+		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, admin, wrk.LatestBuild.ID)
+
+		_, err = creator.WorkspaceByOwnerAndName(ctx, adminID.Username, wrk.Name, codersdk.WorkspaceOptions{
+			IncludeDeleted: false,
 		})
 		require.NoError(t, err)
 	})

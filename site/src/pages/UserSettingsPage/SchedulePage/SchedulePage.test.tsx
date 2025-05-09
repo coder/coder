@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UpdateUserQuietHoursScheduleRequest } from "api/typesGenerated";
 import { http, HttpResponse } from "msw";
-import { MockUser } from "testHelpers/entities";
+import { MockUserOwner } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import SchedulePage from "./SchedulePage";
@@ -55,7 +55,7 @@ const cronTests = [
 describe("SchedulePage", () => {
 	beforeEach(() => {
 		server.use(
-			http.get(`/api/v2/users/${MockUser.id}/quiet-hours`, () => {
+			http.get(`/api/v2/users/${MockUserOwner.id}/quiet-hours`, () => {
 				return HttpResponse.json(defaultQuietHoursResponse);
 			}),
 		);
@@ -67,7 +67,7 @@ describe("SchedulePage", () => {
 			async (test) => {
 				server.use(
 					http.put(
-						`/api/v2/users/${MockUser.id}/quiet-hours`,
+						`/api/v2/users/${MockUserOwner.id}/quiet-hours`,
 						async ({ request }) => {
 							const data =
 								(await request.json()) as UpdateUserQuietHoursScheduleRequest;
@@ -98,7 +98,7 @@ describe("SchedulePage", () => {
 	describe("when it is an unknown error", () => {
 		it("shows a generic error message", async () => {
 			server.use(
-				http.put(`/api/v2/users/${MockUser.id}/quiet-hours`, () => {
+				http.put(`/api/v2/users/${MockUserOwner.id}/quiet-hours`, () => {
 					return HttpResponse.json(
 						{
 							message: "oh no!",
@@ -120,7 +120,7 @@ describe("SchedulePage", () => {
 	describe("when user custom schedule is disabled", () => {
 		it("shows a warning and disables the form", async () => {
 			server.use(
-				http.get(`/api/v2/users/${MockUser.id}/quiet-hours`, () => {
+				http.get(`/api/v2/users/${MockUserOwner.id}/quiet-hours`, () => {
 					return HttpResponse.json({
 						raw_schedule: "CRON_TZ=America/Chicago 0 0 * * *",
 						user_can_set: false,

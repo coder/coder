@@ -1,11 +1,11 @@
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import ButtonGroup from "@mui/material/ButtonGroup";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { API } from "api/api";
 import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
+import { ChevronDownIcon } from "lucide-react";
+import { getVSCodeHref } from "modules/apps/apps";
 import { type FC, useRef, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
@@ -43,8 +43,8 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
 
 	return includesVSCodeDesktop && includesVSCodeInsiders ? (
-		<div>
-			<ButtonGroup ref={menuAnchorRef} variant="outlined">
+		<>
+			<div ref={menuAnchorRef} className="flex items-center gap-1">
 				{variant === "vscode" ? (
 					<VSCodeButton {...props} />
 				) : (
@@ -58,15 +58,14 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					aria-expanded={isVariantMenuOpen ? "true" : undefined}
 					aria-label="select VSCode variant"
 					aria-haspopup="menu"
-					disableRipple
 					onClick={() => {
 						setIsVariantMenuOpen(true);
 					}}
-					css={{ paddingLeft: 0, paddingRight: 0 }}
+					size="icon-lg"
 				>
-					<KeyboardArrowDownIcon css={{ fontSize: 16 }} />
+					<ChevronDownIcon />
 				</AgentButton>
-			</ButtonGroup>
+			</div>
 
 			<Menu
 				open={isVariantMenuOpen}
@@ -97,7 +96,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>
-		</div>
+		</>
 	) : includesVSCodeDesktop ? (
 		<VSCodeButton {...props} />
 	) : (
@@ -115,27 +114,18 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 
 	return (
 		<AgentButton
-			startIcon={<VSCodeIcon />}
 			disabled={loading}
 			onClick={() => {
 				setLoading(true);
 				API.getApiKey()
 					.then(({ key }) => {
-						const query = new URLSearchParams({
+						location.href = getVSCodeHref("vscode", {
 							owner: userName,
 							workspace: workspaceName,
-							url: location.origin,
 							token: key,
-							openRecent: "true",
+							agent: agentName,
+							folder: folderPath,
 						});
-						if (agentName) {
-							query.set("agent", agentName);
-						}
-						if (folderPath) {
-							query.set("folder", folderPath);
-						}
-
-						location.href = `vscode://coder.coder-remote/open?${query.toString()}`;
 					})
 					.catch((ex) => {
 						console.error(ex);
@@ -145,6 +135,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 					});
 			}}
 		>
+			<VSCodeIcon />
 			{DisplayAppNameMap.vscode}
 		</AgentButton>
 	);
@@ -160,26 +151,18 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 
 	return (
 		<AgentButton
-			startIcon={<VSCodeInsidersIcon />}
 			disabled={loading}
 			onClick={() => {
 				setLoading(true);
 				API.getApiKey()
 					.then(({ key }) => {
-						const query = new URLSearchParams({
+						location.href = getVSCodeHref("vscode-insiders", {
 							owner: userName,
 							workspace: workspaceName,
-							url: location.origin,
 							token: key,
+							agent: agentName,
+							folder: folderPath,
 						});
-						if (agentName) {
-							query.set("agent", agentName);
-						}
-						if (folderPath) {
-							query.set("folder", folderPath);
-						}
-
-						location.href = `vscode-insiders://coder.coder-remote/open?${query.toString()}`;
 					})
 					.catch((ex) => {
 						console.error(ex);
@@ -189,6 +172,7 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 					});
 			}}
 		>
+			<VSCodeInsidersIcon />
 			{DisplayAppNameMap.vscode_insiders}
 		</AgentButton>
 	);

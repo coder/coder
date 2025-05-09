@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -167,6 +169,10 @@ func TestOrganizationParam(t *testing.T) {
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),
+			httpmw.ExtractOrganizationMembersParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
+				// Assume the caller cannot read the member
+				return false
+			}),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			org := httpmw.OrganizationParam(r)
@@ -190,6 +196,11 @@ func TestOrganizationParam(t *testing.T) {
 			assert.NotEmpty(t, orgMem.OrganizationMember.UpdatedAt)
 			assert.NotEmpty(t, orgMem.OrganizationMember.UserID)
 			assert.NotEmpty(t, orgMem.OrganizationMember.Roles)
+
+			orgMems := httpmw.OrganizationMembersParam(r)
+			assert.NotZero(t, orgMems)
+			assert.Equal(t, orgMem.UserID, orgMems.Memberships[0].UserID)
+			assert.Nil(t, orgMems.User, "user data should not be available, hard coded false authorize")
 		})
 
 		// Try by ID

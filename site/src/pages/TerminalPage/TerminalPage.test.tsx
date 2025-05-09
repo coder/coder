@@ -4,7 +4,7 @@ import { API } from "api/api";
 import WS from "jest-websocket-mock";
 import { http, HttpResponse } from "msw";
 import {
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
@@ -13,7 +13,7 @@ import { server } from "testHelpers/server";
 import TerminalPage, { Language } from "./TerminalPage";
 
 const renderTerminal = async (
-	route = `/${MockUser.username}/${MockWorkspace.name}/terminal`,
+	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
 ) => {
 	const utils = renderWithAuth(<TerminalPage />, {
 		route,
@@ -62,11 +62,11 @@ describe("TerminalPage", () => {
 			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
 		);
 		await renderTerminal(
-			`/${MockUser.username}/${MockWorkspace.name}/terminal`,
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
 		);
 		await waitFor(() => {
 			expect(API.getWorkspaceByOwnerAndName).toHaveBeenCalledWith(
-				MockUser.username,
+				MockUserOwner.username,
 				MockWorkspace.name,
 				{ include_deleted: true },
 			);

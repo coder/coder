@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MockUser, MockWorkspace } from "testHelpers/entities";
+import { MockUserOwner, MockWorkspace } from "testHelpers/entities";
 import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import {
@@ -258,7 +258,7 @@ describe("WorkspaceSchedulePage", () => {
 				}),
 			);
 			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-				route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
 				path: "/:username/:workspace/schedule",
 			});
 			const user = userEvent.setup();
@@ -279,7 +279,7 @@ describe("WorkspaceSchedulePage", () => {
 	describe("autostop change dialog", () => {
 		it("shows if autostop is changed", async () => {
 			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-				route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
 				path: "/:username/:workspace/schedule",
 			});
 			const user = userEvent.setup();
@@ -303,7 +303,7 @@ describe("WorkspaceSchedulePage", () => {
 
 		it("doesn't show if autostop is not changed", async () => {
 			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-				route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
 				path: "/:username/:workspace/schedule",
 				extraRoutes: [
 					{ path: "/:username/:workspace", element: <div>Workspace</div> },

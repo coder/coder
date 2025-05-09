@@ -875,12 +875,19 @@ provisioner/terraform/testdata/version:
 	fi
 .PHONY: provisioner/terraform/testdata/version
 
+# Set the retry flags if TEST_RETRIES is set
+ifdef TEST_RETRIES
+GOTESTSUM_RETRY_FLAGS := --rerun-fails=$(TEST_RETRIES)
+else
+GOTESTSUM_RETRY_FLAGS :=
+endif
+
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./... $(if $(RUN),-run $(RUN))
+	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="./..." -- -v -short -count=1 $(if $(RUN),-run $(RUN))
 .PHONY: test
 
 test-cli:
-	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./cli/...
+	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="./cli/..." -- -v -short -count=1
 .PHONY: test-cli
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
@@ -919,9 +926,9 @@ test-postgres: test-postgres-docker
 	$(GIT_FLAGS)  DB=ci gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
+		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="./..." -- \
 		-timeout=20m \
-		-failfast \
 		-count=1
 .PHONY: test-postgres
 

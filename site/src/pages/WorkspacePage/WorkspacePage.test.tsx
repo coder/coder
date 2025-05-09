@@ -22,7 +22,7 @@ import {
 	MockTemplate,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
@@ -320,7 +320,7 @@ describe("WorkspacePage", () => {
 	});
 
 	it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
-		localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
+		localStorage.removeItem(`${MockUserOwner.id}_ignoredWarnings`);
 		jest.spyOn(API, "getWorkspaceParameters").mockResolvedValue({
 			templateVersionRichParameters: [
 				{

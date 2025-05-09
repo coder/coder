@@ -12,7 +12,7 @@ data "coder_parameter" "group" {
   name    = "group"
   default = try(data.coder_workspace_owner.me.groups[0], "")
   dynamic "option" {
-    for_each = data.coder_workspace_owner.me.groups
+    for_each = concat(data.coder_workspace_owner.me.groups, "bloob")
     content {
       name  = option.value
       value = option.value
