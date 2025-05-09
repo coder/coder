@@ -9,7 +9,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import { needsSessionToken } from "modules/apps/apps";
+import { isExternalApp, needsSessionToken } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
 import { AgentButton } from "../AgentButton";
@@ -65,7 +65,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 			"Your admin has not configured subdomain application access";
 	}
 
-	if (needsSessionToken(app) && !link.hasToken) {
+	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
 		canClick = false;
 	}
 
