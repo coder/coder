@@ -83,17 +83,11 @@ export const getAppHref = (
 			: app.url;
 	}
 
-	// The backend redirects if the trailing slash isn't included, so we add it
-	// here to avoid extra roundtrips.
-	let href = `${path}/@${workspace.owner_name}/${workspace.name}.${
-		agent.name
-	}/apps/${encodeURIComponent(app.slug)}/`;
-
 	if (app.command) {
 		// Terminal links are relative. The terminal page knows how
 		// to select the correct workspace proxy for the websocket
 		// connection.
-		href = `/@${workspace.owner_name}/${workspace.name}.${
+		return `/@${workspace.owner_name}/${workspace.name}.${
 			agent.name
 		}/terminal?command=${encodeURIComponent(app.command)}`;
 	}
@@ -102,23 +96,14 @@ export const getAppHref = (
 		const baseUrl = `${window.location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
 		url.pathname = "/";
-		href = url.toString();
+		return url.toString();
 	}
 
-	return href;
-};
-
-export const needsSessionToken = (app: WorkspaceApp) => {
-	if (!isExternalApp(app)) {
-		return false;
-	}
-
-	// HTTP links should never need the session token, since Cookies
-	// handle sharing it when you access the Coder Dashboard. We should
-	// never be forwarding the bare session token to other domains!
-	const isHttp = app.url.startsWith("http");
-	const requiresSessionToken = app.url.includes(SESSION_TOKEN_PLACEHOLDER);
-	return requiresSessionToken && !isHttp;
+	// The backend redirects if the trailing slash isn't included, so we add it
+	// here to avoid extra roundtrips.
+	return `${path}/@${workspace.owner_name}/${workspace.name}.${
+		agent.name
+	}/apps/${encodeURIComponent(app.slug)}/`;
 };
 
 type ExternalWorkspaceApp = WorkspaceApp & {
@@ -130,4 +115,13 @@ export const isExternalApp = (
 	app: WorkspaceApp,
 ): app is ExternalWorkspaceApp => {
 	return app.external && app.url !== undefined;
+};
+
+export const needsSessionToken = (app: ExternalWorkspaceApp) => {
+	// HTTP links should never need the session token, since Cookies
+	// handle sharing it when you access the Coder Dashboard. We should
+	// never be forwarding the bare session token to other domains!
+	const isHttp = app.url.startsWith("http");
+	const requiresSessionToken = app.url.includes(SESSION_TOKEN_PLACEHOLDER);
+	return requiresSessionToken && !isHttp;
 };
