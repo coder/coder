@@ -4,11 +4,6 @@
  * 2. Refactor as necessary
  * 3. Add tests and address any bugs
  */
-export const TARGET_REFRESH_ONE_SECOND = 1_000;
-export const TARGET_REFRESH_ONE_MINUTE = 60 * 1_000;
-export const TARGET_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
-export const TARGET_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
-
 export type SetInterval = (fn: () => void, intervalMs: number) => number;
 export type ClearInterval = (id: number | undefined) => void;
 

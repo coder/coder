@@ -29,12 +29,10 @@ import {
 } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
-export {
-	TARGET_REFRESH_ONE_DAY,
-	TARGET_REFRESH_ONE_HOUR,
-	TARGET_REFRESH_ONE_MINUTE,
-	TARGET_REFRESH_ONE_SECOND,
-} from "utils/TimeSync";
+export const TARGET_REFRESH_ONE_SECOND = 1_000;
+export const TARGET_REFRESH_ONE_MINUTE = 60 * 1_000;
+export const TARGET_REFRESH_ONE_HOUR = 60 * 60 * 1_000;
+export const TARGET_REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 
 type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 
@@ -88,7 +86,7 @@ class ReactTimeSync implements ReactTimeSyncApi {
 			onUpdate: (newDate) => {
 				const prevSelection = this.getSelectionSnapshot(id);
 				const newSelection = select?.(newDate) ?? newDate;
-				if (newSelection === prevSelection) {
+				if (areValuesDeepEqual(prevSelection, newSelection)) {
 					return;
 				}
 
@@ -99,7 +97,7 @@ class ReactTimeSync implements ReactTimeSyncApi {
 		this.#timeSync.subscribe(patchedEntry);
 
 		// Have to seed the selection cache with an initial value so that it's
-		// safe to get the value from React immediately after the subscription
+		// safe for React to get the value immediately after the subscription
 		// gets registered
 		const date = this.#timeSync.getTimeSnapshot();
 		const cacheValue = select?.(date) ?? date;
@@ -132,6 +130,11 @@ class ReactTimeSync implements ReactTimeSyncApi {
 			return;
 		}
 
+		// It is very, VERY important that we only change the value in the
+		// selection cache when it changes by value. If the state getter
+		// function for useSyncExternalStore always receives a new value by
+		// reference on every call, that will create an infinite render loop in
+		// dev mode
 		const dateSnapshot = this.#timeSync.getTimeSnapshot();
 		const newSelection = select?.(dateSnapshot) ?? dateSnapshot;
 		if (!areValuesDeepEqual(newSelection, prevSelection.value)) {
@@ -270,10 +273,15 @@ export function useTimeSync(options: UseTimeSyncOptions): Date {
 type UseTimeSyncSelectOptions<T> = Readonly<
 	UseTimeSyncOptions & {
 		/**
-		 * Allows you to transform any date values received from the TimeSync
-		 * class. Select functions work similarly to the selects from React
-		 * Query and Redux Toolkit – you don't need to memoize them, and they
-		 * will only run when the underlying TimeSync state has changed.
+		 * Allows you to transform any Date values received from the TimeSync
+		 * class, while providing render optimizations. Select functions are
+		 * ALWAYS run during a render to guarantee no wrong data from stale
+		 * closures.
+		 *
+		 * However, when a new time update is dispatched from TimeSync, the hook
+		 * will use the latest select callback received to transform the value.
+		 * If the select result has not changed compared to last time
+		 * (comparing via deep equality), the hook will skip re-rendering.
 		 *
 		 * Select functions must not be async. The hook will error out at the
 		 * type level if you provide one by mistake.
