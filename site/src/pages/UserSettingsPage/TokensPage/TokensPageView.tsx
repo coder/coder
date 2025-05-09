@@ -115,7 +115,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 														size="medium"
 														aria-label="Delete token"
 													>
-														<TrashIcon />
+														<TrashIcon className="size-icon-sm" />
 													</IconButton>
 												</span>
 											</TableCell>
