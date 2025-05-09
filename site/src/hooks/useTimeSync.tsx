@@ -1,6 +1,15 @@
 /**
  * @todo Things that still need to be done before this can be called done:
- * 1. Add tests and address any bugs
+ * 1. Explore an idea for handling selectors without forcing someone to specify
+ *    data dependencies for what values are accessed via closure:
+ *    - A selector is ALWAYS run synchronously in a render. There is no way to
+ *      opt out of this behavior, not even memoization
+ *    - The selector is still used to determine whether a component should
+ *      re-render via a time update. It will be assumed that whatever function
+ *      is currently available will always be the most up-to-date
+ *    - This approach might make it more viable to combine useTimeSync and
+ *      useTimeSyncSelector again
+ * 2. Add tests and address any bugs
  */
 import {
 	type FC,
