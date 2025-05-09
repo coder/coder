@@ -1,4 +1,3 @@
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
@@ -9,6 +8,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
@@ -143,7 +143,7 @@ export const WorkspaceParametersPageView: FC<
 							<Button
 								component="a"
 								href={docs("/admin/templates/extending-templates/parameters")}
-								startIcon={<OpenInNewOutlined />}
+								startIcon={<ExternalLinkIcon className="size-icon-xs" />}
 								variant="contained"
 								target="_blank"
 								rel="noreferrer"

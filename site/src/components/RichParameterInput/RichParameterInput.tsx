@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import SettingsIcon from "@mui/icons-material/Settings";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -14,6 +13,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { CircleAlertIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type {
 	AutofillBuildParameter,
@@ -143,7 +143,10 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 			)}
 			{!parameter.mutable && (
 				<Tooltip title="This value cannot be modified after the workspace has been created.">
-					<Pill type="warning" icon={<ErrorOutline />}>
+					<Pill
+						type="warning"
+						icon={<CircleAlertIcon className="size-icon-xs" />}
+					>
 						Immutable
 					</Pill>
 				</Tooltip>

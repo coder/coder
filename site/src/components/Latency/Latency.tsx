@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
-import HelpOutline from "@mui/icons-material/HelpOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import { Abbr } from "components/Abbr/Abbr";
+import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
@@ -41,10 +41,10 @@ export const Latency: FC<LatencyProps> = ({
 				<>
 					<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
 
-					<HelpOutline
+					<CircleHelpIcon
+						className="size-icon-sm"
 						css={{
 							marginLeft: "auto",
-							fontSize: "14px !important",
 						}}
 						style={{ color }}
 					/>

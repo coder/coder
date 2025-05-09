@@ -5,7 +5,6 @@ import {
 	css,
 	useTheme,
 } from "@emotion/react";
-import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Link from "@mui/material/Link";
 import { Stack } from "components/Stack/Stack";
@@ -17,6 +16,7 @@ import {
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
+import { CircleHelpIcon } from "lucide-react";
 import {
 	type FC,
 	type HTMLAttributes,
@@ -25,11 +25,11 @@ import {
 	forwardRef,
 } from "react";
 
-type Icon = typeof HelpIcon;
+type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
 
-export const HelpTooltipIcon = HelpIcon;
+export const HelpTooltipIcon = CircleHelpIcon;
 
 export const HelpTooltip: FC<PopoverProps> = (props) => {
 	return <Popover mode="hover" {...props} />;

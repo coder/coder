@@ -50,8 +50,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { TrashIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -134,7 +133,7 @@ const GroupPage: FC = () => {
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
-							startIcon={<TrashIcon className="size-icon-sm" />}
+							startIcon={<TrashIcon className="size-icon-xs" />}
 							css={styles.removeButton}
 						>
 							Delete&hellip;
