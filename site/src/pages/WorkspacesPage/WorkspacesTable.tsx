@@ -20,6 +20,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
@@ -63,6 +64,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -622,6 +624,9 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 	);
 };
 
+// The total number of apps that can be displayed in the workspace row
+const WORKSPACE_APPS_SLOTS = 4;
+
 type WorkspaceAppsProps = {
 	workspace: Workspace;
 };
@@ -647,11 +652,18 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		return null;
 	}
 
+	const builtinApps = new Set(agent.display_apps);
+	builtinApps.delete("port_forwarding_helper");
+	builtinApps.delete("ssh_helper");
+
+	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
+	const userApps = agent.apps.slice(0, remainingSlots);
+
 	const buttons: ReactNode[] = [];
 
-	if (agent.display_apps.includes("vscode")) {
+	if (builtinApps.has("vscode")) {
 		buttons.push(
-			<AppLink
+			<BaseIconLink
 				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
@@ -664,13 +676,13 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				})}
 			>
 				<VSCodeIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
-	if (agent.display_apps.includes("vscode_insiders")) {
+	if (builtinApps.has("vscode_insiders")) {
 		buttons.push(
-			<AppLink
+			<BaseIconLink
 				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
@@ -683,18 +695,29 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				})}
 			>
 				<VSCodeInsidersIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
-	if (agent.display_apps.includes("web_terminal")) {
+	for (const app of userApps) {
+		buttons.push(
+			<IconAppLink
+				key={app.id}
+				app={app}
+				workspace={workspace}
+				agent={agent}
+			/>,
+		);
+	}
+
+	if (builtinApps.has("web_terminal")) {
 		const href = getTerminalHref({
 			username: workspace.owner_name,
 			workspace: workspace.name,
 			agent: agent.name,
 		});
 		buttons.push(
-			<AppLink
+			<BaseIconLink
 				key="terminal"
 				href={href}
 				onClick={(e) => {
@@ -704,21 +727,45 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				label="Open Terminal"
 			>
 				<SquareTerminalIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
 	return buttons;
 };
 
-type AppLinkProps = PropsWithChildren<{
+type IconAppLinkProps = {
+	app: WorkspaceApp;
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+};
+
+const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+	const link = useAppLink(app, {
+		workspace,
+		agent,
+	});
+
+	return (
+		<BaseIconLink
+			key={app.id}
+			label={`Open ${link.label}`}
+			href={link.href}
+			onClick={link.onClick}
+		>
+			<ExternalImage src={app.icon} />
+		</BaseIconLink>
+	);
+};
+
+type BaseIconLinkProps = PropsWithChildren<{
 	label: string;
 	href: string;
 	isLoading?: boolean;
 	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }>;
 
-const AppLink: FC<AppLinkProps> = ({
+const BaseIconLink: FC<BaseIconLinkProps> = ({
 	href,
 	isLoading,
 	label,
