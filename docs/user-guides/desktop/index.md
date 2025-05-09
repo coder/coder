@@ -107,7 +107,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
    ![Paste the session token in to sign in](../../images/user-guides/desktop/coder-desktop-session-token.png)
 
-1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted.
+1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted:
 
    ![Copy session token](../../images/user-guides/desktop/mac-allow-vpn.png)
 
@@ -183,10 +183,16 @@ You can work offline, add screenshots to documentation, or use local development
 
    ![Coder Desktop File Sync watching](../../images/user-guides/desktop/coder-desktop-file-sync-watching.png)
 
-    For more information about the current status, hover your mouse over the status.
+   For more information about the current status, hover your mouse over the status.
 
 File sync excludes version control system directories like `.git/` from synchronization, so keep your Git-cloned repository wherever you run Git commands.
 This means that if you use an IDE with a built-in terminal to edit files on your remote workspace, that should be the Git clone and your local directory should be for file syncs.
+
+> [!NOTE]
+> Coder Desktop uses `alpha` and `beta` to distinguish between the:
+>
+> - Local directory: `alpha`
+> - Remote directory: `beta`
 
 ### File sync conflicts
 
