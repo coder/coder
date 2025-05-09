@@ -10,6 +10,20 @@ import type {
 // be used internally, and is highly subject to break.
 export const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
 
+// This is a list of external app protocols that we
+// allow to be opened in a new window. This is
+// used to prevent phishing attacks where a user
+// is tricked into clicking a link that opens
+// a malicious app using the Coder session token.
+export const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
+	"vscode:",
+	"vscode-insiders:",
+	"windsurf:",
+	"cursor:",
+	"jetbrains-gateway:",
+	"jetbrains:",
+];
+
 type GetVSCodeHrefParams = {
 	owner: string;
 	workspace: string;
@@ -78,7 +92,11 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		return needsSessionToken(app)
+		const appProtocol = new URL(app.url).protocol;
+		const isAllowedProtocol =
+			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
+
+		return needsSessionToken(app) && isAllowedProtocol
 			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
 			: app.url;
 	}
