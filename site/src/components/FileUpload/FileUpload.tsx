@@ -66,7 +66,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 						{isUploading ? (
 							<CircularProgress size={32} />
 						) : (
-							<CloudUploadIcon className="size-icon-lg" css={styles.icon} />
+							<CloudUploadIcon className="size-16" />
 						)}
 					</div>
 
@@ -162,10 +162,6 @@ const styles = {
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
-	},
-
-	icon: {
-		fontSize: 64,
 	},
 
 	title: {

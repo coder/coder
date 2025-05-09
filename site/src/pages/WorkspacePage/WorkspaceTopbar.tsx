@@ -199,7 +199,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				{shouldDisplayDormantData && (
 					<TopbarData>
 						<TopbarIcon>
-							<TrashIcon className="size-icon-sm" />
+							<TrashIcon />
 						</TopbarIcon>
 						<Link
 							component={RouterLink}
