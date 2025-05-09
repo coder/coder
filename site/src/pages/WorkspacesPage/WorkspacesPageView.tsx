@@ -18,7 +18,7 @@ import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import { PlayIcon, SquareIcon, TrashIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
