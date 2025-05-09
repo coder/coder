@@ -98,7 +98,7 @@ require (
 	github.com/coder/flog v1.1.0
 	github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
-	github.com/coder/quartz v0.1.2
+	github.com/coder/quartz v0.1.3
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
 	github.com/coder/terraform-provider-coder/v2 v2.4.0
@@ -488,11 +488,7 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
-<<<<<<< HEAD
-	github.com/coder/preview v0.0.2-0.20250507145135-60f7cbb73a32
-=======
 	github.com/coder/preview v0.0.2-0.20250509141204-fc9484dbe506
->>>>>>> origin/main
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.25.0
