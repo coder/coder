@@ -6,14 +6,16 @@ on:
     # Every day at 4AM
     - cron: "0 4 * * 1-5"
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   test-go-pg:
-    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
-    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -31,6 +33,12 @@ jobs:
         with:
           egress-policy: audit
 
+      # Set up RAM disks to speed up the rest of the job. This action is in
+      # a separate repository to allow its use before actions/checkout.
+      - name: Setup RAM Disks
+        if: runner.os == 'Windows'
+        uses: coder/setup-ramdisk-action@79dacfe70c47ad6d6c0dd7f45412368802641439
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -38,14 +46,15 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          # Runners have Go baked-in and Go will automatically
+          # download the toolchain configured in go.mod, so we don't
+          # need to reinstall it. It's faster on Windows runners.
+          use-preinstalled-go: ${{ runner.os == 'Windows' }}
+          use-temp-cache-dirs: ${{ runner.os == 'Windows' }}
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
-
-      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
-      - name: Setup ImDisk
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/setup-imdisk
 
       - name: Test with PostgreSQL Database
         env:
@@ -81,10 +90,19 @@ jobs:
             go run scripts/embedded-pg/main.go
           fi
 
-          # Reduce test parallelism, mirroring what we do for race tests.
-          # We'd been encountering issues with timing related flakes, and
-          # this seems to help.
-          DB=ci gotestsum --format standard-quiet -- -v -short -count=1 -parallel 4 -p 4 ./...
+          NUM_PARALLEL_PACKAGES=16
+          NUM_PARALLEL_TESTS=16
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            NUM_PARALLEL_PACKAGES=8
+          fi
+          if [ "${{ runner.os }}" == "macOS" ]; then
+            NUM_PARALLEL_TESTS=8
+            NUM_PARALLEL_PACKAGES=6
+          fi
+
+          DB=ci gotestsum --rerun-fails=2 --rerun-fails-max-failures=1000 \
+            --format standard-quiet --packages "./..." \
+            -- -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS -count=1
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
