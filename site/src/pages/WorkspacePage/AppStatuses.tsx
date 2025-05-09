@@ -17,10 +17,9 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
-import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
-import { createAppLinkHref } from "utils/apps";
 
 const getStatusColor = (
 	theme: Theme,
@@ -153,9 +152,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	referenceDate,
 }) => {
 	const theme = useTheme();
-	const { proxy } = useProxy();
-	const preferredPathBase = proxy.preferredPathAppURL;
-	const appsHost = proxy.preferredWildcardHostname;
 
 	// 1. Flatten all statuses and include the parent app object
 	const allStatuses: StatusWithAppInfo[] = apps.flatMap((app) =>
@@ -194,21 +190,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 
 				// Get the associated app for this status
 				const currentApp = status.app;
-				let appHref: string | undefined;
 				const agent = agents.find((agent) => agent.id === status.agent_id);
-
-				if (currentApp && agent) {
-					appHref = createAppLinkHref(
-						window.location.protocol,
-						preferredPathBase,
-						appsHost,
-						currentApp.slug,
-						workspace.owner_name,
-						workspace,
-						agent,
-						currentApp,
-					);
-				}
 
 				// Determine if app link should be shown
 				const showAppLink =
@@ -280,63 +262,12 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 								}}
 							>
 								{/* Conditional App Link */}
-								{currentApp && appHref && showAppLink && (
-									<Tooltip
-										title={`Open ${currentApp.display_name}`}
-										placement="top"
-									>
-										<Link
-											href={appHref}
-											target="_blank"
-											rel="noopener"
-											sx={{
-												...commonStyles,
-												position: "relative",
-												"& .MuiSvgIcon-root": {
-													fontSize: 14,
-													opacity: 0.7,
-													mr: 0.5,
-												},
-												"& img": {
-													opacity: 0.8,
-													marginRight: 0.5,
-												},
-												"&:hover": {
-													...commonStyles["&:hover"],
-													color: theme.palette.text.primary, // Keep consistent hover color
-													"& img": {
-														opacity: 1,
-													},
-													"& .MuiSvgIcon-root": {
-														opacity: 1,
-													},
-												},
-											}}
-										>
-											{currentApp.icon ? (
-												<img
-													src={currentApp.icon}
-													alt={`${currentApp.display_name} icon`}
-													width={14}
-													height={14}
-													style={{ borderRadius: "3px" }}
-												/>
-											) : (
-												<AppsIcon />
-											)}
-											{/* Keep app name short */}
-											<span
-												css={{
-													lineHeight: 1,
-													textOverflow: "ellipsis",
-													overflow: "hidden",
-													whiteSpace: "nowrap",
-												}}
-											>
-												{currentApp.display_name}
-											</span>
-										</Link>
-									</Tooltip>
+								{currentApp && agent && showAppLink && (
+									<AppLink
+										app={currentApp}
+										agent={agent}
+										workspace={workspace}
+									/>
 								)}
 
 								{/* Existing URI Link */}
@@ -407,5 +338,73 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 				);
 			})}
 		</div>
+	);
+};
+
+type AppLinkProps = {
+	app: WorkspaceApp;
+	agent: WorkspaceAgent;
+	workspace: Workspace;
+};
+
+const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
+	const link = useAppLink(app, { agent, workspace });
+	const theme = useTheme();
+
+	return (
+		<Tooltip title={`Open ${link.label}`} placement="top">
+			<Link
+				href={link.href}
+				onClick={link.onClick}
+				target="_blank"
+				rel="noopener"
+				sx={{
+					...commonStyles,
+					position: "relative",
+					"& .MuiSvgIcon-root": {
+						fontSize: 14,
+						opacity: 0.7,
+						mr: 0.5,
+					},
+					"& img": {
+						opacity: 0.8,
+						marginRight: 0.5,
+					},
+					"&:hover": {
+						...commonStyles["&:hover"],
+						color: theme.palette.text.primary, // Keep consistent hover color
+						"& img": {
+							opacity: 1,
+						},
+						"& .MuiSvgIcon-root": {
+							opacity: 1,
+						},
+					},
+				}}
+			>
+				{app.icon ? (
+					<img
+						src={app.icon}
+						alt={`${link.label} icon`}
+						width={14}
+						height={14}
+						style={{ borderRadius: "3px" }}
+					/>
+				) : (
+					<AppsIcon />
+				)}
+				{/* Keep app name short */}
+				<span
+					css={{
+						lineHeight: 1,
+						textOverflow: "ellipsis",
+						overflow: "hidden",
+						whiteSpace: "nowrap",
+					}}
+				>
+					{link.label}
+				</span>
+			</Link>
+		</Tooltip>
 	);
 };
