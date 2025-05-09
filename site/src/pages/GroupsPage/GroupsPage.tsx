@@ -20,9 +20,9 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
-import GroupsPageView from "./GroupsPageView";
+import { GroupsPageView } from "./GroupsPageView";
 
-export const GroupsPage: FC = () => {
+const GroupsPage: FC = () => {
 	const { template_rbac: groupsEnabled } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
 	const groupsQuery = useQuery(

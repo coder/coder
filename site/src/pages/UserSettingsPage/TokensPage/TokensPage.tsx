@@ -12,7 +12,7 @@ import { useTokensData } from "./hooks";
 
 const cliCreateCommand = "coder tokens create";
 
-export const TokensPage: FC = () => {
+const TokensPage: FC = () => {
 	const [tokenToDelete, setTokenToDelete] = useState<
 		APIKeyWithOwner | undefined
 	>(undefined);

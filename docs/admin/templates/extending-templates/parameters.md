@@ -374,20 +374,20 @@ data "coder_parameter" "jetbrains_ide" {
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
-parameters.
+parameters in one of two ways:
 
-You need to enable `auto-fill-parameters` first:
+- Coder will look for URL query parameters with form `param.<name>=<value>`.
 
-```shell
-coder server --experiments=auto-fill-parameters
-```
+  This feature enables platform teams to create pre-filled template creation links.
 
-Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
-With the feature enabled:
+- Coder can populate recently used parameter key-value pairs for the user.
+  This feature helps reduce repetition when filling common parameters such as
+  `dotfiles_url` or `region`.
 
-1. Coder will look for URL query parameters with form `param.<name>=<value>`.
-   This feature enables platform teams to create pre-filled template creation
-   links.
-2. Coder will populate recently used parameter key-value pairs for the user.
-   This feature helps reduce repetition when filling common parameters such as
-   `dotfiles_url` or `region`.
+  To enable this feature, you need to set the `auto-fill-parameters` experiment flag:
+
+  ```shell
+  coder server --experiments=auto-fill-parameters
+  ```
+
+  Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`

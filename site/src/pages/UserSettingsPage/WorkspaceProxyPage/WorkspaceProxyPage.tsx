@@ -2,7 +2,7 @@ import { useProxy } from "contexts/ProxyContext";
 import type { FC } from "react";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
-export const WorkspaceProxyPage: FC = () => {
+const WorkspaceProxyPage: FC = () => {
 	const {
 		proxyLatencies,
 		proxies,

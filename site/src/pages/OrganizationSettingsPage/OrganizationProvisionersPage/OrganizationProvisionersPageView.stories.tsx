@@ -24,6 +24,9 @@ const meta: Meta<typeof OrganizationProvisionersPageView> = {
 				version: "0.0.0",
 			},
 		],
+		filter: {
+			ids: "",
+		},
 	},
 };
 
@@ -58,5 +61,14 @@ export const Paywall: Story = {
 	args: {
 		provisioners: undefined,
 		showPaywall: true,
+	},
+};
+
+export const FilterByID: Story = {
+	args: {
+		provisioners: [MockProvisioner],
+		filter: {
+			ids: MockProvisioner.id,
+		},
 	},
 };

@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (a *agent) apiHandler() http.Handler {
+func (a *agent) apiHandler() (http.Handler, func() error) {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -37,10 +37,10 @@ func (a *agent) apiHandler() http.Handler {
 		cacheDuration: cacheDuration,
 	}
 
-	containerAPIOpts := []agentcontainers.Option{
-		agentcontainers.WithLister(a.lister),
-	}
 	if a.experimentalDevcontainersEnabled {
+		containerAPIOpts := []agentcontainers.Option{
+			agentcontainers.WithExecer(a.execer),
+		}
 		manifest := a.manifest.Load()
 		if manifest != nil && len(manifest.Devcontainers) > 0 {
 			containerAPIOpts = append(
@@ -48,12 +48,24 @@ func (a *agent) apiHandler() http.Handler {
 				agentcontainers.WithDevcontainers(manifest.Devcontainers),
 			)
 		}
+
+		// Append after to allow the agent options to override the default options.
+		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+
+		containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+		r.Mount("/api/v0/containers", containerAPI.Routes())
+		a.containerAPI.Store(containerAPI)
+	} else {
+		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
+				Message: "The agent dev containers feature is experimental and not enabled by default.",
+				Detail:  "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.",
+			})
+		})
 	}
-	containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
 
-	r.Mount("/api/v0/containers", containerAPI.Routes())
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Post("/api/v0/list-directory", a.HandleLS)
@@ -63,7 +75,12 @@ func (a *agent) apiHandler() http.Handler {
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
-	return r
+	return r, func() error {
+		if containerAPI := a.containerAPI.Load(); containerAPI != nil {
+			return containerAPI.Close()
+		}
+		return nil
+	}
 }
 
 type listeningPortsHandler struct {

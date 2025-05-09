@@ -1,11 +1,15 @@
-import ReplayIcon from "@mui/icons-material/Replay";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
-import Tooltip from "@mui/material/Tooltip";
-import { visuallyHidden } from "@mui/utils";
 import type { TemplateVersionExternalAuth } from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Pill } from "components/Pill/Pill";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { Check, Redo } from "lucide-react";
 import type { FC } from "react";
 
 export interface ExternalAuthButtonProps {
@@ -24,62 +28,66 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 	error,
 }) => {
 	return (
-		<>
-			<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-				<LoadingButton
-					fullWidth
-					loading={isLoading}
-					variant="contained"
-					size="xlarge"
-					startIcon={
-						auth.display_icon && (
-							<ExternalImage
-								src={auth.display_icon}
-								alt={`${auth.display_name} Icon`}
-								css={{ width: 16, height: 16 }}
-							/>
-						)
-					}
-					disabled={auth.authenticated}
-					onClick={() => {
-						window.open(
-							auth.authenticate_url,
-							"_blank",
-							"width=900,height=600",
-						);
-						onStartPolling();
-					}}
-				>
-					{auth.authenticated ? (
-						`Authenticated with ${auth.display_name}`
-					) : (
-						<>
-							Login with {auth.display_name}
-							{!auth.optional && (
-								<Pill type={error ? "error" : "info"} css={{ marginLeft: 12 }}>
-									Required
-								</Pill>
-							)}
-						</>
-					)}
-				</LoadingButton>
-
-				{displayRetry && (
-					<Tooltip title="Retry">
-						<Button
-							variant="contained"
-							size="xlarge"
-							onClick={onStartPolling}
-							css={{ minWidth: "auto", aspectRatio: "1" }}
-						>
-							<ReplayIcon css={{ width: 20, height: 20 }} />
-							<span aria-hidden css={{ ...visuallyHidden }}>
-								Refresh external auth
-							</span>
-						</Button>
-					</Tooltip>
+		<div className="flex items-center gap-2 border border-border border-solid rounded-md p-3 justify-between">
+			<span className="flex flex-row items-center gap-2">
+				{auth.display_icon && (
+					<ExternalImage
+						className="w-5 h-5"
+						src={auth.display_icon}
+						alt={`${auth.display_name} Icon`}
+					/>
 				)}
-			</div>
-		</>
+				<p className="font-semibold text-sm m-0">{auth.display_name}</p>
+				{!auth.optional && (
+					<Badge size="sm" variant={error ? "destructive" : "warning"}>
+						Required
+					</Badge>
+				)}
+			</span>
+
+			<span className="flex flex-row items-center gap-2">
+				{auth.authenticated ? (
+					<>
+						<Check className="w-4 h-4 text-content-success" />
+						<p className="text-xs font-semibold text-content-secondary m-0">
+							Authenticated
+						</p>
+					</>
+				) : (
+					<Button
+						variant="default"
+						size="sm"
+						disabled={isLoading || auth.authenticated}
+						onClick={() => {
+							window.open(
+								auth.authenticate_url,
+								"_blank",
+								"width=900,height=600",
+							);
+							onStartPolling();
+						}}
+					>
+						<Spinner loading={isLoading} />
+						Login with {auth.display_name}
+					</Button>
+				)}
+
+				{displayRetry && !auth.authenticated && (
+					<TooltipProvider>
+						<Tooltip delayDuration={100}>
+							<TooltipTrigger asChild>
+								<Button variant="outline" size="icon" onClick={onStartPolling}>
+									<Redo />
+									<span className="sr-only">Refresh external auth</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								Retry login with {auth.display_name}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+			</span>
+		</div>
 	);
 };

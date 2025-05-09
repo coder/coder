@@ -185,6 +185,7 @@ Status Code **200**
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
 | `resource_type` | `audit_log`                        |
+| `resource_type` | `chat`                             |
 | `resource_type` | `crypto_key`                       |
 | `resource_type` | `debug_info`                       |
 | `resource_type` | `deployment_config`                |
@@ -351,6 +352,7 @@ Status Code **200**
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
 | `resource_type` | `audit_log`                        |
+| `resource_type` | `chat`                             |
 | `resource_type` | `crypto_key`                       |
 | `resource_type` | `debug_info`                       |
 | `resource_type` | `deployment_config`                |
@@ -517,6 +519,7 @@ Status Code **200**
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
 | `resource_type` | `audit_log`                        |
+| `resource_type` | `chat`                             |
 | `resource_type` | `crypto_key`                       |
 | `resource_type` | `debug_info`                       |
 | `resource_type` | `deployment_config`                |
@@ -652,6 +655,7 @@ Status Code **200**
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
 | `resource_type` | `audit_log`                        |
+| `resource_type` | `chat`                             |
 | `resource_type` | `crypto_key`                       |
 | `resource_type` | `debug_info`                       |
 | `resource_type` | `deployment_config`                |
@@ -1009,6 +1013,7 @@ Status Code **200**
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
 | `resource_type` | `audit_log`                        |
+| `resource_type` | `chat`                             |
 | `resource_type` | `crypto_key`                       |
 | `resource_type` | `debug_info`                       |
 | `resource_type` | `deployment_config`                |

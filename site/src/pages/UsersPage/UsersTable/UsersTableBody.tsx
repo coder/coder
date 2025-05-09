@@ -1,26 +1,27 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import DeleteIcon from "@mui/icons-material/Delete";
 import GitHub from "@mui/icons-material/GitHub";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
-import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { PremiumBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { LastSeen } from "components/LastSeen/LastSeen";
-import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
@@ -28,6 +29,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
@@ -180,51 +182,65 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 
 						{canEditUsers && (
 							<TableCell>
-								<MoreMenu>
-									<MoreMenuTrigger>
-										<ThreeDotsButton />
-									</MoreMenuTrigger>
-									<MoreMenuContent>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon-lg"
+											variant="subtle"
+											aria-label="Open menu"
+										>
+											<EllipsisVertical aria-hidden="true" />
+											<span className="sr-only">Open menu</span>
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
 										{user.status === "active" || user.status === "dormant" ? (
-											<MoreMenuItem
+											<DropdownMenuItem
 												data-testid="suspend-button"
-												onClick={() => {
-													onSuspendUser(user);
-												}}
+												onClick={() => onSuspendUser(user)}
 											>
 												Suspend&hellip;
-											</MoreMenuItem>
+											</DropdownMenuItem>
 										) : (
-											<MoreMenuItem onClick={() => onActivateUser(user)}>
+											<DropdownMenuItem onClick={() => onActivateUser(user)}>
 												Activate&hellip;
-											</MoreMenuItem>
+											</DropdownMenuItem>
 										)}
-										<MoreMenuItem onClick={() => onListWorkspaces(user)}>
+
+										<DropdownMenuItem onClick={() => onListWorkspaces(user)}>
 											View workspaces
-										</MoreMenuItem>
-										<MoreMenuItem
-											onClick={() => onViewActivity(user)}
-											disabled={!canViewActivity}
-										>
-											View activity
-											{!canViewActivity && <PremiumBadge />}
-										</MoreMenuItem>
-										<MoreMenuItem
-											onClick={() => onResetUserPassword(user)}
-											disabled={user.login_type !== "password"}
-										>
-											Reset password&hellip;
-										</MoreMenuItem>
-										<Divider />
-										<MoreMenuItem
+										</DropdownMenuItem>
+
+										{canViewActivity && (
+											<DropdownMenuItem
+												onClick={() => onViewActivity(user)}
+												disabled={!canViewActivity}
+											>
+												View activity {!canViewActivity && <PremiumBadge />}
+											</DropdownMenuItem>
+										)}
+
+										{user.login_type === "password" && (
+											<DropdownMenuItem
+												onClick={() => onResetUserPassword(user)}
+												disabled={user.login_type !== "password"}
+											>
+												Reset password&hellip;
+											</DropdownMenuItem>
+										)}
+
+										<DropdownMenuSeparator />
+
+										<DropdownMenuItem
+											className="text-content-destructive focus:text-content-destructive"
 											onClick={() => onDeleteUser(user)}
 											disabled={user.id === actorID}
-											danger
 										>
+											<DeleteIcon />
 											Delete&hellip;
-										</MoreMenuItem>
-									</MoreMenuContent>
-								</MoreMenu>
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
 							</TableCell>
 						)}
 					</TableRow>

@@ -54,6 +54,16 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceChat
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat
+	//  - "ActionDelete" :: delete a chat
+	//  - "ActionRead" :: read a chat
+	//  - "ActionUpdate" :: update a chat
+	ResourceChat = Object{
+		Type: "chat",
+	}
+
 	// ResourceCryptoKey
 	// Valid Actions
 	//  - "ActionCreate" :: create crypto keys
@@ -354,6 +364,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceChat,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,

@@ -53,7 +53,6 @@ export interface WorkspaceProps {
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
-	isOwner: boolean;
 	timings?: TypesGen.WorkspaceBuildTimings;
 }
 
@@ -86,7 +85,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	buildLogs,
 	latestVersion,
 	permissions,
-	isOwner,
 	timings,
 }) => {
 	const navigate = useNavigate();
@@ -161,7 +159,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 				isUpdating={isUpdating}
 				isRestarting={isRestarting}
 				canUpdateWorkspace={permissions.updateWorkspace}
-				isOwner={isOwner}
 				template={template}
 				permissions={permissions}
 				latestVersion={latestVersion}

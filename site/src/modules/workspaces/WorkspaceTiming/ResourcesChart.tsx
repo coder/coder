@@ -57,7 +57,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	const theme = useTheme();
 	const legendsByAction = getLegendsByAction(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.action))].map(
-		(a) => legendsByAction[a],
+		(a) => legendsByAction[a] ?? { label: a },
 	);
 
 	return (
@@ -99,6 +99,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 					<XAxisSection>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
+							const legend = legendsByAction[t.action] ?? { label: t.action };
 
 							return (
 								<XAxisRow
@@ -117,7 +118,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 											value={duration}
 											offset={calcOffset(t.range, generalTiming)}
 											scale={scale}
-											colors={legendsByAction[t.action].colors}
+											colors={legend.colors}
 										/>
 									</Tooltip>
 									{formatTime(duration)}
@@ -139,10 +140,19 @@ export const isCoderResource = (resource: string) => {
 	);
 };
 
-function getLegendsByAction(theme: Theme): Record<string, ChartLegend> {
+// TODO: We should probably strongly type the action attribute on
+// ProvisionerTiming to catch missing actions in the record. As a "workaround"
+// for now, we are using undefined since we don't have noUncheckedIndexedAccess
+// enabled.
+function getLegendsByAction(
+	theme: Theme,
+): Record<string, ChartLegend | undefined> {
 	return {
 		"state refresh": {
 			label: "state refresh",
+		},
+		provision: {
+			label: "provision",
 		},
 		create: {
 			label: "create",

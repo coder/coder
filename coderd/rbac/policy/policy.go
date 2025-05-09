@@ -104,6 +104,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("read and use a workspace proxy"),
 		},
 	},
+	"chat": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create a chat"),
+			ActionRead:   actDef("read a chat"),
+			ActionDelete: actDef("delete a chat"),
+			ActionUpdate: actDef("update a chat"),
+		},
+	},
 	"license": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create a license"),

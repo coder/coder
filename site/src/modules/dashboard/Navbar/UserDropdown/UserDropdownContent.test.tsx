@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { Popover } from "components/deprecated/Popover/Popover";
-import { MockUser } from "testHelpers/entities";
+import { MockUserOwner } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
 
@@ -8,7 +8,7 @@ describe("UserDropdownContent", () => {
 	it("has the correct link for the account item", async () => {
 		render(
 			<Popover>
-				<UserDropdownContent user={MockUser} onSignOut={jest.fn()} />
+				<UserDropdownContent user={MockUserOwner} onSignOut={jest.fn()} />
 			</Popover>,
 		);
 		await waitForLoaderToBeRemoved();
@@ -25,7 +25,7 @@ describe("UserDropdownContent", () => {
 		const onSignOut = jest.fn();
 		render(
 			<Popover>
-				<UserDropdownContent user={MockUser} onSignOut={onSignOut} />
+				<UserDropdownContent user={MockUserOwner} onSignOut={onSignOut} />
 			</Popover>,
 		);
 		await waitForLoaderToBeRemoved();

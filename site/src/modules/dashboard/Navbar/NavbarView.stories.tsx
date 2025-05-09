@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
 import { chromaticWithTablet } from "testHelpers/chromatic";
-import { MockUser, MockUser2 } from "testHelpers/entities";
+import { MockUserMember, MockUserOwner } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
@@ -10,7 +10,7 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: { chromatic: chromaticWithTablet, layout: "fullscreen" },
 	component: NavbarView,
 	args: {
-		user: MockUser,
+		user: MockUserOwner,
 		canViewAuditLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
@@ -33,7 +33,7 @@ export const ForAdmin: Story = {
 
 export const ForAuditor: Story = {
 	args: {
-		user: MockUser2,
+		user: MockUserMember,
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -49,7 +49,7 @@ export const ForAuditor: Story = {
 
 export const ForOrgAdmin: Story = {
 	args: {
-		user: MockUser2,
+		user: MockUserMember,
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -65,7 +65,7 @@ export const ForOrgAdmin: Story = {
 
 export const ForMember: Story = {
 	args: {
-		user: MockUser2,
+		user: MockUserMember,
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,

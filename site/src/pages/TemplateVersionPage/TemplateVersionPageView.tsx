@@ -114,5 +114,3 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 		</Margins>
 	);
 };
-
-export default TemplateVersionPageView;

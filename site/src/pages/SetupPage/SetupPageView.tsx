@@ -18,7 +18,6 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
-import { docs } from "utils/docs";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -247,7 +246,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								quotas, and more.
 							</span>
 							<Link
-								href={docs("/licensing")}
+								href="https://coder.com/pricing"
 								target="_blank"
 								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
 							>

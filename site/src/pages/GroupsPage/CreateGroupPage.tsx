@@ -4,9 +4,9 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import CreateGroupPageView from "./CreateGroupPageView";
+import { CreateGroupPageView } from "./CreateGroupPageView";
 
-export const CreateGroupPage: FC = () => {
+const CreateGroupPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { organization } = useParams() as { organization: string };

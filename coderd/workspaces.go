@@ -253,7 +253,8 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	owner := httpmw.UserParam(r)
+
+	mems := httpmw.OrganizationMembersParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 	apiKey := httpmw.APIKey(r)
 
@@ -273,12 +274,12 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: owner.ID,
+		OwnerID: mems.UserID(),
 		Name:    workspaceName,
 	})
 	if includeDeleted && errors.Is(err, sql.ErrNoRows) {
 		workspace, err = api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-			OwnerID: owner.ID,
+			OwnerID: mems.UserID(),
 			Name:    workspaceName,
 			Deleted: includeDeleted,
 		})
@@ -408,6 +409,7 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		ctx     = r.Context()
 		apiKey  = httpmw.APIKey(r)
 		auditor = api.Auditor.Load()
+		mems    = httpmw.OrganizationMembersParam(r)
 	)
 
 	var req codersdk.CreateWorkspaceRequest
@@ -416,17 +418,16 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var owner workspaceOwner
-	// This user fetch is an optimization path for the most common case of creating a
-	// workspace for 'Me'.
-	//
-	// This is also required to allow `owners` to create workspaces for users
-	// that are not in an organization.
-	user, ok := httpmw.UserParamOptional(r)
-	if ok {
+	if mems.User != nil {
+		// This user fetch is an optimization path for the most common case of creating a
+		// workspace for 'Me'.
+		//
+		// This is also required to allow `owners` to create workspaces for users
+		// that are not in an organization.
 		owner = workspaceOwner{
-			ID:        user.ID,
-			Username:  user.Username,
-			AvatarURL: user.AvatarURL,
+			ID:        mems.User.ID,
+			Username:  mems.User.Username,
+			AvatarURL: mems.User.AvatarURL,
 		}
 	} else {
 		// A workspace can still be created if the caller can read the organization
@@ -443,35 +444,21 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// We need to fetch the original user as a system user to fetch the
-		// user_id. 'ExtractUserContext' handles all cases like usernames,
-		// 'Me', etc.
-		// nolint:gocritic // The user_id needs to be fetched. This handles all those cases.
-		user, ok := httpmw.ExtractUserContext(dbauthz.AsSystemRestricted(ctx), api.Database, rw, r)
-		if !ok {
-			return
-		}
-
-		organizationMember, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-			OrganizationID: template.OrganizationID,
-			UserID:         user.ID,
-			IncludeSystem:  false,
-		}))
-		if httpapi.Is404Error(err) {
+		// If the caller can find the organization membership in the same org
+		// as the template, then they can continue.
+		orgIndex := slices.IndexFunc(mems.Memberships, func(mem httpmw.OrganizationMember) bool {
+			return mem.OrganizationID == template.OrganizationID
+		})
+		if orgIndex == -1 {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching organization member.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+
+		member := mems.Memberships[orgIndex]
 		owner = workspaceOwner{
-			ID:        organizationMember.OrganizationMember.UserID,
-			Username:  organizationMember.Username,
-			AvatarURL: organizationMember.AvatarURL,
+			ID:        member.UserID,
+			Username:  member.Username,
+			AvatarURL: member.AvatarURL,
 		}
 	}
 
@@ -650,8 +637,28 @@ func createWorkspace(
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
 			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
-			if err != nil && !errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) {
-				return xerrors.Errorf("claim prebuild: %w", err)
+			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
+			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
+			if err != nil {
+				isExpectedError := errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) ||
+					errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces)
+				fields := []any{
+					slog.Error(err),
+					slog.F("workspace_name", req.Name),
+					slog.F("template_version_preset_id", req.TemplateVersionPresetID),
+				}
+
+				if !isExpectedError {
+					// if it's an unexpected error - use error log level
+					api.Logger.Error(ctx, "failed to claim prebuilt workspace", fields...)
+
+					return xerrors.Errorf("failed to claim prebuilt workspace: %w", err)
+				}
+
+				// if it's an expected error - use warn log level
+				api.Logger.Warn(ctx, "failed to claim prebuilt workspace", fields...)
+
+				// fall back to creating a new workspace
 			}
 		}
 

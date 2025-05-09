@@ -36,17 +36,17 @@ export const TableBody = React.forwardRef<
 	<tbody
 		ref={ref}
 		className={cn(
-			"[&>tr:first-child>td]:border-t [&>tr>td:first-child]:border-l",
+			"[&>tr:first-of-type>td]:border-t [&>tr>td:first-of-type]:border-l",
 			"[&>tr:last-child>td]:border-b [&>tr>td:last-child]:border-r",
-			"[&>tr:first-child>td:first-child]:rounded-tl-md [&>tr:first-child>td:last-child]:rounded-tr-md",
-			"[&>tr:last-child>td:first-child]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
+			"[&>tr:first-of-type>td:first-of-type]:rounded-tl-md [&>tr:first-of-type>td:last-child]:rounded-tr-md",
+			"[&>tr:last-child>td:first-of-type]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
 			className,
 		)}
 		{...props}
 	/>
 ));
 
-export const TableFooter = React.forwardRef<
+const TableFooter = React.forwardRef<
 	HTMLTableSectionElement,
 	React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
@@ -105,7 +105,7 @@ export const TableCell = React.forwardRef<
 	/>
 ));
 
-export const TableCaption = React.forwardRef<
+const TableCaption = React.forwardRef<
 	HTMLTableCaptionElement,
 	React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (

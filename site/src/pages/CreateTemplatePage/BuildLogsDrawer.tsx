@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Close from "@mui/icons-material/Close";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
@@ -8,6 +7,7 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
+import { X as XIcon } from "lucide-react";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
@@ -66,7 +66,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 				<header css={styles.header}>
 					<h3 css={styles.title}>Creating template...</h3>
 					<IconButton size="small" onClick={drawerProps.onClose}>
-						<Close css={styles.closeIcon} />
+						<XIcon css={styles.closeIcon} />
 						<span style={visuallyHidden}>Close build logs</span>
 					</IconButton>
 				</header>

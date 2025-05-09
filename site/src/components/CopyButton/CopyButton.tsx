@@ -1,8 +1,8 @@
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import Check from "@mui/icons-material/Check";
 import IconButton from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import { useClipboard } from "hooks/useClipboard";
+import { CheckIcon } from "lucide-react";
 import { type ReactNode, forwardRef } from "react";
 import { FileCopyIcon } from "../Icons/FileCopyIcon";
 
@@ -15,7 +15,7 @@ interface CopyButtonProps {
 	tooltipTitle?: string;
 }
 
-export const Language = {
+const Language = {
 	tooltipTitle: "Copy to clipboard",
 	ariaLabel: "Copy to clipboard",
 };
@@ -48,7 +48,7 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
 						onClick={copyToClipboard}
 					>
 						{showCopiedSuccess ? (
-							<Check css={styles.copyIcon} />
+							<CheckIcon css={styles.copyIcon} />
 						) : (
 							<FileCopyIcon css={styles.copyIcon} />
 						)}

@@ -103,6 +103,8 @@ func TestAPI(t *testing.T) {
 					logger     = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 					api        = NewAPI(logger, WithLister(mockLister))
 				)
+				defer api.Close()
+
 				api.cacheDuration = tc.cacheDur
 				api.clock = clk
 				api.containers = tc.cacheData

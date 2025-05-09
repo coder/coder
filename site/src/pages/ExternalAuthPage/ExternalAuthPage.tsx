@@ -12,7 +12,7 @@ import {
 } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "react-query";

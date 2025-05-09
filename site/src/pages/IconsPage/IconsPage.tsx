@@ -34,7 +34,7 @@ const fuzzyFinder = new uFuzzy({
 	intraDel: 1,
 });
 
-export const IconsPage: FC = () => {
+const IconsPage: FC = () => {
 	const theme = useTheme();
 	const [searchInputText, setSearchInputText] = useState("");
 	const searchText = searchInputText.trim();

@@ -26,7 +26,7 @@ func TestAddMember(t *testing.T) {
 		// Add user to org, even though they already exist
 		// nolint:gocritic // must be an owner to see the user
 		_, err := owner.PostOrganizationMember(ctx, first.OrganizationID, user.Username)
-		require.ErrorContains(t, err, "already exists")
+		require.ErrorContains(t, err, "already an organization member")
 	})
 }
 

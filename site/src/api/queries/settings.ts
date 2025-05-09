@@ -5,7 +5,7 @@ import type {
 } from "api/typesGenerated";
 import type { QueryClient, QueryOptions } from "react-query";
 
-export const userQuietHoursScheduleKey = (userId: string) => [
+const userQuietHoursScheduleKey = (userId: string) => [
 	"settings",
 	userId,
 	"quietHours",

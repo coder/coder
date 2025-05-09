@@ -9,7 +9,7 @@ import {
 	MockOrganization,
 	MockRoleSyncSettings,
 } from "testHelpers/entities";
-import { IdpSyncPageView } from "./IdpSyncPageView";
+import IdpSyncPageView from "./IdpSyncPageView";
 
 const groupsMap = new Map<string, string>();
 for (const group of [MockGroup, MockGroup2]) {

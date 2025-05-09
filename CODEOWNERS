@@ -4,3 +4,5 @@ agent/proto/ @spikecurtis @johnstcn
 tailnet/proto/ @spikecurtis @johnstcn
 vpn/vpn.proto @spikecurtis @johnstcn
 vpn/version.go @spikecurtis @johnstcn
+provisionerd/proto/ @spikecurtis @johnstcn
+provisionersdk/proto/ @spikecurtis @johnstcn

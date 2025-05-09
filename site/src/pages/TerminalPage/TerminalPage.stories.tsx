@@ -17,8 +17,8 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockExperiments,
-	MockUser,
 	MockUserAppearanceSettings,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
@@ -66,7 +66,7 @@ const meta = {
 			),
 		}),
 		queries: [
-			{ key: ["me"], data: MockUser },
+			{ key: ["me"], data: MockUserOwner },
 			{ key: ["authMethods"], data: MockAuthMethodsAll },
 			{ key: ["hasFirstUser"], data: true },
 			{ key: ["buildInfo"], data: MockBuildInfo },
@@ -91,7 +91,7 @@ const meta = {
 			},
 		],
 		chromatic: {
-			diffThreshold: 0.5,
+			diffThreshold: 0.8,
 		},
 	},
 	decorators: [

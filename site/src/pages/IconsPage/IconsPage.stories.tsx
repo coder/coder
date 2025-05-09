@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { IconsPage } from "./IconsPage";
+import IconsPage from "./IconsPage";
 
 const meta: Meta<typeof IconsPage> = {
 	title: "pages/IconsPage",

@@ -426,7 +426,7 @@ colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 ```
 
 Colima will show the path to the docker socket so we have a
-[community template](https://github.com/sharkymark/v2-templates/tree/main/src/docker-code-server)
+[community template](https://github.com/sharkymark/v2-templates/tree/main/src/templates/docker/docker-code-server)
 that prompts the Coder admin to enter the Docker socket as a Terraform variable.
 
 ## How to make a `coder_app` optional?

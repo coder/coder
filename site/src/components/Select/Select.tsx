@@ -37,7 +37,7 @@ export const SelectTrigger = React.forwardRef<
 ));
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
-export const SelectScrollUpButton = React.forwardRef<
+const SelectScrollUpButton = React.forwardRef<
 	React.ElementRef<typeof SelectPrimitive.ScrollUpButton>,
 	React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpButton>
 >(({ className, ...props }, ref) => (
@@ -54,7 +54,7 @@ export const SelectScrollUpButton = React.forwardRef<
 ));
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
 
-export const SelectScrollDownButton = React.forwardRef<
+const SelectScrollDownButton = React.forwardRef<
 	React.ElementRef<typeof SelectPrimitive.ScrollDownButton>,
 	React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownButton>
 >(({ className, ...props }, ref) => (
@@ -146,7 +146,7 @@ export const SelectItem = React.forwardRef<
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
 
-export const SelectSeparator = React.forwardRef<
+const SelectSeparator = React.forwardRef<
 	React.ElementRef<typeof SelectPrimitive.Separator>,
 	React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
 >(({ className, ...props }, ref) => (

@@ -61,29 +61,29 @@ export const makeTicks = (time: number) => {
 };
 
 export const formatTime = (time: number): string => {
-	const seconds = Math.floor(time / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-	const days = Math.floor(hours / 24);
+	const absTime = Math.abs(time);
+	let unit = "";
+	let value = 0;
 
-	const parts: string[] = [];
-	if (days > 0) {
-		parts.push(`${days}d`);
+	if (absTime < second) {
+		value = time;
+		unit = "ms";
+	} else if (absTime < minute) {
+		value = time / second;
+		unit = "s";
+	} else if (absTime < hour) {
+		value = time / minute;
+		unit = "m";
+	} else if (absTime < day) {
+		value = time / hour;
+		unit = "h";
+	} else {
+		value = time / day;
+		unit = "d";
 	}
-	if (hours > 0) {
-		parts.push(`${hours % 24}h`);
-	}
-	if (minutes > 0) {
-		parts.push(`${minutes % 60}m`);
-	}
-	if (seconds > 0) {
-		parts.push(`${seconds % 60}s`);
-	}
-	if (time % 1000 > 0) {
-		parts.push(`${time % 1000}ms`);
-	}
-
-	return parts.join(" ");
+	return `${value.toLocaleString(undefined, {
+		maximumFractionDigits: 2,
+	})}${unit}`;
 };
 
 export const calcOffset = (range: TimeRange, baseRange: TimeRange): number => {

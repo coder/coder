@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
@@ -45,6 +44,7 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { CircleCheck as CircleCheckIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -559,7 +559,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 									marginRight: -24,
 									borderTop: `1px solid ${theme.palette.divider}`,
 									width: "calc(100% + 48px)",
-									"&:first-child": {
+									"&:first-of-type": {
 										borderTop: 0,
 									},
 									gap: 24,
@@ -759,12 +759,11 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					</>
 				) : (
 					<>
-						<CheckCircleOutlined
+						<CircleCheckIcon
 							css={{
-								width: 16,
-								height: 16,
 								color: theme.palette.success.light,
 							}}
+							className="size-icon-xs"
 						/>
 						True
 					</>
