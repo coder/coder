@@ -1998,8 +1998,8 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 // You can run it manually as follows:
 //
 // CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerAutostart
+// nolint: paralleltest // This test sets an environment variable.
 func TestAgent_DevcontainerAutostart(t *testing.T) {
-	t.Parallel()
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
@@ -2012,9 +2012,12 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 
 	// Prepare temporary devcontainer for test (mywork).
 	devcontainerID := uuid.New()
-	tempWorkspaceFolder := t.TempDir()
-	tempWorkspaceFolder = filepath.Join(tempWorkspaceFolder, "mywork")
+	tmpdir := t.TempDir()
+	t.Setenv("HOME", tmpdir)
+	tempWorkspaceFolder := filepath.Join(tmpdir, "mywork")
+	unexpandedWorkspaceFolder := filepath.Join("~", "mywork")
 	t.Logf("Workspace folder: %s", tempWorkspaceFolder)
+	t.Logf("Unexpanded workspace folder: %s", unexpandedWorkspaceFolder)
 	devcontainerPath := filepath.Join(tempWorkspaceFolder, ".devcontainer")
 	err = os.MkdirAll(devcontainerPath, 0o755)
 	require.NoError(t, err, "create devcontainer directory")
@@ -2031,9 +2034,10 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 		// is expected to be prepared by the provisioner normally.
 		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
 			{
-				ID:              devcontainerID,
-				Name:            "test",
-				WorkspaceFolder: tempWorkspaceFolder,
+				ID:   devcontainerID,
+				Name: "test",
+				// Use an unexpanded path to test the expansion.
+				WorkspaceFolder: unexpandedWorkspaceFolder,
 			},
 		},
 		Scripts: []codersdk.WorkspaceAgentScript{
