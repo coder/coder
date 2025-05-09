@@ -36,8 +36,6 @@ devcontainer up %s
 // initialize the workspace (e.g. git clone, npm install, etc). This is
 // important if e.g. a Coder module to install @devcontainer/cli is used.
 func ExtractAndInitializeDevcontainerScripts(
-	logger slog.Logger,
-	expandPath func(string) (string, error),
 	devcontainers []codersdk.WorkspaceAgentDevcontainer,
 	scripts []codersdk.WorkspaceAgentScript,
 ) (filteredScripts []codersdk.WorkspaceAgentScript, devcontainerScripts []codersdk.WorkspaceAgentScript) {
@@ -47,7 +45,6 @@ ScriptLoop:
 			// The devcontainer scripts match the devcontainer ID for
 			// identification.
 			if script.ID == dc.ID {
-				dc = expandDevcontainerPaths(logger, expandPath, dc)
 				devcontainerScripts = append(devcontainerScripts, devcontainerStartupScript(dc, script))
 				continue ScriptLoop
 			}
@@ -73,6 +70,17 @@ func devcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script co
 	// have not been enabled, a warning will be surfaced in the agent logs.
 	script.RunOnStart = false
 	return script
+}
+
+// ExpandAllDevcontainerPaths expands all devcontainer paths in the given
+// devcontainers. This is required by the devcontainer CLI, which requires
+// absolute paths for the workspace folder and config path.
+func ExpandAllDevcontainerPaths(logger slog.Logger, expandPath func(string) (string, error), devcontainers []codersdk.WorkspaceAgentDevcontainer) []codersdk.WorkspaceAgentDevcontainer {
+	expanded := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(devcontainers))
+	for _, dc := range devcontainers {
+		expanded = append(expanded, expandDevcontainerPaths(logger, expandPath, dc))
+	}
+	return expanded
 }
 
 func expandDevcontainerPaths(logger slog.Logger, expandPath func(string) (string, error), dc codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
