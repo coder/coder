@@ -1,1 +1,0 @@
-ALTER TABLE template_version_terraform_values DROP COLUMN cached_module_files;

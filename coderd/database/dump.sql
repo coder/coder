@@ -1440,8 +1440,7 @@ CREATE TABLE template_version_presets (
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    cached_plan jsonb NOT NULL,
-    cached_module_files uuid
+    cached_plan jsonb NOT NULL
 );
 
 CREATE TABLE template_version_variables (
@@ -2850,9 +2849,6 @@ ALTER TABLE ONLY template_version_preset_parameters
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY template_version_terraform_values
-    ADD CONSTRAINT template_version_terraform_values_cached_module_files_fkey FOREIGN KEY (cached_module_files) REFERENCES files(id);
 
 ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

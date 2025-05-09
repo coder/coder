@@ -595,7 +595,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				StopModules:                stopProvision.Modules,
 				Presets:                    startProvision.Presets,
 				Plan:                       startProvision.Plan,
-				ModuleFiles:                startProvision.ModuleFiles,
 			},
 		},
 	}, nil
@@ -658,7 +657,6 @@ type templateImportProvision struct {
 	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
 	Plan                  json.RawMessage
-	ModuleFiles           []byte
 }
 
 // Performs a dry-run provision when importing a template.
@@ -753,7 +751,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Modules:               c.Modules,
 				Presets:               c.Presets,
 				Plan:                  c.Plan,
-				ModuleFiles:           c.ModuleFiles,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",

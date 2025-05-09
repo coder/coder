@@ -86,7 +86,6 @@ message CompletedJob {
         repeated provisioner.Module stop_modules = 7;
         repeated provisioner.Preset presets = 8;
         bytes plan = 9;
-        bytes module_files = 10;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;
