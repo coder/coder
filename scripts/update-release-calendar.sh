@@ -11,10 +11,6 @@ DOCS_FILE="docs/install/releases/index.md"
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
-current_date=$(date +"%Y-%m-%d")
-current_month=$(date +"%m")
-current_year=$(date +"%Y")
-
 # Format date as "Month DD, YYYY"
 format_date() {
 	date -d "$1" +"%B %d, %Y"
@@ -64,16 +60,16 @@ get_release_date() {
 
 	# Get the first patch release
 	first_patch=$(get_first_patch "$version_major" "$version_minor")
-	
+
 	if [ -z "$first_patch" ]; then
 		# No release found
 		echo ""
 		return
 	fi
-	
+
 	# Get the tag date from git
 	tag_date=$(cd "$(git rev-parse --show-toplevel)" && git log -1 --format=%ai "v$first_patch" 2>/dev/null || echo "")
-	
+
 	if [ -z "$tag_date" ]; then
 		echo ""
 	else
@@ -133,7 +129,7 @@ generate_release_calendar() {
 		# Get the actual release date from the first published tag
 		if [[ "$status" != "Not Released" ]]; then
 			actual_release_date=$(get_release_date "$version_major" "$rel_minor")
-			
+
 			# Format the release date if we have one
 			if [ -n "$actual_release_date" ]; then
 				formatted_date=$(format_date "$actual_release_date")
