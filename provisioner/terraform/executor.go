@@ -307,12 +307,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
-	moduleFiles, err := getModulesArchive(e.workdir)
-	if err != nil {
-		// TODO: we probably want to persist this error or make it louder eventually
-		e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
-	}
-
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
@@ -320,7 +314,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		Presets:               state.Presets,
 		Plan:                  plan,
-		ModuleFiles:           moduleFiles,
 	}, nil
 }
 
