@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
@@ -10,6 +9,7 @@ import type {
 } from "api/typesGenerated";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import {
 	type TimeRange,

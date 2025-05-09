@@ -1,7 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CloseIcon from "@mui/icons-material/Close";
 import LockIcon from "@mui/icons-material/Lock";
-import { ChevronDownIcon } from "lucide-react";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import SensorsIcon from "@mui/icons-material/Sensors";
@@ -42,6 +41,7 @@ import {
 } from "components/deprecated/Popover/Popover";
 import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { ChevronDownIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";

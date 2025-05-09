@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { ChevronDownIcon } from "lucide-react";
 import Button from "@mui/material/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
@@ -14,6 +13,7 @@ import {
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 

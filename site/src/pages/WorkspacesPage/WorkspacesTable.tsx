@@ -1,4 +1,3 @@
-import { ChevronRightIcon } from "lucide-react";
 import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
@@ -52,6 +51,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { ChevronRightIcon } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
