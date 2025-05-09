@@ -12,9 +12,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.4:
 //   - Add new field named `devcontainers` in the Agent.
+//
+// API v1.5:
+//   - Add new field named `api_key_scope` in the Agent.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 // CurrentVersion is the current provisionerd API version.

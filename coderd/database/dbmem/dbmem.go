@@ -9587,6 +9587,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 		DisplayApps:              arg.DisplayApps,
 		DisplayOrder:             arg.DisplayOrder,
+		APIKeyScope:              arg.APIKeyScope,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)

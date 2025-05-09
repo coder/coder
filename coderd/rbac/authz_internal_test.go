@@ -1053,6 +1053,26 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
 		},
 	)
+
+	meID := uuid.New()
+	user = Subject{
+		ID: meID.String(),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+		},
+		Scope: must(ScopeNoUserData.Expand()),
+	}
+	testAuthorize(t, "ReadPersonalUser", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = ResourceUser.AvailableActions()
+			c.allow = false
+			c.resource.ID = meID.String()
+			return c
+		}, []authTestCase{
+			{resource: ResourceUser.WithOwner(meID.String()).InOrg(defOrg).WithID(meID)},
+		}),
+	)
 }
 
 // cases applies a given function to all test cases. This makes generalities easier to create.

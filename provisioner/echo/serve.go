@@ -21,6 +21,29 @@ import (
 
 // ProvisionApplyWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
+func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
+				Resources: []*proto.Resource{{
+					Name: "example_with_scope",
+					Type: "aws_instance",
+					Agents: []*proto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+						Auth: &proto.Agent_Token{
+							Token: authToken,
+						},
+						ApiKeyScope: apiKeyScope,
+					}},
+				}},
+			},
+		},
+	}}
+}
+
+// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgent(authToken string) []*proto.Response {
 	return []*proto.Response{{
 		Type: &proto.Response_Apply{

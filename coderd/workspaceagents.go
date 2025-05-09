@@ -1580,6 +1580,15 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Pre-check if the caller can read the external auth links for the owner of the
+	// workspace. Do this up front because a sql.ErrNoRows is expected if the user is
+	// in the flow of authenticating. If no row is present, the auth check is delayed
+	// until the user authenticates. It is preferred to reject early.
+	if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(workspace.OwnerID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var previousToken *database.ExternalAuthLink
 	// handleRetrying will attempt to continually check for a new token
 	// if listen is true. This is useful if an error is encountered in the

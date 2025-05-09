@@ -145,6 +145,10 @@ func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	gitSSHKey, err := api.Database.GetGitSSHKey(ctx, workspace.OwnerID)
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching git SSH key.",
