@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcmanager"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -209,6 +211,7 @@ func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
 
 	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
+			Manager: drpcmanager.Options{WriterBufferSize: drpcsdk.MaxMessageSize},
 			Log: func(err error) {
 				if xerrors.Is(err, io.EOF) {
 					return

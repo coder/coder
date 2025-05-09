@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"storj.io/drpc/drpcmanager"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -60,6 +61,7 @@ func NewClient(t testing.TB,
 	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
 	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcmanager.Options{WriterBufferSize: drpcsdk.MaxMessageSize,},
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) {
 				return

@@ -14,9 +14,9 @@ import (
 	"storj.io/drpc/drpcmanager"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
-	"storj.io/drpc/drpcwire"
 
 	"cdr.dev/slog"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -86,12 +86,8 @@ func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 	srv := drpcserver.NewWithOptions(
 		&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
-			Manager: drpcmanager.Options{
-				Reader: drpcwire.ReaderOptions{
-					MaximumBufferSize: 0,
-				},
-			},
-			Log: nil,
+			Manager: drpcmanager.Options{WriterBufferSize: drpcsdk.MaxMessageSize},
+			Log:     nil,
 		})
 
 	if options.Listener != nil {

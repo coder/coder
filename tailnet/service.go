@@ -11,12 +11,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcmanager"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
@@ -92,6 +94,7 @@ func NewClientService(options ClientServiceOptions) (
 		return nil, xerrors.Errorf("register DRPC service: %w", err)
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcmanager.Options{WriterBufferSize: drpcsdk.MaxMessageSize},
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) ||
 				xerrors.Is(err, context.Canceled) ||
