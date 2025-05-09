@@ -68,53 +68,6 @@ class ReactTimeSync implements ReactTimeSyncApi {
 		this.#selectionCache = new Map();
 	}
 
-	#areValuesDeepEqual(value1: unknown, value2: unknown): boolean {
-		// JavaScript is fun and doesn't have a 100% foolproof comparison
-		// operation. Object.is covers the most cases, but you still need to
-		// compare 0 values, because even though JS programmers almost never
-		// care about +0 vs -0, Object.is does treat them as not being equal
-		if (Object.is(value1, value2)) {
-			return true;
-		}
-		if (value1 === 0 && value2 === 0) {
-			return true;
-		}
-
-		if (value1 instanceof Date && value2 instanceof Date) {
-			return value1.getMilliseconds() === value2.getMilliseconds();
-		}
-
-		// Can't reliably compare functions; just have to treat them as always
-		// different. Hopefully no one is storing functions in state for this
-		// hook, though
-		if (typeof value1 === "function" || typeof value2 === "function") {
-			return false;
-		}
-
-		if (Array.isArray(value1)) {
-			if (!Array.isArray(value2)) {
-				return false;
-			}
-			if (value1.length !== value2.length) {
-				return false;
-			}
-			return value1.every((el, i) => this.#areValuesDeepEqual(el, value2[i]));
-		}
-
-		const obj1 = value1 as Record<string, unknown>;
-		const obj2 = value1 as Record<string, unknown>;
-		if (Object.keys(obj1).length !== Object.keys(obj2).length) {
-			return false;
-		}
-		for (const key in obj1) {
-			if (!this.#areValuesDeepEqual(obj1[key], obj2[key])) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
 	// All functions that are part of the public interface must be defined as
 	// arrow functions, so they can be passed around React without losing their
 	// `this` context
@@ -145,6 +98,9 @@ class ReactTimeSync implements ReactTimeSyncApi {
 		};
 		this.#timeSync.subscribe(patchedEntry);
 
+		// Have to seed the selection cache with an initial value so that it's
+		// safe to get the value from React immediately after the subscription
+		// gets registered
 		const date = this.#timeSync.getTimeSnapshot();
 		const cacheValue = select?.(date) ?? date;
 		this.#selectionCache.set(id, { value: cacheValue });
@@ -178,10 +134,57 @@ class ReactTimeSync implements ReactTimeSyncApi {
 
 		const dateSnapshot = this.#timeSync.getTimeSnapshot();
 		const newSelection = select?.(dateSnapshot) ?? dateSnapshot;
-		if (!this.#areValuesDeepEqual(newSelection, prevSelection.value)) {
+		if (!areValuesDeepEqual(newSelection, prevSelection.value)) {
 			this.#selectionCache.set(id, { value: newSelection });
 		}
 	};
+}
+
+function areValuesDeepEqual(value1: unknown, value2: unknown): boolean {
+	// JavaScript is fun and doesn't have a 100% foolproof comparison
+	// operation. Object.is covers the most cases, but you still need to
+	// compare 0 values, because even though JS programmers almost never
+	// care about +0 vs -0, Object.is does treat them as not being equal
+	if (Object.is(value1, value2)) {
+		return true;
+	}
+	if (value1 === 0 && value2 === 0) {
+		return true;
+	}
+
+	if (value1 instanceof Date && value2 instanceof Date) {
+		return value1.getMilliseconds() === value2.getMilliseconds();
+	}
+
+	// Can't reliably compare functions; just have to treat them as always
+	// different. Hopefully no one is storing functions in state for this
+	// hook, though
+	if (typeof value1 === "function" || typeof value2 === "function") {
+		return false;
+	}
+
+	if (Array.isArray(value1)) {
+		if (!Array.isArray(value2)) {
+			return false;
+		}
+		if (value1.length !== value2.length) {
+			return false;
+		}
+		return value1.every((el, i) => areValuesDeepEqual(el, value2[i]));
+	}
+
+	const obj1 = value1 as Record<string, unknown>;
+	const obj2 = value1 as Record<string, unknown>;
+	if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+		return false;
+	}
+	for (const key in obj1) {
+		if (!areValuesDeepEqual(obj1[key], obj2[key])) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 const timeSyncContext = createContext<ReactTimeSync | null>(null);
@@ -317,13 +320,14 @@ export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
 		return select?.(recast) ?? recast;
 	});
 
-	// We need to define this callback using useCallback instead of
-	// useEffectEvent because we want the memoization to be invalidated when the
-	// refresh interval changes. (When the subscription callback changes by
-	// reference, that causes useSyncExternalStore to redo the subscription with
-	// the new callback). All other values need to be included in the dependency
-	// array for correctness, but they should always maintain stable memory
-	// addresses
+	// We're leaning into the React hook API behavior to simplify needing to
+	// resync the refresh intervals when they change during re-renders. Whenever
+	// useSyncExternalStore receives a new callback by reference, it will
+	// automatically unsubscribe with the previous callback and re-subscribe
+	// with the new one. useCallback stabilizes the reference, with the ability
+	// to invalidate it whenever the interval changes. Have to include all other
+	// elements in the dependency array for correctness, but they should remain
+	// 100% stable for the entire lifetime of the component
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return timeSync.subscribe({
@@ -337,10 +341,10 @@ export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
 	);
 
 	const selection = useSyncExternalStore<T>(subscribe, () => {
-		// Need to make sure that we use the un-memoized version of select
-		// here because we need to call select callback mid-render to
-		// guarantee no stale data. The memoized version only syncs AFTER
-		// the current render has finished in full.
+		// Need to make sure that we use the un-memoized version of select here
+		// because we need to call select callback mid-render to guarantee no
+		// stale data. The memoized version only syncs AFTER the current render
+		// has finished in full.
 		timeSync.invalidateSelection(hookId, select);
 		return timeSync.getSelectionSnapshot(hookId);
 	});
