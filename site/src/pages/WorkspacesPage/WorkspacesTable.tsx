@@ -627,8 +627,8 @@ type WorkspaceAppsProps = {
 };
 
 const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
-	const { data: apiKeyRes } = useQuery(apiKey());
-	const token = apiKeyRes?.key;
+	const { data: apiKeyResponse } = useQuery(apiKey());
+	const token = apiKeyResponse?.key;
 
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
@@ -652,13 +652,14 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (agent.display_apps.includes("vscode")) {
 		buttons.push(
 			<AppLink
+				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
 				href={getVSCodeHref("vscode", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
@@ -670,13 +671,14 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (agent.display_apps.includes("vscode_insiders")) {
 		buttons.push(
 			<AppLink
+				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
@@ -693,10 +695,11 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		});
 		buttons.push(
 			<AppLink
+				key="terminal"
 				href={href}
 				onClick={(e) => {
 					e.preventDefault();
-					openAppInNewWindow("Terminal", href);
+					openAppInNewWindow(href);
 				}}
 				label="Open Terminal"
 			>

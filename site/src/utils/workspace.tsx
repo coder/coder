@@ -1,14 +1,13 @@
 import type { Theme } from "@emotion/react";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
-import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
-import StopIcon from "@mui/icons-material/StopOutlined";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
+import { PlayIcon, SquareIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 
@@ -215,7 +214,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Stopped",
-				icon: <StopIcon />,
+				icon: <SquareIcon />,
 			} as const;
 		case "deleting":
 			return {

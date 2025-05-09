@@ -1,5 +1,4 @@
 import AddIcon from "@mui/icons-material/AddOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
@@ -30,6 +29,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { TrashIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
@@ -105,7 +105,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 						className="text-content-destructive focus:text-content-destructive"
 						onClick={dialogState.openDeleteConfirmation}
 					>
-						<DeleteIcon />
+						<TrashIcon />
 						Delete&hellip;
 					</DropdownMenuItem>
 				</DropdownMenuContent>
