@@ -753,7 +753,7 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 			href={link.href}
 			onClick={link.onClick}
 		>
-			<ExternalImage src={app.icon} />
+			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
 		</BaseIconLink>
 	);
 };
