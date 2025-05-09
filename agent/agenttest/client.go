@@ -61,7 +61,7 @@ func NewClient(t testing.TB,
 	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
 	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
-		Manager: drpcmanager.Options{WriterBufferSize: drpcsdk.MaxMessageSize,},
+		Manager: drpcmanager.Options{WriterBufferSize: drpcsdk.MaxMessageSize},
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) {
 				return
