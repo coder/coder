@@ -1,13 +1,20 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { useTimeSyncSelect } from "hooks/useTimeSync";
 import type { FC, PropsWithChildren } from "react";
 
 export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
+	const year = useTimeSyncSelect({
+		targetRefreshInterval: Number.POSITIVE_INFINITY,
+		selectDependencies: [],
+		select: (date) => date.getFullYear(),
+	});
+
 	return (
 		<div css={styles.container}>
 			<div css={styles.content}>
 				<div css={styles.signIn}>{children}</div>
 				<div css={styles.copyright}>
-					{"\u00a9"} {new Date().getFullYear()} Coder Technologies, Inc.
+					{"\u00a9"} {year} Coder Technologies, Inc.
 				</div>
 			</div>
 		</div>

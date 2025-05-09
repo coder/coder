@@ -13,7 +13,6 @@ import {
 } from "api/queries/insights";
 import type {
 	Entitlements,
-	Template,
 	TemplateAppUsage,
 	TemplateInsightsResponse,
 	TemplateParameterUsage,
@@ -45,6 +44,7 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { TARGET_REFRESH_ONE_DAY, useTimeSyncSelect } from "hooks/useTimeSync";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -69,11 +69,23 @@ export default function TemplateInsightsPage() {
 	const { template } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
-	const defaultInterval = getDefaultInterval(template);
-	const interval =
-		(searchParams.get("interval") as InsightsInterval) || defaultInterval;
+	const paramsInterval = searchParams.get("interval");
+	const insightsInterval = useTimeSyncSelect<InsightsInterval>({
+		targetRefreshInterval: TARGET_REFRESH_ONE_DAY,
+		selectDependencies: [paramsInterval],
+		select: (newDate) => {
+			const templateCreateDate = new Date(template.created_at);
+			const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < newDate;
+			const defaultInterval = hasFiveWeeksOrMore ? "week" : "day";
 
-	const dateRange = getDateRange(searchParams, interval);
+			if (paramsInterval === "week" || paramsInterval === "day") {
+				return paramsInterval;
+			}
+			return defaultInterval;
+		},
+	});
+
+	const dateRange = getDateRange(searchParams, insightsInterval);
 	const setDateRange = (newDateRange: DateRangeValue) => {
 		searchParams.set("startDate", newDateRange.startDate.toISOString());
 		searchParams.set("endDate", newDateRange.endDate.toISOString());
@@ -89,7 +101,7 @@ export default function TemplateInsightsPage() {
 		end_time: toISOLocal(dateRange.endDate, baseOffset),
 	};
 
-	const insightsFilter = { ...commonFilters, interval };
+	const insightsFilter = { ...commonFilters, interval: insightsInterval };
 	const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
 	const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
 	const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
@@ -108,7 +120,7 @@ export default function TemplateInsightsPage() {
 				controls={
 					<>
 						<IntervalMenu
-							value={interval}
+							value={insightsInterval}
 							onChange={(interval) => {
 								// When going from daily to week we need to set a safe week range
 								if (interval === "week") {
@@ -118,7 +130,7 @@ export default function TemplateInsightsPage() {
 								setSearchParams(searchParams);
 							}}
 						/>
-						{interval === "day" ? (
+						{insightsInterval === "day" ? (
 							<DailyPicker value={dateRange} onChange={setDateRange} />
 						) : (
 							<WeekPicker value={dateRange} onChange={setDateRange} />
@@ -128,19 +140,12 @@ export default function TemplateInsightsPage() {
 				templateInsights={templateInsights}
 				userLatency={userLatency}
 				userActivity={userActivity}
-				interval={interval}
+				interval={insightsInterval}
 				entitlements={entitlementsQuery}
 			/>
 		</>
 	);
 }
-
-const getDefaultInterval = (template: Template) => {
-	const now = new Date();
-	const templateCreateDate = new Date(template.created_at);
-	const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
-	return hasFiveWeeksOrMore ? "week" : "day";
-};
 
 const getDateRange = (
 	searchParams: URLSearchParams,

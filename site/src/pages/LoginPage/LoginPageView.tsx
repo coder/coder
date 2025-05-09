@@ -3,6 +3,7 @@ import Button from "@mui/material/Button";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
+import { useTimeSyncSelect } from "hooks/useTimeSync";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
@@ -27,6 +28,11 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	onSignIn,
 	redirectTo,
 }) => {
+	const year = useTimeSyncSelect({
+		targetRefreshInterval: Number.POSITIVE_INFINITY,
+		selectDependencies: [],
+		select: (date) => date.getFullYear(),
+	});
 	const location = useLocation();
 	// This allows messages to be displayed at the top of the sign in form.
 	// Helpful for any redirects that want to inform the user of something.
@@ -57,9 +63,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 					/>
 				)}
 				<footer css={styles.footer}>
-					<div>
-						Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
-					</div>
+					<div>Copyright &copy; {year} Coder Technologies, Inc.</div>
 					<div>{buildInfo?.version}</div>
 					{tosAccepted && (
 						<TermsOfServiceLink

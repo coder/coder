@@ -19,6 +19,10 @@ import type {
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import {
+	TARGET_REFRESH_ONE_MINUTE,
+	useTimeSyncSelect,
+} from "hooks/useTimeSync";
 import type { FC } from "react";
 import { createAppLinkHref } from "utils/apps";
 
@@ -152,6 +156,11 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	agents,
 	referenceDate,
 }) => {
+	const comparisonDate = useTimeSyncSelect({
+		targetRefreshInterval: TARGET_REFRESH_ONE_MINUTE,
+		selectDependencies: [referenceDate],
+		select: (dateState) => referenceDate ?? dateState,
+	});
 	const theme = useTheme();
 	const { proxy } = useProxy();
 	const preferredPathBase = proxy.preferredPathAppURL;
@@ -171,9 +180,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 		(a, b) =>
 			new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
 	);
-
-	// Determine the reference point for time calculation
-	const comparisonDate = referenceDate ?? new Date();
 
 	if (allStatuses.length === 0) {
 		return null;
