@@ -540,6 +540,14 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			mutate(r, &args)
 		}
 
+		// By default, deprecated templates are excluded unless explicitly requested
+		if !args.Deprecated.Valid {
+			args.Deprecated = sql.NullBool{
+				Bool:  false,
+				Valid: true,
+			}
+		}
+
 		// Filter templates based on rbac permissions
 		templates, err := api.Database.GetAuthorizedTemplates(ctx, args, prepared)
 		if errors.Is(err, sql.ErrNoRows) {
