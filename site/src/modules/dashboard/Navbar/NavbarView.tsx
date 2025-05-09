@@ -4,6 +4,7 @@ import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { useAgenticChat } from "contexts/useAgenticChat";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
@@ -45,8 +46,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAuditLog,
 	proxyContextValue,
 }) => {
-	const { subscribed, enabled, loading, subscribe, unsubscribe } =
-		useWebpushNotifications();
+	const webPush = useWebpushNotifications();
 
 	return (
 		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
@@ -76,13 +76,21 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					/>
 				</div>
 
-				{enabled ? (
-					subscribed ? (
-						<Button variant="outline" disabled={loading} onClick={unsubscribe}>
+				{webPush.enabled ? (
+					webPush.subscribed ? (
+						<Button
+							variant="outline"
+							disabled={webPush.loading}
+							onClick={webPush.unsubscribe}
+						>
 							Disable WebPush
 						</Button>
 					) : (
-						<Button variant="outline" disabled={loading} onClick={subscribe}>
+						<Button
+							variant="outline"
+							disabled={webPush.loading}
+							onClick={webPush.subscribe}
+						>
 							Enable WebPush
 						</Button>
 					)
@@ -132,6 +140,7 @@ interface NavItemsProps {
 
 const NavItems: FC<NavItemsProps> = ({ className }) => {
 	const location = useLocation();
+	const agenticChat = useAgenticChat();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
@@ -154,6 +163,16 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
+			{agenticChat.enabled ? (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.default, isActive ? linkStyles.active : "");
+					}}
+					to="/chat"
+				>
+					Chat
+				</NavLink>
+			) : null}
 		</nav>
 	);
 };
