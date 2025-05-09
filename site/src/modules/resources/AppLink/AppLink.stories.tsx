@@ -80,6 +80,7 @@ export const ExternalApp: Story = {
 		workspace: MockWorkspace,
 		app: {
 			...MockWorkspaceApp,
+			url: "vscode://open",
 			external: true,
 		},
 		agent: MockWorkspaceAgent,
