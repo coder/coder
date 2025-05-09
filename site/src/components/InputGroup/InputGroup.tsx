@@ -28,11 +28,6 @@ export const InputGroup: FC<HTMLProps<HTMLDivElement>> = (props) => {
 				"& > *:first-of-type": {
 					borderTopRightRadius: 0,
 					borderBottomRightRadius: 0,
-
-					"&.MuiFormControl-root .MuiInputBase-root": {
-						borderTopRightRadius: 0,
-						borderBottomRightRadius: 0,
-					},
 				},
 
 				"& > *:last-child": {
