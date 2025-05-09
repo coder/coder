@@ -1,8 +1,5 @@
 import CloudQueue from "@mui/icons-material/CloudQueue";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
-import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
@@ -22,6 +19,7 @@ import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import { PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
@@ -53,7 +51,6 @@ export interface WorkspacesPageViewProps {
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
-	onUpdateWorkspace: (workspace: Workspace) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	isRunningBatchAction: boolean;
 	onDeleteAll: () => void;
@@ -76,7 +73,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	count,
 	filterProps,
 	onPageChange,
-	onUpdateWorkspace,
 	page,
 	checkedWorkspaces,
 	onCheckChange,
@@ -162,7 +158,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									}
 									onClick={onStartAll}
 								>
-									<PlayArrowOutlined /> Start
+									<PlayIcon /> Start
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={
@@ -172,7 +168,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									}
 									onClick={onStopAll}
 								>
-									<StopOutlined /> Stop
+									<SquareIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onUpdateAll}>
@@ -182,7 +178,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={onDeleteAll}
 								>
-									<DeleteOutlined /> Delete&hellip;
+									<TrashIcon /> Delete&hellip;
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -223,7 +219,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateTemplate={canCreateTemplate}
 					workspaces={workspaces}
 					isUsingFilter={filterProps.filter.used}
-					onUpdateWorkspace={onUpdateWorkspace}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}

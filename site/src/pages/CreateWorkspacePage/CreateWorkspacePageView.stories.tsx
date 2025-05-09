@@ -8,7 +8,7 @@ import {
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockTemplateVersionParameter3,
-	MockUser,
+	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -19,7 +19,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 	component: CreateWorkspacePageView,
 	args: {
 		defaultName: "",
-		defaultOwner: MockUser,
+		defaultOwner: MockUserOwner,
 		autofillParameters: [],
 		template: MockTemplate,
 		parameters: [],

@@ -493,7 +493,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
 									const parameterField = `rich_parameter_values.${index}`;
-									const parameterInputName = `${parameterField}.value`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
 									);
@@ -501,7 +500,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										disabledParams?.includes(
 											parameter.name.toLowerCase().replace(/ /g, "_"),
 										) ||
-										(parameter.styling as { disabled?: boolean })?.disabled ||
+										parameter.styling?.disabled ||
 										creatingWorkspace ||
 										isPresetParameter;
 

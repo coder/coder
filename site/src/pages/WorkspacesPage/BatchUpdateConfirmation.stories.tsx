@@ -8,7 +8,7 @@ import {
 	MockOutdatedWorkspace,
 	MockRunningOutdatedWorkspace,
 	MockTemplateVersion,
-	MockUser2,
+	MockUserMember,
 	MockWorkspace,
 } from "testHelpers/entities";
 import {
@@ -25,8 +25,8 @@ const workspaces = [
 	{
 		...MockRunningOutdatedWorkspace,
 		id: "6",
-		owner_id: MockUser2.id,
-		owner_name: MockUser2.username,
+		owner_id: MockUserMember.id,
+		owner_name: MockUserMember.username,
 	},
 ];
 

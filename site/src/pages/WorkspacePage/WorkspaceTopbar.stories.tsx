@@ -7,7 +7,7 @@ import {
 	MockOrganization,
 	MockTemplate,
 	MockTemplateVersion,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
@@ -41,7 +41,7 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		chromatic: {
 			diffThreshold: 0.6,
 		},
-		user: MockUser,
+		user: MockUserOwner,
 	},
 };
 
@@ -278,7 +278,7 @@ export const WithQuotaNoOrgs: Story = {
 			{
 				key: getWorkspaceQuotaQueryKey(
 					MockOrganization.name,
-					MockUser.username,
+					MockUserOwner.username,
 				),
 				data: {
 					credits_consumed: 2,
@@ -296,7 +296,7 @@ export const WithQuotaWithOrgs: Story = {
 			{
 				key: getWorkspaceQuotaQueryKey(
 					MockOrganization.name,
-					MockUser.username,
+					MockUserOwner.username,
 				),
 				data: {
 					credits_consumed: 2,

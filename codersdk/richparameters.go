@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"golang.org/x/xerrors"
+	"tailscale.com/types/ptr"
 
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
@@ -44,13 +45,20 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 }
 
 func validateBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
-	var value string
+	var (
+		current  string
+		previous *string
+	)
 
 	if buildParameter != nil {
-		value = buildParameter.Value
+		current = buildParameter.Value
 	}
 
-	if richParameter.Required && value == "" {
+	if lastBuildParameter != nil {
+		previous = ptr.To(lastBuildParameter.Value)
+	}
+
+	if richParameter.Required && current == "" {
 		return xerrors.Errorf("parameter value is required")
 	}
 
@@ -61,7 +69,7 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 	if len(richParameter.Options) > 0 {
 		var matched bool
 		for _, opt := range richParameter.Options {
-			if opt.Value == value {
+			if opt.Value == current {
 				matched = true
 				break
 			}
