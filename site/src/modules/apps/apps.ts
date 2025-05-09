@@ -15,7 +15,7 @@ export const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
 // used to prevent phishing attacks where a user
 // is tricked into clicking a link that opens
 // a malicious app using the Coder session token.
-export const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
+const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"vscode:",
 	"vscode-insiders:",
 	"windsurf:",
