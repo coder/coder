@@ -573,7 +573,6 @@ func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	// The new update only contains the new agent
-	mClock.AdvanceNext()
 	req = testutil.TryReceive(ctx, t, mgr.requests)
 	require.Nil(t, req.msg.Rpc)
 	peerUpdate := req.msg.GetPeerUpdate()
@@ -695,14 +694,18 @@ func TestTunnel_sendAgentUpdateWorkspaceReconnect(t *testing.T) {
 }
 
 //nolint:revive // t takes precedence
-func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock quartz.Clock) (*Tunnel, *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]) {
+func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock *quartz.Mock) (*Tunnel, *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]) {
 	mp, tp := net.Pipe()
 	t.Cleanup(func() { _ = mp.Close() })
 	t.Cleanup(func() { _ = tp.Close() })
 	logger := testutil.Logger(t)
 
+	trap := mClock.Trap().NewTicker()
+	defer trap.Close()
+
 	var tun *Tunnel
 	var mgr *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]
+
 	errCh := make(chan error, 2)
 	go func() {
 		tunnel, err := NewTunnel(ctx, logger.Named("tunnel"), tp, client, WithClock(mClock))
@@ -719,6 +722,8 @@ func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock q
 	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	mgr.start()
+
+	trap.MustWait(ctx).Release()
 	return tun, mgr
 }
 
