@@ -438,6 +438,12 @@
 									"path": "./admin/templates/extending-templates/parameters.md"
 								},
 								{
+									"title": "Prebuilt workspaces",
+									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
+									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
+									"state": ["premium", "beta"]
+								},
+								{
 									"title": "Icons",
 									"description": "Customize your template with built-in icons",
 									"path": "./admin/templates/extending-templates/icons.md"

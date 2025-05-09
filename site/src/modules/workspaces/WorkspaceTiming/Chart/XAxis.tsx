@@ -56,7 +56,7 @@ const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 					// Note: This adjustment is not applied to the first element,
 					// as the 0 label/value is not displayed in the chart.
 					width: "calc(var(--x-axis-width) * 2)",
-					"&:not(:first-child)": {
+					"&:not(:first-of-type)": {
 						marginLeft: "calc(-1 * var(--x-axis-width))",
 					},
 				},

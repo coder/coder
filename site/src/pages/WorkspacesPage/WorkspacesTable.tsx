@@ -1,4 +1,3 @@
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
@@ -52,6 +51,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { ChevronRightIcon } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -303,7 +303,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							/>
 							<TableCell>
 								<div className="flex">
-									<KeyboardArrowRight className="text-content-secondary size-icon-sm" />
+									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
 								</div>
 							</TableCell>
 						</WorkspacesRow>
@@ -385,7 +385,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell>
 					<div className="flex">
-						<KeyboardArrowRight className="text-content-disabled size-icon-sm" />
+						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
 					</div>
 				</TableCell>
 			</TableRowSkeleton>
@@ -627,8 +627,8 @@ type WorkspaceAppsProps = {
 };
 
 const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
-	const { data: apiKeyRes } = useQuery(apiKey());
-	const token = apiKeyRes?.key;
+	const { data: apiKeyResponse } = useQuery(apiKey());
+	const token = apiKeyResponse?.key;
 
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
@@ -652,13 +652,14 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (agent.display_apps.includes("vscode")) {
 		buttons.push(
 			<AppLink
+				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
 				href={getVSCodeHref("vscode", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
@@ -670,13 +671,14 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	if (agent.display_apps.includes("vscode_insiders")) {
 		buttons.push(
 			<AppLink
+				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
@@ -693,10 +695,11 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		});
 		buttons.push(
 			<AppLink
+				key="terminal"
 				href={href}
 				onClick={(e) => {
 					e.preventDefault();
-					openAppInNewWindow("Terminal", href);
+					openAppInNewWindow(href);
 				}}
 				label="Open Terminal"
 			>

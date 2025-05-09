@@ -559,7 +559,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 									marginRight: -24,
 									borderTop: `1px solid ${theme.palette.divider}`,
 									width: "calc(100% + 48px)",
-									"&:first-child": {
+									"&:first-of-type": {
 										borderTop: 0,
 									},
 									gap: 24,
