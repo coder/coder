@@ -34,7 +34,7 @@ export const useAppLink = (
 	const href = getAppHref(app, {
 		agent,
 		workspace,
-		token: apiKeyResponse?.key ?? "",
+		token: apiKeyResponse?.key,
 		path: proxy.preferredPathAppURL,
 		host: proxy.preferredWildcardHostname,
 	});
