@@ -1998,7 +1998,8 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 // You can run it manually as follows:
 //
 // CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerAutostart
-// nolint: paralleltest // This test sets an environment variable.
+//
+//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_DevcontainerAutostart(t *testing.T) {
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
