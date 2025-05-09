@@ -348,19 +348,19 @@ const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
 					"[&_p]:m-0 [&_p]:mb-2",
 
 					alertType === "important" &&
-						"border-highlight-purple [&_p:first-child]:text-highlight-purple",
+						"border-highlight-purple [&_p:first-of-type]:text-highlight-purple",
 
 					alertType === "warning" &&
-						"border-border-warning [&_p:first-child]:text-border-warning",
+						"border-border-warning [&_p:first-of-type]:text-border-warning",
 
 					alertType === "note" &&
-						"border-highlight-sky [&_p:first-child]:text-highlight-sky",
+						"border-highlight-sky [&_p:first-of-type]:text-highlight-sky",
 
 					alertType === "tip" &&
-						"border-highlight-green [&_p:first-child]:text-highlight-green",
+						"border-highlight-green [&_p:first-of-type]:text-highlight-green",
 
 					alertType === "caution" &&
-						"border-highlight-red [&_p:first-child]:text-highlight-red",
+						"border-highlight-red [&_p:first-of-type]:text-highlight-red",
 				)}
 			>
 				<p className="font-bold">
