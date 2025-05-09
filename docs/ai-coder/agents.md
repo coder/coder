@@ -54,6 +54,8 @@ Additionally, with Coder, headless agents benefit from:
 
 [Claude Code](https://github.com/anthropics/claude-code) is our recommended
 coding agent due to its strong performance on complex programming tasks.
+See our [detailed Claude integration guide](./claude-integration.md) for comprehensive
+setup and usage instructions.
 
 > [!INFO]
 > Any agent can run in a Coder workspace via our [MCP integration](./headless.md),

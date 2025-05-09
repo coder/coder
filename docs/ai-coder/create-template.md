@@ -42,8 +42,11 @@ Follow the instructions in the Coder Registry to install the module. Be sure to
 enable the `experiment_use_screen` and `experiment_report_tasks` variables to
 report status back to the Coder control plane.
 
-> Alternatively, you can [use a custom agent](./custom-agents.md) that is
-> not in our registry via MCP.
+> [!TIP]
+> Claude users: For advanced configuration options, VS Code integration,
+> and detailed usage instructions, try our [comprehensive Claude integration guide](./claude-integration.md).
+>
+> Alternatively, you can [use a custom agent](./custom-agents.md) that is not in our registry via MCP.
 
 ## 3. Confirm tasks are streaming in the Coder UI
 
