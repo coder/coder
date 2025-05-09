@@ -1,4 +1,3 @@
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
@@ -13,6 +12,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks/useAuthenticated";
+import { TrashIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	type ActionType,
@@ -227,7 +227,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 						onClick={handleDelete}
 						data-testid="delete-button"
 					>
-						<DeleteIcon />
+						<TrashIcon />
 						Delete&hellip;
 					</DropdownMenuItem>
 				</DropdownMenuContent>
