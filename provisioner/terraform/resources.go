@@ -98,17 +98,18 @@ type agentAppAttributes struct {
 	Slug        string `mapstructure:"slug"`
 	DisplayName string `mapstructure:"display_name"`
 	// Name is deprecated in favor of DisplayName.
-	Name        string                     `mapstructure:"name"`
-	Icon        string                     `mapstructure:"icon"`
-	URL         string                     `mapstructure:"url"`
-	External    bool                       `mapstructure:"external"`
-	Command     string                     `mapstructure:"command"`
-	Share       string                     `mapstructure:"share"`
-	Subdomain   bool                       `mapstructure:"subdomain"`
-	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
-	Order       int64                      `mapstructure:"order"`
-	Hidden      bool                       `mapstructure:"hidden"`
-	OpenIn      string                     `mapstructure:"open_in"`
+	Name         string                     `mapstructure:"name"`
+	Icon         string                     `mapstructure:"icon"`
+	URL          string                     `mapstructure:"url"`
+	External     bool                       `mapstructure:"external"`
+	Command      string                     `mapstructure:"command"`
+	Share        string                     `mapstructure:"share"`
+	Subdomain    bool                       `mapstructure:"subdomain"`
+	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	Order        int64                      `mapstructure:"order"`
+	Hidden       bool                       `mapstructure:"hidden"`
+	OpenIn       string                     `mapstructure:"open_in"`
+	CORSBehavior string                     `mapstructure:"cors_behavior"`
 }
 
 type agentEnvAttributes struct {
@@ -511,6 +512,15 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				openIn = proto.AppOpenIn_TAB
 			}
 
+			var corsBehavior proto.AppCORSBehavior
+			switch strings.ToLower(attrs.CORSBehavior) {
+			case "passthru":
+				corsBehavior = proto.AppCORSBehavior_PASSTHRU
+			default:
+				corsBehavior = proto.AppCORSBehavior_SIMPLE
+				logger.Debug(ctx, "cors_behavior not set, defaulting to 'simple'", slog.F("address", convertAddressToLabel(resource.Address)))
+			}
+
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
@@ -532,6 +542,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Order:        attrs.Order,
 						Hidden:       attrs.Hidden,
 						OpenIn:       openIn,
+						CorsBehavior: corsBehavior,
 					})
 				}
 			}

@@ -93,6 +93,11 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"exectrace",
 ];
 
+// From codersdk/cors_behavior.go
+export type AppCORSBehavior = "passthru" | "simple";
+
+export const AppCORSBehaviors: AppCORSBehavior[] = ["passthru", "simple"];
+
 // From codersdk/deployment.go
 export interface AppHostResponse {
 	readonly host: string;
