@@ -218,6 +218,68 @@ Please ask your administrator to install the JetBrains Gateway backend in the wo
 [Here is the JetBrains article](https://www.jetbrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
 explaining this IDE specification.
 
+## JetBrains Toolbox Integration
+
+JetBrains Toolbox helps you manage JetBrains products and includes remote development capabilities for connecting to Coder workspaces.
+
+### Before you begin
+
+- Install [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) version 2.6.0.40284 or later
+- Ensure your Coder workspace [has the necessary IDE backends installed](../../../admin/templates/extending-templates/jetbrains-gateway.md)
+
+### Install the Coder plugin for Toolbox
+
+1. Open Toolbox and navigate to the **Remote Development** section.
+1. Install the Coder plugin using one of these methods:
+   - Search for `Coder` in the **Remote Development** plugins section.
+   - Use this URI to install directly: `jetbrains://gateway/com.coder.toolbox`.
+   - Download from [JetBrains Marketplace](https://plugins.jetbrains.com/).
+
+### Use URI parameters
+
+For direct connections or creating bookmarks, use custom URI links with parameters:
+
+```shell
+jetbrains://gateway/com.coder.toolbox?url=https://coder.example.com&workspace=my-workspace
+```
+
+Required parameters:
+
+- `url`: Your Coder deployment URL
+- `workspace`: Name of your workspace
+
+Optional parameters:
+
+- `token`: Authentication token (use only in secure environments)
+- `folder`: Specific project folder path to open
+- `product`: Specific IDE product code (e.g., "IU" for IntelliJ IDEA Ultimate)
+
+### Configure internal certificates
+
+When connecting to a Coder deployment with internal certificates, follow the same procedure described in the [JetBrains Gateway](#configuring-the-gateway-plugin-to-use-internal-certificates) section above, but use the Toolbox installation paths:
+
+<div class="tabs">
+
+#### Linux
+
+```shell
+keytool -import -alias coder -file <path-to-certificate> -keystore "<toolbox-installation>/jbr/lib/security/cacerts"
+```
+
+#### macOS
+
+```shell
+keytool -import -alias coder -file <path-to-certificate> -keystore "$HOME/Library/Application Support/JetBrains/Toolbox/jbr/Contents/Home/lib/security/cacerts"
+```
+
+#### Windows
+
+```shell
+keytool -import -alias coder -file <path-to-certificate> -keystore "%USERPROFILE%\AppData\Local\JetBrains\Toolbox\jbr\lib\security\cacerts"
+```
+
+</div>
+
 ## JetBrains Fleet
 
 JetBrains Fleet is a code editor and lightweight IDE designed to support various
