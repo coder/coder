@@ -1,8 +1,6 @@
 import { useTheme } from "@emotion/react";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -11,9 +9,9 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
+import { needsSessionToken } from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { createAppLinkHref } from "utils/apps";
-import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
@@ -26,11 +24,6 @@ export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	web_terminal: "Terminal",
 };
 
-const Language = {
-	appTitle: (appName: string, identifier: string): string =>
-		`${appName} - ${identifier}`,
-};
-
 export interface AppLinkProps {
 	workspace: TypesGen.Workspace;
 	app: TypesGen.WorkspaceApp;
@@ -39,24 +32,10 @@ export interface AppLinkProps {
 
 export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const { proxy } = useProxy();
-	const preferredPathBase = proxy.preferredPathAppURL;
-	const appsHost = proxy.preferredWildcardHostname;
-	const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
+	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
 	const theme = useTheme();
-	const username = workspace.owner_name;
-	const displayName = app.display_name || app.slug;
-
-	const href = createAppLinkHref(
-		window.location.protocol,
-		preferredPathBase,
-		appsHost,
-		app.slug,
-		username,
-		workspace,
-		agent,
-		app,
-	);
+	const link = useAppLink(app, { agent, workspace });
 
 	// canClick is ONLY false when it's a subdomain app and the admin hasn't
 	// enabled wildcard access URL or the session token is being fetched.
@@ -64,28 +43,32 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
+	let primaryTooltip = "";
 	let icon = !iconError && (
 		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
 	);
 
-	let primaryTooltip = "";
 	if (app.health === "initializing") {
 		icon = <Spinner loading />;
 		primaryTooltip = "Initializing...";
 	}
+
 	if (app.health === "unhealthy") {
 		icon = <ErrorOutlineIcon css={{ color: theme.palette.warning.light }} />;
 		primaryTooltip = "Unhealthy";
 	}
-	if (!appsHost && app.subdomain) {
+
+	if (!host && app.subdomain) {
 		canClick = false;
 		icon = <ErrorOutlineIcon css={{ color: theme.palette.grey[300] }} />;
 		primaryTooltip =
 			"Your admin has not configured subdomain application access";
 	}
-	if (fetchingSessionToken) {
+
+	if (needsSessionToken(app) && !link.hasToken) {
 		canClick = false;
 	}
+
 	if (
 		agent.lifecycle_state === "starting" &&
 		agent.startup_script_behavior === "blocking"
@@ -97,67 +80,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
 	const button = (
 		<AgentButton asChild>
-			<a
-				href={canClick ? href : undefined}
-				onClick={async (event) => {
-					if (!canClick) {
-						return;
-					}
-
-					event.preventDefault();
-
-					// HTTP links should never need the session token, since Cookies
-					// handle sharing it when you access the Coder Dashboard. We should
-					// never be forwarding the bare session token to other domains!
-					const isHttp = app.url?.startsWith("http");
-					if (app.external && !isHttp) {
-						// This is a magic undocumented string that is replaced
-						// with a brand-new session token from the backend.
-						// This only exists for external URLs, and should only
-						// be used internally, and is highly subject to break.
-						const magicTokenString = "$SESSION_TOKEN";
-						const hasMagicToken = href.indexOf(magicTokenString);
-						let url = href;
-						if (hasMagicToken !== -1) {
-							setFetchingSessionToken(true);
-							const key = await API.getApiKey();
-							url = href.replaceAll(magicTokenString, key.key);
-							setFetchingSessionToken(false);
-						}
-
-						// When browser recognizes the protocol and is able to navigate to the app,
-						// it will blur away, and will stop the timer. Otherwise,
-						// an error message will be displayed.
-						const openAppExternallyFailedTimeout = 500;
-						const openAppExternallyFailed = setTimeout(() => {
-							displayError(`${displayName} must be installed first.`);
-						}, openAppExternallyFailedTimeout);
-						window.addEventListener("blur", () => {
-							clearTimeout(openAppExternallyFailed);
-						});
-
-						window.location.href = url;
-						return;
-					}
-
-					switch (app.open_in) {
-						case "slim-window": {
-							window.open(
-								href,
-								Language.appTitle(displayName, generateRandomString(12)),
-								"width=900,height=600",
-							);
-							return;
-						}
-						default: {
-							window.open(href);
-							return;
-						}
-					}
-				}}
-			>
+			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
 				{icon}
-				{displayName}
+				{link.label}
 				{canShare && <ShareIcon app={app} />}
 			</a>
 		</AgentButton>

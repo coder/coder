@@ -627,8 +627,8 @@ type WorkspaceAppsProps = {
 };
 
 const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
-	const { data: apiKeyRes } = useQuery(apiKey());
-	const token = apiKeyRes?.key;
+	const { data: apiKeyResponse } = useQuery(apiKey());
+	const token = apiKeyResponse?.key;
 
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
@@ -658,7 +658,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
@@ -676,7 +676,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
@@ -696,7 +696,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				href={href}
 				onClick={(e) => {
 					e.preventDefault();
-					openAppInNewWindow("Terminal", href);
+					openAppInNewWindow(href);
 				}}
 				label="Open Terminal"
 			>
