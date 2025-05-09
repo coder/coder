@@ -3,7 +3,6 @@ import { useTheme } from "@emotion/react";
 import AppsIcon from "@mui/icons-material/Apps";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import HelpOutline from "@mui/icons-material/HelpOutline";
 import HourglassEmpty from "@mui/icons-material/HourglassEmpty";
 import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
 import OpenInNew from "@mui/icons-material/OpenInNew";
@@ -18,6 +17,7 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import { CircleHelpIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
 
@@ -224,7 +224,10 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							}}
 						>
 							{getStatusIcon(theme, status.state, isLatest) || (
-								<HelpOutline sx={{ fontSize: 18, color: "text.disabled" }} />
+								<CircleHelpIcon
+									className="size-icon-sm"
+									css={{ color: theme.palette.text.disabled }}
+								/>
 							)}
 						</div>
 

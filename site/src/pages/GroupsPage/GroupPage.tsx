@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
@@ -51,7 +50,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -134,7 +133,7 @@ const GroupPage: FC = () => {
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
-							startIcon={<DeleteOutline />}
+							startIcon={<TrashIcon />}
 							css={styles.removeButton}
 						>
 							Delete&hellip;
