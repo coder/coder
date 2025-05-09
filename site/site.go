@@ -108,46 +108,8 @@ func New(opts *Options) *Handler {
 		panic(fmt.Sprintf("Failed to parse html files: %v", err))
 	}
 
-	binHashCache := newBinHashCache(opts.BinFS, opts.BinHashes)
-
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// Convert underscores in the filename to hyphens. We eventually want to
-		// change our hyphen-based filenames to underscores, but we need to
-		// support both for now.
-		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
-
-		// Set ETag header to the SHA1 hash of the file contents.
-		name := filePath(r.URL.Path)
-		if name == "" || name == "/" {
-			// Serve the directory listing. This intentionally allows directory listings to
-			// be served. This file system should not contain anything sensitive.
-			http.FileServer(opts.BinFS).ServeHTTP(rw, r)
-			return
-		}
-		if strings.Contains(name, "/") {
-			// We only serve files from the root of this directory, so avoid any
-			// shenanigans by blocking slashes in the URL path.
-			http.NotFound(rw, r)
-			return
-		}
-		hash, err := binHashCache.getHash(name)
-		if xerrors.Is(err, os.ErrNotExist) {
-			http.NotFound(rw, r)
-			return
-		}
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// ETag header needs to be quoted.
-		rw.Header().Set("ETag", fmt.Sprintf(`%q`, hash))
-
-		// http.FileServer will see the ETag header and automatically handle
-		// If-Match and If-None-Match headers on the request properly.
-		http.FileServer(opts.BinFS).ServeHTTP(rw, r)
-	})))
+	mux.Handle("/bin/", binHandler(opts.BinFS, newBinHashCache(opts.BinHashes)))
 	mux.Handle("/", http.FileServer(
 		http.FS(
 			// OnlyFiles is a wrapper around the file system that prevents directory
@@ -170,6 +132,71 @@ func New(opts *Options) *Handler {
 	}
 
 	return handler
+}
+
+func binHandler(binFS http.FileSystem, binHashCache *binHashCache) http.Handler {
+	return http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Convert underscores in the filename to hyphens. We eventually want to
+		// change our hyphen-based filenames to underscores, but we need to
+		// support both for now.
+		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
+
+		// Set ETag header to the SHA1 hash of the file contents.
+		name := filePath(r.URL.Path)
+		if name == "" || name == "/" {
+			// Serve the directory listing. This intentionally allows directory listings to
+			// be served. This file system should not contain anything sensitive.
+			http.FileServer(binFS).ServeHTTP(rw, r)
+			return
+		}
+		if strings.Contains(name, "/") {
+			// We only serve files from the root of this directory, so avoid any
+			// shenanigans by blocking slashes in the URL path.
+			http.NotFound(rw, r)
+			return
+		}
+
+		f, err := binFS.Open(name)
+		if xerrors.Is(err, os.ErrNotExist) {
+			http.NotFound(rw, r)
+			return
+		}
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+
+		// http.FileServer will not set Content-Length when performing chunked
+		// transport encoding, which is used for large files like our binaries
+		// so stream compression can be used.
+		//
+		// Clients like IDE extensions and the desktop apps can compare the
+		// value of this header with the amount of bytes written to disk after
+		// decompression to show progress. Without this, they cannot show
+		// progress without disabling compression.
+		stat, err := f.Stat()
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// There isn't really a spec for a length header for the "inner" content
+		// size, but some nginx modules use this header.
+		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", stat.Size()))
+
+		// Get and set ETag header.
+		hash, err := binHashCache.getHash(name, f)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// ETag header needs to be quoted.
+		rw.Header().Set("ETag", fmt.Sprintf(`%q`, hash))
+
+		// http.FileServer will see the ETag header and automatically handle
+		// If-Match and If-None-Match headers on the request properly.
+		http.FileServer(binFS).ServeHTTP(rw, r)
+	}))
 }
 
 type Handler struct {
@@ -217,7 +244,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.handler.ServeHTTP(rw, r)
 		return
 	// If requesting assets, serve straight up with caching.
-	case reqFile == "assets" || strings.HasPrefix(reqFile, "assets/"):
+	case reqFile == "assets" || strings.HasPrefix(reqFile, "assets/") || strings.HasPrefix(reqFile, "icon/"):
 		// It could make sense to cache 404s, but the problem is that during an
 		// upgrade a load balancer may route partially to the old server, and that
 		// would make new asset paths get cached as 404s and not load even once the
@@ -953,17 +980,14 @@ func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPa
 }
 
 type binHashCache struct {
-	binFS http.FileSystem
-
 	hashes map[string]string
 	mut    sync.RWMutex
 	sf     singleflight.Group
 	sem    chan struct{}
 }
 
-func newBinHashCache(binFS http.FileSystem, binHashes map[string]string) *binHashCache {
+func newBinHashCache(binHashes map[string]string) *binHashCache {
 	b := &binHashCache{
-		binFS:  binFS,
 		hashes: make(map[string]string, len(binHashes)),
 		mut:    sync.RWMutex{},
 		sf:     singleflight.Group{},
@@ -977,7 +1001,7 @@ func newBinHashCache(binFS http.FileSystem, binHashes map[string]string) *binHas
 	return b
 }
 
-func (b *binHashCache) getHash(name string) (string, error) {
+func (b *binHashCache) getHash(name string, f http.File) (string, error) {
 	b.mut.RLock()
 	hash, ok := b.hashes[name]
 	b.mut.RUnlock()
@@ -990,14 +1014,8 @@ func (b *binHashCache) getHash(name string) (string, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
 
-		f, err := b.binFS.Open(name)
-		if err != nil {
-			return "", err
-		}
-		defer f.Close()
-
 		h := sha1.New() //#nosec // Not used for cryptography.
-		_, err = io.Copy(h, f)
+		_, err := io.Copy(h, f)
 		if err != nil {
 			return "", err
 		}
