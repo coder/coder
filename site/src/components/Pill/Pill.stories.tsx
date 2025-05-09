@@ -1,5 +1,5 @@
-import { InfoIcon } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { InfoIcon } from "lucide-react";
 import { Pill, PillSpinner } from "./Pill";
 
 const meta: Meta<typeof Pill> = {

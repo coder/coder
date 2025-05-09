@@ -1,5 +1,4 @@
 import type { Theme } from "@emotion/react";
-import { CircleAlertIcon } from "lucide-react";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
 import StopIcon from "@mui/icons-material/StopOutlined";
@@ -9,6 +8,7 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
+import { CircleAlertIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 
