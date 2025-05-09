@@ -91,9 +91,9 @@ export class TimeSync implements TimeSyncApi {
 	readonly #clearInterval: ClearInterval;
 
 	#latestDateSnapshot: Date;
-	#subscriptions: SubscriptionEntry[];
-	#latestIntervalId: number | undefined;
-	#currentRefreshInterval: number;
+	#subscriptions: SubscriptionEntry[] = [];
+	#latestIntervalId: number | undefined = undefined;
+	#currentRefreshInterval: number = Number.POSITIVE_INFINITY;
 
 	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
@@ -108,11 +108,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#clearInterval = clearInterval;
 		this.#createNewDatetime = createNewDatetime;
 		this.#resyncOnNewSubscription = resyncOnNewSubscription;
-
 		this.#latestDateSnapshot = initialDatetime;
-		this.#subscriptions = [];
-		this.#latestIntervalId = undefined;
-		this.#currentRefreshInterval = Number.POSITIVE_INFINITY;
 	}
 
 	#onSubscriptionAdd(): void {
@@ -185,9 +181,14 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#updateSnapshot(): void {
-		this.#latestDateSnapshot = this.#createNewDatetime(
-			this.#latestDateSnapshot,
-		);
+		// It's assumed that TimeSync will be used with subscribers that will
+		// treat whatever Date they receive as an immutable value. But because
+		// the entire class breaks if someone does mutate it, we need to freeze
+		// the value
+		const newRawDate = this.#createNewDatetime(this.#latestDateSnapshot);
+		Object.freeze(newRawDate);
+		this.#latestDateSnapshot = newRawDate;
+
 		for (const subEntry of this.#subscriptions) {
 			subEntry.onUpdate(this.#latestDateSnapshot);
 		}

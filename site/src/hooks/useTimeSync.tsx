@@ -1,15 +1,6 @@
 /**
  * @todo Things that still need to be done before this can be called done:
- * 1. Explore an idea for handling selectors without forcing someone to specify
- *    data dependencies for what values are accessed via closure:
- *    - A selector is ALWAYS run synchronously in a render. There is no way to
- *      opt out of this behavior, not even memoization
- *    - The selector is still used to determine whether a component should
- *      re-render via a time update. It will be assumed that whatever function
- *      is currently available will always be the most up-to-date
- *    - This approach might make it more viable to combine useTimeSync and
- *      useTimeSyncSelector again
- * 2. Add tests and address any bugs
+ * 1. Add tests and address any bugs
  */
 import {
 	type FC,
@@ -77,9 +68,6 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	subscribe = (entry: ReactSubscriptionEntry): (() => void) => {
 		const { select, id, targetRefreshInterval, onUpdate } = entry;
 
-		// Make sure that we subscribe first, in case TimeSync is configured to
-		// invalidate the snapshot on a new subscription. Want to remove risk of
-		// stale data
 		const patchedEntry: SubscriptionEntry = {
 			id,
 			targetRefreshInterval,
@@ -94,15 +82,8 @@ class ReactTimeSync implements ReactTimeSyncApi {
 				onUpdate(newDate);
 			},
 		};
+
 		this.#timeSync.subscribe(patchedEntry);
-
-		// Have to seed the selection cache with an initial value so that it's
-		// safe for React to get the value immediately after the subscription
-		// gets registered
-		const date = this.#timeSync.getTimeSnapshot();
-		const cacheValue = select?.(date) ?? date;
-		this.#selectionCache.set(id, { value: cacheValue });
-
 		return () => this.#timeSync.unsubscribe(id);
 	};
 
@@ -125,11 +106,6 @@ class ReactTimeSync implements ReactTimeSyncApi {
 	};
 
 	invalidateSelection = (id: string, select?: SelectCallback): void => {
-		const prevSelection = this.#selectionCache.get(id);
-		if (prevSelection === undefined) {
-			return;
-		}
-
 		// It is very, VERY important that we only change the value in the
 		// selection cache when it changes by value. If the state getter
 		// function for useSyncExternalStore always receives a new value by
@@ -137,6 +113,13 @@ class ReactTimeSync implements ReactTimeSyncApi {
 		// dev mode
 		const dateSnapshot = this.#timeSync.getTimeSnapshot();
 		const newSelection = select?.(dateSnapshot) ?? dateSnapshot;
+
+		const prevSelection = this.#selectionCache.get(id);
+		if (prevSelection === undefined) {
+			this.#selectionCache.set(id, { value: newSelection });
+			return;
+		}
+
 		if (!areValuesDeepEqual(newSelection, prevSelection.value)) {
 			this.#selectionCache.set(id, { value: newSelection });
 		}
@@ -310,42 +293,32 @@ export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
 	const hookId = useId();
 	const timeSync = useTimeSyncContext();
 
-	// This is the one place where we're borderline breaking the React rules.
-	// useEffectEvent is meant to be used only in useEffect calls, and normally
-	// shouldn't be called inside a render. But its behavior lines up with
-	// useSyncExternalStore, letting us cheat a little. useSyncExternalStore's
-	// state getter callback is called in two scenarios:
-	// (1) Mid-render on mount
-	// (2) Whenever React is notified of a state change (outside of React).
-	//
-	// Case 2 is basically an effect with extra steps (and single-threaded JS
-	// gives us assurance about correctness). And for (1), useEffectEvent will
-	// be initialized with whatever callback you give it on mount. So for the
-	// mounting render alone, it's safe to call a useEffectEvent callback from
-	// inside a render.
-	const externalSelect = useEffectEvent((date: Date): T => {
+	// externalSelect is passed to the ReactTimeSync class for use when the
+	// class dispatches a new Date update. It should not be called inside the
+	// render logic whatsoever.
+	const externalStableSelect = useEffectEvent((date: Date): T => {
 		const recast = date as Date & T;
 		return select?.(recast) ?? recast;
 	});
 
-	// We're leaning into the React hook API behavior to simplify needing to
-	// resync the refresh intervals when they change during re-renders. Whenever
+	// We're leaning into the React hook API behavior to simplify syncing the
+	// refresh intervals when they change during re-renders. Whenever
 	// useSyncExternalStore receives a new callback by reference, it will
 	// automatically unsubscribe with the previous callback and re-subscribe
 	// with the new one. useCallback stabilizes the reference, with the ability
-	// to invalidate it whenever the interval changes. Have to include all other
-	// elements in the dependency array for correctness, but they should remain
-	// 100% stable for the entire lifetime of the component
+	// to invalidate it whenever the interval changes. We have to include all
+	// other data dependencies in the dependency array for correctness, but they
+	// should remain 100% stable by reference for the lifetime of the component
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return timeSync.subscribe({
 				targetRefreshInterval,
 				id: hookId,
 				onUpdate: notifyReact,
-				select: externalSelect,
+				select: externalStableSelect,
 			});
 		},
-		[timeSync, hookId, externalSelect, targetRefreshInterval],
+		[timeSync, hookId, externalStableSelect, targetRefreshInterval],
 	);
 
 	const selection = useSyncExternalStore<T>(subscribe, () => {
