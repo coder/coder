@@ -272,6 +272,11 @@ message Role {
     string org_id = 2;
 }
 
+message RunningAgentAuthToken {
+    string agent_id = 1;
+    string token = 2;
+}
+
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
     string coder_url = 1;
@@ -294,7 +299,7 @@ message Metadata {
     string workspace_owner_login_type =  18;
     repeated Role workspace_owner_rbac_roles = 19;
     bool is_prebuild = 20;
-    string running_workspace_agent_token = 21;
+    repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

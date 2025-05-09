@@ -37,12 +37,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -617,6 +619,27 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		runningAgentAuthTokens := []*sdkproto.RunningAgentAuthToken{}
+		if input.PrebuildClaimedByUser != uuid.Nil {
+			// runningAgentAuthTokens are *only* used for prebuilds. We fetch them when we want to rebuild a prebuilt workspace
+			// but not generate new agent tokens. The provisionerdserver will push them down to
+			// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where they will be
+			// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
+			// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
+			// obviating the whole point of the prebuild.
+			agents, err := s.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				s.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
+					slog.F("workspace_id", workspace.ID), slog.Error(err))
+			}
+			for _, agent := range agents {
+				runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+					AgentId: agent.ID.String(),
+					Token:   agent.AuthToken.String(),
+				})
+			}
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:      workspaceBuild.ID.String(),
@@ -646,6 +669,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					IsPrebuild:                    input.IsPrebuild,
+					RunningAgentAuthTokens:        runningAgentAuthTokens,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1733,6 +1757,21 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
+
+		if input.PrebuildClaimedByUser != uuid.Nil {
+			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
+				slog.F("user", input.PrebuildClaimedByUser.String()),
+				slog.F("workspace_id", workspace.ID))
+
+			err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+				UserID:      input.PrebuildClaimedByUser,
+				WorkspaceID: workspace.ID,
+				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			})
+			if err != nil {
+				s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
+			}
+		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {
 			s.Logger.Info(ctx, "inserting template dry-run job resource",
@@ -1876,6 +1915,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			}
 		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			ID:                uuid.New(),
 			TemplateVersionID: templateVersionID,
 			Name:              protoPreset.Name,
 			CreatedAt:         t,

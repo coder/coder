@@ -286,6 +286,11 @@ export interface Role {
   orgId: string;
 }
 
+export interface RunningAgentAuthToken {
+  agentId: string;
+  token: string;
+}
+
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -308,7 +313,7 @@ export interface Metadata {
   workspaceOwnerLoginType: string;
   workspaceOwnerRbacRoles: Role[];
   isPrebuild: boolean;
-  runningWorkspaceAgentToken: string;
+  runningAgentAuthTokens: RunningAgentAuthToken[];
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -968,6 +973,18 @@ export const Role = {
   },
 };
 
+export const RunningAgentAuthToken = {
+  encode(message: RunningAgentAuthToken, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.agentId !== "") {
+      writer.uint32(10).string(message.agentId);
+    }
+    if (message.token !== "") {
+      writer.uint32(18).string(message.token);
+    }
+    return writer;
+  },
+};
+
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -1030,8 +1047,8 @@ export const Metadata = {
     if (message.isPrebuild === true) {
       writer.uint32(160).bool(message.isPrebuild);
     }
-    if (message.runningWorkspaceAgentToken !== "") {
-      writer.uint32(170).string(message.runningWorkspaceAgentToken);
+    for (const v of message.runningAgentAuthTokens) {
+      RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
     }
     return writer;
   },

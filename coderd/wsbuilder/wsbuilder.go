@@ -76,9 +76,8 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
-	prebuild          bool
-	prebuildClaimedBy uuid.UUID
-
+	prebuild                     bool
+	prebuildClaimedBy            uuid.UUID
 	verifyNoLegacyParametersOnce bool
 }
 
