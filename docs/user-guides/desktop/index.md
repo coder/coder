@@ -79,11 +79,11 @@ Before you can use Coder Desktop, you will need to sign in.
 
    ## macOS
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png)
 
    ## Windows
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png)
 
    </div>
 
@@ -97,11 +97,11 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. In your web browser, you may be prompted to sign in to Coder with your credentials:
 
-   <Image height="412px" src="../../images/templates/coder-login-web.png" alt="Sign in to your Coder deployment" align="center" />
+   ![Sign in to your Coder deployment](../../images/templates/coder-login-web.png)
 
 1. Copy the session token to the clipboard:
 
-   <Image height="350px" src="../../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
+   ![Copy session token](../../images/templates/coder-session-token.png)
 
 1. Paste the token in the **Session Token** field of the **Sign In** screen, then select **Sign In**:
 
@@ -109,7 +109,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted.
 
-   <Image height="350px" src="../../images/user-guides/desktop/mac-allow-vpn.png" alt="Copy session token" align="center" />
+   ![Copy session token](../../images/user-guides/desktop/mac-allow-vpn.png)
 
 1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the **Coder Connect** toggle to enable the connection.
 
