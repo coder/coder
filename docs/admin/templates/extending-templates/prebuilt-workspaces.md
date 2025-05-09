@@ -25,7 +25,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 ## Prerequisites
 
 - [**Premium license**](../../licensing/index.md)
-- **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.3.0-pre2`. (**TODO: update with latest version**)
+- **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.0`.
 - **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
 ## Enable prebuilt workspaces for template presets
@@ -84,7 +84,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
       datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
 
-   The developer doesn't see the claiming process—the workspace is ready faster than usual.
+   The developer doesn't see the claiming process — the workspace will just be ready faster than usual.
 
 You can view available prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
