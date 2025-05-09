@@ -1,9 +1,8 @@
 package codersdk
 
 import (
-	"strconv"
-
 	"golang.org/x/xerrors"
+	"tailscale.com/types/ptr"
 
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
@@ -46,47 +45,31 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 }
 
 func validateBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
-	var value string
+	var (
+		current  string
+		previous *string
+	)
 
 	if buildParameter != nil {
-		value = buildParameter.Value
+		current = buildParameter.Value
 	}
 
-	if richParameter.Required && value == "" {
+	if lastBuildParameter != nil {
+		previous = ptr.To(lastBuildParameter.Value)
+	}
+
+	if richParameter.Required && current == "" {
 		return xerrors.Errorf("parameter value is required")
 	}
 
-	if value == "" { // parameter is optional, so take the default value
-		value = richParameter.DefaultValue
-	}
-
-	if lastBuildParameter != nil && lastBuildParameter.Value != "" && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
-		prev, err := strconv.Atoi(lastBuildParameter.Value)
-		if err != nil {
-			return xerrors.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)
-		}
-
-		current, err := strconv.Atoi(buildParameter.Value)
-		if err != nil {
-			return xerrors.Errorf("current parameter value is not a number: %s", buildParameter.Value)
-		}
-
-		switch richParameter.ValidationMonotonic {
-		case MonotonicOrderIncreasing:
-			if prev > current {
-				return xerrors.Errorf("parameter value must be equal or greater than previous value: %d", prev)
-			}
-		case MonotonicOrderDecreasing:
-			if prev < current {
-				return xerrors.Errorf("parameter value must be equal or lower than previous value: %d", prev)
-			}
-		}
+	if current == "" { // parameter is optional, so take the default value
+		current = richParameter.DefaultValue
 	}
 
 	if len(richParameter.Options) > 0 {
 		var matched bool
 		for _, opt := range richParameter.Options {
-			if opt.Value == value {
+			if opt.Value == current {
 				matched = true
 				break
 			}
@@ -119,7 +102,7 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		Error:       richParameter.ValidationError,
 		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
-	return validation.Valid(richParameter.Type, value)
+	return validation.Valid(richParameter.Type, current, previous)
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
