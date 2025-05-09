@@ -36,7 +36,6 @@ devcontainer up %s
 // initialize the workspace (e.g. git clone, npm install, etc). This is
 // important if e.g. a Coder module to install @devcontainer/cli is used.
 func ExtractAndInitializeDevcontainerScripts(
-	logger slog.Logger,
 	devcontainers []codersdk.WorkspaceAgentDevcontainer,
 	scripts []codersdk.WorkspaceAgentScript,
 ) (filteredScripts []codersdk.WorkspaceAgentScript, devcontainerScripts []codersdk.WorkspaceAgentScript) {

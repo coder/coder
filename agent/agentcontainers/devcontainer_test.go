@@ -242,7 +242,6 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 				}
 			}
 			gotFilteredScripts, gotDevcontainerScripts := agentcontainers.ExtractAndInitializeDevcontainerScripts(
-				logger,
 				agentcontainers.ExpandAllDevcontainerPaths(logger, tt.args.expandPath, tt.args.devcontainers),
 				tt.args.scripts,
 			)

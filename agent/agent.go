@@ -1129,7 +1129,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			)
 			if a.experimentalDevcontainersEnabled {
 				var dcScripts []codersdk.WorkspaceAgentScript
-				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(a.logger, manifest.Devcontainers, scripts)
+				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(manifest.Devcontainers, scripts)
 				// See ExtractAndInitializeDevcontainerScripts for motivation
 				// behind running dcScripts as post start scripts.
 				scriptRunnerOpts = append(scriptRunnerOpts, agentscripts.WithPostStartScripts(dcScripts...))
