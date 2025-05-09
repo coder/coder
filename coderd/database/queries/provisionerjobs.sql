@@ -252,7 +252,8 @@ SET
 	updated_at = $2,
 	completed_at = $3,
 	error = $4,
-	error_code = $5
+	error_code = $5,
+	started_at = $6
 WHERE
 	id = $1;
 
@@ -263,7 +264,6 @@ FROM
 	provisioner_jobs
 WHERE
 	updated_at < $1
-	AND started_at IS NOT NULL
 	AND completed_at IS NULL;
 
 -- name: InsertProvisionerJobTimings :many

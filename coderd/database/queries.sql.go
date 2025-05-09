@@ -7383,7 +7383,6 @@ FROM
 	provisioner_jobs
 WHERE
 	updated_at < $1
-	AND started_at IS NOT NULL
 	AND completed_at IS NULL
 `
 
@@ -8081,7 +8080,8 @@ SET
 	updated_at = $2,
 	completed_at = $3,
 	error = $4,
-	error_code = $5
+	error_code = $5,
+	started_at = $6
 WHERE
 	id = $1
 `
@@ -8092,6 +8092,7 @@ type UpdateProvisionerJobWithCompleteByIDParams struct {
 	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
 	Error       sql.NullString `db:"error" json:"error"`
 	ErrorCode   sql.NullString `db:"error_code" json:"error_code"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
@@ -8101,6 +8102,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.CompletedAt,
 		arg.Error,
 		arg.ErrorCode,
+		arg.StartedAt,
 	)
 	return err
 }

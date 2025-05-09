@@ -229,14 +229,6 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		// Check if we should still unhang it.
-		if !job.StartedAt.Valid {
-			// This shouldn't be possible to hit because the query only selects
-			// started and not completed jobs, and a job can't be "un-started".
-			return jobIneligibleError{
-				Err: xerrors.New("job is not started"),
-			}
-		}
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
@@ -295,11 +287,21 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		lowestLogID = newLogs[0].ID
 
-		// Mark the job as failed.
 		now = dbtime.Now()
+		// If we are unhanging a job that was never picked up by the
+		// provisioner, we need to set the started_at time to the current
+		// time so that the build duration is correct.
+		if !job.StartedAt.Valid {
+			job.StartedAt = sql.NullTime{
+				Time:  now,
+				Valid: true,
+			}
+		}
+		// Mark the job as failed.
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
 			UpdatedAt: now,
+			StartedAt: job.StartedAt,
 			CompletedAt: sql.NullTime{
 				Time:  now,
 				Valid: true,
