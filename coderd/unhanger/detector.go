@@ -179,6 +179,14 @@ func (d *Detector) run(t time.Time) Stats {
 		stats.Error = xerrors.Errorf("get hung provisioner jobs: %w", err)
 		return stats
 	}
+	// Find all provisioner jobs that are currently running but have not
+	// received an update in the last 5 minutes.
+	if err != nil {
+		stats.Error = xerrors.Errorf("get not started provisioner jobs: %w", err)
+		return stats
+	}
+	jobsUnstarted, err := d.db.GetNotStartedProvisionerJobs(ctx, t.Add(-HungJobDuration))
+	jobs = append(jobs, jobsUnstarted...)
 
 	// Limit the number of jobs we'll unhang in a single run to avoid
 	// timing out.
@@ -229,14 +237,6 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		// Check if we should still unhang it.
-		if !job.StartedAt.Valid {
-			// This shouldn't be possible to hit because the query only selects
-			// started and not completed jobs, and a job can't be "un-started".
-			return jobIneligibleError{
-				Err: xerrors.New("job is not started"),
-			}
-		}
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
