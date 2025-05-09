@@ -11,8 +11,10 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcmanager"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
+	"storj.io/drpc/drpcwire"
 
 	"cdr.dev/slog"
 
@@ -81,7 +83,16 @@ func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 	if err != nil {
 		return xerrors.Errorf("register provisioner: %w", err)
 	}
-	srv := drpcserver.New(&tracing.DRPCHandler{Handler: mux})
+	srv := drpcserver.NewWithOptions(
+		&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Manager: drpcmanager.Options{
+				Reader: drpcwire.ReaderOptions{
+					MaximumBufferSize: 0,
+				},
+			},
+			Log: nil,
+		})
 
 	if options.Listener != nil {
 		err = srv.Serve(ctx, options.Listener)

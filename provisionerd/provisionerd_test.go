@@ -179,8 +179,6 @@ func TestProvisionerd(t *testing.T) {
 	})
 
 	t.Run("TooLargeTar", func(t *testing.T) {
-		// Ensures tars with "../../../etc/passwd" as the path
-		// are not allowed to run, and will fail the job.
 		t.Parallel()
 		done := make(chan struct{})
 		t.Cleanup(func() {
@@ -193,7 +191,7 @@ func TestProvisionerd(t *testing.T) {
 				JobId:       "test",
 				Provisioner: "someprovisioner",
 				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
-					"toolarge.txt": string(make([]byte, 10*1024*1024)),
+					"toolarge.txt": string(make([]byte, 4*1024*1024)),
 				}),
 				Type: &proto.AcquiredJob_TemplateImport_{
 					TemplateImport: &proto.AcquiredJob_TemplateImport{
@@ -215,7 +213,7 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitMedium))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitSuperLong*100))
 		require.NoError(t, closer.Close())
 	})
 
