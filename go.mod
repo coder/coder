@@ -98,7 +98,7 @@ require (
 	github.com/coder/flog v1.1.0
 	github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
-	github.com/coder/quartz v0.1.2
+	github.com/coder/quartz v0.1.3
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
 	github.com/coder/terraform-provider-coder/v2 v2.4.0-pre1.0.20250417100258-c86bb5c3ddcd
