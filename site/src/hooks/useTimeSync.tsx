@@ -1,8 +1,6 @@
 /**
  * @todo Things that still need to be done before this can be called done:
- *
- * 1. Fill out all incomplete methods
- * 2. Add tests
+ * 1. Add tests and address any bugs
  */
 import {
 	type FC,
@@ -233,7 +231,7 @@ function areDepsInvalidated(
 	return false;
 }
 
-type UseTimeSyncSelectOptions<T = Date> = Readonly<
+type UseTimeSyncSelectOptions<T> = Readonly<
 	UseTimeSyncOptions & {
 		/**
 		 * selectDependencies acts like the dependency array for a useMemo
@@ -271,9 +269,7 @@ type UseTimeSyncSelectOptions<T = Date> = Readonly<
  * frequent update interval, both component instances will update on that
  * interval.
  */
-export function useTimeSyncSelect<T = Date>(
-	options: UseTimeSyncSelectOptions<T>,
-): T {
+export function useTimeSyncSelect<T>(options: UseTimeSyncSelectOptions<T>): T {
 	const { select, selectDependencies, targetRefreshInterval } = options;
 	const hookId = useId();
 	const timeSync = useTimeSyncContext();

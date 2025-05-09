@@ -1,8 +1,8 @@
 /**
  * @todo What's left to do here:
  * 1. Fill out all incomplete methods
- * 2. Make sure the class respects the resyncOnNewSubscription option
- * 3. Add tests
+ * 2. Refactor as necessary
+ * 3. Add tests and address any bugs
  */
 export const TARGET_REFRESH_ONE_SECOND = 1_000;
 export const TARGET_REFRESH_ONE_MINUTE = 60 * 1_000;
@@ -213,9 +213,13 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	subscribe(entry: SubscriptionEntry): void {
-		if (entry.targetRefreshInterval <= 0) {
+		const intervalIsValid =
+			entry.targetRefreshInterval > 0 &&
+			(Number.isInteger(entry.targetRefreshInterval) ||
+				entry.targetRefreshInterval === Number.POSITIVE_INFINITY);
+		if (!intervalIsValid) {
 			throw new Error(
-				`Refresh interval ${entry.targetRefreshInterval} must be a positive integer (or Infinity)`,
+				`Refresh interval ${entry.targetRefreshInterval} must be a positive integer or Positive Infinity)`,
 			);
 		}
 
