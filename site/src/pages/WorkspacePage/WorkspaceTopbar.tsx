@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import { TrashIcon } from "lucide-react";
 import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -199,7 +199,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				{shouldDisplayDormantData && (
 					<TopbarData>
 						<TopbarIcon>
-							<DeleteOutline />
+							<TrashIcon className="size-icon-sm" />
 						</TopbarIcon>
 						<Link
 							component={RouterLink}
