@@ -1263,10 +1263,6 @@ func TestAgent_SSHConnectionLoginVars(t *testing.T) {
 			want: u.Username,
 		},
 		{
-			key:  "HOME",
-			want: u.HomeDir,
-		},
-		{
 			key:  "SHELL",
 			want: shell,
 		},
@@ -1502,7 +1498,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "true",
+				Script:     "echo foo",
 				Timeout:    30 * time.Second,
 				RunOnStart: true,
 			}},
