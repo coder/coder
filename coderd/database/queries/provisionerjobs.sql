@@ -263,7 +263,6 @@ FROM
 	provisioner_jobs
 WHERE
 	updated_at < $1
-	AND started_at IS NOT NULL
 	AND completed_at IS NULL;
 
 -- name: InsertProvisionerJobTimings :many

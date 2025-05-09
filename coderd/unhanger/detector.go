@@ -229,14 +229,6 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		// Check if we should still unhang it.
-		if !job.StartedAt.Valid {
-			// This shouldn't be possible to hit because the query only selects
-			// started and not completed jobs, and a job can't be "un-started".
-			return jobIneligibleError{
-				Err: xerrors.New("job is not started"),
-			}
-		}
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
