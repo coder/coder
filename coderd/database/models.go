@@ -3224,7 +3224,6 @@ type TemplateVersionTerraformValue struct {
 	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
 	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
-	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
 }
 
 type TemplateVersionVariable struct {

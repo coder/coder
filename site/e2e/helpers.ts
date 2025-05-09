@@ -584,7 +584,6 @@ const createTemplateVersionTar = async (
 					timings: response.apply?.timings ?? [],
 					presets: [],
 					plan: emptyPlan,
-					moduleFiles: new Uint8Array(),
 				},
 			};
 		});
@@ -708,7 +707,6 @@ const createTemplateVersionTar = async (
 			modules: [],
 			presets: [],
 			plan: emptyPlan,
-			moduleFiles: new Uint8Array(),
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);

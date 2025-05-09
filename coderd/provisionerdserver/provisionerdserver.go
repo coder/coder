@@ -2,9 +2,7 @@ package provisionerdserver
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,10 +48,6 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-)
-
-const (
-	tarMimeType = "application/x-tar"
 )
 
 const (
@@ -1432,59 +1426,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
-		plan := jobType.TemplateImport.Plan
-		moduleFiles := jobType.TemplateImport.ModuleFiles
-		// If there is a plan, or a module files archive we need to insert a
-		// template_version_terraform_values row.
-		if len(plan) > 0 || len(moduleFiles) > 0 {
-			// ...but the plan and the module files archive are both optional! So
-			// we need to fallback to a valid JSON object if the plan was omitted.
-			if len(plan) == 0 {
-				plan = []byte("{}")
-			}
-
-			// ...and we only want to insert a files row if an archive was provided.
-			var fileID uuid.NullUUID
-			if len(moduleFiles) > 0 {
-				hashBytes := sha256.Sum256(moduleFiles)
-				hash := hex.EncodeToString(hashBytes[:])
-
-				// nolint:gocritic // Requires reading "system" files
-				file, err := s.Database.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
-				switch {
-				case err == nil:
-					// This set of modules is already cached, which means we can reuse them
-					fileID = uuid.NullUUID{
-						Valid: true,
-						UUID:  file.ID,
-					}
-				case !xerrors.Is(err, sql.ErrNoRows):
-					return nil, xerrors.Errorf("check for cached modules: %w", err)
-				default:
-					// nolint:gocritic // Requires creating a "system" file
-					file, err = s.Database.InsertFile(dbauthz.AsSystemRestricted(ctx), database.InsertFileParams{
-						ID:        uuid.New(),
-						Hash:      hash,
-						CreatedBy: uuid.Nil,
-						CreatedAt: dbtime.Now(),
-						Mimetype:  tarMimeType,
-						Data:      moduleFiles,
-					})
-					if err != nil {
-						return nil, xerrors.Errorf("insert template version terraform modules: %w", err)
-					}
-					fileID = uuid.NullUUID{
-						Valid: true,
-						UUID:  file.ID,
-					}
-				}
-			}
-
-			err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-				JobID:             jobID,
-				UpdatedAt:         now,
-				CachedPlan:        plan,
-				CachedModuleFiles: fileID,
+		if len(jobType.TemplateImport.Plan) > 0 {
+			err := s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:      jobID,
+				CachedPlan: jobType.TemplateImport.Plan,
+				UpdatedAt:  now,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert template version terraform data: %w", err)
