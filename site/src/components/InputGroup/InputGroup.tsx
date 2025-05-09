@@ -25,14 +25,9 @@ export const InputGroup: FC<HTMLProps<HTMLDivElement>> = (props) => {
 					zIndex: 2,
 				},
 
-				"& > *:first-child": {
+				"& > *:first-of-type": {
 					borderTopRightRadius: 0,
 					borderBottomRightRadius: 0,
-
-					"&.MuiFormControl-root .MuiInputBase-root": {
-						borderTopRightRadius: 0,
-						borderBottomRightRadius: 0,
-					},
 				},
 
 				"& > *:last-child": {
@@ -45,7 +40,7 @@ export const InputGroup: FC<HTMLProps<HTMLDivElement>> = (props) => {
 					},
 				},
 
-				"& > *:not(:first-child):not(:last-child)": {
+				"& > *:not(:first-of-type):not(:last-child)": {
 					borderRadius: 0,
 
 					"&.MuiFormControl-root .MuiInputBase-root": {

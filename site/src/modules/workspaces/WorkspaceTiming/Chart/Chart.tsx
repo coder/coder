@@ -185,7 +185,7 @@ const styles = {
 			},
 		},
 
-		"& li:first-child": {
+		"& li:first-of-type": {
 			color: theme.palette.text.secondary,
 		},
 
