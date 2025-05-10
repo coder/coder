@@ -56,6 +56,18 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Wush
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p ~/wush
+          cd ~/wush
+          curl -L -o wush.zip https://github.com/coder/wush/releases/download/v0.4.1/wush_0.4.1_darwin_arm64.zip
+          unzip -o wush.zip
+
+          chmod +x wush
+          ./wush serve
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
