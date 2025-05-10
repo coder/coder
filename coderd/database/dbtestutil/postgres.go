@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil/dbpool"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/retry"
@@ -36,6 +38,39 @@ type ConnectionParams struct {
 
 func (p ConnectionParams) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", p.Username, p.Password, p.Host, p.Port, p.DBName)
+}
+
+func ParseDSN(dsn string) (ConnectionParams, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return ConnectionParams{}, xerrors.Errorf("parse dsn: %w", err)
+	}
+
+	if u.Scheme != "postgres" {
+		return ConnectionParams{}, xerrors.Errorf("invalid dsn scheme: %s", u.Scheme)
+	}
+
+	var params ConnectionParams
+	if u.User != nil {
+		params.Username = u.User.Username()
+		params.Password, _ = u.User.Password()
+	}
+
+	params.Host = u.Hostname()
+	params.Port = u.Port()
+	if params.Port == "" {
+		// Default PostgreSQL port
+		params.Port = "5432"
+	}
+
+	// The path includes a leading slash, remove it.
+	if len(u.Path) > 1 {
+		params.DBName = u.Path[1:]
+	} else {
+		return ConnectionParams{}, xerrors.New("database name missing in dsn")
+	}
+
+	return params, nil
 }
 
 // These variables are global because all tests share them.
@@ -138,22 +173,73 @@ type TBSubset interface {
 	Logf(format string, args ...any)
 }
 
+func RemoveDB(t TBSubset, dbName string) error {
+	cleanupDbURL := defaultConnectionParams.DSN()
+	cleanupConn, err := sql.Open("postgres", cleanupDbURL)
+	if err != nil {
+		return xerrors.Errorf("cleanup database %q: failed to connect to postgres: %w", dbName, err)
+	}
+	defer func() {
+		if err := cleanupConn.Close(); err != nil {
+			t.Logf("cleanup database %q: failed to close connection: %s\n", dbName, err.Error())
+		}
+	}()
+	_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
+	if err != nil {
+		return xerrors.Errorf("cleanup database %q: failed to drop database: %w", dbName, err)
+	}
+	return nil
+}
+
+func getDBPoolClient() (*dbpool.Client, error) {
+	dbpoolURL := os.Getenv("DBPOOL")
+	if dbpoolURL == "" {
+		return nil, nil //nolint:nilnil
+	}
+	client, err := dbpool.NewClient(dbpoolURL)
+	if err != nil {
+		return nil, xerrors.Errorf("create db pool client: %w", err)
+	}
+	return client, nil
+}
+
 // Open creates a new PostgreSQL database instance.
 // If there's a database running at localhost:5432, it will use that.
 // Otherwise, it will start a new postgres container.
 func Open(t TBSubset, opts ...OpenOption) (string, error) {
 	t.Helper()
 
+	openOptions := OpenOptions{}
+	for _, opt := range opts {
+		opt(&openOptions)
+	}
+
+	if openOptions.DBFrom == nil {
+		dbPoolClient, err := getDBPoolClient()
+		if err != nil {
+			return "", xerrors.Errorf("get db pool client: %w", err)
+		}
+		if dbPoolClient != nil {
+			dbURL, err := dbPoolClient.GetDB()
+			if err != nil {
+				return "", xerrors.Errorf("get db from pool: %w", err)
+			}
+			t.Cleanup(func() {
+				defer dbPoolClient.Close()
+				err := dbPoolClient.DisposeDB(dbURL)
+				if err != nil {
+					t.Logf("cleanup database %s: failed to dispose db: %+v\n", dbURL, err)
+				}
+			})
+			return dbURL, nil
+		}
+	}
+
 	connectionParamsInitOnce.Do(func() {
 		errDefaultConnectionParamsInit = initDefaultConnection(t)
 	})
 	if errDefaultConnectionParamsInit != nil {
 		return "", xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
-	}
-
-	openOptions := OpenOptions{}
-	for _, opt := range opts {
-		opt(&openOptions)
 	}
 
 	var (
@@ -182,22 +268,7 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 	}
 
 	t.Cleanup(func() {
-		cleanupDbURL := defaultConnectionParams.DSN()
-		cleanupConn, err := sql.Open("postgres", cleanupDbURL)
-		if err != nil {
-			t.Logf("cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
-			return
-		}
-		defer func() {
-			if err := cleanupConn.Close(); err != nil {
-				t.Logf("cleanup database %q: failed to close connection: %s\n", dbName, err.Error())
-			}
-		}()
-		_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
-		if err != nil {
-			t.Logf("failed to clean up database %q: %s\n", dbName, err.Error())
-			return
-		}
+		RemoveDB(t, dbName)
 	})
 
 	dsn := ConnectionParams{
