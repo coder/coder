@@ -1,5 +1,9 @@
 import { MissingBuildParameters } from "api/api";
-import { changeVersion, deleteWorkspace } from "api/queries/workspaces";
+import {
+	changeVersion,
+	deleteWorkspace,
+	workspacePermissions,
+} from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -20,7 +24,7 @@ import {
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { useState, type FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
@@ -29,16 +33,17 @@ import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
-	permissions: WorkspacePermissions;
 	disabled?: boolean;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
-	permissions,
 }) => {
 	const queryClient = useQueryClient();
+
+	// Permissions
+	const { data: permissions } = useQuery(workspacePermissions(workspace));
 
 	// Download logs
 	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
@@ -83,7 +88,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						</RouterLink>
 					</DropdownMenuItem>
 
-					{permissions.updateWorkspaceVersion && (
+					{permissions?.updateWorkspaceVersion && (
 						<DropdownMenuItem
 							onClick={() => {
 								setChangeVersionDialogOpen(true);
@@ -162,7 +167,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}
-				canDeleteFailedWorkspace={permissions.deleteFailedWorkspace}
+				canDeleteFailedWorkspace={!!permissions?.deleteFailedWorkspace}
 				isOpen={isConfirmingDelete}
 				onCancel={() => {
 					setIsConfirmingDelete(false);

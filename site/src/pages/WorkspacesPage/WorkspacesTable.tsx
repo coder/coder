@@ -91,6 +91,7 @@ import {
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 
 dayjs.extend(relativeTime);
 
@@ -184,7 +185,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					{hasAppStatus && <TableHead className="w-2/6">Activity</TableHead>}
 					<TableHead className="w-2/6">Template</TableHead>
 					<TableHead className="w-2/6">Status</TableHead>
-					<TableHead className="w-0" />
 					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
@@ -303,11 +303,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								onActionSuccess={onActionSuccess}
 								onActionError={onActionError}
 							/>
-							<TableCell>
-								<div className="flex">
-									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
-								</div>
-							</TableCell>
 						</WorkspacesRow>
 					);
 				})}
@@ -384,11 +379,6 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell className="w-0">
 					<Skeleton variant="rounded" width={40} height={40} />
-				</TableCell>
-				<TableCell>
-					<div className="flex">
-						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
-					</div>
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>
@@ -585,6 +575,11 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						<RefreshCcwIcon />
 					</PrimaryAction>
 				)}
+
+				<WorkspaceMoreActions
+					workspace={workspace}
+					disabled={!abilities.canAcceptJobs}
+				/>
 			</div>
 		</TableCell>
 	);
@@ -730,6 +725,8 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			</BaseIconLink>,
 		);
 	}
+
+	buttons.push();
 
 	return buttons;
 };

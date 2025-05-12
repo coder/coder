@@ -165,11 +165,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			<WorkspaceMoreActions
-				workspace={workspace}
-				permissions={permissions}
-				disabled={!canAcceptJobs}
-			/>
+			<WorkspaceMoreActions workspace={workspace} disabled={!canAcceptJobs} />
 		</div>
 	);
 };
