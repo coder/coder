@@ -968,7 +968,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 };
 
 export const MockWorkspaceChildAgent: TypesGen.WorkspaceAgent = {
-	apps: [MockWorkspaceApp],
+	apps: [],
 	architecture: "amd64",
 	created_at: "",
 	environment_variables: {},
