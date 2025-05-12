@@ -33,6 +33,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import WorkspacePage from "./WorkspacePage";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 
 const { API, MissingBuildParameters } = apiModule;
 
@@ -126,11 +127,14 @@ describe("WorkspacePage", () => {
 		// set permissions
 		server.use(
 			http.post("/api/v2/authcheck", async () => {
-				return HttpResponse.json({
-					updateTemplates: true,
+				const permissions: WorkspacePermissions = {
+					deleteFailedWorkspace: true,
+					deploymentConfig: true,
+					readWorkspace: true,
 					updateWorkspace: true,
-					updateTemplate: true,
-				});
+					updateWorkspaceVersion: true,
+				};
+				return HttpResponse.json(permissions);
 			}),
 		);
 

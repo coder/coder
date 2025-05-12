@@ -6,6 +6,7 @@ export const deploymentConfig = () => {
 	return {
 		queryKey: deploymentConfigQueryKey,
 		queryFn: API.getDeploymentConfig,
+		staleTime: Number.POSITIVE_INFINITY,
 	};
 };
 

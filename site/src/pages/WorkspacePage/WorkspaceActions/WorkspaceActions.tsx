@@ -22,6 +22,8 @@ import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { useQuery } from "react-query";
+import { deploymentConfig } from "api/queries/deployment";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;
@@ -55,11 +57,16 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleDormantActivate,
 }) => {
 	const { user } = useAuthenticated();
-	const isOwner =
-		user.roles.find((role) => role.name === "owner") !== undefined;
+	const { data: deployment } = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.deploymentConfig,
+	});
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
-		{ canDebug: permissions.deploymentConfig, isOwner },
+		{
+			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			isOwner: !!user.roles.find((role) => role.name === "owner"),
+		},
 	);
 
 	const mustUpdate = mustUpdateWorkspace(
