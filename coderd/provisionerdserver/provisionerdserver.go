@@ -2006,6 +2006,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
+			ParentID:                 uuid.NullUUID{},
 			CreatedAt:                dbtime.Now(),
 			UpdatedAt:                dbtime.Now(),
 			ResourceID:               resource.ID,
