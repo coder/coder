@@ -1,12 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # ssh
 
-Start a shell into a workspace
+Start a shell into a workspace or run a command
 
 ## Usage
 
 ```console
-coder ssh [flags] <workspace>
+coder ssh [flags] <workspace> [command]
 ```
 
 ## Options
