@@ -56,7 +56,7 @@ var (
 			"In Terraform, drift on immutable attributes results in resource replacement. "+
 			"This represents a worst-case scenario for prebuilt workspaces because the pre-provisioned resource "+
 			"would have been recreated when claiming, thus obviating the point of pre-provisioning. "+
-			"See https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces.md#preventing-resource-replacement",
+			"See https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#preventing-resource-replacement",
 		labels,
 		nil,
 	)
