@@ -272,22 +272,28 @@ export const Workspace: FC<WorkspaceProps> = ({
 									minWidth: 0 /* Prevent overflow */,
 								}}
 							>
-								{selectedResource.agents?.map((agent) => (
-									<AgentRow
-										key={agent.id}
-										agent={agent}
-										workspace={workspace}
-										template={template}
-										sshPrefix={sshPrefix}
-										showApps={permissions.updateWorkspace}
-										showBuiltinApps={permissions.updateWorkspace}
-										hideSSHButton={hideSSHButton}
-										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-										serverVersion={buildInfo?.version || ""}
-										serverAPIVersion={buildInfo?.agent_api_version || ""}
-										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-									/>
-								))}
+								{selectedResource.agents
+									// If an agent has a `parent_id`, that means it is
+									// child of another agent. We do not want these agents
+									// to be displayed at the top-level on this page. We
+									// want them to display _as children_ of their parents.
+									?.filter((agent) => agent.parent_id === null)
+									.map((agent) => (
+										<AgentRow
+											key={agent.id}
+											agent={agent}
+											workspace={workspace}
+											template={template}
+											sshPrefix={sshPrefix}
+											showApps={permissions.updateWorkspace}
+											showBuiltinApps={permissions.updateWorkspace}
+											hideSSHButton={hideSSHButton}
+											hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+											serverVersion={buildInfo?.version || ""}
+											serverAPIVersion={buildInfo?.agent_api_version || ""}
+											onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+										/>
+									))}
 
 								{(!selectedResource.agents ||
 									selectedResource.agents?.length === 0) && (
