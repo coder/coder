@@ -13021,6 +13021,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
 			continue
 		}
+		// Check if the search query filter 'Deprecated' status matches the template's 'Deprecated' status
 		if arg.Deprecated.Valid && arg.Deprecated.Bool != (template.Deprecated != "") {
 			continue
 		}
