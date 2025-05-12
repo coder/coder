@@ -29,7 +29,10 @@ export type ChangeWorkspaceVersionDialogProps = DialogProps & {
 export const ChangeWorkspaceVersionDialog: FC<
 	ChangeWorkspaceVersionDialogProps
 > = ({ workspace, onClose, onConfirm, ...dialogProps }) => {
-	const { data: versions } = useQuery(templateVersions(workspace.template_id));
+	const { data: versions } = useQuery({
+		...templateVersions(workspace.template_id),
+		select: (data) => data.reverse(),
+	});
 	const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
 	const activeVersion = versions?.find(
 		(v) => workspace.template_active_version_id === v.id,
