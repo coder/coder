@@ -1,4 +1,4 @@
-package drpc
+package drpcsdk
 
 import (
 	"context"
