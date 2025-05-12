@@ -98,7 +98,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return func(i *serpent.Invocation) error {
 					got := len(i.Args)
 					if got < 1 {
-						return xerrors.Errorf("expected at least 1 arg but got %v %v", got, i.Args)
+						return xerrors.New("expected the name of a workspace")
 					}
 
 					return next(i)
