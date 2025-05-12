@@ -31,7 +31,6 @@ export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDelete: () => void;
 	handleUpdate: () => void;
 	handleCancel: () => void;
 	handleSettings: () => void;
@@ -61,7 +60,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleStart,
 	handleStop,
 	handleRestart,
-	handleDelete,
 	handleUpdate,
 	handleCancel,
 	handleSettings,
@@ -141,7 +139,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 				handleStart={handleStart}
 				handleStop={handleStop}
 				handleRestart={handleRestart}
-				handleDelete={handleDelete}
 				handleUpdate={handleUpdate}
 				handleCancel={handleCancel}
 				handleSettings={handleSettings}

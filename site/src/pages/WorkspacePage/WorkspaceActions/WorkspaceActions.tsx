@@ -1,6 +1,5 @@
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
-import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -12,7 +11,6 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks/useAuthenticated";
-import { TrashIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	type ActionType,
@@ -34,7 +32,6 @@ import {
 	UpdateButton,
 } from "./Buttons";
 import { DebugButton } from "./DebugButton";
-import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
 
 export interface WorkspaceActionsProps {
@@ -43,7 +40,6 @@ export interface WorkspaceActionsProps {
 	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
-	handleDelete: () => void;
 	handleUpdate: () => void;
 	handleCancel: () => void;
 	handleSettings: () => void;
@@ -63,7 +59,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleStart,
 	handleStop,
 	handleRestart,
-	handleDelete,
 	handleUpdate,
 	handleCancel,
 	handleSettings,
@@ -77,8 +72,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 }) => {
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
-
-	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
 	const { user } = useAuthenticated();
 	const isOwner =
@@ -205,30 +198,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 						<DuplicateIcon />
 						Duplicate&hellip;
 					</DropdownMenuItem>
-
-					<DropdownMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
-						<DownloadOutlined />
-						Download logs&hellip;
-					</DropdownMenuItem>
-
-					<DropdownMenuSeparator />
-
-					<DropdownMenuItem
-						className="text-content-destructive focus:text-content-destructive"
-						onClick={handleDelete}
-						data-testid="delete-button"
-					>
-						<TrashIcon />
-						Delete&hellip;
-					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
-
-			<DownloadLogsDialog
-				workspace={workspace}
-				open={isDownloadDialogOpen}
-				onClose={() => setIsDownloadDialogOpen(false)}
-			/>
 		</div>
 	);
 };

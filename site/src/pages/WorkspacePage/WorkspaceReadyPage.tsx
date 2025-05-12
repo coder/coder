@@ -109,6 +109,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		latestVersion,
 	});
 
+	// Delete workspace
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const deleteWorkspaceMutation = useMutation(
 		deleteWorkspace(workspace, queryClient),
@@ -223,9 +224,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				handleStop={() => {
 					stopWorkspaceMutation.mutate({});
 				}}
-				handleDelete={() => {
-					setIsConfirmingDelete(true);
-				}}
 				handleRestart={(buildParameters) => {
 					setConfirmingRestart({ open: true, buildParameters });
 				}}
@@ -256,20 +254,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
-			/>
-
-			<WorkspaceDeleteDialog
-				workspace={workspace}
-				canDeleteFailedWorkspace={permissions.deleteFailedWorkspace}
-				isOpen={isConfirmingDelete}
-				onCancel={() => {
-					setIsConfirmingDelete(false);
-				}}
-				onConfirm={(orphan) => {
-					deleteWorkspaceMutation.mutate({ orphan });
-					setIsConfirmingDelete(false);
-				}}
-				workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
 			/>
 
 			<WarningDialog

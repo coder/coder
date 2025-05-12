@@ -1,5 +1,5 @@
 import { MissingBuildParameters } from "api/api";
-import { changeVersion } from "api/queries/workspaces";
+import { changeVersion, deleteWorkspace } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -23,16 +23,15 @@ import { useState, type FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
+import type { WorkspacePermissions } from "../permissions";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
 	isDuplicationReady: boolean;
+	permissions: WorkspacePermissions;
 	disabled?: boolean;
-	permissions?: {
-		changeWorkspaceVersion?: boolean;
-	};
 	onDuplicate: () => void;
-	onDelete: () => void;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
@@ -41,7 +40,6 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	permissions,
 	isDuplicationReady,
 	onDuplicate,
-	onDelete,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -52,6 +50,12 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
 		changeVersion(workspace, queryClient),
+	);
+
+	// Delete
+	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	const deleteWorkspaceMutation = useMutation(
+		deleteWorkspace(workspace, queryClient),
 	);
 
 	return (
@@ -78,7 +82,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						</RouterLink>
 					</DropdownMenuItem>
 
-					{permissions?.changeWorkspaceVersion && (
+					{permissions.updateWorkspaceVersion && (
 						<DropdownMenuItem
 							onClick={() => {
 								setChangeVersionDialogOpen(true);
@@ -106,7 +110,9 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 					<DropdownMenuItem
 						className="text-content-destructive focus:text-content-destructive"
-						onClick={onDelete}
+						onClick={() => {
+							setIsConfirmingDelete(true);
+						}}
 						data-testid="delete-button"
 					>
 						<TrashIcon />
@@ -150,6 +156,19 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onConfirm={(version) => {
 					setChangeVersionDialogOpen(false);
 					changeVersionMutation.mutate({ versionId: version.id });
+				}}
+			/>
+
+			<WorkspaceDeleteDialog
+				workspace={workspace}
+				canDeleteFailedWorkspace={permissions.deleteFailedWorkspace}
+				isOpen={isConfirmingDelete}
+				onCancel={() => {
+					setIsConfirmingDelete(false);
+				}}
+				onConfirm={(orphan) => {
+					deleteWorkspaceMutation.mutate({ orphan });
+					setIsConfirmingDelete(false);
 				}}
 			/>
 		</>

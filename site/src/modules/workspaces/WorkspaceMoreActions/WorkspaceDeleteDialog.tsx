@@ -7,6 +7,7 @@ import type {
 	Workspace,
 } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { docs } from "utils/docs";
 
@@ -16,7 +17,6 @@ interface WorkspaceDeleteDialogProps {
 	isOpen: boolean;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
-	workspaceBuildDateStr: string;
 }
 
 export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
@@ -25,7 +25,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	isOpen,
 	onCancel,
 	onConfirm,
-	workspaceBuildDateStr,
 }) => {
 	const hookId = useId();
 	const [userConfirmationText, setUserConfirmationText] = useState("");
@@ -62,7 +61,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<p className="label">workspace</p>
 						</div>
 						<div css={{ textAlign: "right" }}>
-							<p className="info">{workspaceBuildDateStr}</p>
+							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
 							<p className="label">created</p>
 						</div>
 					</div>
