@@ -3,7 +3,8 @@ import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import type { Template, TemplateVersion } from "api/typesGenerated";
+import { templateVersions } from "api/queries/templates";
+import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -15,41 +16,40 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { InfoIcon } from "lucide-react";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
-import { type FC, useRef, useState } from "react";
+import { type FC, useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import { createDayString } from "utils/createDayString";
 
-export type ChangeVersionDialogProps = DialogProps & {
-	template: Template | undefined;
-	templateVersions: TemplateVersion[] | undefined;
-	defaultTemplateVersion: TemplateVersion | undefined;
+export type ChangeWorkspaceVersionDialogProps = DialogProps & {
+	workspace: Workspace;
 	onClose: () => void;
-	onConfirm: (templateVersion: TemplateVersion) => void;
+	onConfirm: (version: TemplateVersion) => void;
 };
 
-export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
-	onConfirm,
-	onClose,
-	template,
-	templateVersions,
-	defaultTemplateVersion,
-	...dialogProps
-}) => {
+export const ChangeWorkspaceVersionDialog: FC<
+	ChangeWorkspaceVersionDialogProps
+> = ({ workspace, onClose, onConfirm, ...dialogProps }) => {
+	const { data: versions } = useQuery(templateVersions(workspace.template_id));
 	const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
-	const selectedTemplateVersion = useRef<TemplateVersion | undefined>(
-		defaultTemplateVersion,
+	const activeVersion = versions?.find(
+		(v) => workspace.template_active_version_id === v.id,
 	);
-	const version = selectedTemplateVersion.current;
-	const validTemplateVersions = templateVersions?.filter((version) => {
-		return version.job.status === "succeeded";
-	});
+	const [selectedVersion, setSelectedVersion] = useState<TemplateVersion>();
+	const validVersions = versions?.filter((v) => v.job.status === "succeeded");
+
+	useEffect(() => {
+		if (activeVersion) {
+			setSelectedVersion(activeVersion);
+		}
+	}, [activeVersion]);
 
 	return (
 		<ConfirmDialog
 			{...dialogProps}
 			onClose={onClose}
 			onConfirm={() => {
-				if (selectedTemplateVersion.current) {
-					onConfirm(selectedTemplateVersion.current);
+				if (selectedVersion) {
+					onConfirm(selectedVersion);
 				}
 			}}
 			hideCancel={false}
@@ -60,18 +60,17 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 			description={
 				<Stack>
 					<p>You are about to change the version of this workspace.</p>
-					{validTemplateVersions ? (
+					{validVersions ? (
 						<>
 							<FormFields>
 								<Autocomplete
 									disableClearable
-									options={validTemplateVersions}
-									defaultValue={defaultTemplateVersion}
+									options={validVersions}
+									defaultValue={activeVersion}
 									id="template-version-autocomplete"
 									open={isAutocompleteOpen}
 									onChange={(_, newTemplateVersion) => {
-										selectedTemplateVersion.current =
-											newTemplateVersion ?? undefined;
+										setSelectedVersion(newTemplateVersion);
 									}}
 									onOpen={() => {
 										setIsAutocompleteOpen(true);
@@ -112,9 +111,8 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 																/>
 															)}
 														</Stack>
-														{template?.active_version_id === option.id && (
-															<Pill type="success">Active</Pill>
-														)}
+														{workspace.template_active_version_id ===
+															option.id && <Pill type="success">Active</Pill>}
 													</Stack>
 												}
 												subtitle={createDayString(option.created_at)}
@@ -131,9 +129,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 													...params.InputProps,
 													endAdornment: (
 														<>
-															{!templateVersions ? (
-																<CircularProgress size={16} />
-															) : null}
+															{!versions && <CircularProgress size={16} />}
 															{params.InputProps.endAdornment}
 														</>
 													),
@@ -144,16 +140,16 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 									)}
 								/>
 							</FormFields>
-							{version && (
+							{selectedVersion && (
 								<>
-									{version.message && (
+									{selectedVersion.message && (
 										<TemplateUpdateMessage>
-											{version.message}
+											{selectedVersion.message}
 										</TemplateUpdateMessage>
 									)}
 									<Alert severity="info">
 										<AlertTitle>
-											Published by {version.created_by.username}
+											Published by {selectedVersion.created_by.username}
 										</AlertTitle>
 									</Alert>
 								</>

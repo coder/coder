@@ -32,8 +32,6 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { ChangeVersionDialog } from "./ChangeVersionDialog";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
@@ -98,17 +96,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		setFaviconTheme(isDark.matches ? "light" : "dark");
 	}, []);
 
-	// Change version
-	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
-	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient),
-	);
-
 	// Versions
-	const { data: allVersions } = useQuery({
-		...templateVersions(workspace.template_id),
-		enabled: changeVersionDialogOpen,
-	});
+
 	const { data: latestVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: workspace.outdated,
@@ -248,9 +237,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				canDebugMode={
 					deploymentValues?.config.enable_terraform_debug_mode ?? false
 				}
-				handleChangeVersion={() => {
-					setChangeVersionDialogOpen(true);
-				}}
 				handleDormantActivate={async () => {
 					try {
 						await activateWorkspaceMutation.mutateAsync();
@@ -284,42 +270,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					setIsConfirmingDelete(false);
 				}}
 				workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
-			/>
-
-			<UpdateBuildParametersDialog
-				missedParameters={
-					changeVersionMutation.error instanceof MissingBuildParameters
-						? changeVersionMutation.error.parameters
-						: []
-				}
-				open={changeVersionMutation.error instanceof MissingBuildParameters}
-				onClose={() => {
-					changeVersionMutation.reset();
-				}}
-				onUpdate={(buildParameters) => {
-					if (changeVersionMutation.error instanceof MissingBuildParameters) {
-						changeVersionMutation.mutate({
-							versionId: changeVersionMutation.error.versionId,
-							buildParameters,
-						});
-					}
-				}}
-			/>
-
-			<ChangeVersionDialog
-				templateVersions={allVersions?.reverse()}
-				template={template}
-				defaultTemplateVersion={allVersions?.find(
-					(v) => workspace.latest_build.template_version_id === v.id,
-				)}
-				open={changeVersionDialogOpen}
-				onClose={() => {
-					setChangeVersionDialogOpen(false);
-				}}
-				onConfirm={(templateVersion) => {
-					setChangeVersionDialogOpen(false);
-					changeVersionMutation.mutate({ versionId: templateVersion.id });
-				}}
 			/>
 
 			<WarningDialog

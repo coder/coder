@@ -47,7 +47,6 @@ export interface WorkspaceActionsProps {
 	handleUpdate: () => void;
 	handleCancel: () => void;
 	handleSettings: () => void;
-	handleChangeVersion: () => void;
 	handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDormantActivate: () => void;
@@ -70,7 +69,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleSettings,
 	handleRetry,
 	handleDebug,
-	handleChangeVersion,
 	handleDormantActivate,
 	isUpdating,
 	isRestarting,
@@ -200,13 +198,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 						Settings
 					</DropdownMenuItem>
 
-					{canChangeVersions && (
-						<DropdownMenuItem onClick={handleChangeVersion}>
-							<HistoryIcon />
-							Change version&hellip;
-						</DropdownMenuItem>
-					)}
-
 					<DropdownMenuItem
 						onClick={duplicateWorkspace}
 						disabled={!isDuplicationReady}
@@ -237,7 +228,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				workspace={workspace}
 				open={isDownloadDialogOpen}
 				onClose={() => setIsDownloadDialogOpen(false)}
-				onConfirm={() => {}}
 			/>
 		</div>
 	);
