@@ -354,13 +354,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 												color: theme.palette.text.secondary,
 											}}
 										>
-											{// Calculate total status count
-											selectedResource.agents
-												?.flatMap((agent) => agent.apps ?? [])
-												.reduce(
-													(count, app) => count + (app.statuses?.length ?? 0),
-													0,
-												)}{" "}
+											{
+												// Calculate total status count
+												selectedResource.agents
+													?.flatMap((agent) => agent.apps ?? [])
+													.reduce(
+														(count, app) => count + (app.statuses?.length ?? 0),
+														0,
+													)
+											}{" "}
 											Total
 										</div>
 									</div>
