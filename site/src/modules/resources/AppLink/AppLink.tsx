@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import type * as TypesGen from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
 import {
@@ -9,6 +8,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
+import { CircleAlertIcon } from "lucide-react";
 import { isExternalApp, needsSessionToken } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
@@ -54,13 +54,25 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	}
 
 	if (app.health === "unhealthy") {
-		icon = <ErrorOutlineIcon css={{ color: theme.palette.warning.light }} />;
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm"
+				css={{ color: theme.palette.warning.light }}
+			/>
+		);
 		primaryTooltip = "Unhealthy";
 	}
 
 	if (!host && app.subdomain) {
 		canClick = false;
-		icon = <ErrorOutlineIcon css={{ color: theme.palette.grey[300] }} />;
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm"
+				css={{ color: theme.palette.grey[300] }}
+			/>
+		);
 		primaryTooltip =
 			"Your admin has not configured subdomain application access";
 	}

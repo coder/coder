@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CloseIcon from "@mui/icons-material/Close";
-import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import Sell from "@mui/icons-material/Sell";
 import IconButton from "@mui/material/IconButton";
 import { Pill } from "components/Pill/Pill";
+import { CircleCheck as CircleCheckIcon } from "lucide-react";
+import { CircleMinus as CircleMinusIcon } from "lucide-react";
+import { Tag as TagIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 
 const parseBool = (s: string): { valid: boolean; value: boolean } => {
@@ -62,7 +62,11 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 		return <BooleanPill value={boolValue}>{content}</BooleanPill>;
 	}
 	return (
-		<Pill size="lg" icon={<Sell />} data-testid={`tag-${tagName}`}>
+		<Pill
+			size="lg"
+			icon={<TagIcon className="size-icon-sm" />}
+			data-testid={`tag-${tagName}`}
+		>
 			{content}
 		</Pill>
 	);
@@ -83,9 +87,9 @@ const BooleanPill: FC<BooleanPillProps> = ({
 			size="lg"
 			icon={
 				value ? (
-					<CheckCircleOutlined css={styles.truePill} />
+					<CircleCheckIcon css={styles.truePill} className="size-icon-sm" />
 				) : (
-					<DoNotDisturbOnOutlined css={styles.falsePill} />
+					<CircleMinusIcon css={styles.falsePill} className="size-icon-sm" />
 				)
 			}
 			{...divProps}
