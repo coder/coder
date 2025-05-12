@@ -4545,8 +4545,7 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			failedJob: true,
 		})
 
-		hardLimit := int64(1)
-		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, hardLimit)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
 		require.NoError(t, err)
 
 		require.Len(t, hardLimitedPresets, 1)
@@ -4579,8 +4578,7 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			failedJob: true,
 		})
 
-		hardLimit := int64(1)
-		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, hardLimit)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
 
 		require.NoError(t, err)
 
@@ -4679,8 +4677,7 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 		_ = tmpl1V1
 
-		hardLimit := int64(1)
-		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, hardLimit)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
 		require.NoError(t, err)
 		require.Nil(t, hardLimitedPresets)
 	})
@@ -4704,8 +4701,7 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
 		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
 
-		hardLimit := int64(1)
-		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, hardLimit)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
 		require.NoError(t, err)
 		require.Nil(t, hardLimitedPresets)
 	})
