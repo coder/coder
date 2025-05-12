@@ -1091,6 +1091,8 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if err != nil {
 			return xerrors.Errorf("expand directory: %w", err)
 		}
+		// Normalize all devcontainer paths by making them absolute.
+		manifest.Devcontainers = agentcontainers.ExpandAllDevcontainerPaths(a.logger, expandPathToAbs, manifest.Devcontainers)
 		subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
@@ -1133,7 +1135,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			)
 			if a.experimentalDevcontainersEnabled {
 				var dcScripts []codersdk.WorkspaceAgentScript
-				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(a.logger, expandPathToAbs, manifest.Devcontainers, scripts)
+				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(manifest.Devcontainers, scripts)
 				// See ExtractAndInitializeDevcontainerScripts for motivation
 				// behind running dcScripts as post start scripts.
 				scriptRunnerOpts = append(scriptRunnerOpts, agentscripts.WithPostStartScripts(dcScripts...))
