@@ -30,11 +30,6 @@ import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
-export type WorkspaceError =
-	| "getBuildsError"
-	| "buildError"
-	| "cancellationError";
-
 export interface WorkspaceProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
