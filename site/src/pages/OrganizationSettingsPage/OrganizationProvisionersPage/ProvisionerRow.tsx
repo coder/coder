@@ -129,9 +129,11 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							<dt>Tags:</dt>
 							<dd>
 								<ProvisionerTags>
-									{Object.entries(provisioner.tags).map(([key, value]) => (
-										<ProvisionerTag key={key} label={key} value={value} />
-									))}
+									{Object.entries(provisioner.tags || {}).map(
+										([key, value]) => (
+											<ProvisionerTag key={key} label={key} value={value} />
+										),
+									)}
 								</ProvisionerTags>
 							</dd>
 

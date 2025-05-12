@@ -16,7 +16,9 @@ const SecuritySettingsPage: FC = () => {
 			</Helmet>
 			<SecuritySettingsPageView
 				options={deploymentConfig.options}
-				featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
+				featureBrowserOnlyEnabled={
+					entitlements.features?.browser_only?.enabled ?? false
+				}
 			/>
 		</>
 	);

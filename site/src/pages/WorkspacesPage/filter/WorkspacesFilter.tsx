@@ -80,9 +80,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 }) => {
 	const { entitlements, showOrganizations } = useDashboard();
 	const width = showOrganizations ? 175 : undefined;
-	const presets = entitlements.features.advanced_template_scheduling.enabled
-		? PRESETS_WITH_DORMANT
-		: PRESET_FILTERS;
+	const presets =
+		(entitlements.features?.advanced_template_scheduling?.enabled ?? false)
+			? PRESETS_WITH_DORMANT
+			: PRESET_FILTERS;
 
 	return (
 		<Filter

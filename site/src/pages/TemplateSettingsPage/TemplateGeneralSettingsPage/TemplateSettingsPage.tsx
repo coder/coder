@@ -20,11 +20,12 @@ export const TemplateSettingsPage: FC = () => {
 	const { template } = useTemplateSettings();
 	const queryClient = useQueryClient();
 	const { entitlements } = useDashboard();
-	const accessControlEnabled = entitlements.features.access_control.enabled;
+	const accessControlEnabled =
+		entitlements.features?.access_control?.enabled ?? false;
 	const advancedSchedulingEnabled =
-		entitlements.features.advanced_template_scheduling.enabled;
+		entitlements.features?.advanced_template_scheduling?.enabled ?? false;
 	const sharedPortControlsEnabled =
-		entitlements.features.control_shared_ports.enabled;
+		entitlements.features?.control_shared_ports?.enabled ?? false;
 
 	const {
 		mutate: updateTemplate,

@@ -7,7 +7,7 @@ export const AnnouncementBanners: FC = () => {
 	const announcementBanners = appearance.announcement_banners;
 
 	const isEntitled =
-		entitlements.features.appearance.entitlement !== "not_entitled";
+		entitlements.features?.appearance?.entitlement !== "not_entitled";
 	if (!isEntitled) {
 		return null;
 	}

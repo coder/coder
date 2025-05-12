@@ -19,11 +19,11 @@ export const ActiveTransition = (
 
 	switch (status) {
 		case "starting":
-			return template.build_time_stats.start;
+			return template.build_time_stats?.start;
 		case "stopping":
-			return template.build_time_stats.stop;
+			return template.build_time_stats?.stop;
 		case "deleting":
-			return template.build_time_stats.delete;
+			return template.build_time_stats?.delete;
 		default:
 			return undefined;
 	}

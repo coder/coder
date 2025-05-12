@@ -53,7 +53,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	let options = organizationsQuery.data ?? [];
 	if (check) {
 		options = permissionsQuery.data
-			? options.filter((org) => permissionsQuery.data[org.id])
+			? options.filter((org) => permissionsQuery.data?.[org.id])
 			: [];
 	}
 

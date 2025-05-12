@@ -232,7 +232,7 @@ export const TemplateVersionEditorPage: FC = () => {
 					}}
 					provisionerTags={provisionerTags}
 					onUpdateProvisionerTags={(tags) => {
-						setProvisionerTags(tags);
+						setProvisionerTags(tags || {});
 					}}
 				/>
 			)}

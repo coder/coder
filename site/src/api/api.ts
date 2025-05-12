@@ -159,21 +159,22 @@ export const getURLWithSearchParams = (
 // withDefaultFeatures sets all unspecified features to not_entitled and
 // disabled.
 export const withDefaultFeatures = (
-	fs: Partial<TypesGen.Entitlements["features"]>,
+	fs: Partial<TypesGen.Entitlements["features"]> | null,
 ): TypesGen.Entitlements["features"] => {
+	const features = fs || {};
 	for (const feature of TypesGen.FeatureNames) {
 		// Skip fields that are already filled.
-		if (fs[feature] !== undefined) {
+		if (features[feature] !== undefined) {
 			continue;
 		}
 
-		fs[feature] = {
+		features[feature] = {
 			enabled: false,
 			entitlement: "not_entitled",
 		};
 	}
 
-	return fs as TypesGen.Entitlements["features"];
+	return features as TypesGen.Entitlements["features"];
 };
 
 type WatchBuildLogsByTemplateVersionIdOptions = {

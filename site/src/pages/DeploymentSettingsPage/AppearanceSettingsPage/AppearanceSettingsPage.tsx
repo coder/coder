@@ -46,7 +46,7 @@ const AppearanceSettingsPage: FC = () => {
 				appearance={appearance}
 				onSaveAppearance={onSaveAppearance}
 				isEntitled={
-					entitlements.features.appearance.entitlement !== "not_entitled"
+					entitlements.features?.appearance?.entitlement !== "not_entitled"
 				}
 				isPremium={hasPremiumLicense}
 			/>

@@ -37,7 +37,7 @@ export const DERPRegionPage: FC = () => {
 		node_reports: reports,
 		warnings,
 		severity,
-	} = healthStatus.derp.regions[regionId] as DERPRegionReport;
+	} = healthStatus.derp.regions?.[regionId] as DERPRegionReport;
 
 	return (
 		<>

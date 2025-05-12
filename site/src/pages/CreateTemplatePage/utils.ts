@@ -17,7 +17,7 @@ export const newTemplate = (
 
 	const safeTemplateData = {
 		name: formData.name,
-		max_port_share_level: null,
+		max_port_share_level: "public" as const, // Default to most permissive setting
 		display_name: formData.display_name,
 		description: formData.description,
 		icon: formData.icon,
@@ -47,7 +47,7 @@ export const newTemplate = (
 
 export const getFormPermissions = (entitlements: Entitlements) => {
 	const allowAdvancedScheduling =
-		entitlements.features.advanced_template_scheduling.enabled;
+		entitlements.features?.advanced_template_scheduling?.enabled ?? false;
 
 	return {
 		allowAdvancedScheduling,

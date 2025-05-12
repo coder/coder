@@ -29,18 +29,18 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({ label, value }) => {
 };
 
 type ProvisionerTagsProps = {
-	tags: Record<string, string>;
+	tags: Record<string, string> | null;
 };
 
 export const ProvisionerTruncateTags: FC<ProvisionerTagsProps> = ({ tags }) => {
-	const keys = Object.keys(tags);
+	const keys = Object.keys(tags || {});
 
 	if (keys.length === 0) {
 		return null;
 	}
 
 	const firstKey = keys[0];
-	const firstValue = tags[firstKey];
+	const firstValue = tags ? tags[firstKey] : "";
 	const remainderCount = keys.length - 1;
 
 	return (

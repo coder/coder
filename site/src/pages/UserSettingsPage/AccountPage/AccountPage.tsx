@@ -15,7 +15,8 @@ export const AccountPage: FC = () => {
 		useAuthContext();
 	const { entitlements } = useDashboard();
 
-	const hasGroupsFeature = entitlements.features.user_role_management.enabled;
+	const hasGroupsFeature =
+		entitlements.features?.user_role_management?.enabled ?? false;
 	const groupsQuery = useQuery({
 		...groupsForUser(me.id),
 		enabled: hasGroupsFeature,

@@ -146,7 +146,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				isUpdatingUserRoles={updateRolesMutation.isLoading}
 				isLoading={isLoading}
 				canEditUsers={canEditUsers}
-				canViewActivity={entitlements.features.audit_log.enabled}
+				canViewActivity={entitlements.features?.audit_log?.enabled ?? false}
 				isNonInitialPage={isNonInitialPage(searchParams)}
 				actorID={me.id}
 				filterProps={{

@@ -124,7 +124,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	// Dormant
 	const { entitlements } = useDashboard();
 	const advancedSchedulingEnabled =
-		entitlements.features.advanced_template_scheduling.enabled;
+		entitlements.features?.advanced_template_scheduling?.enabled ?? false;
 	if (advancedSchedulingEnabled && workspace.dormant_at) {
 		const formatDate = (dateStr: string, timestamp: boolean): string => {
 			const date = new Date(dateStr);

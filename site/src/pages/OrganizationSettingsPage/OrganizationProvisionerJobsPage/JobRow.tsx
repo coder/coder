@@ -150,7 +150,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							<dt>Tags:</dt>
 							<dd>
 								<ProvisionerTags>
-									{Object.entries(job.tags).map(([key, value]) => (
+									{Object.entries(job.tags || {}).map(([key, value]) => (
 										<ProvisionerTag key={key} label={key} value={value} />
 									))}
 								</ProvisionerTags>

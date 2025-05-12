@@ -104,7 +104,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 					{...props}
 					listeningPorts={portsQuery.data?.ports}
 					portSharingControlsEnabled={
-						entitlements.features.control_shared_ports.enabled
+						entitlements.features?.control_shared_ports?.enabled ?? false
 					}
 				/>
 			</PopoverContent>

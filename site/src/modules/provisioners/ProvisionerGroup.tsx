@@ -32,12 +32,15 @@ type ProvisionerGroupType = "builtin" | "userAuth" | "psk" | "key";
 interface ProvisionerGroupProps {
 	readonly buildInfo: BuildInfoResponse;
 	readonly keyName: string;
-	readonly keyTags: Record<string, string>;
+	readonly keyTags: Record<string, string> | null;
 	readonly type: ProvisionerGroupType;
 	readonly provisioners: readonly ProvisionerDaemon[];
 }
 
-function isSimpleTagSet(tags: Record<string, string>) {
+function isSimpleTagSet(tags: Record<string, string> | null) {
+	if (!tags) {
+		return true;
+	}
 	const numberOfExtraTags = Object.keys(tags).filter(
 		(key) => key !== "scope" && key !== "owner",
 	).length;
@@ -62,7 +65,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		return null;
 	}
 
-	const daemonScope = firstProvisioner.tags.scope || "organization";
+	const daemonScope = firstProvisioner.tags?.scope || "organization";
 	const allProvisionersAreSameVersion = provisioners.every(
 		(it) => it.version === firstProvisioner.version,
 	);
@@ -73,7 +76,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
-	const extraTags = Object.entries(keyTags).filter(
+	const extraTags = Object.entries(keyTags || {}).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
 
@@ -339,15 +342,15 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 };
 
 interface InlineProvisionerTagsProps {
-	tags: Record<string, string>;
+	tags: Record<string, string> | null;
 }
 
 const InlineProvisionerTags: FC<InlineProvisionerTagsProps> = ({ tags }) => {
-	const daemonScope = tags.scope || "organization";
+	const daemonScope = tags?.scope || "organization";
 	const iconScope =
 		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
 
-	const extraTags = Object.entries(tags).filter(
+	const extraTags = Object.entries(tags || {}).filter(
 		([tag]) => tag !== "scope" && tag !== "owner",
 	);
 

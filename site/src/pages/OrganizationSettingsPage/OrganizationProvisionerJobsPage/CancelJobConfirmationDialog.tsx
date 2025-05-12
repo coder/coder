@@ -31,7 +31,7 @@ export const CancelJobConfirmationDialog: FC<
 				provisionerJobsQueryKey(job.organization_id),
 			);
 			queryClient.invalidateQueries(
-				getProvisionerDaemonsKey(job.organization_id, job.tags),
+				getProvisionerDaemonsKey(job.organization_id, job.tags || undefined),
 			);
 		},
 	});

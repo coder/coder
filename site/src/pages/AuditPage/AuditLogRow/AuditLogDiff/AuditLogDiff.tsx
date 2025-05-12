@@ -47,7 +47,7 @@ interface AuditLogDiffProps {
 }
 
 export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
-	const diffEntries = Object.entries(diff);
+	const diffEntries = Object.entries(diff || {});
 
 	return (
 		<div css={styles.diff}>

@@ -18,10 +18,10 @@ export const Provisioner: FC<ProvisionerProps> = ({
 	warnings,
 }) => {
 	const theme = useTheme();
-	const daemonScope = provisioner.tags.scope || "organization";
+	const daemonScope = provisioner.tags?.scope || "organization";
 	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
 
-	const extraTags = Object.entries(provisioner.tags).filter(
+	const extraTags = Object.entries(provisioner.tags || {}).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
 	const isWarning = warnings && warnings.length > 0;

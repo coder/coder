@@ -18,7 +18,9 @@ const ObservabilitySettingsPage: FC = () => {
 			</Helmet>
 			<ObservabilitySettingsPageView
 				options={deploymentConfig.options}
-				featureAuditLogEnabled={entitlements.features.audit_log.enabled}
+				featureAuditLogEnabled={
+					entitlements.features?.audit_log?.enabled ?? false
+				}
 				isPremium={hasPremiumLicense}
 			/>
 		</>

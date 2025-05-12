@@ -295,7 +295,7 @@ export const organizationsPermissions = (
 			});
 
 			// Now we can unflatten by parsing out the org ID from each check.
-			return Object.entries(response).reduce(
+			return Object.entries(response || {}).reduce(
 				(acc, [key, value]) => {
 					const index = key.indexOf(".");
 					const orgId = key.substring(0, index);
@@ -333,7 +333,7 @@ export const workspacePermissionsByOrganization = (
 				checks: Object.fromEntries(prefixedChecks),
 			});
 
-			return Object.entries(response).reduce(
+			return Object.entries(response || {}).reduce(
 				(acc, [key, value]) => {
 					const index = key.indexOf(".");
 					const orgId = key.substring(0, index);

@@ -11,6 +11,10 @@ interface GroupMember {
  * @returns a diff with the 'members' key flattened to be an array of user_ids
  */
 export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
+	if (!auditLogDiff) {
+		return {};
+	}
+
 	const old = auditLogDiff.members?.old as GroupMember[] | undefined;
 	const new_ = auditLogDiff.members?.new as GroupMember[] | undefined;
 
@@ -32,6 +36,10 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
 export const determineIdPSyncMappingDiff = (
 	auditLogDiff: AuditDiff,
 ): AuditDiff => {
+	if (!auditLogDiff) {
+		return {};
+	}
+
 	const old = auditLogDiff.mapping?.old as Record<string, string[]> | undefined;
 	const new_ = auditLogDiff.mapping?.new as
 		| Record<string, string[]>

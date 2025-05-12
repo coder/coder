@@ -103,7 +103,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 	// Dormant
 	const allowAdvancedScheduling =
-		entitlements.features.advanced_template_scheduling.enabled;
+		entitlements.features?.advanced_template_scheduling?.enabled ?? false;
 	// This check can be removed when https://github.com/coder/coder/milestone/19
 	// is merged up
 	const shouldDisplayDormantData = displayDormantDeletion(

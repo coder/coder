@@ -237,7 +237,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							availableProvisioners={
 								workspace.latest_build.matched_provisioners?.available ?? 0
 							}
-							tags={workspace.latest_build.job.tags}
+							tags={workspace.latest_build.job.tags || {}}
 						/>
 					)}
 

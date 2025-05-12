@@ -10,7 +10,7 @@ export const DeploymentSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements, showOrganizations } = useDashboard();
 	const hasPremiumLicense =
-		entitlements.features.multiple_organizations.enabled;
+		entitlements.features?.multiple_organizations?.enabled ?? false;
 
 	return (
 		<DeploymentSidebarView

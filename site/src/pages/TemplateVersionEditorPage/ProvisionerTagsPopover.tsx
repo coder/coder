@@ -14,8 +14,8 @@ import type { FC } from "react";
 import { docs } from "utils/docs";
 
 export interface ProvisionerTagsPopoverProps {
-	tags: ProvisionerDaemon["tags"];
-	onTagsChange: (values: ProvisionerDaemon["tags"]) => void;
+	tags: Record<string, string> | null;
+	onTagsChange: (values: Record<string, string> | null) => void;
 }
 
 export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({

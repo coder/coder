@@ -14,7 +14,7 @@ const meta: Meta<typeof ProvisionerStatusAlert> = {
 	args: {
 		matchingProvisioners: 0,
 		availableProvisioners: 0,
-		tags: MockTemplateVersion.job.tags,
+		tags: MockTemplateVersion.job.tags || undefined,
 	},
 };
 

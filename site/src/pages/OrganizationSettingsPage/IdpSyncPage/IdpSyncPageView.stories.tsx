@@ -24,8 +24,8 @@ const meta: Meta<typeof IdpSyncPageView> = {
 		groupSyncSettings: MockGroupSyncSettings,
 		roleSyncSettings: MockRoleSyncSettings,
 		claimFieldValues: [
-			...Object.keys(MockGroupSyncSettings.mapping),
-			...Object.keys(MockRoleSyncSettings.mapping),
+			...Object.keys(MockGroupSyncSettings.mapping || {}),
+			...Object.keys(MockRoleSyncSettings.mapping || {}),
 		],
 		groups: [MockGroup, MockGroup2],
 		groupsMap,

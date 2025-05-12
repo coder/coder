@@ -50,7 +50,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 	showOrgDetails,
 }) => {
 	const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
-	const diffs = Object.entries(auditLog.diff);
+	const diffs = Object.entries(auditLog.diff || {});
 	const shouldDisplayDiff = diffs.length > 0;
 	const userAgent = auditLog.user_agent
 		? userAgentParser(auditLog.user_agent)

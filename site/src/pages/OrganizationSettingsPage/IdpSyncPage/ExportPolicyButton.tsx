@@ -25,7 +25,7 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 	const [isDownloading, setIsDownloading] = useState(false);
 
 	const canCreatePolicyJson =
-		syncSettings?.field && Object.keys(syncSettings?.mapping).length > 0;
+		syncSettings?.field && Object.keys(syncSettings?.mapping || {}).length > 0;
 
 	return (
 		<Button

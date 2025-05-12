@@ -42,9 +42,9 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 
 	// logs for workspaces created on behalf of other users indicate ownership in the description
 	const onBehalfOf =
-		auditLog.additional_fields.workspace_owner &&
-		auditLog.additional_fields.workspace_owner !== "unknown" &&
-		auditLog.additional_fields.workspace_owner.trim() !== user
+		auditLog.additional_fields?.workspace_owner &&
+		auditLog.additional_fields?.workspace_owner !== "unknown" &&
+		auditLog.additional_fields?.workspace_owner.trim() !== user
 			? ` on behalf of ${auditLog.additional_fields.workspace_owner}`
 			: "";
 
@@ -64,8 +64,8 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 };
 
 function AppSessionAuditLogDescription({ auditLog }: AuditLogDescriptionProps) {
-	const { connection_type, workspace_owner, workspace_name } =
-		auditLog.additional_fields;
+	const additionalFields = auditLog.additional_fields || {};
+	const { connection_type, workspace_owner, workspace_name } = additionalFields;
 
 	return (
 		<>

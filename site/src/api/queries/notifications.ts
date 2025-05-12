@@ -32,7 +32,7 @@ export const updateUserNotificationPreferences = (
 		onMutate: (data) => {
 			queryClient.setQueryData(
 				userNotificationPreferencesKey(userId),
-				Object.entries(data.template_disabled_map).map(
+				Object.entries(data.template_disabled_map || {}).map(
 					([id, disabled]) =>
 						({
 							id,

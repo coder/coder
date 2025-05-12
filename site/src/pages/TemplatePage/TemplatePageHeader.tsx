@@ -192,7 +192,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 								</Button>
 							)}
 
-						{permissions.canUpdateTemplate && (
+						{permissions?.canUpdateTemplate && (
 							<TemplateMenu
 								organizationName={template.organization_name}
 								templateId={template.id}

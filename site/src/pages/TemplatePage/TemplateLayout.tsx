@@ -138,7 +138,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 						<TabLink to="docs" value="docs">
 							Docs
 						</TabLink>
-						{data.permissions.canUpdateTemplate && (
+						{data.permissions?.canUpdateTemplate && (
 							<TabLink to="files" value="files">
 								Source Code
 							</TabLink>

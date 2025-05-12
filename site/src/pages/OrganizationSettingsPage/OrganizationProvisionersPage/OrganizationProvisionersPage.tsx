@@ -60,7 +60,9 @@ const OrganizationProvisionersPage: FC = () => {
 		<>
 			{helmet}
 			<OrganizationProvisionersPageView
-				showPaywall={!entitlements.features.multiple_organizations.enabled}
+				showPaywall={
+					!(entitlements.features?.multiple_organizations?.enabled ?? false)
+				}
 				error={provisionersQuery.error}
 				provisioners={provisionersQuery.data}
 				buildVersion={buildInfoQuery.data?.version}

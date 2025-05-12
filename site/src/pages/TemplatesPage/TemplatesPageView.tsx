@@ -149,7 +149,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			</TableCell>
 
 			<TableCell css={styles.secondary}>
-				{formatTemplateBuildTime(template.build_time_stats.start.P50)}
+				{formatTemplateBuildTime(template.build_time_stats?.start.P50)}
 			</TableCell>
 
 			<TableCell data-chromatic="ignore" css={styles.secondary}>

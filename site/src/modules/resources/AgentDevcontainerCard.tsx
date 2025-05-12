@@ -26,8 +26,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	workspace,
 	wildcardHostname,
 }) => {
-	const folderPath = container.labels["devcontainer.local_folder"];
-	const containerFolder = container.volumes[folderPath];
+	const folderPath = container.labels?.["devcontainer.local_folder"];
+	const containerFolder = folderPath
+		? container.volumes?.[folderPath]
+		: undefined;
 
 	return (
 		<section
@@ -52,7 +54,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					userName={workspace.owner_name}
 					workspaceName={workspace.name}
 					devContainerName={container.name}
-					devContainerFolder={containerFolder}
+					devContainerFolder={containerFolder || ""}
 					displayApps={agent.display_apps}
 					agentName={agent.name}
 				/>

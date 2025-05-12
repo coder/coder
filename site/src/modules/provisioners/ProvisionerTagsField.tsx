@@ -13,8 +13,8 @@ const REQUIRED_TAGS = ["scope", "organization", "user"];
 const IMMUTABLE_TAGS = ["owner"];
 
 type ProvisionerTagsFieldProps = {
-	value: ProvisionerDaemon["tags"];
-	onChange: (value: ProvisionerDaemon["tags"]) => void;
+	value: Record<string, string> | null;
+	onChange: (value: Record<string, string> | null) => void;
 };
 
 export const ProvisionerTagsField: FC<ProvisionerTagsFieldProps> = ({
@@ -24,13 +24,15 @@ export const ProvisionerTagsField: FC<ProvisionerTagsFieldProps> = ({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex items-center gap-2 flex-wrap">
-				{Object.entries(fieldValue)
+				{Object.entries(fieldValue || {})
 					// Filter out since users cannot override it
 					.filter(([key]) => !IMMUTABLE_TAGS.includes(key))
 					.map(([key, value]) => {
 						const onDelete = (key: string) => {
-							const { [key]: _, ...newFieldValue } = fieldValue;
-							onChange(newFieldValue);
+							if (fieldValue) {
+								const { [key]: _, ...newFieldValue } = fieldValue;
+								onChange(newFieldValue);
+							}
 						};
 
 						return (
@@ -47,7 +49,7 @@ export const ProvisionerTagsField: FC<ProvisionerTagsFieldProps> = ({
 
 			<NewTagControl
 				onAdd={(tag) => {
-					onChange({ ...fieldValue, [tag.key]: tag.value });
+					onChange({ ...(fieldValue || {}), [tag.key]: tag.value });
 				}}
 			/>
 		</div>

@@ -68,12 +68,12 @@ const TemplateVersionsPage = () => {
 			<VersionsTable
 				versions={data}
 				onPromoteClick={
-					permissions.canUpdateTemplate
+					permissions?.canUpdateTemplate
 						? setSelectedVersionIdToPromote
 						: undefined
 				}
 				onArchiveClick={
-					permissions.canUpdateTemplate
+					permissions?.canUpdateTemplate
 						? setSelectedVersionIdToArchive
 						: undefined
 				}

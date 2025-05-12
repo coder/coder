@@ -69,7 +69,7 @@ export const useOrganizationsFilterMenu = ({
 				),
 			});
 			return organizations
-				.filter((organization) => permissions[organization.id])
+				.filter((organization) => permissions?.[organization.id])
 				.map<SelectFilterOption>((organization) => ({
 					label: organization.display_name || organization.name,
 					value: organization.name,

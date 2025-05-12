@@ -26,5 +26,8 @@ export const getFeatureVisibility = (
 export const selectFeatureVisibility = (
 	entitlements: Entitlements,
 ): Record<FeatureName, boolean> => {
-	return getFeatureVisibility(entitlements.has_license, entitlements.features);
+	return getFeatureVisibility(
+		entitlements.has_license,
+		entitlements.features || {},
+	);
 };

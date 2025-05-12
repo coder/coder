@@ -89,7 +89,7 @@ export interface TemplateVersionEditorProps {
 	onCancelSubmitMissingVariableValues: () => void;
 	defaultTab?: Tab;
 	provisionerTags: Record<string, string>;
-	onUpdateProvisionerTags: (tags: Record<string, string>) => void;
+	onUpdateProvisionerTags: (tags: Record<string, string> | null) => void;
 	activePath: string | undefined;
 	onActivePathChange: (path: string | undefined) => void;
 }
@@ -583,7 +583,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												title="Error during the build"
 												detail={templateVersion.job.error}
 												severity="error"
-												tags={templateVersion.job.tags}
+												tags={templateVersion.job.tags || {}}
 												variant={AlertVariant.Inline}
 											/>
 										</div>
@@ -593,7 +593,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												<ProvisionerStatusAlert
 													matchingProvisioners={matchingProvisioners}
 													availableProvisioners={availableProvisioners}
-													tags={templateVersion.job.tags}
+													tags={templateVersion.job.tags || {}}
 													variant={AlertVariant.Inline}
 												/>
 												<Loader css={{ height: "100%" }} />
