@@ -312,9 +312,12 @@ export interface Metadata {
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
   workspaceOwnerRbacRoles: Role[];
+  /** Indicates that a prebuilt workspace is being built. */
   isPrebuild: boolean;
+  /** Preserves the running agent token of a prebuilt workspace so it can reinitialize. */
   runningWorkspaceAgentToken: string;
-  prebuildClaimForUserId: string;
+  /** Indicates that a prebuilt workspace is being claimed. */
+  isPrebuildClaim: boolean;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1052,8 +1055,8 @@ export const Metadata = {
     if (message.runningWorkspaceAgentToken !== "") {
       writer.uint32(170).string(message.runningWorkspaceAgentToken);
     }
-    if (message.prebuildClaimForUserId !== "") {
-      writer.uint32(178).string(message.prebuildClaimForUserId);
+    if (message.isPrebuildClaim === true) {
+      writer.uint32(176).bool(message.isPrebuildClaim);
     }
     return writer;
   },

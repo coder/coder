@@ -630,7 +630,7 @@ func (c *StoreReconciler) provision(
 	return nil
 }
 
-func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
+func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
 	// Set authorization context since this may be called in the background (i.e. with a bare context).
 	// nolint:gocritic // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -638,13 +638,13 @@ func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspac
 	trackCtx, trackCancel := context.WithTimeout(ctx, time.Minute)
 	defer trackCancel()
 
-	if err := c.trackResourceReplacement(trackCtx, workspaceID, buildID, claimantID, replacements); err != nil {
+	if err := c.trackResourceReplacement(trackCtx, workspaceID, buildID, replacements); err != nil {
 		c.logger.Error(ctx, "failed to track resource replacement", slog.Error(err))
 	}
 }
 
 // nolint:revive // Shut up it's fine.
-func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspaceID, buildID, claimantID uuid.UUID, replacements []*sdkproto.ResourceReplacement) error {
+func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspaceID, buildID uuid.UUID, replacements []*sdkproto.ResourceReplacement) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -677,9 +677,9 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 		return xerrors.Errorf("fetch template preset for template version ID %q: %w", prebuild.TemplateVersionID.String(), err)
 	}
 
-	claimant, err := c.store.GetUserByID(ctx, claimantID)
+	claimant, err := c.store.GetUserByID(ctx, workspace.OwnerID) // At this point, the workspace is owned by the new owner.
 	if err != nil {
-		return xerrors.Errorf("fetch claimant %q: %w", claimantID.String(), err)
+		return xerrors.Errorf("fetch claimant %q: %w", workspace.OwnerID.String(), err)
 	}
 
 	// Use the claiming build here (not prebuild) because both should be equivalent, and we might as well spot inconsistencies now.

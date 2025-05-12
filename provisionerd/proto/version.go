@@ -12,12 +12,17 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.4:
 //   - Add new field named `devcontainers` in the Agent.
+//
+// API v1.5:
+//   - Add new field named `is_prebuild_claim` in the Metadata message.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 // CurrentVersion is the current provisionerd API version.
 // Breaking changes to the provisionerd API **MUST** increment
 // CurrentMajor above.
+// Non-breaking changes to the provisionerd API **MUST** increment
+// CurrentMinor above.
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

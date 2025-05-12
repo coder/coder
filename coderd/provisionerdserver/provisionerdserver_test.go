@@ -1798,9 +1798,9 @@ func TestCompleteJob(t *testing.T) {
 			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 				WorkspaceBuildID: build.ID,
 
+				IsPrebuild: false,
 				// Mark the job as a prebuilt workspace claim.
-				PrebuildClaimedByUser: uuid.New(),
-				IsPrebuild:            false,
+				IsPrebuildClaim: true,
 			})),
 			OrganizationID: pd.OrganizationID,
 		})
@@ -1847,7 +1847,7 @@ type mockPrebuildsOrchestrator struct {
 	done         chan struct{}
 }
 
-func (m *mockPrebuildsOrchestrator) TrackResourceReplacement(_ context.Context, _, _, _ uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
+func (m *mockPrebuildsOrchestrator) TrackResourceReplacement(_ context.Context, _, _ uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
 	m.replacements = replacements
 	m.done <- struct{}{}
 }

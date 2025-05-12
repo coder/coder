@@ -270,6 +270,9 @@ func provisionEnv(
 	if metadata.GetIsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
 	}
+	if metadata.GetIsPrebuildClaim() {
+		env = append(env, provider.IsPrebuildClaimEnvironmentVariable()+"=true")
+	}
 
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)

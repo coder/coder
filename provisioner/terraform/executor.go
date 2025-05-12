@@ -315,7 +315,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
 	// the point of prebuilding if the expensive resource is replaced once claimed!
 	var (
-		isPrebuildClaimAttempt = !destroy && metadata.GetPrebuildClaimForUserId() != ""
+		isPrebuildClaimAttempt = !destroy && metadata.GetIsPrebuildClaim()
 		resReps                []*proto.ResourceReplacement
 	)
 	if repsFromPlan := findResourceReplacements(plan); len(repsFromPlan) > 0 {

@@ -298,9 +298,9 @@ message Metadata {
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
     repeated Role workspace_owner_rbac_roles = 19;
-    bool is_prebuild = 20;
-    string running_workspace_agent_token = 21;
-    string prebuild_claim_for_user_id = 22;
+    bool is_prebuild = 20;                     // Indicates that a prebuilt workspace is being built.
+    string running_workspace_agent_token = 21; // Preserves the running agent token of a prebuilt workspace so it can reinitialize.
+    bool is_prebuild_claim = 22;               // Indicates that a prebuilt workspace is being claimed.
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

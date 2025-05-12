@@ -620,11 +620,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		var prebuildClaimedForUserID string
-		if input.PrebuildClaimedByUser != uuid.Nil {
-			prebuildClaimedForUserID = input.PrebuildClaimedByUser.String()
-		}
-
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:      workspaceBuild.ID.String(),
@@ -654,7 +649,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					IsPrebuild:                    input.IsPrebuild,
-					PrebuildClaimForUserId:        prebuildClaimedForUserID,
+					IsPrebuildClaim:               input.IsPrebuildClaim,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1736,7 +1731,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			orchestrator := s.PrebuildsOrchestrator.Load()
 			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
 				// Fire and forget.
-				go (*orchestrator).TrackResourceReplacement(context.Background(), workspace.ID, workspaceBuild.ID, input.PrebuildClaimedByUser, resourceReplacements)
+				go (*orchestrator).TrackResourceReplacement(context.Background(), workspace.ID, workspaceBuild.ID, resourceReplacements)
 			}
 		}
 
@@ -2489,11 +2484,11 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
-	DryRun                bool      `json:"dry_run"`
-	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
-	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
-	LogLevel              string    `json:"log_level,omitempty"`
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
+	DryRun           bool      `json:"dry_run"`
+	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
+	IsPrebuildClaim  bool      `json:"is_prebuild_claim,omitempty"`
+	LogLevel         string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

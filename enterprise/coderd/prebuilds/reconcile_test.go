@@ -979,7 +979,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 	}))
 
 	// When: a claim occurred and resource replacements are detected (_how_ is out of scope of this test).
-	reconciler.TrackResourceReplacement(ctx, prebuiltWorkspace.ID, prebuild.ID, userID, []*sdkproto.ResourceReplacement{
+	reconciler.TrackResourceReplacement(ctx, prebuiltWorkspace.ID, prebuild.ID, []*sdkproto.ResourceReplacement{
 		{
 			Resource: "docker_container[0]",
 			Paths:    []string{"env", "image"},
