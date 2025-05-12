@@ -69,7 +69,7 @@ func getModules(workdir string) ([]*proto.Module, error) {
 }
 
 func getModulesArchive(root fs.FS) ([]byte, error) {
-	modulesFileContent, err := fs.ReadFile(root, getModulesFilePath("."))
+	modulesFileContent, err := fs.ReadFile(root, ".terraform/modules/modules.json")
 	if err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
 			return []byte{}, nil
