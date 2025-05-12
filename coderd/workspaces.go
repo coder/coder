@@ -713,7 +713,7 @@ func createWorkspace(
 			builder = builder.TemplateVersionPresetID(req.TemplateVersionPresetID)
 		}
 		if claimedWorkspace != nil {
-			builder = builder.MarkPrebuildClaimedBy(owner.ID)
+			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
 
 		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
