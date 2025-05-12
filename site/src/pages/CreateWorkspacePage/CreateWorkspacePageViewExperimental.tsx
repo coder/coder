@@ -141,30 +141,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 			},
 		});
 
-	// On component mount, sends all initial parameter values to the websocket
-	// (including defaults and autofilled from the url)
-	// This ensures the backend has the complete initial state of the form,
-	// which is vital for correctly rendering dynamic UI elements where parameter visibility
-	// or options might depend on the initial values of other parameters.
-	const hasInitializedWebsocket = useRef(false);
-	useEffect(() => {
-		if (hasInitializedWebsocket.current) return;
-
-		const formValues = form.values.rich_parameter_values;
-		if (parameters.length > 0 && formValues && formValues.length > 0) {
-			const initialParams: Record<string, string> = {};
-			for (const param of formValues) {
-				if (param.name && param.value) {
-					initialParams[param.name] = param.value;
-				}
-			}
-			if (Object.keys(initialParams).length > 0) {
-				sendMessage(initialParams);
-				hasInitializedWebsocket.current = true;
-			}
-		}
-	}, [parameters, form.values.rich_parameter_values, sendMessage]);
-
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
 	);

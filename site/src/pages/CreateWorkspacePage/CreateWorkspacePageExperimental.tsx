@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
@@ -9,11 +10,13 @@ import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
+	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -29,13 +32,13 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
-const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
-export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import { API } from "api/api";
 import {
 	type CreateWorkspacePermissions,
 	createWorkspaceChecks,
 } from "./permissions";
+
+const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePageExperimental: FC = () => {
@@ -50,6 +53,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const [wsResponseId, setWSResponseId] = useState<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const initialParamsSentRef = useRef(false);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -84,14 +88,71 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
-	const onMessage = useCallback((response: DynamicParametersResponse) => {
-		setCurrentResponse((prev) => {
-			if (prev?.id === response.id) {
-				return prev;
+	const autofillParameters = useMemo(
+		() => getAutofillParameters(searchParams),
+		[searchParams],
+	);
+
+	const sendMessage = useCallback((formValues: Record<string, string>) => {
+		setWSResponseId((prevId) => {
+			const request: DynamicParametersRequest = {
+				id: prevId + 1,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				return prevId + 1;
 			}
-			return response;
+			return prevId;
 		});
 	}, []);
+
+	// On sends all initial parameter values to the websocket
+	// (including defaults and autofilled from the url)
+	// This ensures the backend has the complete initial state of the form,
+	// which is vital for correctly rendering dynamic UI elements where parameter visibility
+	// or options might depend on the initial values of other parameters.
+	const sendInitialParameters = useEffectEvent(
+		(parameters: PreviewParameter[]) => {
+			if (initialParamsSentRef.current) return;
+			if (parameters.length === 0) return;
+
+			const initialFormValues = getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			);
+			if (initialFormValues.length === 0) return;
+
+			const initialParamsToSend: Record<string, string> = {};
+			for (const param of initialFormValues) {
+				if (param.name && param.value) {
+					initialParamsToSend[param.name] = param.value;
+				}
+			}
+
+			if (Object.keys(initialParamsToSend).length === 0) return;
+
+			sendMessage(initialParamsToSend);
+			initialParamsSentRef.current = true;
+		},
+	);
+
+	const onMessage = useCallback(
+		(response: DynamicParametersResponse) => {
+			setCurrentResponse((prev) => {
+				if (prev?.id === response.id) {
+					return prev;
+				}
+
+				if (!initialParamsSentRef.current && response.parameters.length > 0) {
+					sendInitialParameters([...response.parameters]);
+				}
+
+				return response;
+			});
+		},
+		[sendInitialParameters],
+	);
 
 	// Initialize the WebSocket connection when there is a valid template version ID
 	useEffect(() => {
@@ -127,20 +188,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 		};
 	}, [owner.id, realizedVersionId, onMessage]);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		setWSResponseId((prevId) => {
-			const request: DynamicParametersRequest = {
-				id: prevId + 1,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				return prevId + 1;
-			}
-			return prevId;
-		});
-	}, []);
-
 	const organizationId = templateQuery.data?.organization_id;
 
 	const {
@@ -166,9 +213,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 		},
 		[navigate],
 	);
-
-	// Auto fill parameters
-	const autofillParameters = getAutofillParameters(searchParams);
 
 	const autoCreationStartedRef = useRef(false);
 	const automateWorkspaceCreation = useEffectEvent(async () => {
