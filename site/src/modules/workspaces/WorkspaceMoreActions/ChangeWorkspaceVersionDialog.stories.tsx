@@ -1,12 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { templateVersionsQueryKey } from "api/queries/templates";
 import {
-	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionWithMarkdownMessage,
 	MockWorkspace,
 } from "testHelpers/entities";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
-import { templateVersionsQueryKey } from "api/queries/templates";
 
 const noMessage = {
 	...MockTemplateVersion,

@@ -13,6 +13,7 @@ import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { type FC, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { AppStatuses } from "./AppStatuses";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -24,7 +25,6 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {

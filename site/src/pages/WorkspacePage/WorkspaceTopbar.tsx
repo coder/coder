@@ -25,10 +25,10 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { displayDormantDeletion } from "utils/dormant";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 
 export type WorkspaceError =
 	| "getBuildsError"

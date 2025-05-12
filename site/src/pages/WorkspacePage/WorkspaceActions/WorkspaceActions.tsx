@@ -1,10 +1,14 @@
+import { deploymentConfig } from "api/queries/deployment";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useAuthenticated } from "hooks/useAuthenticated";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
 } from "modules/workspaces/actions";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { type FC, Fragment, type ReactNode } from "react";
+import { useQuery } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
 import {
 	ActivateButton,
@@ -20,10 +24,6 @@ import {
 } from "./Buttons";
 import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
-import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { useQuery } from "react-query";
-import { deploymentConfig } from "api/queries/deployment";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;

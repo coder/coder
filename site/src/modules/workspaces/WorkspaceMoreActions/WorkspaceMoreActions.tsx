@@ -14,21 +14,20 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import {
-	EllipsisVertical,
-	SettingsIcon,
-	HistoryIcon,
-	TrashIcon,
 	CopyIcon,
 	DownloadIcon,
+	EllipsisVertical,
+	HistoryIcon,
+	SettingsIcon,
+	TrashIcon,
 } from "lucide-react";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
-import { DownloadLogsDialog } from "./DownloadLogsDialog";
-import { useState, type FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
+import { DownloadLogsDialog } from "./DownloadLogsDialog";
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
-import type { WorkspacePermissions } from "../permissions";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 type WorkspaceMoreActionsProps = {

@@ -52,7 +52,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronRightIcon, EllipsisVertical } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -68,6 +68,7 @@ import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	WorkspaceUpdateDialogs,
@@ -91,7 +92,6 @@ import {
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 
 dayjs.extend(relativeTime);
 

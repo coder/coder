@@ -4,8 +4,8 @@ import type { ProvisionerJobLog } from "api/typesGenerated";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import * as Mocks from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
-import { Workspace } from "./Workspace";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
+import { Workspace } from "./Workspace";
 
 // Helper function to create timestamps easily - Copied from AppStatuses.stories.tsx
 const createTimestamp = (

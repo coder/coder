@@ -25,12 +25,12 @@ import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;

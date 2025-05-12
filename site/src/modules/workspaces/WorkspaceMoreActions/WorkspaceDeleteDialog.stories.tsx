@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockFailedWorkspace, MockWorkspace } from "testHelpers/entities";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { daysAgo } from "utils/time";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 const meta: Meta<typeof WorkspaceDeleteDialog> = {
 	title: "modules/workspaces/WorkspaceDeleteDialog",

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import {
 	MockOutdatedWorkspace,
 	MockTemplate,
@@ -10,7 +11,6 @@ import {
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
 
 const defaultPermissions: WorkspacePermissions = {
 	readWorkspace: true,

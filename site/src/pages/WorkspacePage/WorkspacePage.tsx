@@ -1,5 +1,4 @@
 import { watchWorkspace } from "api/api";
-import { checkAuthorization } from "api/queries/authCheck";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import {
