@@ -1,10 +1,9 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import Link from "@mui/material/Link";
 import type { HealthCode, HealthSeverity } from "api/typesGenerated";
-import { CircleCheck as CircleCheckIcon } from "lucide-react";
-import { CircleMinus as CircleMinusIcon } from "lucide-react";
+import { CircleAlertIcon } from "lucide-react";
+import { CircleCheckIcon, CircleMinusIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -57,7 +56,7 @@ interface HealthIconProps {
 export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
 	const theme = useTheme();
 	const color = healthyColor(theme, severity);
-	const Icon = severity === "error" ? ErrorOutline : CircleCheckIcon;
+	const Icon = severity === "error" ? CircleAlertIcon : CircleCheckIcon;
 
 	return <Icon css={{ width: size, height: size, color }} />;
 };
