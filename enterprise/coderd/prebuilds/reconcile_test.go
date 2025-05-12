@@ -697,7 +697,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
 
 			// Create a failed prebuild workspace that counts toward the hard failure limit.
-			prebuiltWorkspace := setupTestDBPrebuild(
+			setupTestDBPrebuild(
 				t,
 				clock,
 				db,
@@ -709,7 +709,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				template.ID,
 				templateVersionID,
 			)
-			_ = prebuiltWorkspace
 
 			// Verify initial state: one failed workspace exists
 			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
