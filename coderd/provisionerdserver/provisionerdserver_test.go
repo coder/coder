@@ -2947,13 +2947,3 @@ func (s *fakeStream) cancel() {
 	s.canceled = true
 	s.c.Broadcast()
 }
-
-type pubsubReinitSpy struct {
-	pubsub.Pubsub
-	subscriptions chan string
-}
-
-func (p pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
-	p.subscriptions <- event
-	return p.Pubsub.Subscribe(event, listener)
-}

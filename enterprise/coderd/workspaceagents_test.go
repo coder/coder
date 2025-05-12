@@ -210,8 +210,8 @@ func TestReinitializeAgent(t *testing.T) {
 	waiter.WaitFor(coderdtest.AgentsReady)
 
 	// WHEN a workspace is created that can benefit from prebuilds
-	// ctx := testutil.Context(t, testutil.WaitShort)
-	workspace, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+	anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	workspace, err := anotherClient.CreateUserWorkspace(ctx, anotherUser.ID.String(), codersdk.CreateWorkspaceRequest{
 		TemplateVersionID:       version.ID,
 		TemplateVersionPresetID: preset.ID,
 		Name:                    "claimed-workspace",

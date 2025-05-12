@@ -631,7 +631,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				WorkspaceID: workspace.ID,
 				BuildNumber: 1,
 			})
-
 			if err != nil {
 				s.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
 					slog.F("workspace_id", workspace.ID), slog.Error(err))
