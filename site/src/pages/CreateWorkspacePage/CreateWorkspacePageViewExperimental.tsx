@@ -554,7 +554,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
-											autofill={autofillByName[parameter.name]}
+											autofill={autofillByName[parameter.name] !== undefined}
 											value={formValue}
 										/>
 									);

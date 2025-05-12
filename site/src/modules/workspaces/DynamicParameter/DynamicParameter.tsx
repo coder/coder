@@ -43,7 +43,7 @@ export interface DynamicParameterProps {
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
-	autofill?: AutofillBuildParameter;
+	autofill: boolean;
 }
 
 export const DynamicParameter: FC<DynamicParameterProps> = ({
@@ -52,7 +52,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 	onChange,
 	disabled,
 	isPreset,
-	autofill,
+	autofill = false,
 }) => {
 	const id = useId();
 
@@ -86,7 +86,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 interface ParameterLabelProps {
 	parameter: PreviewParameter;
 	isPreset?: boolean;
-	autofill?: AutofillBuildParameter;
+	autofill: boolean;
 	id: string;
 }
 
