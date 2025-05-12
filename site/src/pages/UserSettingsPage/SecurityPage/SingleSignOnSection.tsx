@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
@@ -16,6 +15,7 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import { CircleCheck as CircleCheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { docs } from "utils/docs";
@@ -191,11 +191,11 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 								fontSize: 14,
 							}}
 						>
-							<CheckCircleOutlined
+							<CircleCheckIcon
 								css={{
 									color: theme.palette.success.light,
-									fontSize: 16,
 								}}
+								className="size-icon-xs"
 							/>
 							<span>
 								Authenticated with{" "}
