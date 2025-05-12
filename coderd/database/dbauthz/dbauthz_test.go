@@ -2009,7 +2009,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(agt)
 	}))
-	s.Run("GetWorkspaceAgentsByBuildID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetWorkspaceAgentsByWorkspaceAndBuildNumber", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		tpl := dbgen.Template(s.T(), db, database.Template{
@@ -2036,7 +2036,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(b.ID).Asserts(w, policy.ActionRead).Returns(agt)
+		check.Args(database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+			WorkspaceID: w.ID,
+			BuildNumber: 1,
+		}).Asserts(w, policy.ActionRead).Returns(agt)
 	}))
 	s.Run("GetWorkspaceAgentLifecycleStateByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

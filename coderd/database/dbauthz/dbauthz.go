@@ -3012,13 +3012,13 @@ func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, crea
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceAgentsByBuildID(ctx context.Context, arg database.GetWorkspaceAgentsByBuildIDParams) ([]database.WorkspaceAgent, error) {
+func (q *querier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
 	_, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 
-	return q.db.GetWorkspaceAgentsByBuildID(ctx, arg)
+	return q.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, arg)
 }
 
 // GetWorkspaceAgentsByResourceIDs

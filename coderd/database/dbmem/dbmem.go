@@ -7641,7 +7641,7 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 	return stats, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentsByBuildID(ctx context.Context, arg database.GetWorkspaceAgentsByBuildIDParams) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err

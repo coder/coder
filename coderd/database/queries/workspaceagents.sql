@@ -252,7 +252,7 @@ WHERE
 			wb.workspace_id = @workspace_id :: uuid
 	);
 
--- name: GetWorkspaceAgentsByBuildID :many
+-- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
 SELECT
 	workspace_agents.*
 FROM

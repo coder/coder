@@ -627,7 +627,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
 			// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
 			// obviating the whole point of the prebuild.
-			agents, err := s.Database.GetWorkspaceAgentsByBuildID(ctx, database.GetWorkspaceAgentsByBuildIDParams{
+			agents, err := s.Database.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
 				WorkspaceID: workspace.ID,
 				BuildNumber: 1,
 			})
