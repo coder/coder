@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
@@ -344,7 +344,7 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 		return nil
 	}
 
-	provisionerClient, provisionerSrv := drpc.MemTransportPipe()
+	provisionerClient, provisionerSrv := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	t.Cleanup(func() {

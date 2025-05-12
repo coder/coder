@@ -21,7 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1107,7 +1107,7 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 			return &proto.Empty{}, nil
 		}
 	}
-	clientPipe, serverPipe := drpc.MemTransportPipe()
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
@@ -1143,7 +1143,7 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 // to the server implementation provided.
 func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisionerTestServer) sdkproto.DRPCProvisionerClient {
 	t.Helper()
-	clientPipe, serverPipe := drpc.MemTransportPipe()
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()

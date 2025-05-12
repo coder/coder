@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -102,7 +103,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -1447,7 +1447,7 @@ func newProvisionerDaemon(
 	for _, provisionerType := range provisionerTypes {
 		switch provisionerType {
 		case codersdk.ProvisionerTypeEcho:
-			echoClient, echoServer := drpc.MemTransportPipe()
+			echoClient, echoServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -1481,7 +1481,7 @@ func newProvisionerDaemon(
 			}
 
 			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-			terraformClient, terraformServer := drpc.MemTransportPipe()
+			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
