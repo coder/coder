@@ -211,8 +211,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 }
 
 func (r *Runner) GetBytesTransferred() (bytesRead, bytesWritten int64) {
-	bytesRead = r.cfg.ReadMetrics.GetTotal()
-	bytesWritten = r.cfg.WriteMetrics.GetTotal()
+	bytesRead = r.cfg.ReadMetrics.GetTotalBytes()
+	bytesWritten = r.cfg.WriteMetrics.GetTotalBytes()
 	return bytesRead, bytesWritten
 }
 

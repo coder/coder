@@ -1,6 +1,10 @@
 package workspacetraffic
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync/atomic"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 type Metrics struct {
 	BytesReadTotal      prometheus.CounterVec
@@ -75,7 +79,7 @@ type ConnMetrics interface {
 	AddError(float64)
 	ObserveLatency(float64)
 	AddTotal(float64)
-	GetTotal() int64
+	GetTotalBytes() int64
 }
 
 type connMetrics struct {
@@ -94,10 +98,10 @@ func (c *connMetrics) ObserveLatency(f float64) {
 }
 
 func (c *connMetrics) AddTotal(f float64) {
-	c.total += int64(f)
+	atomic.AddInt64(&c.total, int64(f))
 	c.addTotal(f)
 }
 
-func (c *connMetrics) GetTotal() int64 {
+func (c *connMetrics) GetTotalBytes() int64 {
 	return c.total
 }
