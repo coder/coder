@@ -15,12 +15,10 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.5:
 //   - Add new field named `prebuilt_workspace_build_stage` enum in the Metadata message.
-//
-// API v1.6:
 //   - Add `plan` and `module_files` fields to `CompletedJob.TemplateImport`.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 6
+	CurrentMinor = 5
 )
 
 // CurrentVersion is the current provisionerd API version.
