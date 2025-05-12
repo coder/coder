@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/quartz"
 
@@ -45,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -651,7 +651,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
-					IsPrebuild:                    input.IsPrebuild,
+					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -713,8 +713,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	default:
 		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
 	}
-	if protobuf.Size(protoJob) > drpc.MaxMessageSize {
-		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpc.MaxMessageSize))
+	if protobuf.Size(protoJob) > drpcsdk.MaxMessageSize {
+		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpcsdk.MaxMessageSize))
 	}
 
 	return protoJob, err
@@ -2525,11 +2525,10 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
-	DryRun                bool      `json:"dry_run"`
-	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
-	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
-	LogLevel              string    `json:"log_level,omitempty"`
+	WorkspaceBuildID            uuid.UUID                            `json:"workspace_build_id"`
+	DryRun                      bool                                 `json:"dry_run"`
+	LogLevel                    string                               `json:"log_level,omitempty"`
+	PrebuiltWorkspaceBuildStage sdkproto.PrebuiltWorkspaceBuildStage `json:"prebuilt_workspace_stage,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.
