@@ -821,13 +821,7 @@ func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <
 				Data: reinitEvent,
 			})
 			if err != nil {
-				s.logger.Warn(
-					ctx,
-					"failed to send SSE to trigger agent reinitialization",
-					slog.Error(err),
-					slog.F("user_id", reinitEvent.UserID),
-					slog.F("workspace_id", reinitEvent.WorkspaceID),
-				)
+				return err
 			}
 		}
 	}

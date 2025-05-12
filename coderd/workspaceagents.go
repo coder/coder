@@ -1227,6 +1227,8 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		log.Info(ctx, "agent reinitialization subscription closed", slog.F("workspace_agent_id", workspaceAgent.ID))
 	case errors.Is(err, agentsdk.ErrTransmissionTargetClosed):
 		log.Info(ctx, "agent connection closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case errors.Is(err, context.Canceled):
+		log.Info(ctx, "agent reinitialization", slog.Error(err))
 	case err != nil:
 		log.Error(ctx, "failed to stream agent reinit events", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

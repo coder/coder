@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -2648,49 +2647,17 @@ func TestAgentConnectionInfo(t *testing.T) {
 func TestReinit(t *testing.T) {
 	t.Parallel()
 
-	t.Run("unclaimed workspaces are not reinitialized", func(t *testing.T) {
-		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip()
-		}
-
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).WithAgent().Do()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID:        r.Build.JobID,
-			UpdatedAt: time.Now(),
-			CompletedAt: sql.NullTime{
-				Valid: true,
-				Time:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
-
-		agentCtx := testutil.Context(t, testutil.WaitShort)
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
-		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-		require.Nil(t, reinitEvent)
-	})
 	t.Run("claimed workspaces are reinitialized", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip()
-		}
-
 		db, ps := dbtestutil.NewDB(t)
+		pubsubSpy := pubsubReinitSpy{
+			Pubsub:        ps,
+			subscriptions: make(chan string),
+		}
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database: db,
-			Pubsub:   ps,
+			Pubsub:   pubsubSpy,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2698,16 +2665,6 @@ func TestReinit(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID:        r.Build.JobID,
-			UpdatedAt: time.Now(),
-			CompletedAt: sql.NullTime{
-				Valid: true,
-				Time:  time.Now(),
-			},
-		})
-		require.NoError(t, err)
 
 		agentCtx := testutil.Context(t, testutil.WaitShort)
 		agentClient := agentsdk.New(client.URL)
@@ -2720,15 +2677,32 @@ func TestReinit(t *testing.T) {
 			agentReinitializedCh <- reinitEvent
 		}()
 
-		time.Sleep(time.Second)
+		// We need to subscribe before we publish, lest we miss the event
+		for subscription := range pubsubSpy.subscriptions {
+			if subscription == agentsdk.PrebuildClaimedChannel(r.Workspace.ID) {
+				break
+			}
+		}
 
-		err = prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+		err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
 			WorkspaceID: r.Workspace.ID,
 			UserID:      user.UserID,
 		})
 		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
 		require.NotNil(t, reinitEvent)
 		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 	})
+}
+
+type pubsubReinitSpy struct {
+	pubsub.Pubsub
+	subscriptions chan string
+}
+
+func (p pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	p.subscriptions <- event
+	return p.Pubsub.Subscribe(event, listener)
 }

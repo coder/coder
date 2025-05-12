@@ -23,6 +23,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/quartz"
@@ -1823,17 +1824,12 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				// GIVEN something is listening to process workspace reinitialization:
-
-				eventName := agentsdk.PrebuildClaimedChannel(workspace.ID)
-				reinitChan := make(chan []byte, 1)
-				cancel, err := ps.Subscribe(eventName, func(inner context.Context, userIDMessage []byte) {
-					reinitChan <- userIDMessage
-				})
+				reinitChan := make(chan agentsdk.ReinitializationEvent, 1) // Buffered to simplify test structure
+				cancel, err := prebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID, reinitChan)
 				require.NoError(t, err)
 				defer cancel()
 
 				// WHEN the job is completed
-
 				completedJob := proto.CompletedJob{
 					JobId: job.ID.String(),
 					Type: &proto.CompletedJob_WorkspaceBuild_{
@@ -1844,13 +1840,11 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				select {
-				case userIDMessage := <-reinitChan:
+				case reinitEvent := <-reinitChan:
 					// THEN workspace agent reinitialization instruction was received:
-					gotUserID, err := uuid.ParseBytes(userIDMessage)
-					require.NoError(t, err)
 					require.True(t, tc.shouldReinitializeAgent)
-					require.Equal(t, userID, gotUserID)
-				case <-ctx.Done():
+					require.Equal(t, userID, reinitEvent.UserID)
+				default:
 					// THEN workspace agent reinitialization instruction was not received.
 					require.False(t, tc.shouldReinitializeAgent)
 				}
@@ -2952,4 +2946,14 @@ func (s *fakeStream) cancel() {
 	defer s.c.L.Unlock()
 	s.canceled = true
 	s.c.Broadcast()
+}
+
+type pubsubReinitSpy struct {
+	pubsub.Pubsub
+	subscriptions chan string
+}
+
+func (p pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	p.subscriptions <- event
+	return p.Pubsub.Subscribe(event, listener)
 }

@@ -18,20 +18,19 @@ import (
 
 func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 	t.Parallel()
-	t.Run("publish claim", func(t *testing.T) {
+	t.Run("published claim is received by a listener for the same workspace", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := testutil.Logger(t)
 		ps := pubsub.NewInMemory()
-		publisher := prebuilds.NewPubsubWorkspaceClaimPublisher(ps)
-
 		workspaceID := uuid.New()
 		userID := uuid.New()
+		reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
+		publisher := prebuilds.NewPubsubWorkspaceClaimPublisher(ps)
+		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, logger)
 
-		userIDCh := make(chan uuid.UUID, 1)
-		channel := agentsdk.PrebuildClaimedChannel(workspaceID)
-		cancel, err := ps.Subscribe(channel, func(ctx context.Context, message []byte) {
-			userIDCh <- uuid.MustParse(string(message))
-		})
+		cancel, err := listener.ListenForWorkspaceClaims(ctx, workspaceID, reinitEvents)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -43,8 +42,8 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		err = publisher.PublishWorkspaceClaim(claim)
 		require.NoError(t, err)
 
-		gotUserID := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, userIDCh)
-		require.Equal(t, userID, gotUserID)
+		gotUserID := testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, reinitEvents)
+		require.Equal(t, userID, gotUserID.UserID)
 	})
 
 	t.Run("fail to publish claim", func(t *testing.T) {

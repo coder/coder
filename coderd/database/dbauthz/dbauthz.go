@@ -3012,6 +3012,15 @@ func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, crea
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceAgentsByBuildID(ctx context.Context, arg database.GetWorkspaceAgentsByBuildIDParams) ([]database.WorkspaceAgent, error) {
+	_, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByBuildID(ctx, arg)
+}
+
 // GetWorkspaceAgentsByResourceIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {

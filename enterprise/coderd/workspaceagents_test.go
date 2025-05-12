@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"crypto/tls"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/serpent"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -18,8 +18,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -91,12 +89,17 @@ func TestReinitializeAgent(t *testing.T) {
 		t.Skip("dbmem cannot currently claim a workspace")
 	}
 
+	db, ps := dbtestutil.NewDB(t)
 	// GIVEN a live enterprise API with the prebuilds feature enabled
-	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
 			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.Prebuilds.ReconciliationInterval = serpent.Duration(time.Second)
 				dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
 			}),
+			IncludeProvisionerDaemon: true,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -106,65 +109,119 @@ func TestReinitializeAgent(t *testing.T) {
 	})
 
 	// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
-	presetID := uuid.New()
-	tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-	}).Preset(database.TemplateVersionPreset{
-		ID: presetID,
-	}).Do()
-
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:    prebuilds.SystemUserID,
-		TemplateID: tv.Template.ID,
-	}).Seed(database.WorkspaceBuild{
-		TemplateVersionID: tv.TemplateVersion.ID,
-		TemplateVersionPresetID: uuid.NullUUID{
-			UUID:  presetID,
-			Valid: true,
-		},
-	}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-		a[0].Scripts = []*proto.Script{
+	agentToken := uuid.UUID{3}
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
 			{
-				DisplayName: "Prebuild Test Script",
-				Script:      fmt.Sprintf("sleep 5; printenv | grep 'CODER_AGENT_TOKEN' >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name()), // Make reinitialization take long enough to assert that it happened
-				RunOnStart:  true,
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets: []*proto.Preset{
+							{
+								Name: "test-preset",
+								Prebuild: &proto.Prebuild{
+									Instances: 1,
+								},
+							},
+						},
+						Resources: []*proto.Resource{
+							{
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
+		},
+		ProvisionApply: []*proto.Response{
+			{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+										Scripts: []*proto.Script{
+											{
+												RunOnStart: true,
+												Script:     fmt.Sprintf("sleep 5; printenv | grep 'CODER_AGENT_TOKEN' >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name()), // Make reinitialization take long enough to assert that it happened
+											},
+										},
+										Auth: &proto.Agent_Token{
+											Token: agentToken.String(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Wait for prebuilds to create a prebuilt workspace
+	ctx := context.Background()
+	// ctx := testutil.Context(t, testutil.WaitLong)
+	var (
+		prebuildID uuid.UUID
+	)
+	require.Eventually(t, func() bool {
+		agentAndBuild, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, agentToken)
+		if err != nil {
+			return false
 		}
-		return a
-	}).Do()
+		prebuildID = agentAndBuild.WorkspaceBuild.ID
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	prebuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuildID)
+
+	preset, err := db.GetPresetByWorkspaceBuildID(ctx, prebuildID)
+	require.NoError(t, err)
 
 	// GIVEN a running agent
 	logDir := t.TempDir()
 	inv, _ := clitest.New(t,
 		"agent",
 		"--auth", "token",
-		"--agent-token", r.AgentToken,
+		"--agent-token", agentToken.String(),
 		"--agent-url", client.URL.String(),
 		"--log-dir", logDir,
 	)
 	clitest.Start(t, inv)
 
 	// GIVEN the agent is in a happy steady state
-	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, prebuild.WorkspaceID)
 	waiter.WaitFor(coderdtest.AgentsReady)
 
 	// WHEN a workspace is created that can benefit from prebuilds
-	ctx := testutil.Context(t, testutil.WaitShort)
+	// ctx := testutil.Context(t, testutil.WaitShort)
 	workspace, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
-		TemplateVersionID:       tv.TemplateVersion.ID,
-		TemplateVersionPresetID: presetID,
+		TemplateVersionID:       version.ID,
+		TemplateVersionPresetID: preset.ID,
 		Name:                    "claimed-workspace",
 	})
 	require.NoError(t, err)
 
-	db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID:        workspace.LatestBuild.ID,
-		UpdatedAt: time.Now(),
-		CompletedAt: sql.NullTime{
-			Valid: true,
-			Time:  time.Now(),
-		},
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+		WorkspaceID: workspace.ID,
+		UserID:      user.UserID,
 	})
 
 	// THEN the now claimed workspace agent reinitializes
