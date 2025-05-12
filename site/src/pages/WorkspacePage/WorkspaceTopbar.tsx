@@ -28,7 +28,7 @@ import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import type { WorkspacePermissions } from "./permissions";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 
 export type WorkspaceError =
 	| "getBuildsError"
@@ -51,7 +51,6 @@ export interface WorkspaceProps {
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
 	canUpdateWorkspace: boolean;
-	canChangeVersions: boolean;
 	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -76,7 +75,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	isUpdating,
 	isRestarting,
 	canUpdateWorkspace,
-	canChangeVersions,
 	canDebugMode,
 	handleRetry,
 	handleDebug,
@@ -257,7 +255,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						handleDormantActivate={handleDormantActivate}
 						handleToggleFavorite={handleToggleFavorite}
 						canDebug={canDebugMode}
-						canChangeVersions={canChangeVersions}
+						canChangeVersions={permissions.updateWorkspaceVersion}
 						isUpdating={isUpdating}
 						isRestarting={isRestarting}
 					/>

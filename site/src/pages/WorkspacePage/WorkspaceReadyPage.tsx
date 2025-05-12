@@ -36,7 +36,7 @@ import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
-import type { WorkspacePermissions } from "./permissions";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
@@ -62,7 +62,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Debug mode
 	const { data: deploymentValues } = useQuery({
 		...deploymentConfig(),
-		enabled: permissions.viewDeploymentConfig,
+		enabled: permissions.deploymentConfig,
 	});
 
 	// Build logs
@@ -99,7 +99,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	}, []);
 
 	// Change version
-	const canChangeVersions = permissions.updateTemplate;
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
 		changeVersion(workspace, queryClient),
@@ -121,9 +120,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		latestVersion,
 	});
 
-	// If a user can update the template then they can force a delete
-	// (via orphan).
-	const canUpdateTemplate = Boolean(permissions.updateTemplate);
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const deleteWorkspaceMutation = useMutation(
 		deleteWorkspace(workspace, queryClient),
@@ -267,7 +263,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					toggleFavoriteMutation.mutate();
 				}}
 				latestVersion={latestVersion}
-				canChangeVersions={canChangeVersions}
 				hideSSHButton={featureVisibility.browser_only}
 				hideVSCodeDesktopButton={featureVisibility.browser_only}
 				buildInfo={buildInfoQuery.data}
@@ -279,7 +274,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}
-				canUpdateTemplate={canUpdateTemplate}
+				canDeleteFailedWorkspace={permissions.deleteFailedWorkspace}
 				isOpen={isConfirmingDelete}
 				onCancel={() => {
 					setIsConfirmingDelete(false);

@@ -12,7 +12,7 @@ import { docs } from "utils/docs";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;
-	canUpdateTemplate: boolean;
+	canDeleteFailedWorkspace: boolean;
 	isOpen: boolean;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
@@ -21,7 +21,7 @@ interface WorkspaceDeleteDialogProps {
 
 export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	workspace,
-	canUpdateTemplate,
+	canDeleteFailedWorkspace,
 	isOpen,
 	onCancel,
 	onConfirm,
@@ -102,7 +102,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							// Orphaning is sort of a "last resort" that should really only
 							// be used if Terraform is failing to apply while deleting, which
 							// usually means that builds are failing as well.
-							canUpdateTemplate &&
+							canDeleteFailedWorkspace &&
 								workspace.latest_build.status === "failed" && (
 									<div css={styles.orphanContainer}>
 										<div css={{ flexDirection: "column" }}>

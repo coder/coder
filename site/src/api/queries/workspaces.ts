@@ -19,6 +19,11 @@ import type {
 } from "react-query";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
+import {
+	workspaceChecks,
+	type WorkspacePermissions,
+} from "modules/workspaces/permissions";
+import { checkAuthorization } from "./authCheck";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
 	"workspace",
@@ -388,5 +393,16 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 		// ...disabledRefetchOptions,
 		refetchInterval: 60000,
 		refetchIntervalInBackground: true,
+	};
+};
+
+export const workspacePermissions = (workspace?: Workspace) => {
+	return {
+		...checkAuthorization<WorkspacePermissions>({
+			checks: workspace ? workspaceChecks(workspace) : {},
+		}),
+		queryKey: ["workspaces", workspace?.id, "permissions"],
+		enabled: !!workspace,
+		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

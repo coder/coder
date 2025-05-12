@@ -5,7 +5,7 @@ import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import * as Mocks from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { Workspace } from "./Workspace";
-import type { WorkspacePermissions } from "./permissions";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 
 // Helper function to create timestamps easily - Copied from AppStatuses.stories.tsx
 const createTimestamp = (

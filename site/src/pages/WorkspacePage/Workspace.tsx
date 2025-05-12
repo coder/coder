@@ -24,7 +24,7 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import type { WorkspacePermissions } from "./permissions";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {
@@ -41,7 +41,6 @@ export interface WorkspaceProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
-	canChangeVersions: boolean;
 	hideSSHButton?: boolean;
 	hideVSCodeDesktopButton?: boolean;
 	buildInfo?: TypesGen.BuildInfoResponse;
@@ -73,7 +72,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
-	canChangeVersions,
 	hideSSHButton,
 	hideVSCodeDesktopButton,
 	buildInfo,
@@ -155,7 +153,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 				handleDormantActivate={handleDormantActivate}
 				handleToggleFavorite={handleToggleFavorite}
 				canDebugMode={canDebugMode}
-				canChangeVersions={canChangeVersions}
 				isUpdating={isUpdating}
 				isRestarting={isRestarting}
 				canUpdateWorkspace={permissions.updateWorkspace}

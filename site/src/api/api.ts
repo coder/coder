@@ -482,10 +482,10 @@ class ApiMethods {
 		return response.data;
 	};
 
-	checkAuthorization = async (
+	checkAuthorization = async <TResponse extends TypesGen.AuthorizationResponse>(
 		params: TypesGen.AuthorizationRequest,
-	): Promise<TypesGen.AuthorizationResponse> => {
-		const response = await this.axios.post<TypesGen.AuthorizationResponse>(
+	) => {
+		const response = await this.axios.post<TResponse>(
 			"/api/v2/authcheck",
 			params,
 		);

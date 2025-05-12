@@ -18,7 +18,7 @@ import { pageTitle } from "utils/page";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
-} from "../../WorkspacePage/permissions";
+} from "../../../modules/workspaces/permissions";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
 	WorkspaceParametersForm,
