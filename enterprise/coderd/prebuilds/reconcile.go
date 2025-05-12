@@ -672,7 +672,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 		return xerrors.Errorf("no preset used in prebuild for workspace %q", workspaceID.String())
 	}
 
-	prebuildPreset, err := c.store.GetTemplatePresetsByID(ctx, prebuild.TemplateVersionPresetID.UUID)
+	prebuildPreset, err := c.store.GetPresetByID(ctx, prebuild.TemplateVersionPresetID.UUID)
 	if err != nil {
 		return xerrors.Errorf("fetch template preset for template version ID %q: %w", prebuild.TemplateVersionID.String(), err)
 	}
