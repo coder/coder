@@ -269,22 +269,29 @@ export const Workspace: FC<WorkspaceProps> = ({
 									minWidth: 0 /* Prevent overflow */,
 								}}
 							>
-								{selectedResource.agents?.map((agent) => (
-									<AgentRow
-										key={agent.id}
-										agent={agent}
-										workspace={workspace}
-										template={template}
-										sshPrefix={sshPrefix}
-										showApps={permissions.updateWorkspace}
-										showBuiltinApps={permissions.updateWorkspace}
-										hideSSHButton={hideSSHButton}
-										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-										serverVersion={buildInfo?.version || ""}
-										serverAPIVersion={buildInfo?.agent_api_version || ""}
-										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-									/>
-								))}
+								{selectedResource.agents?.map((agent) => {
+									// We do not want to display child agents at the top-level.
+									if (agent.parent_id !== null) {
+										return;
+									}
+
+									return (
+										<AgentRow
+											key={agent.id}
+											agent={agent}
+											workspace={workspace}
+											template={template}
+											sshPrefix={sshPrefix}
+											showApps={permissions.updateWorkspace}
+											showBuiltinApps={permissions.updateWorkspace}
+											hideSSHButton={hideSSHButton}
+											hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+											serverVersion={buildInfo?.version || ""}
+											serverAPIVersion={buildInfo?.agent_api_version || ""}
+											onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+										/>
+									);
+								})}
 
 								{(!selectedResource.agents ||
 									selectedResource.agents?.length === 0) && (
@@ -348,15 +355,13 @@ export const Workspace: FC<WorkspaceProps> = ({
 												color: theme.palette.text.secondary,
 											}}
 										>
-											{
-												// Calculate total status count
-												selectedResource.agents
-													?.flatMap((agent) => agent.apps ?? [])
-													.reduce(
-														(count, app) => count + (app.statuses?.length ?? 0),
-														0,
-													)
-											}{" "}
+											{// Calculate total status count
+											selectedResource.agents
+												?.flatMap((agent) => agent.apps ?? [])
+												.reduce(
+													(count, app) => count + (app.statuses?.length ?? 0),
+													0,
+												)}{" "}
 											Total
 										</div>
 									</div>

@@ -8304,6 +8304,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
+            "parent_id": {
+              "uuid": "string",
+              "valid": true
+            },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -8508,6 +8512,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
+  "parent_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "scripts": [
@@ -8564,6 +8572,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `logs_overflowed`            | boolean                                                                                      | false    |              |                                                                                                                                                                              |
 | `name`                       | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                              |
 | `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                              |
@@ -9256,6 +9265,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
+          "parent_id": {
+            "uuid": "string",
+            "valid": true
+          },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -9672,6 +9685,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "logs_overflowed": true,
       "name": "string",
       "operating_system": "string",
+      "parent_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "scripts": [
@@ -9954,6 +9971,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "logs_overflowed": true,
                 "name": "string",
                 "operating_system": "string",
+                "parent_id": {
+                  "uuid": "string",
+                  "valid": true
+                },
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "scripts": [
@@ -11940,6 +11961,22 @@ RegionIDs in range 900-999 are reserved for end users to run their own DERP node
 ### Properties
 
 None
+
+## uuid.NullUUID
+
+```json
+{
+  "uuid": "string",
+  "valid": true
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description                       |
+|---------|---------|----------|--------------|-----------------------------------|
+| `uuid`  | string  | false    |              |                                   |
+| `valid` | boolean | false    |              | Valid is true if UUID is not NULL |
 
 ## workspaceapps.AccessMethod
 
