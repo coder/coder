@@ -214,8 +214,10 @@ func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Get("/", api.handleList)
-	r.Get("/devcontainers", api.handleListDevcontainers)
-	r.Post("/{id}/recreate", api.handleRecreate)
+	r.Route("/devcontainers", func(r chi.Router) {
+		r.Get("/", api.handleDevcontainersList)
+		r.Post("/container/{container}/recreate", api.handleDevcontainerRecreate)
+	})
 
 	return r
 }
@@ -376,12 +378,13 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 	return copyListContainersResponse(api.containers), nil
 }
 
-// handleRecreate handles the HTTP request to recreate a container.
-func (api *API) handleRecreate(w http.ResponseWriter, r *http.Request) {
+// handleDevcontainerRecreate handles the HTTP request to recreate a
+// devcontainer by referencing the container.
+func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := chi.URLParam(r, "id")
+	containerID := chi.URLParam(r, "container")
 
-	if id == "" {
+	if containerID == "" {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing container ID or name",
 			Detail:  "Container ID or name is required to recreate a devcontainer.",
@@ -399,7 +402,7 @@ func (api *API) handleRecreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	containerIdx := slices.IndexFunc(containers.Containers, func(c codersdk.WorkspaceAgentContainer) bool {
-		return c.Match(id)
+		return c.Match(containerID)
 	})
 	if containerIdx == -1 {
 		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
@@ -418,7 +421,7 @@ func (api *API) handleRecreate(w http.ResponseWriter, r *http.Request) {
 	if workspaceFolder == "" {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing workspace folder label",
-			Detail:  "The workspace folder label is required to recreate a devcontainer.",
+			Detail:  "The container is not a devcontainer, the container must have the workspace folder label to support recreation.",
 		})
 		return
 	}
@@ -434,32 +437,28 @@ func (api *API) handleRecreate(w http.ResponseWriter, r *http.Request) {
 
 	// TODO(mafredri): Temporarily handle clearing the dirty state after
 	// recreation, later on this should be handled by a "container watcher".
-	select {
-	case <-api.ctx.Done():
-		return
-	case <-ctx.Done():
-		return
-	case api.lockCh <- struct{}{}:
-		defer func() { <-api.lockCh }()
-	}
-	for i := range api.knownDevcontainers {
-		if api.knownDevcontainers[i].WorkspaceFolder == workspaceFolder {
-			if api.knownDevcontainers[i].Dirty {
-				api.logger.Info(ctx, "clearing dirty flag after recreation",
-					slog.F("workspace_folder", workspaceFolder),
-					slog.F("name", api.knownDevcontainers[i].Name),
-				)
-				api.knownDevcontainers[i].Dirty = false
+	if !api.doLockedHandler(w, r, func() {
+		for i := range api.knownDevcontainers {
+			if api.knownDevcontainers[i].WorkspaceFolder == workspaceFolder {
+				if api.knownDevcontainers[i].Dirty {
+					api.logger.Info(ctx, "clearing dirty flag after recreation",
+						slog.F("workspace_folder", workspaceFolder),
+						slog.F("name", api.knownDevcontainers[i].Name),
+					)
+					api.knownDevcontainers[i].Dirty = false
+				}
+				return
 			}
-			break
 		}
+	}) {
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleListDevcontainers handles the HTTP request to list known devcontainers.
-func (api *API) handleListDevcontainers(w http.ResponseWriter, r *http.Request) {
+// handleDevcontainersList handles the HTTP request to list known devcontainers.
+func (api *API) handleDevcontainersList(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Run getContainers to detect the latest devcontainers and their state.
@@ -472,15 +471,12 @@ func (api *API) handleListDevcontainers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	select {
-	case <-api.ctx.Done():
+	var devcontainers []codersdk.WorkspaceAgentDevcontainer
+	if !api.doLockedHandler(w, r, func() {
+		devcontainers = slices.Clone(api.knownDevcontainers)
+	}) {
 		return
-	case <-ctx.Done():
-		return
-	case api.lockCh <- struct{}{}:
 	}
-	devcontainers := slices.Clone(api.knownDevcontainers)
-	<-api.lockCh
 
 	slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
 		if cmp := strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder); cmp != 0 {
@@ -499,34 +495,64 @@ func (api *API) handleListDevcontainers(w http.ResponseWriter, r *http.Request) 
 // markDevcontainerDirty finds the devcontainer with the given config file path
 // and marks it as dirty. It acquires the lock before modifying the state.
 func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
+	ok := api.doLocked(func() {
+		// Record the timestamp of when this configuration file was modified.
+		api.configFileModifiedTimes[configPath] = modifiedAt
+
+		for i := range api.knownDevcontainers {
+			if api.knownDevcontainers[i].ConfigPath != configPath {
+				continue
+			}
+
+			// TODO(mafredri): Simplistic mark for now, we should check if the
+			// container is running and if the config file was modified after
+			// the container was created.
+			if !api.knownDevcontainers[i].Dirty {
+				api.logger.Info(api.ctx, "marking devcontainer as dirty",
+					slog.F("file", configPath),
+					slog.F("name", api.knownDevcontainers[i].Name),
+					slog.F("workspace_folder", api.knownDevcontainers[i].WorkspaceFolder),
+					slog.F("modified_at", modifiedAt),
+				)
+				api.knownDevcontainers[i].Dirty = true
+			}
+		}
+	})
+	if !ok {
+		api.logger.Debug(api.ctx, "mark devcontainer dirty failed", slog.F("file", configPath))
+	}
+}
+
+func (api *API) doLockedHandler(w http.ResponseWriter, r *http.Request, f func()) bool {
 	select {
+	case <-r.Context().Done():
+		httpapi.Write(r.Context(), w, http.StatusRequestTimeout, codersdk.Response{
+			Message: "Request canceled",
+			Detail:  "Request was canceled before we could process it.",
+		})
+		return false
 	case <-api.ctx.Done():
-		return
+		httpapi.Write(r.Context(), w, http.StatusServiceUnavailable, codersdk.Response{
+			Message: "API closed",
+			Detail:  "The API is closed and cannot process requests.",
+		})
+		return false
 	case api.lockCh <- struct{}{}:
 		defer func() { <-api.lockCh }()
 	}
+	f()
+	return true
+}
 
-	// Record the timestamp of when this configuration file was modified.
-	api.configFileModifiedTimes[configPath] = modifiedAt
-
-	for i := range api.knownDevcontainers {
-		if api.knownDevcontainers[i].ConfigPath != configPath {
-			continue
-		}
-
-		// TODO(mafredri): Simplistic mark for now, we should check if the
-		// container is running and if the config file was modified after
-		// the container was created.
-		if !api.knownDevcontainers[i].Dirty {
-			api.logger.Info(api.ctx, "marking devcontainer as dirty",
-				slog.F("file", configPath),
-				slog.F("name", api.knownDevcontainers[i].Name),
-				slog.F("workspace_folder", api.knownDevcontainers[i].WorkspaceFolder),
-				slog.F("modified_at", modifiedAt),
-			)
-			api.knownDevcontainers[i].Dirty = true
-		}
+func (api *API) doLocked(f func()) bool {
+	select {
+	case <-api.ctx.Done():
+		return false
+	case api.lockCh <- struct{}{}:
+		defer func() { <-api.lockCh }()
 	}
+	f()
+	return true
 }
 
 func (api *API) Close() error {

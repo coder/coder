@@ -173,7 +173,7 @@ func TestAPI(t *testing.T) {
 			wantBody        string
 		}{
 			{
-				name:            "Missing ID",
+				name:            "Missing container ID",
 				containerID:     "",
 				lister:          &fakeLister{},
 				devcontainerCLI: &fakeDevcontainerCLI{},
@@ -260,7 +260,7 @@ func TestAPI(t *testing.T) {
 				r.Mount("/", api.Routes())
 
 				// Simulate HTTP request to the recreate endpoint.
-				req := httptest.NewRequest(http.MethodPost, "/"+tt.containerID+"/recreate", nil)
+				req := httptest.NewRequest(http.MethodPost, "/devcontainers/container/"+tt.containerID+"/recreate", nil)
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
 
