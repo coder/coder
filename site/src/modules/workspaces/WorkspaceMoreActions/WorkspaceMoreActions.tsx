@@ -82,7 +82,9 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 				<DropdownMenuContent id="workspace-options" align="end">
 					<DropdownMenuItem asChild>
-						<RouterLink to="settings">
+						<RouterLink
+							to={`/@${workspace.owner_name}/${workspace.name}/settings`}
+						>
 							<SettingsIcon />
 							Settings
 						</RouterLink>

@@ -52,7 +52,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -377,8 +377,13 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
 				</TableCell>
-				<TableCell className="w-0">
-					<Skeleton variant="rounded" width={40} height={40} />
+				<TableCell className="w-0 ">
+					<div className="flex gap-1 justify-end">
+						<Skeleton variant="rounded" width={40} height={40} />
+						<Button size="icon-lg" variant="subtle" disabled>
+							<EllipsisVertical aria-hidden="true" />
+						</Button>
+					</div>
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>
@@ -527,7 +532,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	};
 
 	return (
-		<TableCell>
+		<TableCell
+			onClick={(e) => {
+				// Prevent the click in the actions to trigger the row click
+				e.stopPropagation();
+			}}
+		>
 			<div className="flex gap-1 justify-end">
 				{workspace.latest_build.status === "running" && (
 					<WorkspaceApps workspace={workspace} />
@@ -601,14 +611,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={(e) => {
-							e.stopPropagation();
-							onClick();
-						}}
-					>
+					<Button variant="outline" size="icon-lg" onClick={onClick}>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>
