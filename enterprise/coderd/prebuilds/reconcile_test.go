@@ -729,12 +729,10 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 
 			if tc.isHardLimitHit {
 				// When hard limit is reached, no new workspace should be created
-				workspaceCount = len(workspaces)
-				require.Equal(t, 1, workspaceCount)
+				require.Equal(t, 1, len(workspaces))
 			} else {
 				// When hard limit is not reached, a new workspace should be created
-				workspaceCount = len(workspaces)
-				require.Equal(t, 2, workspaceCount)
+				require.Equal(t, 2, len(workspaces))
 			}
 		})
 	}
