@@ -11,7 +11,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -146,10 +145,6 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 	// Don't persist empty tar files in the database
 	if empty {
 		return []byte{}, nil
-	}
-
-	if b.Len() > drpcsdk.MaxMessageSize {
-		return nil, xerrors.New("modules archive exceeds max message size, modules will not be persisted")
 	}
 	return b.Bytes(), nil
 }
