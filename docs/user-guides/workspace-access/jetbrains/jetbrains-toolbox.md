@@ -40,7 +40,7 @@ For more details, see the [coder-jetbrains-toolbox repository](https://github.co
 
 ## Configure internal certificates
 
-When connecting to a Coder deployment with internal certificates, follow the same procedure described in the [JetBrains Gateway](../index.md#configuring-the-gateway-plugin-to-use-internal-certificates) section above, but use the Toolbox installation paths:
+When connecting to a Coder deployment with internal certificates, follow the same procedure described in the [JetBrains Gateway](./index.md#configuring-the-gateway-plugin-to-use-internal-certificates) section above, but use the Toolbox installation paths:
 
 <div class="tabs">
 
