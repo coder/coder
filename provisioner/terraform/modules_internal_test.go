@@ -55,7 +55,7 @@ func TestGetModulesArchive(t *testing.T) {
 		if runtime.GOOS != "windows" {
 			require.Equal(t, "05d2994c1a50ce573fe2c2b29507e5131ba004d15812d8bb0a46dc732f3211f5", hash)
 		} else {
-			require.Equal(t, "09a30ffc30138f9a411b280ef4581dcf22ffab8f0ca9de982329226400ec8520", hash)
+			require.Equal(t, "c219943913051e4637527cd03ae2b7303f6945005a262cdd420f9c2af490d572", hash)
 		}
 	})
 
