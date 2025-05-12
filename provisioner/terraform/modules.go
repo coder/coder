@@ -18,6 +18,7 @@ type module struct {
 	Source  string `json:"Source"`
 	Version string `json:"Version"`
 	Key     string `json:"Key"`
+	Dir     string `json:"Dir"`
 }
 
 type modulesFile struct {
@@ -68,15 +69,15 @@ func getModules(workdir string) ([]*proto.Module, error) {
 }
 
 func getModulesArchive(root fs.FS) ([]byte, error) {
-	modulesFile, err := fs.ReadFile(root, getModulesFilePath("."))
+	modulesFileContent, err := fs.ReadFile(root, getModulesFilePath("."))
 	if err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
 			return []byte{}, nil
 		}
 		return nil, xerrors.Errorf("failed to read modules.json: %w", err)
 	}
-	var m struct{ Modules []*proto.Module }
-	if err := json.Unmarshal(modulesFile, &m); err != nil {
+	var m modulesFile
+	if err := json.Unmarshal(modulesFileContent, &m); err != nil {
 		return nil, xerrors.Errorf("failed to parse modules.json: %w", err)
 	}
 
@@ -84,15 +85,15 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 	var b bytes.Buffer
 	w := tar.NewWriter(&b)
 
-	for _, module := range m.Modules {
+	for _, it := range m.Modules {
 		// Check to make sure that the module is a remote module fetched by
 		// Terraform. Any module that doesn't start with this path is already local,
 		// and should be part of the template files already.
-		if !strings.HasPrefix(module.Dir, ".terraform/modules/") {
+		if !strings.HasPrefix(it.Dir, ".terraform/modules/") {
 			continue
 		}
 
-		err := fs.WalkDir(root, module.Dir, func(filePath string, info fs.DirEntry, err error) error {
+		err := fs.WalkDir(root, it.Dir, func(filePath string, info fs.DirEntry, err error) error {
 			if err != nil {
 				return xerrors.Errorf("failed to create modules archive: %w", err)
 			}
@@ -127,7 +128,7 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 
 	err = w.WriteHeader(&tar.Header{
 		Name: ".terraform/modules/modules.json",
-		Size: int64(len(modulesFile)),
+		Size: int64(len(modulesFileContent)),
 		Mode: 0o644,
 		Uid:  1000,
 		Gid:  1000,
@@ -135,7 +136,7 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
-	if _, err := w.Write(modulesFile); err != nil {
+	if _, err := w.Write(modulesFileContent); err != nil {
 		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
 
