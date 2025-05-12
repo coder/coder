@@ -995,8 +995,8 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild:      true,
-					IsPrebuildClaim: false,
+					IsPrebuild:               true,
+					IsPrebuiltWorkspaceClaim: false,
 				},
 			},
 			Response: &proto.PlanComplete{
@@ -1034,8 +1034,8 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild:      false,
-					IsPrebuildClaim: true,
+					IsPrebuild:               false,
+					IsPrebuiltWorkspaceClaim: true,
 				},
 			},
 			Response: &proto.PlanComplete{

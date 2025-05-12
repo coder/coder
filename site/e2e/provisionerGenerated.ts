@@ -312,7 +312,7 @@ export interface Metadata {
   /** Preserves the running agent token of a prebuilt workspace so it can reinitialize. */
   runningWorkspaceAgentToken: string;
   /** Indicates that a prebuilt workspace is being claimed. */
-  isPrebuildClaim: boolean;
+  isPrebuiltWorkspaceClaim: boolean;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1037,8 +1037,8 @@ export const Metadata = {
     if (message.runningWorkspaceAgentToken !== "") {
       writer.uint32(170).string(message.runningWorkspaceAgentToken);
     }
-    if (message.isPrebuildClaim === true) {
-      writer.uint32(176).bool(message.isPrebuildClaim);
+    if (message.isPrebuiltWorkspaceClaim === true) {
+      writer.uint32(176).bool(message.isPrebuiltWorkspaceClaim);
     }
     return writer;
   },

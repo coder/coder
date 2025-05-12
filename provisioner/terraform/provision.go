@@ -273,7 +273,7 @@ func provisionEnv(
 	if metadata.GetIsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
 	}
-	if metadata.GetIsPrebuildClaim() {
+	if metadata.GetIsPrebuiltWorkspaceClaim() {
 		env = append(env, provider.IsPrebuildClaimEnvironmentVariable()+"=true")
 	}
 

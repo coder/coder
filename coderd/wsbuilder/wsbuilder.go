@@ -76,7 +76,7 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
-	prebuild, prebuildClaim bool
+	prebuild, prebuiltWorkspaceClaim bool
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -180,10 +180,10 @@ func (b Builder) MarkPrebuild() Builder {
 	return b
 }
 
-// MarkPrebuildClaim indicates that a prebuilt workspace is being claimed.
-func (b Builder) MarkPrebuildClaim() Builder {
+// MarkPrebuiltWorkspaceClaim indicates that a prebuilt workspace is being claimed.
+func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	// nolint: revive
-	b.prebuildClaim = true
+	b.prebuiltWorkspaceClaim = true
 	return b
 }
 
@@ -323,10 +323,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-		LogLevel:         b.logLevel,
-		IsPrebuild:       b.prebuild,
-		IsPrebuildClaim:  b.prebuildClaim,
+		WorkspaceBuildID:         workspaceBuildID,
+		LogLevel:                 b.logLevel,
+		IsPrebuild:               b.prebuild,
+		IsPrebuiltWorkspaceClaim: b.prebuiltWorkspaceClaim,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{
