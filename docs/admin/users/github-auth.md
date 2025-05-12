@@ -5,11 +5,8 @@
 By default, new Coder deployments use a Coder-managed GitHub app to authenticate
 users. We provide it for convenience, allowing you to experiment with Coder
 without setting up your own GitHub OAuth app. Once you authenticate with it, you
-grant Coder server read access to:
-
-- Your GitHub user email
-- Your GitHub organization membership
-- Other metadata listed during the authentication flow
+grant Coder server read access to your GitHub user email and other metadata listed
+during the authentication flow.
 
 This access is necessary for the Coder server to complete the authentication
 process. To the best of our knowledge, Coder, the company, does not gain access
@@ -27,7 +24,17 @@ up with GitHub, add the following environment variable:
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 ```
 
-To limit sign ups to members of specific GitHub organizations, set:
+You may limit sign ups to members of specific GitHub organizations, but the
+GitHub app must be installed in the organizations you want to limit sign ups to.
+**This will grant Coder, the company, access to your organizations' data as
+described in the installation flow.** In a production environment, we recommend
+configuring your own GitHub OAuth app as outlined further below, so all of your
+data is kept private.
+
+If you'd like to proceed with the default GitHub app, install it in the
+organizations you want to limit sign ups to by visiting
+[this page](https://github.com/apps/coder/installations/select_target) and set
+the following environment variable:
 
 ```env
 CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
