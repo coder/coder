@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -76,7 +77,7 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues []database.TemplateVersionPresetParameter
 
-	prebuild, prebuiltWorkspaceClaim bool
+	prebuiltWorkspaceBuildStage sdkproto.PrebuiltWorkspaceBuildStage
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -176,14 +177,14 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 // MarkPrebuild indicates that a prebuilt workspace is being built.
 func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
-	b.prebuild = true
+	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
 	return b
 }
 
 // MarkPrebuiltWorkspaceClaim indicates that a prebuilt workspace is being claimed.
 func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	// nolint: revive
-	b.prebuiltWorkspaceClaim = true
+	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
 	return b
 }
 
@@ -323,10 +324,9 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID:         workspaceBuildID,
-		LogLevel:                 b.logLevel,
-		IsPrebuild:               b.prebuild,
-		IsPrebuiltWorkspaceClaim: b.prebuiltWorkspaceClaim,
+		WorkspaceBuildID:            workspaceBuildID,
+		LogLevel:                    b.logLevel,
+		PrebuiltWorkspaceBuildStage: b.prebuiltWorkspaceBuildStage,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{

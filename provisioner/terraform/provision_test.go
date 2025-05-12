@@ -20,11 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -995,8 +994,7 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild:               true,
-					IsPrebuiltWorkspaceClaim: false,
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CREATE,
 				},
 			},
 			Response: &proto.PlanComplete{
@@ -1034,8 +1032,7 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild:               false,
-					IsPrebuiltWorkspaceClaim: true,
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CLAIM,
 				},
 			},
 			Response: &proto.PlanComplete{

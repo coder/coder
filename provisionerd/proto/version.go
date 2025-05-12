@@ -14,7 +14,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add new field named `devcontainers` in the Agent.
 //
 // API v1.5:
-//   - Add new field named `is_prebuild_claim` in the Metadata message.
+//   - Add new field named `prebuilt_workspace_build_stage` enum in the Metadata message.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 5

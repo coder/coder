@@ -38,6 +38,16 @@ export enum WorkspaceTransition {
   UNRECOGNIZED = -1,
 }
 
+export enum PrebuiltWorkspaceBuildStage {
+  /** NONE - Default value for builds unrelated to prebuilds. */
+  NONE = 0,
+  /** CREATE - A prebuilt workspace is being provisioned. */
+  CREATE = 1,
+  /** CLAIM - A prebuilt workspace is being claimed. */
+  CLAIM = 2,
+  UNRECOGNIZED = -1,
+}
+
 export enum TimingState {
   STARTED = 0,
   COMPLETED = 1,
@@ -308,11 +318,9 @@ export interface Metadata {
   workspaceOwnerLoginType: string;
   workspaceOwnerRbacRoles: Role[];
   /** Indicates that a prebuilt workspace is being built. */
-  isPrebuild: boolean;
+  prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
   /** Preserves the running agent token of a prebuilt workspace so it can reinitialize. */
   runningWorkspaceAgentToken: string;
-  /** Indicates that a prebuilt workspace is being claimed. */
-  isPrebuiltWorkspaceClaim: boolean;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1031,14 +1039,11 @@ export const Metadata = {
     for (const v of message.workspaceOwnerRbacRoles) {
       Role.encode(v!, writer.uint32(154).fork()).ldelim();
     }
-    if (message.isPrebuild === true) {
-      writer.uint32(160).bool(message.isPrebuild);
+    if (message.prebuiltWorkspaceBuildStage !== 0) {
+      writer.uint32(160).int32(message.prebuiltWorkspaceBuildStage);
     }
     if (message.runningWorkspaceAgentToken !== "") {
       writer.uint32(170).string(message.runningWorkspaceAgentToken);
-    }
-    if (message.isPrebuiltWorkspaceClaim === true) {
-      writer.uint32(176).bool(message.isPrebuiltWorkspaceClaim);
     }
     return writer;
   },
