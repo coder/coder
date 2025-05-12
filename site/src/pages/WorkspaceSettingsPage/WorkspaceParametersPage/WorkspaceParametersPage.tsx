@@ -50,14 +50,13 @@ const WorkspaceParametersPage: FC = () => {
 	const template = templateQuery.data;
 
 	// Permissions
-	const checks =
-		workspace && template ? workspaceChecks(workspace, template) : {};
+	const checks = workspace && template ? workspaceChecks(workspace) : {};
 	const permissionsQuery = useQuery({
 		...checkAuthorization({ checks }),
 		enabled: workspace !== undefined && template !== undefined,
 	});
 	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
-	const canChangeVersions = Boolean(permissions?.updateTemplate);
+	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
 	return (
 		<>

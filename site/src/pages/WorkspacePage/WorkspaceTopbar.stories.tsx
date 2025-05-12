@@ -33,7 +33,13 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		workspace: baseWorkspace,
 		template: MockTemplate,
 		latestVersion: MockTemplateVersion,
-		canUpdateWorkspace: true,
+		permissions: {
+			readWorkspace: true,
+			updateWorkspaceVersion: true,
+			updateWorkspace: true,
+			deploymentConfig: true,
+			deleteFailedWorkspace: true,
+		},
 	},
 	parameters: {
 		layout: "fullscreen",

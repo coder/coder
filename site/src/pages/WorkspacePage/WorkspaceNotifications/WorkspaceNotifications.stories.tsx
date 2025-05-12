@@ -10,12 +10,14 @@ import {
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 
-const defaultPermissions = {
+const defaultPermissions: WorkspacePermissions = {
 	readWorkspace: true,
-	updateTemplate: true,
+	updateWorkspaceVersion: true,
 	updateWorkspace: true,
-	viewDeploymentConfig: true,
+	deploymentConfig: true,
+	deleteFailedWorkspace: true,
 };
 
 const meta: Meta<typeof WorkspaceNotifications> = {

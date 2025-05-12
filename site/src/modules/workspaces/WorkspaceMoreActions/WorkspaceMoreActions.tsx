@@ -17,15 +17,15 @@ import {
 	CopyIcon,
 	DownloadIcon,
 } from "lucide-react";
-import { UpdateBuildParametersDialog } from "pages/WorkspacePage/UpdateBuildParametersDialog";
-import { DownloadLogsDialog } from "pages/WorkspacePage/WorkspaceActions/DownloadLogsDialog";
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
+import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { useState, type FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "../permissions";
-import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
+import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;

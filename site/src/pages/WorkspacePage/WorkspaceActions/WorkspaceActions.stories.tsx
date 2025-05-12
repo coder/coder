@@ -157,7 +157,13 @@ export const Failed: Story = {
 export const FailedWithDebug: Story = {
 	args: {
 		workspace: Mocks.MockFailedWorkspace,
-		canDebug: true,
+		permissions: {
+			deploymentConfig: true,
+			deleteFailedWorkspace: true,
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+		},
 	},
 };
 

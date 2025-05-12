@@ -21,8 +21,9 @@ const createTimestamp = (
 const permissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspace: true,
-	updateTemplate: true,
-	viewDeploymentConfig: true,
+	updateWorkspaceVersion: true,
+	deploymentConfig: true,
+	deleteFailedWorkspace: true,
 };
 
 const meta: Meta<typeof Workspace> = {
