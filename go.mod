@@ -491,7 +491,7 @@ require (
 	github.com/coder/preview v0.0.2-0.20250509141204-fc9484dbe506
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
-	github.com/mark3labs/mcp-go v0.25.0
+	github.com/mark3labs/mcp-go v0.27.0
 	github.com/openai/openai-go v0.1.0-beta.10
 	google.golang.org/genai v0.7.0
 )
