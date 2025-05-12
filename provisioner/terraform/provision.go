@@ -152,8 +152,7 @@ func (s *server) Plan(
 
 	s.logger.Debug(ctx, "ran initialization")
 
-	// plan step does not require previous values
-	env, err := provisionEnv(sess.Config, request.Metadata, nil, request.RichParameterValues, request.ExternalAuthProviders)
+	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
