@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -67,17 +68,16 @@ func getModules(workdir string) ([]*proto.Module, error) {
 	return filteredModules, nil
 }
 
-func getModulesArchive(workdir string) ([]byte, error) {
-	modulesFile, err := os.ReadFile(getModulesFilePath(workdir))
+func getModulesArchive(root fs.FS) ([]byte, error) {
+	modulesFile, err := fs.ReadFile(root, getModulesFilePath("."))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if xerrors.Is(err, fs.ErrNotExist) {
 			return []byte{}, nil
 		}
 		return nil, xerrors.Errorf("failed to read modules.json: %w", err)
 	}
 	var m struct{ Modules []*proto.Module }
-	err = json.Unmarshal(modulesFile, &m)
-	if err != nil {
+	if err := json.Unmarshal(modulesFile, &m); err != nil {
 		return nil, xerrors.Errorf("failed to parse modules.json: %w", err)
 	}
 
@@ -93,25 +93,21 @@ func getModulesArchive(workdir string) ([]byte, error) {
 			continue
 		}
 
-		err := filepath.WalkDir(filepath.Join(workdir, module.Dir), func(filePath string, info fs.DirEntry, err error) error {
+		err := fs.WalkDir(root, module.Dir, func(filePath string, info fs.DirEntry, err error) error {
 			if err != nil {
 				return xerrors.Errorf("failed to create modules archive: %w", err)
 			}
 			if info.IsDir() {
 				return nil
 			}
-			archivePath, found := strings.CutPrefix(filePath, workdir+string(os.PathSeparator))
-			if !found {
-				return xerrors.Errorf("walked invalid file path: %q", filePath)
-			}
 
-			content, err := os.ReadFile(filePath)
+			content, err := fs.ReadFile(root, filePath)
 			if err != nil {
 				return xerrors.Errorf("failed to read module file while archiving: %w", err)
 			}
 			empty = false
 			err = w.WriteHeader(&tar.Header{
-				Name: archivePath,
+				Name: filePath,
 				Size: int64(len(content)),
 				Mode: 0o644,
 				Uid:  1000,
@@ -140,13 +136,11 @@ func getModulesArchive(workdir string) ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
-	_, err = w.Write(modulesFile)
-	if err != nil {
+	if _, err := w.Write(modulesFile); err != nil {
 		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
 
-	err = w.Close()
-	if err != nil {
+	if err := w.Close(); err != nil {
 		return nil, xerrors.Errorf("failed to close module files archive: %w", err)
 	}
 	// Don't persist empty tar files in the database
@@ -154,8 +148,8 @@ func getModulesArchive(workdir string) ([]byte, error) {
 		return []byte{}, nil
 	}
 
-	if b.Len() > (10 << 20) {
-		return nil, xerrors.New("modules archive exceeds 10MB, modules will not be persisted")
+	if b.Len() > drpcsdk.MaxMessageSize {
+		return nil, xerrors.New("modules archive exceeds max message size, modules will not be persisted")
 	}
 	return b.Bytes(), nil
 }

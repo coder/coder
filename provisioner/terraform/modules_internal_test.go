@@ -5,14 +5,17 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // The .tar archive is different on Windows because of git converting LF line
@@ -21,35 +24,64 @@ import (
 func TestGetModulesArchive(t *testing.T) {
 	t.Parallel()
 
-	archive, err := getModulesArchive(filepath.Join("testdata", "modules-source-caching"))
-	require.NoError(t, err)
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 
-	// Check that all of the files it should contain are correct
-	b := bytes.NewBuffer(archive)
-	tarfs := archivefs.FromTarReader(b)
+		archive, err := getModulesArchive(os.DirFS(filepath.Join("testdata", "modules-source-caching")))
+		require.NoError(t, err)
 
-	content, err := fs.ReadFile(tarfs, ".terraform/modules/modules.json")
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(content), `{"Modules":[{"Key":"","Source":"","Dir":"."},`))
+		// Check that all of the files it should contain are correct
+		b := bytes.NewBuffer(archive)
+		tarfs := archivefs.FromTarReader(b)
 
-	content, err = fs.ReadFile(tarfs, ".terraform/modules/example_module/main.tf")
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(content), "terraform {"))
-	if runtime.GOOS != "windows" {
-		require.Len(t, content, 3691)
-	} else {
-		require.Len(t, content, 3812)
-	}
+		content, err := fs.ReadFile(tarfs, ".terraform/modules/modules.json")
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(string(content), `{"Modules":[{"Key":"","Source":"","Dir":"."},`))
 
-	_, err = fs.ReadFile(tarfs, ".terraform/modules/stuff_that_should_not_be_included/nothing.txt")
-	require.Error(t, err)
+		content, err = fs.ReadFile(tarfs, ".terraform/modules/example_module/main.tf")
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(string(content), "terraform {"))
+		if runtime.GOOS != "windows" {
+			require.Len(t, content, 3691)
+		} else {
+			require.Len(t, content, 3812)
+		}
 
-	// It should always be byte-identical to optimize storage
-	hashBytes := sha256.Sum256(archive)
-	hash := hex.EncodeToString(hashBytes[:])
-	if runtime.GOOS != "windows" {
-		require.Equal(t, "05d2994c1a50ce573fe2c2b29507e5131ba004d15812d8bb0a46dc732f3211f5", hash)
-	} else {
-		require.Equal(t, "09a30ffc30138f9a411b280ef4581dcf22ffab8f0ca9de982329226400ec8520", hash)
-	}
+		_, err = fs.ReadFile(tarfs, ".terraform/modules/stuff_that_should_not_be_included/nothing.txt")
+		require.Error(t, err)
+
+		// It should always be byte-identical to optimize storage
+		hashBytes := sha256.Sum256(archive)
+		hash := hex.EncodeToString(hashBytes[:])
+		if runtime.GOOS != "windows" {
+			require.Equal(t, "05d2994c1a50ce573fe2c2b29507e5131ba004d15812d8bb0a46dc732f3211f5", hash)
+		} else {
+			require.Equal(t, "09a30ffc30138f9a411b280ef4581dcf22ffab8f0ca9de982329226400ec8520", hash)
+		}
+	})
+
+	t.Run("EmptyDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		root := afero.NewMemMapFs()
+		afero.WriteFile(root, ".terraform/modules/modules.json", []byte(`{"Modules":[{"Key":"","Source":"","Dir":"."}]}`), 0o644)
+
+		archive, err := getModulesArchive(afero.NewIOFS(root))
+		require.NoError(t, err)
+		require.Equal(t, []byte{}, archive)
+	})
+
+	t.Run("TooBig", func(t *testing.T) {
+		t.Parallel()
+
+		root := afero.NewMemMapFs()
+		err := afero.WriteFile(root, ".terraform/modules/modules.json", []byte(`{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"example_module","Source":"example_module","Dir":".terraform/modules/example_module"}]}`), 0o644)
+		require.NoError(t, err)
+		err = afero.WriteFile(root, ".terraform/modules/example_module/main.tf", bytes.Repeat([]byte{'a'}, drpcsdk.MaxMessageSize), 0o644)
+		require.NoError(t, err)
+
+		archive, err := getModulesArchive(afero.NewIOFS(root))
+		require.ErrorContains(t, err, "exceeds max message size")
+		require.Nil(t, archive)
+	})
 }
