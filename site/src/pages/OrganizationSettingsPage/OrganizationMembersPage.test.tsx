@@ -7,7 +7,7 @@ import {
 	MockOrganization,
 	MockOrganizationAuditorRole,
 	MockOrganizationPermissions,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import {
 	renderWithOrganizationSettingsLayout,
@@ -102,11 +102,11 @@ describe("OrganizationMembersPage", () => {
 			it("updates the roles", async () => {
 				server.use(
 					http.put(
-						`/api/v2/organizations/:organizationId/members/${MockUser.id}/roles`,
+						`/api/v2/organizations/:organizationId/members/${MockUserOwner.id}/roles`,
 						async () => {
 							return HttpResponse.json({
-								...MockUser,
-								roles: [...MockUser.roles, MockOrganizationAuditorRole],
+								...MockUserOwner,
+								roles: [...MockUserOwner.roles, MockOrganizationAuditorRole],
 							});
 						},
 					),
@@ -122,7 +122,7 @@ describe("OrganizationMembersPage", () => {
 			it("shows an error message", async () => {
 				server.use(
 					http.put(
-						`/api/v2/organizations/:organizationId/members/${MockUser.id}/roles`,
+						`/api/v2/organizations/:organizationId/members/${MockUserOwner.id}/roles`,
 						() => {
 							return HttpResponse.json(
 								{ message: "Error on updating the user roles." },

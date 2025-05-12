@@ -40,7 +40,7 @@ import (
 //     ScriptCompleted, but be prepared to process "unsupported" errors.)
 //
 // API v2.4:
-//   - Shipped in Coder v2.{{placeholder}} // TODO Vincent: Replace with the correct version
+//   - Shipped in Coder v2.20.0
 //   - Added support for GetResourcesMonitoringConfiguration and
 //     PushResourcesMonitoringUsage RPCs on the Agent API.
 //   - Added support for reporting connection events for auditing via the

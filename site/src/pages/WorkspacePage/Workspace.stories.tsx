@@ -40,7 +40,7 @@ const meta: Meta<typeof Workspace> = {
 				data: Mocks.MockListeningPortsResponse,
 			},
 		],
-		user: Mocks.MockUser,
+		user: Mocks.MockUserOwner,
 	},
 	decorators: [
 		withAuthProvider,

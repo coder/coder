@@ -17,7 +17,7 @@ const meta: Meta<typeof WorkspaceActions> = {
 	},
 	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
 	parameters: {
-		user: Mocks.MockUser,
+		user: Mocks.MockUserOwner,
 	},
 };
 
@@ -175,7 +175,7 @@ export const CancelShownForUser: Story = {
 		workspace: Mocks.MockStartingWorkspace,
 	},
 	parameters: {
-		user: Mocks.MockUser2,
+		user: Mocks.MockUserMember,
 	},
 };
 
@@ -187,7 +187,7 @@ export const CancelHiddenForUser: Story = {
 		},
 	},
 	parameters: {
-		user: Mocks.MockUser2,
+		user: Mocks.MockUserMember,
 	},
 };
 

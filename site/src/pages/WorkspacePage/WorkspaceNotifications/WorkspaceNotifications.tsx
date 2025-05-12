@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
@@ -11,6 +10,7 @@ import type {
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
 import dayjs from "dayjs";
+import { InfoIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useEffect, useState } from "react";
@@ -251,7 +251,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={infoNotifications}
 					severity="info"
-					icon={<InfoOutlined />}
+					icon={<InfoIcon aria-hidden="true" className="size-icon-sm" />}
 				/>
 			)}
 

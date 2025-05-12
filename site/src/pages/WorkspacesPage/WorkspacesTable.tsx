@@ -1,8 +1,8 @@
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
+import { apiKey } from "api/queries/users";
 import {
 	cancelBuild,
 	deleteWorkspace,
@@ -19,6 +19,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
@@ -49,7 +52,19 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { BanIcon, PlayIcon, RefreshCcwIcon, SquareIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
+import {
+	BanIcon,
+	PlayIcon,
+	RefreshCcwIcon,
+	SquareTerminalIcon,
+} from "lucide-react";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+} from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -59,6 +74,7 @@ import {
 	useWorkspaceUpdate,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
 import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
+import type React from "react";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -83,7 +99,6 @@ export interface WorkspacesTableProps {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
-	onUpdateWorkspace: (workspace: Workspace) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	canCheckWorkspaces: boolean;
 	templates?: Template[];
@@ -96,7 +111,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
-	onUpdateWorkspace,
 	onCheckChange,
 	canCheckWorkspaces,
 	templates,
@@ -229,16 +243,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.name}
 												{workspace.favorite && <Star className="w-4 h-4" />}
 												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip
-														organizationName={workspace.organization_name}
-														templateName={workspace.template_name}
-														latestVersionId={
-															workspace.template_active_version_id
-														}
-														onUpdateVersion={() => {
-															onUpdateWorkspace(workspace);
-														}}
-													/>
+													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
 											</Stack>
 										}
@@ -300,7 +305,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							/>
 							<TableCell>
 								<div className="flex">
-									<KeyboardArrowRight className="text-content-secondary size-icon-sm" />
+									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
 								</div>
 							</TableCell>
 						</WorkspacesRow>
@@ -382,7 +387,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell>
 					<div className="flex">
-						<KeyboardArrowRight className="text-content-disabled size-icon-sm" />
+						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
 					</div>
 				</TableCell>
 			</TableRowSkeleton>
@@ -534,6 +539,10 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	return (
 		<TableCell>
 			<div className="flex gap-1 justify-end">
+				{workspace.latest_build.status === "running" && (
+					<WorkspaceApps workspace={workspace} />
+				)}
+
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
@@ -555,18 +564,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
 					</>
-				)}
-
-				{abilities.actions.includes("stop") && (
-					<PrimaryAction
-						onClick={() => {
-							stopWorkspaceMutation.mutate({});
-						}}
-						isLoading={stopWorkspaceMutation.isLoading}
-						label="Stop workspace"
-					>
-						<SquareIcon />
-					</PrimaryAction>
 				)}
 
 				{abilities.canCancel && (
@@ -594,9 +591,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 };
 
 type PrimaryActionProps = PropsWithChildren<{
-	onClick: () => void;
-	isLoading: boolean;
 	label: string;
+	isLoading?: boolean;
+	onClick: () => void;
 }>;
 
 const PrimaryAction: FC<PrimaryActionProps> = ({
@@ -619,6 +616,178 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+};
+
+// The total number of apps that can be displayed in the workspace row
+const WORKSPACE_APPS_SLOTS = 4;
+
+type WorkspaceAppsProps = {
+	workspace: Workspace;
+};
+
+const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+	const { data: apiKeyResponse } = useQuery(apiKey());
+	const token = apiKeyResponse?.key;
+
+	/**
+	 * Coder is pretty flexible and allows an enormous variety of use cases, such
+	 * as having multiple resources with many agents, but they are not common. The
+	 * most common scenario is to have one single compute resource with one single
+	 * agent containing all the apps. Lets test this getting the apps for the
+	 * first resource, and first agent - they are sorted to return the compute
+	 * resource first - and see what customers and ourselves, using dogfood, think
+	 * about that.
+	 */
+	const agent = workspace.latest_build.resources
+		.filter((r) => !r.hide)
+		.at(0)
+		?.agents?.at(0);
+	if (!agent) {
+		return null;
+	}
+
+	const builtinApps = new Set(agent.display_apps);
+	builtinApps.delete("port_forwarding_helper");
+	builtinApps.delete("ssh_helper");
+
+	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
+	const userApps = agent.apps.slice(0, remainingSlots);
+
+	const buttons: ReactNode[] = [];
+
+	if (builtinApps.has("vscode")) {
+		buttons.push(
+			<BaseIconLink
+				key="vscode"
+				isLoading={!token}
+				label="Open VSCode"
+				href={getVSCodeHref("vscode", {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					agent: agent.name,
+					token: token ?? "",
+					folder: agent.expanded_directory,
+				})}
+			>
+				<VSCodeIcon />
+			</BaseIconLink>,
+		);
+	}
+
+	if (builtinApps.has("vscode_insiders")) {
+		buttons.push(
+			<BaseIconLink
+				key="vscode-insiders"
+				label="Open VSCode Insiders"
+				isLoading={!token}
+				href={getVSCodeHref("vscode-insiders", {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					agent: agent.name,
+					token: token ?? "",
+					folder: agent.expanded_directory,
+				})}
+			>
+				<VSCodeInsidersIcon />
+			</BaseIconLink>,
+		);
+	}
+
+	for (const app of userApps) {
+		buttons.push(
+			<IconAppLink
+				key={app.id}
+				app={app}
+				workspace={workspace}
+				agent={agent}
+			/>,
+		);
+	}
+
+	if (builtinApps.has("web_terminal")) {
+		const href = getTerminalHref({
+			username: workspace.owner_name,
+			workspace: workspace.name,
+			agent: agent.name,
+		});
+		buttons.push(
+			<BaseIconLink
+				key="terminal"
+				href={href}
+				onClick={(e) => {
+					e.preventDefault();
+					openAppInNewWindow(href);
+				}}
+				label="Open Terminal"
+			>
+				<SquareTerminalIcon />
+			</BaseIconLink>,
+		);
+	}
+
+	return buttons;
+};
+
+type IconAppLinkProps = {
+	app: WorkspaceApp;
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+};
+
+const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+	const link = useAppLink(app, {
+		workspace,
+		agent,
+	});
+
+	return (
+		<BaseIconLink
+			key={app.id}
+			label={`Open ${link.label}`}
+			href={link.href}
+			onClick={link.onClick}
+		>
+			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+		</BaseIconLink>
+	);
+};
+
+type BaseIconLinkProps = PropsWithChildren<{
+	label: string;
+	href: string;
+	isLoading?: boolean;
+	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}>;
+
+const BaseIconLink: FC<BaseIconLinkProps> = ({
+	href,
+	isLoading,
+	label,
+	children,
+	onClick,
+}) => {
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button variant="outline" size="icon-lg" asChild>
+						<a
+							className={isLoading ? "animate-pulse" : ""}
+							href={href}
+							onClick={(e) => {
+								e.stopPropagation();
+								onClick?.(e);
+							}}
+						>
+							{children}
+							<span className="sr-only">{label}</span>
+						</a>
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent>{label}</TooltipContent>

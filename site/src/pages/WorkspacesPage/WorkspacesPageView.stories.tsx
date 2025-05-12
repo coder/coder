@@ -21,8 +21,9 @@ import {
 	MockProxyLatencies,
 	MockStoppedWorkspace,
 	MockTemplate,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
@@ -105,7 +106,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		organizations: MockMenu,
 	},
 	values: {
-		owner: MockUser.username,
+		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
@@ -144,7 +145,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 				data: MockBuildInfo,
 			},
 		],
-		user: MockUser,
+		user: MockUserOwner,
 	},
 	decorators: [
 		withAuthProvider,
@@ -296,6 +297,42 @@ export const InvalidPageNumber: Story = {
 		count: 200,
 		limit: 25,
 		page: 1000,
+	},
+};
+
+export const MultipleApps: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									apps: [
+										{
+											...MockWorkspaceAgent.apps[0],
+											display_name: "App 1",
+											id: "app-1",
+										},
+										{
+											...MockWorkspaceAgent.apps[0],
+											display_name: "App 2",
+											id: "app-2",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
 	},
 };
 

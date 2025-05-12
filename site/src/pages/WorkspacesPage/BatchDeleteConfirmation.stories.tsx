@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { MockUser2, MockWorkspace } from "testHelpers/entities";
+import { MockUserMember, MockWorkspace } from "testHelpers/entities";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 
 const meta: Meta<typeof BatchDeleteConfirmation> = {
@@ -18,15 +18,15 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				...MockWorkspace,
 				name: "Test-Workspace-2",
 				last_used_at: "2023-08-16T15:29:10.302441433Z",
-				owner_id: MockUser2.id,
-				owner_name: MockUser2.username,
+				owner_id: MockUserMember.id,
+				owner_name: MockUserMember.username,
 			},
 			{
 				...MockWorkspace,
 				name: "Test-Workspace-3",
 				last_used_at: "2023-11-16T15:29:10.302441433Z",
-				owner_id: MockUser2.id,
-				owner_name: MockUser2.username,
+				owner_id: MockUserMember.id,
+				owner_name: MockUserMember.username,
 			},
 		],
 	},
