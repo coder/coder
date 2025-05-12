@@ -37,7 +37,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 				href={href}
 				onClick={(event: MouseEvent<HTMLElement>) => {
 					event.preventDefault();
-					openAppInNewWindow("Terminal", href);
+					openAppInNewWindow(href);
 				}}
 			>
 				<TerminalIcon />

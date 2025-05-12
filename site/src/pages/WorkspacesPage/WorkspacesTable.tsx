@@ -1,4 +1,3 @@
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
@@ -20,6 +19,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
@@ -52,6 +52,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { ChevronRightIcon } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -63,6 +64,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -303,7 +305,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							/>
 							<TableCell>
 								<div className="flex">
-									<KeyboardArrowRight className="text-content-secondary size-icon-sm" />
+									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
 								</div>
 							</TableCell>
 						</WorkspacesRow>
@@ -385,7 +387,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell>
 					<div className="flex">
-						<KeyboardArrowRight className="text-content-disabled size-icon-sm" />
+						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
 					</div>
 				</TableCell>
 			</TableRowSkeleton>
@@ -622,13 +624,16 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 	);
 };
 
+// The total number of apps that can be displayed in the workspace row
+const WORKSPACE_APPS_SLOTS = 4;
+
 type WorkspaceAppsProps = {
 	workspace: Workspace;
 };
 
 const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
-	const { data: apiKeyRes } = useQuery(apiKey());
-	const token = apiKeyRes?.key;
+	const { data: apiKeyResponse } = useQuery(apiKey());
+	const token = apiKeyResponse?.key;
 
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
@@ -647,75 +652,120 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		return null;
 	}
 
+	const builtinApps = new Set(agent.display_apps);
+	builtinApps.delete("port_forwarding_helper");
+	builtinApps.delete("ssh_helper");
+
+	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
+	const userApps = agent.apps.slice(0, remainingSlots);
+
 	const buttons: ReactNode[] = [];
 
-	if (agent.display_apps.includes("vscode")) {
+	if (builtinApps.has("vscode")) {
 		buttons.push(
-			<AppLink
+			<BaseIconLink
+				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
 				href={getVSCodeHref("vscode", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
 				<VSCodeIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
-	if (agent.display_apps.includes("vscode_insiders")) {
+	if (builtinApps.has("vscode_insiders")) {
 		buttons.push(
-			<AppLink
+			<BaseIconLink
+				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
-					token: apiKeyRes?.key ?? "",
+					token: token ?? "",
 					folder: agent.expanded_directory,
 				})}
 			>
 				<VSCodeInsidersIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
-	if (agent.display_apps.includes("web_terminal")) {
+	for (const app of userApps) {
+		buttons.push(
+			<IconAppLink
+				key={app.id}
+				app={app}
+				workspace={workspace}
+				agent={agent}
+			/>,
+		);
+	}
+
+	if (builtinApps.has("web_terminal")) {
 		const href = getTerminalHref({
 			username: workspace.owner_name,
 			workspace: workspace.name,
 			agent: agent.name,
 		});
 		buttons.push(
-			<AppLink
+			<BaseIconLink
+				key="terminal"
 				href={href}
 				onClick={(e) => {
 					e.preventDefault();
-					openAppInNewWindow("Terminal", href);
+					openAppInNewWindow(href);
 				}}
 				label="Open Terminal"
 			>
 				<SquareTerminalIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
 	return buttons;
 };
 
-type AppLinkProps = PropsWithChildren<{
+type IconAppLinkProps = {
+	app: WorkspaceApp;
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+};
+
+const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+	const link = useAppLink(app, {
+		workspace,
+		agent,
+	});
+
+	return (
+		<BaseIconLink
+			key={app.id}
+			label={`Open ${link.label}`}
+			href={link.href}
+			onClick={link.onClick}
+		>
+			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+		</BaseIconLink>
+	);
+};
+
+type BaseIconLinkProps = PropsWithChildren<{
 	label: string;
 	href: string;
 	isLoading?: boolean;
 	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }>;
 
-const AppLink: FC<AppLinkProps> = ({
+const BaseIconLink: FC<BaseIconLinkProps> = ({
 	href,
 	isLoading,
 	label,

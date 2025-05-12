@@ -896,17 +896,10 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	id: "test-app",
 	slug: "test-app",
 	display_name: "Test App",
-	icon: "",
 	subdomain: false,
 	health: "disabled",
 	external: false,
-	url: "",
 	sharing_level: "owner",
-	healthcheck: {
-		url: "",
-		interval: 0,
-		threshold: 0,
-	},
 	hidden: false,
 	open_in: "slim-window",
 	statuses: [],
@@ -2981,6 +2974,25 @@ export const MockWorkspaceBuildParameter4: TypesGen.WorkspaceBuildParameter = {
 export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 	name: MockTemplateVersionParameter5.name,
 	value: "5",
+};
+
+export const MockPreviewParameter: TypesGen.PreviewParameter = {
+	name: "parameter1",
+	display_name: "Parameter 1",
+	description: "This is a parameter",
+	type: "string",
+	mutable: true,
+	form_type: "input",
+	validations: [],
+	value: { valid: true, value: "" },
+	diagnostics: [],
+	options: [],
+	ephemeral: true,
+	required: true,
+	icon: "",
+	styling: {},
+	default_value: { valid: true, value: "" },
+	order: 0,
 };
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
