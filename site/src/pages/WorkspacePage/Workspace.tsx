@@ -28,43 +28,33 @@ import type { WorkspacePermissions } from "../../modules/workspaces/permissions"
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {
+	workspace: TypesGen.Workspace;
+	template: TypesGen.Template;
+	permissions: WorkspacePermissions;
+	isUpdating: boolean;
+	isRestarting: boolean;
+	hideSSHButton?: boolean;
+	hideVSCodeDesktopButton?: boolean;
+	buildInfo?: TypesGen.BuildInfoResponse;
+	sshPrefix?: string;
+	buildLogs?: TypesGen.ProvisionerJobLog[];
+	latestVersion?: TypesGen.TemplateVersion;
+	timings?: TypesGen.WorkspaceBuildTimings;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleUpdate: () => void;
 	handleCancel: () => void;
-	handleSettings: () => void;
 	handleDormantActivate: () => void;
 	handleToggleFavorite: () => void;
-	isUpdating: boolean;
-	isRestarting: boolean;
-	workspace: TypesGen.Workspace;
-	hideSSHButton?: boolean;
-	hideVSCodeDesktopButton?: boolean;
-	buildInfo?: TypesGen.BuildInfoResponse;
-	sshPrefix?: string;
-	template: TypesGen.Template;
-	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	buildLogs?: TypesGen.ProvisionerJobLog[];
-	latestVersion?: TypesGen.TemplateVersion;
-	permissions: WorkspacePermissions;
-	timings?: TypesGen.WorkspaceBuildTimings;
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<WorkspaceProps> = ({
-	handleStart,
-	handleStop,
-	handleRestart,
-	handleUpdate,
-	handleCancel,
-	handleSettings,
-	handleDormantActivate,
-	handleToggleFavorite,
 	workspace,
 	isUpdating,
 	isRestarting,
@@ -73,13 +63,19 @@ export const Workspace: FC<WorkspaceProps> = ({
 	buildInfo,
 	sshPrefix,
 	template,
-	canDebugMode,
-	handleRetry,
-	handleDebug,
 	buildLogs,
 	latestVersion,
 	permissions,
 	timings,
+	handleStart,
+	handleStop,
+	handleRestart,
+	handleUpdate,
+	handleCancel,
+	handleDormantActivate,
+	handleToggleFavorite,
+	handleRetry,
+	handleDebug,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -136,23 +132,20 @@ export const Workspace: FC<WorkspaceProps> = ({
 		>
 			<WorkspaceTopbar
 				workspace={workspace}
+				template={template}
+				permissions={permissions}
+				latestVersion={latestVersion}
+				isUpdating={isUpdating}
+				isRestarting={isRestarting}
 				handleStart={handleStart}
 				handleStop={handleStop}
 				handleRestart={handleRestart}
 				handleUpdate={handleUpdate}
 				handleCancel={handleCancel}
-				handleSettings={handleSettings}
 				handleRetry={handleRetry}
 				handleDebug={handleDebug}
 				handleDormantActivate={handleDormantActivate}
 				handleToggleFavorite={handleToggleFavorite}
-				canDebugMode={canDebugMode}
-				isUpdating={isUpdating}
-				isRestarting={isRestarting}
-				canUpdateWorkspace={permissions.updateWorkspace}
-				template={template}
-				permissions={permissions}
-				latestVersion={latestVersion}
 			/>
 
 			<div

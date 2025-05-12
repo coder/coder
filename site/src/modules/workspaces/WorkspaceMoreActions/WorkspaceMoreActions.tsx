@@ -25,21 +25,18 @@ import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "../permissions";
+import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
-	isDuplicationReady: boolean;
 	permissions: WorkspacePermissions;
 	disabled?: boolean;
-	onDuplicate: () => void;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
 	permissions,
-	isDuplicationReady,
-	onDuplicate,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -57,6 +54,10 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	const deleteWorkspaceMutation = useMutation(
 		deleteWorkspace(workspace, queryClient),
 	);
+
+	// Duplicate
+	const { duplicateWorkspace, isDuplicationReady } =
+		useWorkspaceDuplication(workspace);
 
 	return (
 		<>
@@ -94,7 +95,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 					)}
 
 					<DropdownMenuItem
-						onClick={onDuplicate}
+						onClick={duplicateWorkspace}
 						disabled={!isDuplicationReady}
 					>
 						<CopyIcon />

@@ -1,13 +1,12 @@
-import { API, MissingBuildParameters } from "api/api";
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { buildInfo } from "api/queries/buildInfo";
-import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
-import { templateVersion, templateVersions } from "api/queries/templates";
+import { deploymentSSHConfig } from "api/queries/deployment";
+import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
 	activate,
 	cancelBuild,
-	changeVersion,
 	deleteWorkspace,
 	startWorkspace,
 	stopWorkspace,
@@ -19,7 +18,6 @@ import {
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import dayjs from "dayjs";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -30,10 +28,8 @@ import {
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 
 interface WorkspaceReadyPageProps {
@@ -49,19 +45,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-
 	const featureVisibility = useFeatureVisibility();
-	if (workspace === undefined) {
-		throw Error("Workspace is undefined");
-	}
-
-	// Debug mode
-	const { data: deploymentValues } = useQuery({
-		...deploymentConfig(),
-		enabled: permissions.deploymentConfig,
-	});
 
 	// Build logs
 	const shouldStreamBuildLogs = workspace.latest_build.status !== "running";
@@ -96,8 +81,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		setFaviconTheme(isDark.matches ? "light" : "dark");
 	}, []);
 
-	// Versions
-
+	// Active version
 	const { data: latestVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: workspace.outdated,
@@ -110,7 +94,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	});
 
 	// Delete workspace
-	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const deleteWorkspaceMutation = useMutation(
 		deleteWorkspace(workspace, queryClient),
 	);
@@ -218,6 +201,14 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				isUpdating={workspaceUpdate.isUpdating}
 				isRestarting={isRestarting}
 				workspace={workspace}
+				latestVersion={latestVersion}
+				hideSSHButton={featureVisibility.browser_only}
+				hideVSCodeDesktopButton={featureVisibility.browser_only}
+				buildInfo={buildInfoQuery.data}
+				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
+				template={template}
+				buildLogs={buildLogs}
+				timings={timingsQuery.data}
 				handleStart={(buildParameters) => {
 					startWorkspaceMutation.mutate({ buildParameters });
 				}}
@@ -229,12 +220,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				}}
 				handleUpdate={workspaceUpdate.update}
 				handleCancel={cancelBuildMutation.mutate}
-				handleSettings={() => navigate("settings")}
 				handleRetry={handleRetry}
 				handleDebug={handleDebug}
-				canDebugMode={
-					deploymentValues?.config.enable_terraform_debug_mode ?? false
-				}
 				handleDormantActivate={async () => {
 					try {
 						await activateWorkspaceMutation.mutateAsync();
@@ -246,14 +233,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				handleToggleFavorite={() => {
 					toggleFavoriteMutation.mutate();
 				}}
-				latestVersion={latestVersion}
-				hideSSHButton={featureVisibility.browser_only}
-				hideVSCodeDesktopButton={featureVisibility.browser_only}
-				buildInfo={buildInfoQuery.data}
-				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
-				template={template}
-				buildLogs={buildLogs}
-				timings={timingsQuery.data}
 			/>
 
 			<WarningDialog

@@ -35,48 +35,40 @@ export type WorkspaceError =
 	| "buildError"
 	| "cancellationError";
 
-type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
-
 export interface WorkspaceProps {
+	isUpdating: boolean;
+	isRestarting: boolean;
+	workspace: TypesGen.Workspace;
+	template: TypesGen.Template;
+	permissions: WorkspacePermissions;
+	latestVersion?: TypesGen.TemplateVersion;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleUpdate: () => void;
 	handleCancel: () => void;
-	handleSettings: () => void;
 	handleDormantActivate: () => void;
-	isUpdating: boolean;
-	isRestarting: boolean;
-	workspace: TypesGen.Workspace;
-	canUpdateWorkspace: boolean;
-	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	template: TypesGen.Template;
-	permissions: WorkspacePermissions;
-	latestVersion?: TypesGen.TemplateVersion;
 	handleToggleFavorite: () => void;
 }
 
 export const WorkspaceTopbar: FC<WorkspaceProps> = ({
+	workspace,
+	template,
+	latestVersion,
+	permissions,
+	isUpdating,
+	isRestarting,
 	handleStart,
 	handleStop,
 	handleRestart,
 	handleUpdate,
 	handleCancel,
-	handleSettings,
 	handleDormantActivate,
 	handleToggleFavorite,
-	workspace,
-	isUpdating,
-	isRestarting,
-	canUpdateWorkspace,
-	canDebugMode,
 	handleRetry,
 	handleDebug,
-	template,
-	latestVersion,
-	permissions,
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
@@ -224,7 +216,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}
-						canUpdateSchedule={canUpdateWorkspace}
+						canUpdateSchedule={permissions.updateWorkspace}
 					/>
 					<WorkspaceNotifications
 						workspace={workspace}
@@ -238,20 +230,18 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					<WorkspaceStatusBadge workspace={workspace} />
 					<WorkspaceActions
 						workspace={workspace}
+						permissions={permissions}
+						isUpdating={isUpdating}
+						isRestarting={isRestarting}
 						handleStart={handleStart}
 						handleStop={handleStop}
 						handleRestart={handleRestart}
 						handleUpdate={handleUpdate}
 						handleCancel={handleCancel}
-						handleSettings={handleSettings}
 						handleRetry={handleRetry}
 						handleDebug={handleDebug}
 						handleDormantActivate={handleDormantActivate}
 						handleToggleFavorite={handleToggleFavorite}
-						canDebug={canDebugMode}
-						canChangeVersions={permissions.updateWorkspaceVersion}
-						isUpdating={isUpdating}
-						isRestarting={isRestarting}
 					/>
 				</div>
 			)}
