@@ -2039,7 +2039,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
 			WorkspaceID: w.ID,
 			BuildNumber: 1,
-		}).Asserts(w, policy.ActionRead).Returns(agt)
+		}).Asserts(w, policy.ActionRead).Returns([]database.WorkspaceAgent{agt})
 	}))
 	s.Run("GetWorkspaceAgentLifecycleStateByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
