@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Table from "@mui/material/Table";
@@ -398,8 +397,8 @@ const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
 					name="show_all_permissions"
 					checked={showAllResources}
 					onChange={(e) => setShowAllResources(e.currentTarget.checked)}
-					checkedIcon={<VisibilityOutlinedIcon />}
-					icon={<VisibilityOffOutlinedIcon />}
+					checkedIcon={<EyeIcon className="size-icon-sm" />}
+					icon={<EyeOffIcon className="size-icon-sm" />}
 				/>
 			}
 			label={

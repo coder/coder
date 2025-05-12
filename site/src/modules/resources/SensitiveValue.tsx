@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
@@ -20,9 +19,9 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 	const displayValue = shouldDisplay ? value : "••••••••";
 	const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
 	const icon = shouldDisplay ? (
-		<VisibilityOffOutlined />
+		<EyeOffIcon className="size-icon-xs" />
 	) : (
-		<VisibilityOutlined />
+		<EyeIcon className="size-icon-xs" />
 	);
 
 	return (
@@ -63,10 +62,5 @@ const styles = {
 
 	button: css`
     color: inherit;
-
-    & .MuiSvgIcon-root {
-      width: 16px;
-      height: 16px;
-    }
   `,
 } satisfies Record<string, Interpolation<Theme>>;
