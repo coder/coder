@@ -487,6 +487,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Get templates by organization
+// @Description Returns a list of templates for the specified organization.
+// @Description By default, only non-deprecated templates are returned.
+// @Description To include deprecated templates, specify `deprecated:true` in the search query.
 // @ID get-templates-by-organization
 // @Security CoderSessionToken
 // @Produce json
@@ -506,6 +509,9 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 }
 
 // @Summary Get all templates
+// @Description Returns a list of templates.
+// @Description By default, only non-deprecated templates are returned.
+// @Description To include deprecated templates, specify `deprecated:true` in the search query.
 // @ID get-all-templates
 // @Security CoderSessionToken
 // @Produce json
