@@ -22,6 +22,12 @@ export enum AppSharingLevel {
   UNRECOGNIZED = -1,
 }
 
+export enum AppCORSBehavior {
+  SIMPLE = 0,
+  PASSTHRU = 1,
+  UNRECOGNIZED = -1,
+}
+
 export enum AppOpenIn {
   /** @deprecated */
   WINDOW = 0,
@@ -246,6 +252,7 @@ export interface App {
   order: number;
   hidden: boolean;
   openIn: AppOpenIn;
+  corsBehavior: AppCORSBehavior;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -870,6 +877,9 @@ export const App = {
     }
     if (message.openIn !== 0) {
       writer.uint32(96).int32(message.openIn);
+    }
+    if (message.corsBehavior !== 0) {
+      writer.uint32(104).int32(message.corsBehavior);
     }
     return writer;
   },

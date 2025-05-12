@@ -362,6 +362,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_order":         ActionIgnore,
 		"hidden":                ActionIgnore,
 		"open_in":               ActionIgnore,
+		"cors_behavior":         ActionIgnore,
 	},
 }
 

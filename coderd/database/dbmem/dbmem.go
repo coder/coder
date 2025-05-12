@@ -9817,6 +9817,10 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
 	}
 
+	if arg.CORSBehavior == "" {
+		arg.CORSBehavior = database.AppCorsBehaviorSimple
+	}
+
 	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
 		ID:                   arg.ID,
@@ -9837,6 +9841,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
 		OpenIn:               arg.OpenIn,
+		CORSBehavior:         arg.CORSBehavior,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil

@@ -204,6 +204,8 @@ type databaseRequest struct {
 	// AppSharingLevel is the sharing level of the app. This is forced to be set
 	// to AppSharingLevelOwner if the access method is terminal.
 	AppSharingLevel database.AppSharingLevel
+	// AppCORSBehavior defines the behavior of the CORS middleware.
+	AppCORSBehavior database.AppCORSBehavior
 }
 
 // getDatabase does queries to get the owner user, workspace and agent
@@ -293,12 +295,16 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		app             database.WorkspaceApp
 		appURL          string
 		appSharingLevel database.AppSharingLevel
+		appCORSBehavior database.AppCORSBehavior
 		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
 		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
 		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
 	)
 	//nolint:nestif
 	if portUintErr == nil {
+		// TODO: handle CORS passthru for port sharing use-case.
+		appCORSBehavior = database.AppCorsBehaviorSimple
+
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
@@ -370,6 +376,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 					appSharingLevel = database.AppSharingLevelOwner
 				}
 				appURL = app.Url.String
+				appCORSBehavior = app.CORSBehavior
 				break
 			}
 		}
@@ -417,6 +424,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		App:             app,
 		AppURL:          appURLParsed,
 		AppSharingLevel: appSharingLevel,
+		AppCORSBehavior: appCORSBehavior,
 	}, nil
 }
 

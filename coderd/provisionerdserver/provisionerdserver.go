@@ -2225,6 +2225,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
+			var corsBehavior database.AppCORSBehavior
+			switch app.CorsBehavior {
+			case sdkproto.AppCORSBehavior_PASSTHRU:
+				corsBehavior = database.AppCorsBehaviorPassthru
+			default:
+				corsBehavior = database.AppCorsBehaviorSimple
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:          uuid.New(),
 				CreatedAt:   dbtime.Now(),
@@ -2251,6 +2259,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				DisplayOrder: int32(app.Order),
 				Hidden:       app.Hidden,
 				OpenIn:       openIn,
+				CORSBehavior: corsBehavior,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)
