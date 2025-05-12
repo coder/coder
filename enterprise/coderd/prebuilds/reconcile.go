@@ -243,11 +243,6 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		var eg errgroup.Group
 		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
-			if snapshot.IsHardLimited(preset.ID) {
-				logger.Debug(ctx, "skipping hard limited preset", slog.F("preset_id", preset.ID), slog.F("name", preset.Name))
-				continue
-			}
-
 			ps, err := snapshot.FilterByPreset(preset.ID)
 			if err != nil {
 				logger.Warn(ctx, "failed to find preset snapshot", slog.Error(err), slog.F("preset_id", preset.ID.String()))
@@ -344,6 +339,11 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_id", ps.Preset.ID),
 		slog.F("preset_name", ps.Preset.Name),
 	)
+
+	if ps.IsHardLimited {
+		logger.Debug(ctx, "skipping hard limited preset", slog.F("preset_id", ps.Preset.ID), slog.F("name", ps.Preset.Name))
+		return nil
+	}
 
 	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
