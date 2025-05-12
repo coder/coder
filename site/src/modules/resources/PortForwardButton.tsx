@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/Close";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import SensorsIcon from "@mui/icons-material/Sensors";
@@ -40,8 +39,7 @@ import {
 } from "components/deprecated/Popover/Popover";
 import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { ExternalLinkIcon } from "lucide-react";
-import { ChevronDownIcon } from "lucide-react";
+import { ExternalLinkIcon, X as XIcon, ChevronDownIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
@@ -496,7 +494,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												await sharedPortsQuery.refetch();
 											}}
 										>
-											<CloseIcon
+											<XIcon
 												css={{
 													width: 14,
 													height: 14,
