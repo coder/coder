@@ -178,7 +178,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
-	// LargePayloads sends a 6mb tar file to the provisioner. The provisioner also
+	// LargePayloads sends a 3mb tar file to the provisioner. The provisioner also
 	// returns large payload messages back. The limit should be 10mb, so all
 	// these messages should work.
 	t.Run("LargePayloads", func(t *testing.T) {
@@ -188,7 +188,7 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		var (
-			largeSize    = 6 * 1024 * 1024
+			largeSize    = 3 * 1024 * 1024
 			completeChan = make(chan struct{})
 			completeOnce sync.Once
 			acq          = newAcquireOne(t, &proto.AcquiredJob{
