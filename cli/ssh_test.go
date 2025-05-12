@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
-	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -2258,7 +2257,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 			err := inv.WithContext(ctx).Run()
 			assert.Error(t, err)
-			var exitErr *gossh.ExitError
+			var exitErr *ssh.ExitError
 			assert.True(t, errors.As(err, &exitErr))
 			assert.Equal(t, 1, exitErr.ExitStatus())
 		})

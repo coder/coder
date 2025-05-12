@@ -598,7 +598,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 					}
 					return xerrors.Errorf("session ended: %w", err)
 				}
-
 			}
 			return nil
 		},
