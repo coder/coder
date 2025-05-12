@@ -62,6 +62,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel
+				id={id}
 				parameter={parameter}
 				isPreset={isPreset}
 				autofill={autofill}
@@ -86,12 +87,14 @@ interface ParameterLabelProps {
 	parameter: PreviewParameter;
 	isPreset?: boolean;
 	autofill?: AutofillBuildParameter;
+	id: string;
 }
 
 const ParameterLabel: FC<ParameterLabelProps> = ({
 	parameter,
 	isPreset,
 	autofill,
+	id,
 }) => {
 	const hasDescription = parameter.description && parameter.description !== "";
 	const displayName = parameter.display_name
@@ -109,7 +112,10 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 			)}
 
 			<div className="flex flex-col w-full gap-1">
-				<Label className="flex gap-2 flex-wrap text-sm font-medium">
+				<Label
+					htmlFor={id}
+					className="flex gap-2 flex-wrap text-sm font-medium"
+				>
 					<span className="flex">
 						{displayName}
 						{parameter.required && (
@@ -197,15 +203,12 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	disabled,
 	id,
 }) => {
-	const initialValue =
-		value !== undefined ? value : validValue(parameter.value);
-	const [localValue, setLocalValue] = useState(initialValue);
-
-	useEffect(() => {
-		if (value !== undefined) {
-			setLocalValue(value);
-		}
-	}, [value]);
+	const [localValue, setLocalValue] = useState(
+		value !== undefined ? value : validValue(parameter.value)
+	);
+	if (value !== undefined && value !== localValue) {
+		setLocalValue(value);
+	}
 
 	switch (parameter.form_type) {
 		case "dropdown":
@@ -216,7 +219,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					disabled={disabled}
 					required={parameter.required}
 				>
-					<SelectTrigger>
+					<SelectTrigger id={id}>
 						<SelectValue
 							placeholder={parameter.styling?.placeholder || "Select option"}
 						/>
@@ -256,7 +259,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<MultiSelectCombobox
 					inputProps={{
-						id: `${id}-${parameter.name}`,
+						id: id,
 					}}
 					options={options}
 					defaultOptions={selectedOptions}
@@ -281,7 +284,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<TagInput
-					id={parameter.name}
+					id={id}
 					label={parameter.display_name || parameter.name}
 					values={values}
 					onChange={(values) => {
@@ -294,6 +297,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		case "switch":
 			return (
 				<Switch
+					id={id}
 					checked={value === "true"}
 					onCheckedChange={(checked) => {
 						onChange(checked ? "true" : "false");
@@ -329,14 +333,14 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<div className="flex items-center space-x-2">
 					<Checkbox
-						id={parameter.name}
+						id={id}
 						checked={value === "true"}
 						onCheckedChange={(checked) => {
 							onChange(checked ? "true" : "false");
 						}}
 						disabled={disabled}
 					/>
-					<Label htmlFor={parameter.name}>{parameter.styling?.label}</Label>
+					<Label htmlFor={id}>{parameter.styling?.label}</Label>
 				</div>
 			);
 
@@ -344,8 +348,9 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<div className="flex flex-row items-baseline gap-3">
 					<Slider
+						id={id}
 						className="mt-2"
-						value={[Number(localValue ?? 0)]}
+						value={[Number(localValue)]}
 						onValueChange={([value]) => {
 							setLocalValue(value.toString());
 							onChange(value.toString());
@@ -361,6 +366,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		case "textarea":
 			return (
 				<Textarea
+					id={id}
 					className="max-w-2xl"
 					value={localValue}
 					onChange={(e) => {
@@ -397,6 +403,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<Input
+					id={id}
 					type={inputType}
 					value={localValue}
 					onChange={(e) => {
