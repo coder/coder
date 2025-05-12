@@ -181,6 +181,7 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
+		ParentID:   takeFirst(orig.ParentID, uuid.NullUUID{}),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
 		Name:       takeFirst(orig.Name, testutil.GetRandomName(t)),

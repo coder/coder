@@ -14544,6 +14544,7 @@ const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
 INSERT INTO
 	workspace_agents (
 		id,
+		parent_id,
 		created_at,
 		updated_at,
 		name,
@@ -14563,11 +14564,12 @@ INSERT INTO
 		display_order
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id
 `
 
 type InsertWorkspaceAgentParams struct {
 	ID                       uuid.UUID             `db:"id" json:"id"`
+	ParentID                 uuid.NullUUID         `db:"parent_id" json:"parent_id"`
 	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
 	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
 	Name                     string                `db:"name" json:"name"`
@@ -14590,6 +14592,7 @@ type InsertWorkspaceAgentParams struct {
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceAgent,
 		arg.ID,
+		arg.ParentID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Name,
