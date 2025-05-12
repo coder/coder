@@ -1016,7 +1016,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Should return only the deprecated templates
+		// Should return only the non-deprecated templates
 		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
 			SearchQuery: "deprecated:false",
 		})
