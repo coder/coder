@@ -1,9 +1,9 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { differenceInWeeks } from "date-fns";
+import { CheckIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
@@ -71,7 +71,7 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 							Last {option} weeks
 							<div css={{ width: 16, height: 16 }}>
 								{numberOfWeeks === option && (
-									<CheckOutlined css={{ width: 16, height: 16 }} />
+									<CheckIcon className="size-icon-xs" />
 								)}
 							</div>
 						</MenuItem>
