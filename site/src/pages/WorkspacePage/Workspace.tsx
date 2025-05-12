@@ -274,7 +274,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 									// child of another agent. We do not want these agents
 									// to be displayed at the top-level on this page. We
 									// want them to display _as children_ of their parents.
-									?.filter((agent) => agent.parent_id !== null)
+									?.filter((agent) => agent.parent_id === null)
 									.map((agent) => (
 										<AgentRow
 											key={agent.id}
@@ -354,15 +354,13 @@ export const Workspace: FC<WorkspaceProps> = ({
 												color: theme.palette.text.secondary,
 											}}
 										>
-											{
-												// Calculate total status count
-												selectedResource.agents
-													?.flatMap((agent) => agent.apps ?? [])
-													.reduce(
-														(count, app) => count + (app.statuses?.length ?? 0),
-														0,
-													)
-											}{" "}
+											{// Calculate total status count
+											selectedResource.agents
+												?.flatMap((agent) => agent.apps ?? [])
+												.reduce(
+													(count, app) => count + (app.statuses?.length ?? 0),
+													0,
+												)}{" "}
 											Total
 										</div>
 									</div>
