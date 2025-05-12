@@ -1,6 +1,12 @@
-import { CalendarCogIcon, FingerprintIcon, KeyIcon, LockIcon, UserIcon } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Avatar } from "components/Avatar/Avatar";
+import {
+	CalendarCogIcon,
+	FingerprintIcon,
+	KeyIcon,
+	LockIcon,
+	UserIcon,
+} from "lucide-react";
 import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
 
 const meta: Meta<typeof Sidebar> = {

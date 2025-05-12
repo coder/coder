@@ -71,9 +71,7 @@ export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 						>
 							{label}
 							<div css={{ width: 16, height: 16 }}>
-								{value === interval && (
-									<CheckIcon className="size-icon-xs" />
-								)}
+								{value === interval && <CheckIcon className="size-icon-xs" />}
 							</div>
 						</MenuItem>
 					);

@@ -6,12 +6,12 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
-import { CheckIcon } from "lucide-react";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { CheckIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
@@ -145,10 +145,7 @@ export const SelectMenuItem: FC<MenuItemProps> = (props) => {
 		>
 			{props.children}
 			{props.selected && (
-				<CheckIcon
-					className="size-icon-xs"
-					css={{ marginLeft: "auto" }}
-				/>
+				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
 			)}
 		</MenuItem>
 	);

@@ -1,6 +1,5 @@
 import AppearanceIcon from "@mui/icons-material/Brush";
 import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
-import { CalendarCogIcon, FingerprintIcon, KeyIcon, LockIcon, UserIcon } from "lucide-react";
 import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitIcon } from "components/Icons/GitIcon";
@@ -9,6 +8,13 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import {
+	CalendarCogIcon,
+	FingerprintIcon,
+	KeyIcon,
+	LockIcon,
+	UserIcon,
+} from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 
