@@ -9570,6 +9570,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 
 	agent := database.WorkspaceAgent{
 		ID:                       arg.ID,
+		ParentID:                 arg.ParentID,
 		CreatedAt:                arg.CreatedAt,
 		UpdatedAt:                arg.UpdatedAt,
 		ResourceID:               arg.ResourceID,
