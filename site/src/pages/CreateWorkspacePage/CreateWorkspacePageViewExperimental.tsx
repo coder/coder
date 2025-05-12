@@ -33,7 +33,6 @@ import {
 	useContext,
 	useEffect,
 	useId,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -153,7 +152,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		const formValues = form.values.rich_parameter_values;
 		if (parameters.length > 0 && formValues && formValues.length > 0) {
-			const initialParams: { [k: string]: string } = {};
+			const initialParams: Record<string, string> = {};
 			for (const param of formValues) {
 				if (param.name && param.value) {
 					initialParams[param.name] = param.value;
@@ -166,12 +165,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 		}
 	}, [parameters, form.values.rich_parameter_values, sendMessage]);
 
-	const autofillByName = useMemo(
-		() =>
-			Object.fromEntries(
-				autofillParameters.map((param) => [param.name, param]),
-			),
-		[autofillParameters],
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
 	);
 
 	useEffect(() => {
@@ -251,7 +246,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs: { [k: string]: string } = {};
+		const formInputs: Record<string, string> = {};
 		formInputs[parameter.name] = value;
 		const parameters = form.values.rich_parameter_values ?? [];
 

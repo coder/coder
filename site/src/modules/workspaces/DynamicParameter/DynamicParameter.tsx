@@ -32,8 +32,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Info, Link, Settings, TriangleAlert } from "lucide-react";
-import { type FC, useEffect, useId, useState } from "react";
+import { Info, LinkIcon, Settings, TriangleAlert } from "lucide-react";
+import { type FC, useId, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
@@ -96,7 +96,6 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	autofill,
 	id,
 }) => {
-	const hasDescription = parameter.description && parameter.description !== "";
 	const displayName = parameter.display_name
 		? parameter.display_name
 		: parameter.name;
@@ -163,7 +162,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
 										<Badge size="sm">
-											<Link />
+											<LinkIcon />
 											URL Autofill
 										</Badge>
 									</span>
@@ -176,7 +175,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 					)}
 				</Label>
 
-				{hasDescription && (
+				{Boolean(parameter.description) && (
 					<div className="text-content-secondary">
 						<MemoizedMarkdown className="text-xs">
 							{parameter.description}
@@ -204,7 +203,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	id,
 }) => {
 	const [localValue, setLocalValue] = useState(
-		value !== undefined ? value : validValue(parameter.value)
+		value !== undefined ? value : validValue(parameter.value),
 	);
 	if (value !== undefined && value !== localValue) {
 		setLocalValue(value);
@@ -215,7 +214,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<Select
 					onValueChange={onChange}
-					value={value}
+					value={localValue}
 					disabled={disabled}
 					required={parameter.required}
 				>
@@ -235,7 +234,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			);
 
 		case "multi-select": {
-			const values = parseStringArrayValue(value ?? "");
+			const values = parseStringArrayValue(localValue ?? "");
 
 			// Map parameter options to MultiSelectCombobox options format
 			const options: Option[] = parameter.options.map((opt) => ({
@@ -280,7 +279,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "tag-select": {
-			const values = parseStringArrayValue(value ?? "");
+			const values = parseStringArrayValue(localValue ?? "");
 
 			return (
 				<TagInput
@@ -298,7 +297,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<Switch
 					id={id}
-					checked={value === "true"}
+					checked={localValue === "true"}
 					onCheckedChange={(checked) => {
 						onChange(checked ? "true" : "false");
 					}}
@@ -308,7 +307,11 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 		case "radio":
 			return (
-				<RadioGroup onValueChange={onChange} disabled={disabled} value={value}>
+				<RadioGroup
+					onValueChange={onChange}
+					disabled={disabled}
+					value={localValue}
+				>
 					{parameter.options.map((option) => (
 						<div
 							key={option.value.value}
@@ -334,7 +337,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				<div className="flex items-center space-x-2">
 					<Checkbox
 						id={id}
-						checked={value === "true"}
+						checked={localValue === "true"}
 						onCheckedChange={(checked) => {
 							onChange(checked ? "true" : "false");
 						}}
@@ -513,9 +516,7 @@ export const getInitialParameterValues = (
 		);
 
 		const useAutofill =
-			autofillParam &&
-			isValidParameterOption(parameter, autofillParam) &&
-			autofillParam.value;
+			autofillParam?.value && isValidParameterOption(parameter, autofillParam);
 
 		return {
 			name: parameter.name,
