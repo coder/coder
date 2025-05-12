@@ -148,10 +148,19 @@ func TestExpMcpServer(t *testing.T) {
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
-		err := inv.Run()
-		assert.ErrorContains(t, err, "are not logged in")
+		cmdDone := make(chan struct{})
+		go func() {
+			defer close(cmdDone)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectRegexMatch(`(?is)Authentication\s+:\s+None`)
+		cancel()
+		<-cmdDone
 	})
 }
 
