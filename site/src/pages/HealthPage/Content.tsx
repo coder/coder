@@ -1,8 +1,8 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { CircleAlertIcon } from "lucide-react";
 import type { HealthCode, HealthSeverity } from "api/typesGenerated";
+import { CircleAlertIcon } from "lucide-react";
 import { CircleCheckIcon, CircleMinusIcon } from "lucide-react";
 import {
 	type ComponentProps,

@@ -39,7 +39,7 @@ import {
 } from "components/deprecated/Popover/Popover";
 import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { ExternalLinkIcon, X as XIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, X as XIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
