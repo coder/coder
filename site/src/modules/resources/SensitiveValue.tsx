@@ -1,8 +1,8 @@
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type FC, useState } from "react";
 
 const Language = {

@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Table from "@mui/material/Table";
@@ -31,6 +30,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type ChangeEvent, type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
