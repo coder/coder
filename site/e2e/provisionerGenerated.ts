@@ -289,6 +289,7 @@ export interface Module {
   source: string;
   version: string;
   key: string;
+  dir: string;
 }
 
 export interface Role {
@@ -367,6 +368,7 @@ export interface PlanComplete {
   modules: Module[];
   presets: Preset[];
   plan: Uint8Array;
+  moduleFiles: Uint8Array;
 }
 
 /**
@@ -964,6 +966,9 @@ export const Module = {
     if (message.key !== "") {
       writer.uint32(26).string(message.key);
     }
+    if (message.dir !== "") {
+      writer.uint32(34).string(message.dir);
+    }
     return writer;
   },
 };
@@ -1143,6 +1148,9 @@ export const PlanComplete = {
     }
     if (message.plan.length !== 0) {
       writer.uint32(74).bytes(message.plan);
+    }
+    if (message.moduleFiles.length !== 0) {
+      writer.uint32(82).bytes(message.moduleFiles);
     }
     return writer;
   },

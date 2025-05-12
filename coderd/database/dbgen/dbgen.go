@@ -999,9 +999,10 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	t.Helper()
 
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:      takeFirst(orig.JobID, uuid.New()),
-		CachedPlan: takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
+		JobID:             takeFirst(orig.JobID, uuid.New()),
+		CachedPlan:        takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles: orig.CachedModuleFiles,
+		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
 	}
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
