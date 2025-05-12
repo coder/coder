@@ -26,13 +26,15 @@ runs:
         export GOCACHE_DIR="$RUNNER_TEMP""\go-cache"
         export GOMODCACHE_DIR="$RUNNER_TEMP""\go-mod-cache"
         export GOPATH_DIR="$RUNNER_TEMP""\go-path"
+        export GOTMP_DIR="$RUNNER_TEMP""\go-tmp"
         mkdir -p "$GOCACHE_DIR"
         mkdir -p "$GOMODCACHE_DIR"
         mkdir -p "$GOPATH_DIR"
+        mkdir -p "$GOTMP_DIR"
         go env -w GOCACHE="$GOCACHE_DIR"
         go env -w GOMODCACHE="$GOMODCACHE_DIR"
         go env -w GOPATH="$GOPATH_DIR"
-
+        go env -w GOTMPDIR="$GOTMP_DIR"
     - name: Setup Go
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
