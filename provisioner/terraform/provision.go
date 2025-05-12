@@ -267,10 +267,10 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
-	if metadata.GetIsPrebuild() {
+	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
 	}
-	if metadata.GetIsPrebuildClaim() {
+	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() {
 		env = append(env, provider.IsPrebuildClaimEnvironmentVariable()+"=true")
 	}
 

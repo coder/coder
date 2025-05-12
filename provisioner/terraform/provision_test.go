@@ -995,8 +995,7 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild:      true,
-					IsPrebuildClaim: false,
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CREATE,
 				},
 			},
 			Response: &proto.PlanComplete{
@@ -1034,8 +1033,7 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild:      false,
-					IsPrebuildClaim: true,
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CLAIM,
 				},
 			},
 			Response: &proto.PlanComplete{

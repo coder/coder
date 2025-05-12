@@ -301,6 +301,10 @@ func TestAcquireJob(t *testing.T) {
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
 				})
+				var buildState sdkproto.PrebuiltWorkspaceBuildStage
+				if prebuiltWorkspace {
+					buildState = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
+				}
 				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					ID:             build.ID,
 					OrganizationID: pd.OrganizationID,
@@ -310,8 +314,8 @@ func TestAcquireJob(t *testing.T) {
 					FileID:         file.ID,
 					Type:           database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID: build.ID,
-						IsPrebuild:       prebuiltWorkspace,
+						WorkspaceBuildID:            build.ID,
+						PrebuiltWorkspaceBuildStage: buildState,
 					})),
 				})
 
@@ -382,7 +386,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
 				}
 				if prebuiltWorkspace {
-					wantedMetadata.IsPrebuild = true
+					wantedMetadata.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
 				}
 
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
@@ -1796,11 +1800,8 @@ func TestCompleteJob(t *testing.T) {
 			InitiatorID: user.ID,
 			Type:        database.ProvisionerJobTypeWorkspaceBuild,
 			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-				WorkspaceBuildID: build.ID,
-
-				IsPrebuild: false,
-				// Mark the job as a prebuilt workspace claim.
-				IsPrebuildClaim: true,
+				WorkspaceBuildID:            build.ID,
+				PrebuiltWorkspaceBuildStage: sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
 			})),
 			OrganizationID: pd.OrganizationID,
 		})
