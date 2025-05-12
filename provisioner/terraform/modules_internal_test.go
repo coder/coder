@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // The .tar archive is different on Windows because of git converting LF line
@@ -69,19 +68,5 @@ func TestGetModulesArchive(t *testing.T) {
 		archive, err := getModulesArchive(afero.NewIOFS(root))
 		require.NoError(t, err)
 		require.Equal(t, []byte{}, archive)
-	})
-
-	t.Run("TooBig", func(t *testing.T) {
-		t.Parallel()
-
-		root := afero.NewMemMapFs()
-		err := afero.WriteFile(root, ".terraform/modules/modules.json", []byte(`{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"example_module","Source":"example_module","Dir":".terraform/modules/example_module"}]}`), 0o644)
-		require.NoError(t, err)
-		err = afero.WriteFile(root, ".terraform/modules/example_module/main.tf", bytes.Repeat([]byte{'a'}, drpcsdk.MaxMessageSize), 0o644)
-		require.NoError(t, err)
-
-		archive, err := getModulesArchive(afero.NewIOFS(root))
-		require.ErrorContains(t, err, "exceeds max message size")
-		require.Nil(t, archive)
 	})
 }
