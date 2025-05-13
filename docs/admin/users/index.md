@@ -227,13 +227,13 @@ Visit the [users list](../../reference/cli/users_list.md) documentation for more
 
 Use [get users](../../reference/api/users.md#get-users):
 
-```bash
+```shell
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-To export the results to a CSV file, you can use [jq](https://jqlang.org/) to process the JSON response:
+To export the results to a CSV file, you can use [`jq`](https://jqlang.org/) to process the JSON response:
 
 ```shell
 curl -X GET http://coder-server:8080/api/v2/users \
