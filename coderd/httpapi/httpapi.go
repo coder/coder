@@ -205,9 +205,12 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 			// To fix this, make sure the map is initialized before being serialized
 			// to JSON.
 			//
+			// Yes this is unfortunate, and annoying. An example error experienced
+			// in production: https://github.com/coder/coder/pull/17430
+			//
 			// This should only fail in tests. In production, we do not want
 			// to incur the overhead of checking for nil maps on all responses.
-			panic(fmt.Sprintf("!Nil Map in API Response: %v", err))
+			panic(fmt.Sprintf("!Nil Map in API Response, this is a developer error asserted in unit tests. Go to `httpapi.go` to see why you are seeing this: %v", err))
 		}
 
 		WriteIndent(ctx, rw, status, response)

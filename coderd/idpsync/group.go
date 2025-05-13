@@ -68,6 +68,13 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 		}
 	}
 
+	if settings.Mapping == nil {
+		// No nil maps
+		settings.Mapping = make(map[string][]uuid.UUID)
+	}
+	if settings.LegacyNameMapping == nil {
+		settings.LegacyNameMapping = make(map[string]string)
+	}
 	return settings, nil
 }
 

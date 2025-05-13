@@ -81,8 +81,9 @@ func TestExternalAuthByID(t *testing.T) {
 				fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
 					ValidatePayload: func(_ string) (interface{}, int, error) {
 						return github.User{
-							Login:     github.String("kyle"),
-							AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
+							Login:       github.String("kyle"),
+							AvatarURL:   github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
+							Permissions: map[string]bool{},
 						}, 0, nil
 					},
 				}, func(cfg *externalauth.Config) {
@@ -110,8 +111,9 @@ func TestExternalAuthByID(t *testing.T) {
 		routes := (&oidctest.ExternalAuthConfigOptions{
 			ValidatePayload: func(_ string) (interface{}, int, error) {
 				return github.User{
-					Login:     github.String("kyle"),
-					AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
+					Login:       github.String("kyle"),
+					AvatarURL:   github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
+					Permissions: map[string]bool{},
 				}, 0, nil
 			},
 		}).AddRoute("/installs", func(_ string, rw http.ResponseWriter, r *http.Request) {
@@ -121,7 +123,8 @@ func TestExternalAuthByID(t *testing.T) {
 				Installations: []github.Installation{{
 					ID: github.Int64(12345678),
 					Account: &github.User{
-						Login: github.String("coder"),
+						Login:       github.String("coder"),
+						Permissions: map[string]bool{},
 					},
 				}},
 			})

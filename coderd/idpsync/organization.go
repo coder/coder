@@ -61,6 +61,11 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 			AssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
 		}
 	}
+
+	if orgSettings.Mapping == nil {
+		// No nil maps
+		orgSettings.Mapping = make(map[string][]uuid.UUID)
+	}
 	return orgSettings, nil
 }
 

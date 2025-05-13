@@ -1620,7 +1620,8 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		}
 
 		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
-			URL: redirectURL.String(),
+			URL:        redirectURL.String(),
+			TokenExtra: map[string]interface{}{},
 		})
 		return
 	}
@@ -1639,7 +1640,8 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		// was no error. If it is invalid because of an error, then we should recheck.
 		previousToken = &refreshedLink
 		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
-			URL: redirectURL.String(),
+			URL:        redirectURL.String(),
+			TokenExtra: map[string]interface{}{},
 		})
 		return
 	}

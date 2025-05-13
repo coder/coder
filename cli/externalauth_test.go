@@ -19,7 +19,8 @@ func TestExternalAuth(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
-				URL: "https://github.com",
+				URL:        "https://github.com",
+				TokenExtra: map[string]interface{}{},
 			})
 		}))
 		t.Cleanup(srv.Close)
@@ -36,6 +37,7 @@ func TestExternalAuth(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
 				AccessToken: "bananas",
+				TokenExtra:  map[string]interface{}{},
 			})
 		}))
 		t.Cleanup(srv.Close)
@@ -51,6 +53,7 @@ func TestExternalAuth(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
 				AccessToken: "bananas",
+				TokenExtra:  map[string]interface{}{},
 			})
 		}))
 		t.Cleanup(srv.Close)
