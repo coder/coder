@@ -1,7 +1,6 @@
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -12,6 +11,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks/useAuthenticated";
+import { SettingsIcon } from "lucide-react";
 import { TrashIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
@@ -196,7 +196,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
 				<DropdownMenuContent id="workspace-options" align="end">
 					<DropdownMenuItem onClick={handleSettings}>
-						<SettingsIcon />
+						<SettingsIcon className="size-icon-sm" />
 						Settings
 					</DropdownMenuItem>
 
