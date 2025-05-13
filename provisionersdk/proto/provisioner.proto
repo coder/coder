@@ -263,6 +263,7 @@ message Module {
     string source = 1;
     string version = 2;
     string key = 3;
+    string dir = 4;
 }
 
 // WorkspaceTransition is the desired outcome of a build
@@ -335,6 +336,7 @@ message PlanRequest {
     repeated RichParameterValue rich_parameter_values = 2;
     repeated VariableValue variable_values = 3;
     repeated ExternalAuthProvider external_auth_providers = 4;
+    repeated RichParameterValue previous_parameter_values = 5;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -347,7 +349,8 @@ message PlanComplete {
     repeated Module modules = 7;
     repeated Preset presets = 8;
     bytes plan = 9;
-    repeated ResourceReplacement resource_replacements = 10;
+    bytes module_files = 10;
+    repeated ResourceReplacement resource_replacements = 11;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

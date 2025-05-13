@@ -3224,6 +3224,7 @@ type TemplateVersionTerraformValue struct {
 	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
 	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
 }
 
 type TemplateVersionVariable struct {
@@ -3401,7 +3402,8 @@ type WorkspaceAgent struct {
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
-	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	DisplayOrder int32         `db:"display_order" json:"display_order"`
+	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
 }
 
 // Workspace agent devcontainer configuration

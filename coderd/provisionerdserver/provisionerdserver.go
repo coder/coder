@@ -2,7 +2,9 @@ package provisionerdserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,6 +52,10 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+)
+
+const (
+	tarMimeType = "application/x-tar"
 )
 
 const (
@@ -547,6 +553,30 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
+		// A previous workspace build exists
+		var lastWorkspaceBuildParameters []database.WorkspaceBuildParameter
+		if workspaceBuild.BuildNumber > 1 {
+			// TODO: Should we fetch the last build that succeeded? This fetches the
+			//   previous build regardless of the status of the build.
+			buildNum := workspaceBuild.BuildNumber - 1
+			previous, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspaceBuild.WorkspaceID,
+				BuildNumber: buildNum,
+			})
+
+			// If the error is ErrNoRows, then assume previous values are empty.
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, xerrors.Errorf("get last build with number=%d: %w", buildNum, err)
+			}
+
+			if err == nil {
+				lastWorkspaceBuildParameters, err = s.Database.GetWorkspaceBuildParameters(ctx, previous.ID)
+				if err != nil {
+					return nil, xerrors.Errorf("get last build parameters %q: %w", previous.ID, err)
+				}
+			}
+		}
+
 		workspaceBuildParameters, err := s.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
@@ -623,12 +653,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:      workspaceBuild.ID.String(),
-				WorkspaceName:         workspace.Name,
-				State:                 workspaceBuild.ProvisionerState,
-				RichParameterValues:   convertRichParameterValues(workspaceBuildParameters),
-				VariableValues:        asVariableValues(templateVariables),
-				ExternalAuthProviders: externalAuthProviders,
+				WorkspaceBuildId:        workspaceBuild.ID.String(),
+				WorkspaceName:           workspace.Name,
+				State:                   workspaceBuild.ProvisionerState,
+				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
+				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
+				VariableValues:          asVariableValues(templateVariables),
+				ExternalAuthProviders:   externalAuthProviders,
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -1430,11 +1461,59 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
-		if len(jobType.TemplateImport.Plan) > 0 {
-			err := s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-				JobID:      jobID,
-				CachedPlan: jobType.TemplateImport.Plan,
-				UpdatedAt:  now,
+		plan := jobType.TemplateImport.Plan
+		moduleFiles := jobType.TemplateImport.ModuleFiles
+		// If there is a plan, or a module files archive we need to insert a
+		// template_version_terraform_values row.
+		if len(plan) > 0 || len(moduleFiles) > 0 {
+			// ...but the plan and the module files archive are both optional! So
+			// we need to fallback to a valid JSON object if the plan was omitted.
+			if len(plan) == 0 {
+				plan = []byte("{}")
+			}
+
+			// ...and we only want to insert a files row if an archive was provided.
+			var fileID uuid.NullUUID
+			if len(moduleFiles) > 0 {
+				hashBytes := sha256.Sum256(moduleFiles)
+				hash := hex.EncodeToString(hashBytes[:])
+
+				// nolint:gocritic // Requires reading "system" files
+				file, err := s.Database.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
+				switch {
+				case err == nil:
+					// This set of modules is already cached, which means we can reuse them
+					fileID = uuid.NullUUID{
+						Valid: true,
+						UUID:  file.ID,
+					}
+				case !xerrors.Is(err, sql.ErrNoRows):
+					return nil, xerrors.Errorf("check for cached modules: %w", err)
+				default:
+					// nolint:gocritic // Requires creating a "system" file
+					file, err = s.Database.InsertFile(dbauthz.AsSystemRestricted(ctx), database.InsertFileParams{
+						ID:        uuid.New(),
+						Hash:      hash,
+						CreatedBy: uuid.Nil,
+						CreatedAt: dbtime.Now(),
+						Mimetype:  tarMimeType,
+						Data:      moduleFiles,
+					})
+					if err != nil {
+						return nil, xerrors.Errorf("insert template version terraform modules: %w", err)
+					}
+					fileID = uuid.NullUUID{
+						Valid: true,
+						UUID:  file.ID,
+					}
+				}
+			}
+
+			err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:             jobID,
+				UpdatedAt:         now,
+				CachedPlan:        plan,
+				CachedModuleFiles: fileID,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert template version terraform data: %w", err)
@@ -2019,6 +2098,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
+			ParentID:                 uuid.NullUUID{},
 			CreatedAt:                dbtime.Now(),
 			UpdatedAt:                dbtime.Now(),
 			ResourceID:               resource.ID,
