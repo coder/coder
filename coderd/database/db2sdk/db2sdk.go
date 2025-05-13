@@ -407,8 +407,8 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
 	}
 	node := coordinator.Node(dbAgent.ID)
+	workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 	if node != nil {
-		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 		for rawRegion, latency := range node.DERPLatency {
 			regionParts := strings.SplitN(rawRegion, "-", 2)
 			regionID, err := strconv.Atoi(regionParts[0])
