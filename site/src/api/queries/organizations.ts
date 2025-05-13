@@ -8,6 +8,7 @@ import type {
 	GroupSyncSettings,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
+	Pagination,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -95,7 +96,7 @@ export const paginatedOrganizationMembers = (
 	searchParams: URLSearchParams,
 ): UsePaginatedQueryOptions<
 	PaginatedMembersResponse,
-	PaginatedMembersRequest
+	Omit<Pagination, "after_id">
 > => {
 	return {
 		searchParams,
