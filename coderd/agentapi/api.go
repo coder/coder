@@ -50,6 +50,7 @@ type API struct {
 	*LogsAPI
 	*ScriptsAPI
 	*AuditAPI
+	*DevContainerAgentAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -190,6 +191,14 @@ func New(opts Options) *API {
 		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
 		DerpMapFn:               opts.DerpMapFn,
 		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
+	}
+
+	api.DevContainerAgentAPI = &DevContainerAgentAPI{
+		AgentID:  opts.AgentID,
+		AgentFn:  api.agent,
+		Log:      opts.Log,
+		Clock:    opts.Clock,
+		Database: opts.Database,
 	}
 
 	return api
