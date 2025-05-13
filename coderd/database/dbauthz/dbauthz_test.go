@@ -4034,6 +4034,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			ID: j.ID,
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
 	}))
+	s.Run("UpdateProvisionerJobWithCompleteWithStartedAtByID", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: we need to create a ProvisionerJob resource
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
+			ID: j.ID,
+		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
+	}))
 	s.Run("UpdateProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
@@ -4202,6 +4209,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetHungProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetNotStartedProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
 	s.Run("UpsertOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
