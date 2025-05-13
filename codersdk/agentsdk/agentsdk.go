@@ -806,6 +806,11 @@ func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <
 		return xerrors.Errorf("failed to create sse transmitter: %w", err)
 	}
 
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		<-sseSenderClosed
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
