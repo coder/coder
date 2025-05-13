@@ -34,12 +34,12 @@ export const ChangeWorkspaceVersionDialog: FC<
 		select: (data) => [...data].reverse(),
 	});
 	const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
-	const activeVersion = versions?.find(
-		(v) => workspace.template_active_version_id === v.id,
+	const currentVersion = versions?.find(
+		(v) => workspace.latest_build.template_version_id === v.id,
 	);
 	const [newVersion, setNewVersion] = useState<TemplateVersion>();
 	const validVersions = versions?.filter((v) => v.job.status === "succeeded");
-	const selectedVersion = newVersion || activeVersion;
+	const selectedVersion = newVersion || currentVersion;
 
 	return (
 		<ConfirmDialog
@@ -64,7 +64,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 								<Autocomplete
 									disableClearable
 									options={validVersions}
-									defaultValue={activeVersion}
+									defaultValue={selectedVersion}
 									id="template-version-autocomplete"
 									open={isAutocompleteOpen}
 									onChange={(_, newTemplateVersion) => {

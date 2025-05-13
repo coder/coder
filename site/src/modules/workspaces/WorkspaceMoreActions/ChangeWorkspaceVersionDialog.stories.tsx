@@ -9,6 +9,7 @@ import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 
 const noMessage = {
 	...MockTemplateVersion,
+	name: "no-message",
 	id: "no-message",
 	message: "",
 };
@@ -37,31 +38,40 @@ const meta: Meta<typeof ChangeWorkspaceVersionDialog> = {
 export default meta;
 type Story = StoryObj<typeof ChangeWorkspaceVersionDialog>;
 
-export const NoVersionSelected: Story = {};
+export const CurrentVersion: Story = {};
 
 export const NoMessage: Story = {
 	args: {
 		workspace: {
 			...MockWorkspace,
-			template_active_version_id: noMessage.id,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				template_version_id: noMessage.id,
+			},
 		},
 	},
 };
 
-export const ShortMessage: Story = {
+export const TextMessage: Story = {
 	args: {
 		workspace: {
 			...MockWorkspace,
-			template_active_version_id: MockTemplateVersion.id,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				template_version_id: MockTemplateVersion.id,
+			},
 		},
 	},
 };
 
-export const LongMessage: Story = {
+export const MarkdownMessage: Story = {
 	args: {
 		workspace: {
 			...MockWorkspace,
-			template_active_version_id: MockTemplateVersionWithMarkdownMessage.id,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				template_version_id: MockTemplateVersionWithMarkdownMessage.id,
+			},
 		},
 	},
 };
