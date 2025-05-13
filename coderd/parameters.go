@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -79,11 +80,21 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	}
 	defer api.FileCache.Release(fileID)
 
+	staticDiagnostics := hcl.Diagnostics{}
+
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
 	// we don't have a cached plan available, we just use an empty one instead.
 	plan := json.RawMessage("{}")
 	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		staticDiagnostics.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagWarning,
+			Summary:  "This template version is missing required metadata to support dynamic parameters.",
+			Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
+		})
+	}
+
 	if err == nil {
 		plan = tf.CachedPlan
 
@@ -148,7 +159,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	result, diagnostics := preview.Preview(ctx, input, templateFS)
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1,
-		Diagnostics: previewtypes.Diagnostics(diagnostics),
+		Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
 	}
 	if result != nil {
 		response.Parameters = result.Parameters
@@ -176,7 +187,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 			result, diagnostics := preview.Preview(ctx, input, templateFS)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
-				Diagnostics: previewtypes.Diagnostics(diagnostics),
+				Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
 			}
 			if result != nil {
 				response.Parameters = result.Parameters
