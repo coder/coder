@@ -52,7 +52,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronRightIcon } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -68,6 +68,7 @@ import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	WorkspaceUpdateDialogs,
@@ -184,7 +185,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					{hasAppStatus && <TableHead className="w-2/6">Activity</TableHead>}
 					<TableHead className="w-2/6">Template</TableHead>
 					<TableHead className="w-2/6">Status</TableHead>
-					<TableHead className="w-0" />
 					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
@@ -303,11 +303,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								onActionSuccess={onActionSuccess}
 								onActionError={onActionError}
 							/>
-							<TableCell>
-								<div className="flex">
-									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
-								</div>
-							</TableCell>
 						</WorkspacesRow>
 					);
 				})}
@@ -382,12 +377,12 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
 				</TableCell>
-				<TableCell className="w-0">
-					<Skeleton variant="rounded" width={40} height={40} />
-				</TableCell>
-				<TableCell>
-					<div className="flex">
-						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
+				<TableCell className="w-0 ">
+					<div className="flex gap-1 justify-end">
+						<Skeleton variant="rounded" width={40} height={40} />
+						<Button size="icon-lg" variant="subtle" disabled>
+							<EllipsisVertical aria-hidden="true" />
+						</Button>
 					</div>
 				</TableCell>
 			</TableRowSkeleton>
@@ -537,7 +532,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	};
 
 	return (
-		<TableCell>
+		<TableCell
+			onClick={(e) => {
+				// Prevent the click in the actions to trigger the row click
+				e.stopPropagation();
+			}}
+		>
 			<div className="flex gap-1 justify-end">
 				{workspace.latest_build.status === "running" && (
 					<WorkspaceApps workspace={workspace} />
@@ -585,6 +585,11 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						<RefreshCcwIcon />
 					</PrimaryAction>
 				)}
+
+				<WorkspaceMoreActions
+					workspace={workspace}
+					disabled={!abilities.canAcceptJobs}
+				/>
 			</div>
 		</TableCell>
 	);
@@ -606,14 +611,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={(e) => {
-							e.stopPropagation();
-							onClick();
-						}}
-					>
+					<Button variant="outline" size="icon-lg" onClick={onClick}>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>
@@ -730,6 +728,8 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			</BaseIconLink>,
 		);
 	}
+
+	buttons.push();
 
 	return buttons;
 };

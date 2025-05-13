@@ -221,8 +221,9 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 function humanBlobSize(size: number) {
 	const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 	let i = 0;
-	while (size > 1024 && i < BLOB_SIZE_UNITS.length) {
-		size /= 1024;
+	let sizeIterator = size;
+	while (sizeIterator > 1024 && i < BLOB_SIZE_UNITS.length) {
+		sizeIterator /= 1024;
 		i++;
 	}
 

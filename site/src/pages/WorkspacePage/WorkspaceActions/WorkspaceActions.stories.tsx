@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
+import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
@@ -14,10 +15,23 @@ const meta: Meta<typeof WorkspaceActions> = {
 	component: WorkspaceActions,
 	args: {
 		isUpdating: false,
+		permissions: {
+			deleteFailedWorkspace: true,
+			deploymentConfig: true,
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+		},
 	},
 	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
 	parameters: {
 		user: Mocks.MockUserOwner,
+		queries: [
+			{
+				key: deploymentConfigQueryKey,
+				data: Mocks.MockDeploymentConfig,
+			},
+		],
 	},
 };
 
@@ -157,7 +171,13 @@ export const Failed: Story = {
 export const FailedWithDebug: Story = {
 	args: {
 		workspace: Mocks.MockFailedWorkspace,
-		canDebug: true,
+		permissions: {
+			deploymentConfig: true,
+			deleteFailedWorkspace: true,
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+		},
 	},
 };
 
