@@ -28,7 +28,8 @@ func (r *RootCmd) userCreate() *serpent.Command {
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
-		Use: "create",
+		Use:   "create",
+		Short: "Create a new user.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
