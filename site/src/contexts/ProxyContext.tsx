@@ -147,9 +147,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 			true,
 		)
 
-		if(userProxy === undefined) {
-			setUserSavedProxy(preferred.proxy);
-		}
+		// Always update the proxy in local storage. We do not want this changing automatically.
+		// It should be set with latencies on load, and then the user can change it.
+		// If an unhealthy proxy is selected, it will behave as if the user loaded the page for the first time.
+		setUserSavedProxy(preferred.proxy);
 
 		setProxy(preferred);
 	}, [proxiesResp, proxyLatencies]);
