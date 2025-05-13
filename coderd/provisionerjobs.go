@@ -352,6 +352,10 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 
 func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionRow) codersdk.ProvisionerJob {
 	provisionerJob := pj.ProvisionerJob
+	tags := provisionerJob.Tags
+	if tags == nil {
+		tags = make(database.StringMap)
+	}
 	job := codersdk.ProvisionerJob{
 		ID:             provisionerJob.ID,
 		OrganizationID: provisionerJob.OrganizationID,
@@ -360,7 +364,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		Error:          provisionerJob.Error.String,
 		ErrorCode:      codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
 		FileID:         provisionerJob.FileID,
-		Tags:           provisionerJob.Tags,
+		Tags:           tags,
 		QueuePosition:  int(pj.QueuePosition),
 		QueueSize:      int(pj.QueueSize),
 	}
