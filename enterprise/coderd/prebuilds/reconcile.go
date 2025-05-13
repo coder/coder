@@ -97,6 +97,11 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 	c.cancelFn = cancel
 
+	// Start updating metrics in the background.
+	if c.metrics != nil {
+		go c.metrics.BackgroundFetch(ctx, metricsUpdateInterval, metricsUpdateTimeout)
+	}
+
 	// Everything is in place, reconciler can now be considered as running.
 	//
 	// NOTE: without this atomic bool, Stop might race with Run for the c.cancelFn above.

@@ -2,11 +2,13 @@ package prebuilds
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
-	"cdr.dev/slog"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -57,18 +59,27 @@ var (
 	)
 )
 
+const (
+	metricsUpdateInterval = time.Second * 15
+	metricsUpdateTimeout  = time.Second * 10
+)
+
 type MetricsCollector struct {
 	database    database.Store
 	logger      slog.Logger
 	snapshotter prebuilds.StateSnapshotter
+
+	latestState atomic.Pointer[state]
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
+// NewMetricsCollector returns a
 func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter prebuilds.StateSnapshotter) *MetricsCollector {
+	log := logger.Named("prebuilds_metrics_collector")
 	return &MetricsCollector{
 		database:    db,
-		logger:      logger.Named("prebuilds_metrics_collector"),
+		logger:      log,
 		snapshotter: snapshotter,
 	}
 }
@@ -82,34 +93,31 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- eligiblePrebuildsDesc
 }
 
+// Collect uses the cached state to set configured metrics.
+// The state is cached because this function can be called multiple times per second and retrieving the current state
+// is an expensive operation.
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	// nolint:gocritic // We need to set an authz context to read metrics from the db.
-	ctx, cancel := context.WithTimeout(dbauthz.AsPrebuildsOrchestrator(context.Background()), 10*time.Second)
-	defer cancel()
-	prebuildMetrics, err := mc.database.GetPrebuildMetrics(ctx)
-	if err != nil {
-		mc.logger.Error(ctx, "failed to get prebuild metrics", slog.Error(err))
+	ctx := dbauthz.AsPrebuildsOrchestrator(context.Background())
+
+	currentState := mc.latestState.Load()
+	if currentState == nil {
+		mc.logger.Warn(ctx, "failed to set prebuilds metrics; state not set")
 		return
 	}
 
-	for _, metric := range prebuildMetrics {
+	for _, metric := range currentState.prebuildMetrics {
 		metricsCh <- prometheus.MustNewConstMetric(createdPrebuildsDesc, prometheus.CounterValue, float64(metric.CreatedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(failedPrebuildsDesc, prometheus.CounterValue, float64(metric.FailedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 	}
 
-	snapshot, err := mc.snapshotter.SnapshotState(ctx, mc.database)
-	if err != nil {
-		mc.logger.Error(ctx, "failed to get latest prebuild state", slog.Error(err))
-		return
-	}
-
-	for _, preset := range snapshot.Presets {
+	for _, preset := range currentState.snapshot.Presets {
 		if !preset.UsingActiveVersion {
 			continue
 		}
 
-		presetSnapshot, err := snapshot.FilterByPreset(preset.ID)
+		presetSnapshot, err := currentState.snapshot.FilterByPreset(preset.ID)
 		if err != nil {
 			mc.logger.Error(ctx, "failed to filter by preset", slog.Error(err))
 			continue
@@ -120,4 +128,53 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(state.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(state.Eligible), preset.TemplateName, preset.Name, preset.OrganizationName)
 	}
+}
+
+type state struct {
+	prebuildMetrics []database.GetPrebuildMetricsRow
+	snapshot        *prebuilds.GlobalSnapshot
+}
+
+// BackgroundFetch updates the metrics state every given interval.
+func (mc *MetricsCollector) BackgroundFetch(ctx context.Context, updateInterval, updateTimeout time.Duration) {
+	tick := time.NewTicker(time.Nanosecond)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			// Tick immediately, then set regular interval.
+			tick.Reset(updateInterval)
+
+			if err := mc.UpdateState(ctx, updateTimeout); err != nil {
+				mc.logger.Error(ctx, "failed to update prebuilds metrics state", slog.Error(err))
+			}
+		}
+	}
+}
+
+// UpdateState builds the current metrics state.
+func (mc *MetricsCollector) UpdateState(ctx context.Context, timeout time.Duration) error {
+	mc.logger.Debug(ctx, "fetching prebuilds metrics state")
+	fetchCtx, fetchCancel := context.WithTimeout(ctx, timeout)
+	defer fetchCancel()
+
+	prebuildMetrics, err := mc.database.GetPrebuildMetrics(fetchCtx)
+	if err != nil {
+		return xerrors.Errorf("fetch prebuild metrics: %w", err)
+	}
+
+	snapshot, err := mc.snapshotter.SnapshotState(fetchCtx, mc.database)
+	if err != nil {
+		return xerrors.Errorf("snapshot state: %w", err)
+	}
+	mc.logger.Debug(ctx, "fetched prebuilds metrics state")
+
+	mc.latestState.Store(&state{
+		prebuildMetrics: prebuildMetrics,
+		snapshot:        snapshot,
+	})
+	return nil
 }
