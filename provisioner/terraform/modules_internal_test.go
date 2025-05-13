@@ -26,7 +26,7 @@ func TestGetModulesArchive(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
-		archive, err := getModulesArchive(os.DirFS(filepath.Join("testdata", "modules-source-caching")))
+		archive, err := GetModulesArchive(os.DirFS(filepath.Join("testdata", "modules-source-caching")))
 		require.NoError(t, err)
 
 		// Check that all of the files it should contain are correct
@@ -36,6 +36,11 @@ func TestGetModulesArchive(t *testing.T) {
 		content, err := fs.ReadFile(tarfs, ".terraform/modules/modules.json")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(string(content), `{"Modules":[{"Key":"","Source":"","Dir":"."},`))
+
+		dirFiles, err := fs.ReadDir(tarfs, ".terraform/modules/example_module")
+		require.NoError(t, err)
+		require.Len(t, dirFiles, 1)
+		require.Equal(t, "main.tf", dirFiles[0].Name())
 
 		content, err = fs.ReadFile(tarfs, ".terraform/modules/example_module/main.tf")
 		require.NoError(t, err)
@@ -53,9 +58,9 @@ func TestGetModulesArchive(t *testing.T) {
 		hashBytes := sha256.Sum256(archive)
 		hash := hex.EncodeToString(hashBytes[:])
 		if runtime.GOOS != "windows" {
-			require.Equal(t, "05d2994c1a50ce573fe2c2b29507e5131ba004d15812d8bb0a46dc732f3211f5", hash)
+			require.Equal(t, "edcccdd4db68869552542e66bad87a51e2e455a358964912805a32b06123cb5c", hash)
 		} else {
-			require.Equal(t, "c219943913051e4637527cd03ae2b7303f6945005a262cdd420f9c2af490d572", hash)
+			require.Equal(t, "67027a27452d60ce2799fcfd70329c185f9aee7115b0944e3aa00b4776be9d92", hash)
 		}
 	})
 
@@ -65,7 +70,7 @@ func TestGetModulesArchive(t *testing.T) {
 		root := afero.NewMemMapFs()
 		afero.WriteFile(root, ".terraform/modules/modules.json", []byte(`{"Modules":[{"Key":"","Source":"","Dir":"."}]}`), 0o644)
 
-		archive, err := getModulesArchive(afero.NewIOFS(root))
+		archive, err := GetModulesArchive(afero.NewIOFS(root))
 		require.NoError(t, err)
 		require.Equal(t, []byte{}, archive)
 	})
