@@ -219,7 +219,7 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// See unhanger package.
+	// See reaper package.
 	subjectHangDetector = rbac.Subject{
 		Type:         rbac.SubjectTypeHangDetector,
 		FriendlyName: "Hang Detector",
@@ -408,7 +408,7 @@ func AsAutostart(ctx context.Context) context.Context {
 }
 
 // AsHangDetector returns a context with an actor that has permissions required
-// for unhanger.Detector to function.
+// for reaper.Detector to function.
 func AsHangDetector(ctx context.Context) context.Context {
 	return As(ctx, subjectHangDetector)
 }

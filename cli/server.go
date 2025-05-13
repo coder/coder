@@ -92,10 +92,10 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/coderd/reaper"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -1129,7 +1129,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
 			defer hangDetectorTicker.Stop()
-			hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
+			hangDetector := reaper.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
 			hangDetector.Start()
 			defer hangDetector.Close()
 

@@ -1,4 +1,4 @@
-package unhanger
+package reaper
 
 import (
 	"context"
@@ -49,14 +49,15 @@ const (
 	notStartedJobType jobType = "not started"
 )
 
-// HungJobLogMessages are written to provisioner job logs when a job is hung and
-// terminated.
-var HungJobLogMessages = []string{
-	"",
-	"====================",
-	"Coder: Build has been detected as hung for 5 minutes and will be terminated.",
-	"====================",
-	"",
+// jobLogMessages are written to provisioner job logs when a job is reaped
+func jobLogMessages(jobType jobType, threshold float64) []string {
+	return []string{
+		"",
+		"====================",
+		fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and will be terminated.", jobType, threshold),
+		"====================",
+		"",
+	}
 }
 
 // acquireLockError is returned when the detector fails to acquire a lock and
@@ -209,18 +210,14 @@ func (d *Detector) run(t time.Time) Stats {
 		jobs = jobs[:MaxJobsPerRun]
 	}
 
-	// Send a message into the build log for each hung or not startedjob saying that it
-	// has been detected and will be terminated, then mark the job as
-	// failed.
+	// Send a message into the build log for each hung or not started job saying that it
+	// has been detected and will be terminated, then mark the job as failed.
 	for _, job := range jobs {
 		log := d.log.With(slog.F("job_id", job.ID))
 
-		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
+		err := reapJob(ctx, log, d.db, d.pubsub, job.ID)
 		if err != nil {
-			jobType := notStartedJobType
-			if job.StartedAt.Valid {
-				jobType = hungJobType
-			}
+			jobType, _ := reapParamsFromJob(job)
 			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobIneligibleError{})) {
 				log.Error(ctx, fmt.Sprintf("error forcefully terminating %s provisioner job", jobType), slog.Error(err))
 			}
@@ -233,11 +230,11 @@ func (d *Detector) run(t time.Time) Stats {
 	return stats
 }
 
-func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobID uuid.UUID) error {
+func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobID uuid.UUID) error {
 	var lowestLogID int64
 
 	err := db.InTx(func(db database.Store) error {
-		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("unhanger:%s", jobID)))
+		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("reaper:%s", jobID)))
 		if err != nil {
 			return xerrors.Errorf("acquire lock: %w", err)
 		}
@@ -252,20 +249,14 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		jobType := hungJobType
-		threshold := HungJobDuration.Minutes()
-
-		if !job.StartedAt.Valid {
-			jobType = notStartedJobType
-			threshold = NotStartedTimeElapsed.Minutes()
-		}
+		jobType, threshold := reapParamsFromJob(job)
 
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
-		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {
+		if job.UpdatedAt.After(time.Now().Add(-time.Duration(threshold) * time.Minute)) {
 			return jobIneligibleError{
 				Err: xerrors.New("job has been updated recently"),
 			}
@@ -303,7 +294,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			Output:    nil,
 		}
 		now := dbtime.Now()
-		for i, msg := range HungJobLogMessages {
+		for i, msg := range jobLogMessages(jobType, threshold) {
 			// Set the created at in a way that ensures each message has
 			// a unique timestamp so they will be sorted correctly.
 			insertParams.CreatedAt = append(insertParams.CreatedAt, now.Add(time.Millisecond*time.Duration(i)))
@@ -404,4 +395,14 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 	}
 
 	return nil
+}
+
+func reapParamsFromJob(job database.ProvisionerJob) (jobType, float64) {
+	jobType := hungJobType
+	threshold := HungJobDuration.Minutes()
+	if !job.StartedAt.Valid {
+		jobType = notStartedJobType
+		threshold = NotStartedTimeElapsed.Minutes()
+	}
+	return jobType, threshold
 }
