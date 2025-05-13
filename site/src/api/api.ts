@@ -19,7 +19,11 @@
  *
  * For example, `utils/delay` must be imported using `../utils/delay` instead.
  */
-import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
+import globalAxios, {
+	type AxiosInstance,
+	type AxiosRequestConfig,
+	isAxiosError,
+} from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
@@ -221,11 +225,11 @@ export const watchBuildLogsByTemplateVersionId = (
 
 export const watchWorkspaceAgentLogs = (
 	agentId: string,
-	{ after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
+	params?: WatchWorkspaceAgentLogsParams,
 ) => {
 	const searchParams = new URLSearchParams({
 		follow: "true",
-		after: after.toString(),
+		after: params?.after ? params?.after.toString() : "",
 	});
 
 	/**
@@ -237,32 +241,14 @@ export const watchWorkspaceAgentLogs = (
 		searchParams.set("no_compression", "");
 	}
 
-	const socket = createWebSocket(
-		`/api/v2/workspaceagents/${agentId}/logs`,
+	return new OneWayWebSocket<TypesGen.WorkspaceAgentLog[]>({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
 		searchParams,
-	);
-
-	socket.addEventListener("message", (event) => {
-		const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
-		onMessage(logs);
 	});
-
-	socket.addEventListener("error", () => {
-		onError(new Error("socket errored"));
-	});
-
-	socket.addEventListener("close", () => {
-		onDone?.();
-	});
-
-	return socket;
 };
 
-type WatchWorkspaceAgentLogsOptions = {
-	after: number;
-	onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
-	onDone?: () => void;
-	onError: (error: Error) => void;
+type WatchWorkspaceAgentLogsParams = {
+	after?: number;
 };
 
 type WatchBuildLogsByBuildIdOptions = {

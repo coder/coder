@@ -2,44 +2,29 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { API } from "api/api";
 import * as APIModule from "api/api";
 import { agentLogsKey } from "api/queries/workspaces";
-import type { WorkspaceAgentLog } from "api/typesGenerated";
+import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import WS from "jest-websocket-mock";
 import { type QueryClient, QueryClientProvider } from "react-query";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { MockWorkspaceAgent } from "testHelpers/entities";
 import { createTestQueryClient } from "testHelpers/renderHelpers";
-import { type UseAgentLogsOptions, useAgentLogs } from "./useAgentLogs";
+import { useAgentLogs } from "./useAgentLogs";
 
 afterEach(() => {
 	WS.clean();
 });
 
 describe("useAgentLogs", () => {
-	it("should not fetch logs if disabled", async () => {
-		const queryClient = createTestQueryClient();
-		const fetchSpy = jest.spyOn(API, "getWorkspaceAgentLogs");
-		const wsSpy = jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
-		renderUseAgentLogs(queryClient, {
-			workspaceId: MockWorkspace.id,
-			agentId: MockWorkspaceAgent.id,
-			agentLifeCycleState: "ready",
-			enabled: false,
-		});
-		expect(fetchSpy).not.toHaveBeenCalled();
-		expect(wsSpy).not.toHaveBeenCalled();
-	});
-
 	it("should return existing logs without network calls if state is off", async () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(
-			agentLogsKey(MockWorkspace.id, MockWorkspaceAgent.id),
+			agentLogsKey(MockWorkspaceAgent.id),
 			generateLogs(5),
 		);
 		const fetchSpy = jest.spyOn(API, "getWorkspaceAgentLogs");
 		const wsSpy = jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
 		const { result } = renderUseAgentLogs(queryClient, {
-			workspaceId: MockWorkspace.id,
-			agentId: MockWorkspaceAgent.id,
-			agentLifeCycleState: "off",
+			...MockWorkspaceAgent,
+			lifecycle_state: "off",
 		});
 		await waitFor(() => {
 			expect(result.current).toHaveLength(5);
@@ -55,9 +40,8 @@ describe("useAgentLogs", () => {
 			.mockResolvedValueOnce(generateLogs(5));
 		jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
 		const { result } = renderUseAgentLogs(queryClient, {
-			workspaceId: MockWorkspace.id,
-			agentId: MockWorkspaceAgent.id,
-			agentLifeCycleState: "ready",
+			...MockWorkspaceAgent,
+			lifecycle_state: "ready",
 		});
 		await waitFor(() => {
 			expect(result.current).toHaveLength(5);
@@ -77,11 +61,7 @@ describe("useAgentLogs", () => {
 				MockWorkspaceAgent.id
 			}/logs?follow&after=${logs[logs.length - 1].id}`,
 		);
-		const { result } = renderUseAgentLogs(queryClient, {
-			workspaceId: MockWorkspace.id,
-			agentId: MockWorkspaceAgent.id,
-			agentLifeCycleState: "starting",
-		});
+		const { result } = renderUseAgentLogs(queryClient, MockWorkspaceAgent);
 		await waitFor(() => {
 			expect(result.current).toHaveLength(5);
 		});
@@ -102,11 +82,7 @@ describe("useAgentLogs", () => {
 				MockWorkspaceAgent.id
 			}/logs?follow&after=${logs[logs.length - 1].id}`,
 		);
-		const { result } = renderUseAgentLogs(queryClient, {
-			workspaceId: MockWorkspace.id,
-			agentId: MockWorkspaceAgent.id,
-			agentLifeCycleState: "starting",
-		});
+		const { result } = renderUseAgentLogs(queryClient, MockWorkspaceAgent);
 		await waitFor(() => {
 			expect(result.current).toHaveLength(5);
 		});
@@ -120,11 +96,8 @@ describe("useAgentLogs", () => {
 	});
 });
 
-function renderUseAgentLogs(
-	queryClient: QueryClient,
-	options: UseAgentLogsOptions,
-) {
-	return renderHook(() => useAgentLogs(options), {
+function renderUseAgentLogs(queryClient: QueryClient, agent: WorkspaceAgent) {
+	return renderHook(() => useAgentLogs(agent), {
 		wrapper: ({ children }) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 		),

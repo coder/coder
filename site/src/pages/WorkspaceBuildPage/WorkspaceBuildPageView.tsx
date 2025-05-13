@@ -212,13 +212,9 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						</Alert>
 					)}
 
-					{tabState.value === "build" ? (
-						<BuildLogsContent logs={logs} />
-					) : (
-						<AgentLogsContent
-							workspaceId={build.workspace_id}
-							agent={selectedAgent!}
-						/>
+					{tabState.value === "build" && <BuildLogsContent logs={logs} />}
+					{tabState.value !== "build" && selectedAgent && (
+						<AgentLogsContent agent={selectedAgent} />
 					)}
 				</ScrollArea>
 			</div>
@@ -286,15 +282,12 @@ const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
 	);
 };
 
-const AgentLogsContent: FC<{ workspaceId: string; agent: WorkspaceAgent }> = ({
-	agent,
-	workspaceId,
-}) => {
-	const logs = useAgentLogs({
-		workspaceId,
-		agentId: agent.id,
-		agentLifeCycleState: agent.lifecycle_state,
-	});
+type AgentLogsContentProps = {
+	agent: WorkspaceAgent;
+};
+
+const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
+	const logs = useAgentLogs(agent);
 
 	if (!logs) {
 		return <Loader />;

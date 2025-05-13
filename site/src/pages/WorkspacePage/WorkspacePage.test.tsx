@@ -33,6 +33,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import WorkspacePage from "./WorkspacePage";
+import { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 const { API, MissingBuildParameters } = apiModule;
 
@@ -49,12 +50,12 @@ const renderWorkspacePage = async (
 	jest
 		.spyOn(API, "getDeploymentConfig")
 		.mockResolvedValueOnce(MockDeploymentConfig);
-	jest
-		.spyOn(apiModule, "watchWorkspaceAgentLogs")
-		.mockImplementation((_, options) => {
-			options.onDone?.();
-			return new WebSocket("");
-		});
+	jest.spyOn(apiModule, "watchWorkspaceAgentLogs").mockImplementation(
+		() =>
+			new OneWayWebSocket({
+				apiRoute: "",
+			}),
+	);
 
 	renderWithAuth(<WorkspacePage />, {
 		...options,

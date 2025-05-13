@@ -53,7 +53,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
 	const agentLogQueries = useQueries({
 		queries: allUniqueAgents.map((agent) => ({
-			...agentLogs(workspace.id, agent.id),
+			...agentLogs(agent.id),
 			enabled: open,
 		})),
 	});
