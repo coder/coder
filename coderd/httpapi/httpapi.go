@@ -192,6 +192,12 @@ func RouteNotFound(rw http.ResponseWriter) {
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	// Pretty up JSON when testing.
 	if flag.Lookup("test.v") != nil {
+		if ContainsNilMap(response) {
+			// Nil maps passed to the frontend are json serialized as "null".
+			// The frontend expects the map to be initialized as an empty map.
+			panic("response contains nil map")
+		}
+
 		WriteIndent(ctx, rw, status, response)
 		return
 	}
