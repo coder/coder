@@ -2205,7 +2205,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "ssh", workspace.Name, "echo hello world")
+		inv, root := clitest.New(t, "ssh", workspace.Name, "echo 'hello world'")
 		clitest.SetupConfig(t, client, root)
 
 		// Capture command output
@@ -2311,7 +2311,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 		defer session.Close()
 
 		// Capture and verify command output
-		output, err := session.Output("echo hello back")
+		output, err := session.Output("echo 'hello back'")
 		require.NoError(t, err)
 		assert.Contains(t, string(output), "hello back")
 
