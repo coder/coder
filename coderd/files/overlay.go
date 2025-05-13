@@ -4,8 +4,6 @@ import (
 	"io/fs"
 	"path"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 // overlayFS allows you to "join" together multiple fs.FS. Files in any specific
@@ -48,11 +46,7 @@ func (f overlayFS) ReadDir(p string) ([]fs.DirEntry, error) {
 			break
 		}
 	}
-	it, ok := target.(fs.ReadDirFS)
-	if !ok {
-		return nil, xerrors.New("provided fs.FS does not implement fs.ReadDirFS")
-	}
-	return it.ReadDir(p)
+	return fs.ReadDir(target, p)
 }
 
 func (f overlayFS) ReadFile(p string) ([]byte, error) {
@@ -63,9 +57,5 @@ func (f overlayFS) ReadFile(p string) ([]byte, error) {
 			break
 		}
 	}
-	it, ok := target.(fs.ReadFileFS)
-	if !ok {
-		return nil, xerrors.New("provided fs.FS does not implement fs.ReadFileFS")
-	}
-	return it.ReadFile(p)
+	return fs.ReadFile(target, p)
 }
