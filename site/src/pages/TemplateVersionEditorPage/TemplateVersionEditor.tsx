@@ -1,7 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CreateIcon from "@mui/icons-material/AddOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -27,7 +26,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { PlayIcon } from "lucide-react";
+import { PlayIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -567,7 +566,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											borderRadius: 0,
 										}}
 									>
-										<CloseOutlined css={{ width: 16, height: 16 }} />
+										<XIcon className="size-icon-xs" />
 									</IconButton>
 								)}
 							</div>

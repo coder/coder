@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
 // biome-ignore lint/nursery/noRestrictedImports: use it to have the component prop
 import Box, { type BoxProps } from "@mui/material/Box";
 import visuallyHidden from "@mui/utils/visuallyHidden";
+import { SearchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, InputHTMLAttributes, Ref } from "react";
 
 interface SearchProps extends Omit<BoxProps, "ref"> {
@@ -21,7 +21,7 @@ interface SearchProps extends Omit<BoxProps, "ref"> {
 export const Search: FC<SearchProps> = ({ children, $$ref, ...boxProps }) => {
 	return (
 		<Box ref={$$ref} {...boxProps} css={SearchStyles.container}>
-			<SearchOutlined css={SearchStyles.icon} />
+			<SearchIcon className="size-icon-xs" css={SearchStyles.icon} />
 			{children}
 		</Box>
 	);
