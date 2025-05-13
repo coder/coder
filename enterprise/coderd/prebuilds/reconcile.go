@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -87,10 +88,12 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()),
 		slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
 
+	var wg sync.WaitGroup
 	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
 	defer func() {
 		c.done <- struct{}{}
+		wg.Wait()
 	}()
 
 	// nolint:gocritic // Reconciliation Loop needs Prebuilds Orchestrator permissions.
@@ -99,7 +102,11 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 
 	// Start updating metrics in the background.
 	if c.metrics != nil {
-		go c.metrics.BackgroundFetch(ctx, metricsUpdateInterval, metricsUpdateTimeout)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.metrics.BackgroundFetch(ctx, metricsUpdateInterval, metricsUpdateTimeout)
+		}()
 	}
 
 	// Everything is in place, reconciler can now be considered as running.
