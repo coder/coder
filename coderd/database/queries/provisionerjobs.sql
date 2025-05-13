@@ -252,8 +252,7 @@ SET
 	updated_at = $2,
 	completed_at = $3,
 	error = $4,
-	error_code = $5,
-	started_at = $6
+	error_code = $5
 WHERE
 	id = $1;
 
