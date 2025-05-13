@@ -5,7 +5,6 @@ import {
 	css,
 	useTheme,
 } from "@emotion/react";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Link from "@mui/material/Link";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -16,6 +15,7 @@ import {
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
+import { ExternalLinkIcon } from "lucide-react";
 import { CircleHelpIcon } from "lucide-react";
 import {
 	type FC,
@@ -137,7 +137,7 @@ interface HelpTooltipLink {
 export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 	return (
 		<Link href={href} target="_blank" rel="noreferrer" css={styles.link}>
-			<OpenInNewIcon css={styles.linkIcon} />
+			<ExternalLinkIcon className="size-icon-xs" css={styles.linkIcon} />
 			{children}
 		</Link>
 	);

@@ -103,6 +103,33 @@ export const Running: Story = {
 	},
 };
 
+export const RunningWithChildAgent: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								lifecycle_state: "ready",
+							},
+							{
+								...Mocks.MockWorkspaceChildAgent,
+								lifecycle_state: "ready",
+							},
+						],
+					},
+				],
+			},
+		},
+	},
+};
+
 export const RunningWithAppStatuses: Story = {
 	args: {
 		workspace: {

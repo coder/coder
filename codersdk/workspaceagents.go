@@ -139,6 +139,7 @@ const (
 
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`
+	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
 	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
 	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
 	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`

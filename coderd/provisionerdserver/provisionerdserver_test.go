@@ -2158,6 +2158,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, agents, 1)
 		agent := agents[0]
+		require.Equal(t, uuid.NullUUID{}, agent.ParentID)
 		require.Equal(t, "amd64", agent.Architecture)
 		require.Equal(t, "linux", agent.OperatingSystem)
 		want, err := json.Marshal(map[string]string{

@@ -94,7 +94,9 @@ func TestProvisionerSDK(t *testing.T) {
 			srvErr <- err
 		}()
 
-		api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
+		api := proto.NewDRPCProvisionerClient(drpcconn.NewWithOptions(client, drpcconn.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
+		}))
 		s, err := api.Session(ctx)
 		require.NoError(t, err)
 		err = s.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
