@@ -26,7 +26,7 @@ import type * as ProxyLatency from "./useProxyLatency";
 // here and not inside a unit test.
 jest.mock("contexts/useProxyLatency", () => ({
 	useProxyLatency: () => {
-		return { proxyLatencies: hardCodedLatencies, refetch: jest.fn() };
+		return { proxyLatencies: hardCodedLatencies, refetch: jest.fn(), loaded: true };
 	},
 }));
 
@@ -261,11 +261,11 @@ describe("ProxyContextSelection", () => {
 				expUserProxyID: MockHealthyWildWorkspaceProxy.id,
 			},
 		],
-		// Latency behavior is disabled, so the primary should be selected.
+		// First page load defers to the proxy by latency
 		[
 			"regions_default_low_latency",
 			{
-				expProxyID: MockPrimaryWorkspaceProxy.id,
+				expProxyID: MockHealthyWildWorkspaceProxy.id,
 				regions: MockWorkspaceProxies,
 				storageProxy: undefined,
 				latencies: {
