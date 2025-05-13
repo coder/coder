@@ -21,11 +21,10 @@ func TestOverlayFS(t *testing.T) {
 	afero.WriteFile(b, ".terraform/modules/modules.json", []byte("{}"), 0o644)
 	afero.WriteFile(b, ".terraform/modules/example_module/main.tf", []byte("terraform {}"), 0o644)
 
-	it, err := files.NewOverlayFS(afero.NewIOFS(a), []files.Overlay{{
+	it := files.NewOverlayFS(afero.NewIOFS(a), []files.Overlay{{
 		Path: ".terraform/modules",
 		FS:   afero.NewIOFS(b),
 	}})
-	require.NoError(t, err)
 
 	content, err := fs.ReadFile(it, "main.tf")
 	require.NoError(t, err)
