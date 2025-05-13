@@ -8,16 +8,30 @@ import {
 	withDesktopViewport,
 } from "testHelpers/storybook";
 import { WorkspaceActions } from "./WorkspaceActions";
+import { deploymentConfigQueryKey } from "api/queries/deployment";
 
 const meta: Meta<typeof WorkspaceActions> = {
 	title: "pages/WorkspacePage/WorkspaceActions",
 	component: WorkspaceActions,
 	args: {
 		isUpdating: false,
+		permissions: {
+			deleteFailedWorkspace: true,
+			deploymentConfig: true,
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+		},
 	},
 	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
 	parameters: {
 		user: Mocks.MockUserOwner,
+		queries: [
+			{
+				key: deploymentConfigQueryKey,
+				data: Mocks.MockDeploymentConfig,
+			},
+		],
 	},
 };
 
