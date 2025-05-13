@@ -257,8 +257,10 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
 			})
 		}
-		// Check if the OAuth token is expired
-		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		// Check if the OAuth token is expired OR the API key is expired
+		// We attempt to refresh the OAuth token even if only the API key is expired
+		if (link.OAuthExpiry.Before(now) || key.ExpiresAt.Before(now)) &&
+			!link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
 			if cfg.OAuth2Configs.IsZero() {
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
