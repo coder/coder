@@ -92,6 +92,7 @@ type Options struct {
 }
 
 type server struct {
+	apiVersion string
 	// lifecycleCtx must be tied to the API server's lifecycle
 	// as when the API server shuts down, we want to cancel any
 	// long-running operations.
@@ -151,6 +152,7 @@ func (t Tags) Valid() error {
 
 func NewServer(
 	lifecycleCtx context.Context,
+	apiVersion string,
 	accessURL *url.URL,
 	id uuid.UUID,
 	organizationID uuid.UUID,
@@ -210,6 +212,7 @@ func NewServer(
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
+		apiVersion:                  apiVersion,
 		AccessURL:                   accessURL,
 		ID:                          id,
 		OrganizationID:              organizationID,
@@ -1506,10 +1509,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 
 			err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-				JobID:             jobID,
-				UpdatedAt:         now,
-				CachedPlan:        plan,
-				CachedModuleFiles: fileID,
+				JobID:               jobID,
+				UpdatedAt:           now,
+				CachedPlan:          plan,
+				CachedModuleFiles:   fileID,
+				ProvisionerdVersion: s.apiVersion,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert template version terraform data: %w", err)

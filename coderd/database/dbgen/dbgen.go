@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1000,10 +1001,11 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	t.Helper()
 
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:             takeFirst(orig.JobID, uuid.New()),
-		CachedPlan:        takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		CachedModuleFiles: orig.CachedModuleFiles,
-		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		JobID:               takeFirst(orig.JobID, uuid.New()),
+		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles:   orig.CachedModuleFiles,
+		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ProvisionerdVersion: takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
 	}
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)

@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/files"
@@ -81,6 +82,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	defer api.FileCache.Release(fileID)
 
 	staticDiagnostics := hcl.Diagnostics{}
+	missingMetaData := hcl.Diagnostic{
+		Severity: hcl.DiagWarning,
+		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
+		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
+	}
 
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
@@ -88,15 +94,20 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	plan := json.RawMessage("{}")
 	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		staticDiagnostics.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagWarning,
-			Summary:  "This template version is missing required metadata to support dynamic parameters.",
-			Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
-		})
+		staticDiagnostics = staticDiagnostics.Append(&missingMetaData)
 	}
-
 	if err == nil {
 		plan = tf.CachedPlan
+
+		major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
+		if err != nil || tf.ProvisionerdVersion == "" {
+			staticDiagnostics = staticDiagnostics.Append(&missingMetaData)
+		} else if major < 1 || (major == 1 && minor < 5) {
+			missingMetaData.Detail = "This template version requires provisioner v1.5 or newer to support dynamic parameters. " +
+				"Some options may be missing or incorrect. " +
+				"Please contact an administrator to update the provisioner and re-import the template version."
+			staticDiagnostics = staticDiagnostics.Append(&missingMetaData)
+		}
 
 		if tf.CachedModuleFiles.Valid {
 			moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)

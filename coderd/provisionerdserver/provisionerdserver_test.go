@@ -2719,6 +2719,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
+		proto.CurrentVersion.String(),
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
