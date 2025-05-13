@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";
@@ -15,6 +14,7 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
+import { RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
@@ -84,7 +84,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 							loadingPosition="start"
 							loading={isRefreshing}
 							onClick={refreshEntitlements}
-							startIcon={<RefreshIcon />}
+							startIcon={<RotateCwIcon className="size-icon-xs" />}
 						>
 							Refresh
 						</LoadingButton>
