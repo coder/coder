@@ -347,7 +347,7 @@ message PlanComplete {
     repeated Module modules = 7;
     repeated Preset presets = 8;
     bytes plan = 9;
-    repeated ResourceReplacement resourceReplacements = 10;
+    repeated ResourceReplacement resource_replacements = 10;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

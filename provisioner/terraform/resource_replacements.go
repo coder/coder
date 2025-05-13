@@ -59,21 +59,22 @@ func findResourceReplacements(plan *tfjson.Plan) resourceReplacements {
 		}
 
 		// Replacements found, problem!
-		for _, p := range ch.Change.ReplacePaths {
-			var path string
-			switch p := p.(type) {
+		for _, val := range ch.Change.ReplacePaths {
+			var pathStr string
+			// Each path needs to be coerced into a string. All types except []interface{} can be coerced using fmt.Sprintf.
+			switch path := val.(type) {
 			case []interface{}:
-				segs := p
-				list := make([]string, 0, len(segs))
-				for _, s := range segs {
-					list = append(list, fmt.Sprintf("%v", s))
+				// Found a slice of paths; coerce to string and join by ".".
+				segments := make([]string, 0, len(path))
+				for _, seg := range path {
+					segments = append(segments, fmt.Sprintf("%v", seg))
 				}
-				path = strings.Join(list, ".")
+				pathStr = strings.Join(segments, ".")
 			default:
-				path = fmt.Sprintf("%v", p)
+				pathStr = fmt.Sprintf("%v", path)
 			}
 
-			replacements[ch.Address] = append(replacements[ch.Address], path)
+			replacements[ch.Address] = append(replacements[ch.Address], pathStr)
 		}
 	}
 

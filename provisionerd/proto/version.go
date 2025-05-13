@@ -15,7 +15,7 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.5:
 //   - Add new field named `prebuilt_workspace_build_stage` enum in the Metadata message.
-//   - Add new field named `resourceReplacements` in PlanComplete & CompletedJob.WorkspaceBuild.
+//   - Add new field named `resource_replacements` in PlanComplete & CompletedJob.WorkspaceBuild.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 5

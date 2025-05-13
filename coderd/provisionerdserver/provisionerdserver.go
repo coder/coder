@@ -26,6 +26,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/quartz"
@@ -1729,8 +1730,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			// Track resource replacements, if there are any.
 			orchestrator := s.PrebuildsOrchestrator.Load()
 			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
-				// Fire and forget.
-				go (*orchestrator).TrackResourceReplacement(context.Background(), workspace.ID, workspaceBuild.ID, resourceReplacements)
+				// Fire and forget. Bind to the lifecycle of the server so shutdowns are handled gracefully.
+				go (*orchestrator).TrackResourceReplacement(s.lifecycleCtx, workspace.ID, workspaceBuild.ID, resourceReplacements)
 			}
 		}
 

@@ -416,7 +416,7 @@ func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) 
 // logDrift must only be called while the lock is held.
 // It will log the output of `terraform show`, which will show which resources have drifted from the known state.
 func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
-	stdout, stdoutDone := resourceReplaceLogWriter(logr)
+	stdout, stdoutDone := resourceReplaceLogWriter(logr, e.logger)
 	stderr, stderrDone := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = stdout.Close()
@@ -436,9 +436,9 @@ func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, l
 //
 // The WriteCloser must be closed by the caller to end logging, after which the returned channel will be closed to
 // indicate that logging of the written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func resourceReplaceLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
+func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser, <-chan struct{}) {
 	r, w := io.Pipe()
-	done := make(chan any)
+	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
@@ -454,6 +454,9 @@ func resourceReplaceLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
 			}
 
 			sink.ProvisionLog(level, string(line))
+		}
+		if err := scanner.Err(); err != nil {
+			logger.Error(context.Background(), "failed to read terraform log", slog.Error(err))
 		}
 	}()
 	return w, done

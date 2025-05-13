@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -631,7 +632,6 @@ func (c *StoreReconciler) provision(
 }
 
 func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
-	// Set authorization context since this may be called in the background (i.e. with a bare context).
 	// nolint:gocritic // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	// Since this may be called in a fire-and-forget fashion, we need to give up at some point.
@@ -716,8 +716,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 		return xerrors.Errorf("fetch template admins: %w", err)
 	}
 
-	var errs multierror.Error
-
+	var notifErr error
 	for _, templateAdmin := range templateAdmins {
 		if _, err := (*c.notifEnq.Load()).EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
 			map[string]string{
@@ -735,10 +734,10 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, templateVersion.ID, prebuildPreset.ID, workspace.OrganizationID,
 		); err != nil {
-			errs.Errors = append(errs.Errors, xerrors.Errorf("send notification to %q: %w", templateAdmin.ID.String(), err))
+			notifErr = errors.Join(xerrors.Errorf("send notification to %q: %w", templateAdmin.ID.String(), err))
 			continue
 		}
 	}
 
-	return errs.ErrorOrNil()
+	return notifErr
 }
