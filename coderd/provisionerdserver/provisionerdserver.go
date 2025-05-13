@@ -1840,7 +1840,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 
-		if input.PrebuiltWorkspaceBuildStage != sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+		if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
 				slog.F("workspace_id", workspace.ID))
 

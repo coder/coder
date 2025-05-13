@@ -1779,8 +1779,6 @@ func TestCompleteJob(t *testing.T) {
 
 				// GIVEN an enqueued provisioner job and its dependencies:
 
-				userID := uuid.New()
-
 				srv, db, ps, pd := setup(t, false, &overrides{})
 
 				buildID := uuid.New()
@@ -1848,7 +1846,7 @@ func TestCompleteJob(t *testing.T) {
 				case reinitEvent := <-reinitChan:
 					// THEN workspace agent reinitialization instruction was received:
 					require.True(t, tc.shouldReinitializeAgent)
-					require.Equal(t, userID, reinitEvent.UserID)
+					require.Equal(t, workspace.ID, reinitEvent.WorkspaceID)
 				default:
 					// THEN workspace agent reinitialization instruction was not received.
 					require.False(t, tc.shouldReinitializeAgent)
