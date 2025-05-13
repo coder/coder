@@ -63,7 +63,11 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 	// mutex has been released, or we would continue to hold the lock until the
 	// entire file has been fetched, which may be slow, and would prevent other
 	// files from being fetched in parallel.
-	return c.prepare(ctx, fileID).Load()
+	it, err := c.prepare(ctx, fileID).Load()
+	if err != nil {
+		c.Release(fileID)
+	}
+	return it, err
 }
 
 func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[fs.FS] {

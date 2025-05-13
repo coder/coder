@@ -1440,7 +1440,8 @@ CREATE TABLE template_version_presets (
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    cached_plan jsonb NOT NULL
+    cached_plan jsonb NOT NULL,
+    cached_module_files uuid
 );
 
 CREATE TABLE template_version_variables (
@@ -1832,6 +1833,7 @@ CREATE TABLE workspace_agents (
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     api_version text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
+    parent_id uuid,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -2022,18 +2024,52 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
 CREATE VIEW workspace_latest_builds AS
- SELECT DISTINCT ON (wb.workspace_id) wb.id,
-    wb.workspace_id,
-    wb.template_version_id,
-    wb.job_id,
-    wb.template_version_preset_id,
-    wb.transition,
-    wb.created_at,
-    pj.job_status
-   FROM (workspace_builds wb
-     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
-  ORDER BY wb.workspace_id, wb.build_number DESC;
+ SELECT latest_build.id,
+    latest_build.workspace_id,
+    latest_build.template_version_id,
+    latest_build.job_id,
+    latest_build.template_version_preset_id,
+    latest_build.transition,
+    latest_build.created_at,
+    latest_build.job_status
+   FROM (workspaces
+     LEFT JOIN LATERAL ( SELECT workspace_builds.id,
+            workspace_builds.workspace_id,
+            workspace_builds.template_version_id,
+            workspace_builds.job_id,
+            workspace_builds.template_version_preset_id,
+            workspace_builds.transition,
+            workspace_builds.created_at,
+            provisioner_jobs.job_status
+           FROM (workspace_builds
+             JOIN provisioner_jobs ON ((provisioner_jobs.id = workspace_builds.job_id)))
+          WHERE (workspace_builds.workspace_id = workspaces.id)
+          ORDER BY workspace_builds.build_number DESC
+         LIMIT 1) latest_build ON (true))
+  WHERE (workspaces.deleted = false)
+  ORDER BY workspaces.id;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
@@ -2069,27 +2105,6 @@ CREATE TABLE workspace_resources (
     daily_cost integer DEFAULT 0 NOT NULL,
     module_path text
 );
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspace_prebuilds AS
  WITH all_prebuilds AS (
@@ -2851,6 +2866,9 @@ ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_cached_module_files_fkey FOREIGN KEY (cached_module_files) REFERENCES files(id);
+
+ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_variables
@@ -2921,6 +2939,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

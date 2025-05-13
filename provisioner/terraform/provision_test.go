@@ -25,7 +25,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/codersdk/drpc"
+
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -52,7 +53,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		logger := testutil.Logger(t)
 		opts.logger = &logger
 	}
-	client, server := drpc.MemTransportPipe()
+	client, server := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
 	t.Cleanup(func() {
@@ -977,7 +978,7 @@ func TestProvision(t *testing.T) {
 					required_providers {
 					  coder = {
 						source  = "coder/coder"
-						version = "2.3.0-pre2"
+						version = ">= 2.4.1"
 					  }
 					}
 				}
@@ -994,7 +995,7 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.PlanRequest{
 				Metadata: &proto.Metadata{
-					IsPrebuild: true,
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CREATE,
 				},
 			},
 			Response: &proto.PlanComplete{
@@ -1003,6 +1004,44 @@ func TestProvision(t *testing.T) {
 					Type: "null_resource",
 					Metadata: []*proto.Resource_Metadata{{
 						Key:   "is_prebuild",
+						Value: "true",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "is-prebuild-claim",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.4.1"
+					  }
+					}
+				}
+				data "coder_workspace" "me" {}
+				resource "null_resource" "example" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "is_prebuild_claim"
+						value = data.coder_workspace.me.is_prebuild_claim
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CLAIM,
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "is_prebuild_claim",
 						Value: "true",
 					}},
 				}},

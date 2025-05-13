@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { NumberedPageButton, PlaceholderPageButton } from "./PageButtons";
 import { PaginationNavButton } from "./PaginationNavButton";
@@ -60,7 +59,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 					}
 				}}
 			>
-				<KeyboardArrowLeft />
+				<ChevronLeftIcon className="size-icon-sm" />
 			</PaginationNavButton>
 
 			{isMobile ? (
@@ -87,7 +86,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 					}
 				}}
 			>
-				<KeyboardArrowRight />
+				<ChevronRightIcon className="size-icon-sm" />
 			</PaginationNavButton>
 		</div>
 	);

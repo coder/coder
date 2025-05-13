@@ -1,11 +1,8 @@
 import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import BuildingIcon from "@mui/icons-material/Build";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
 import CollectedIcon from "@mui/icons-material/Compare";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import LatencyIcon from "@mui/icons-material/SettingsEthernet";
 import WebTerminalIcon from "@mui/icons-material/WebAsset";
 import Button from "@mui/material/Button";
@@ -24,6 +21,8 @@ import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { RotateCwIcon, WrenchIcon } from "lucide-react";
+import { CircleAlertIcon } from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,
@@ -151,7 +150,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						to="/health"
 						css={[styles.statusBadge, styles.unhealthy]}
 					>
-						<ErrorIcon />
+						<CircleAlertIcon className="size-icon-sm" />
 					</Link>
 				) : (
 					<div css={styles.statusBadge}>
@@ -322,7 +321,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						}}
 						variant="text"
 					>
-						<RefreshIcon />
+						<RotateCwIcon className="size-icon-xs" />
 						{timeUntilRefresh}s
 					</Button>
 				</Tooltip>
@@ -344,7 +343,7 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	let statusText = displayStatus.text;
 	let icon = displayStatus.icon;
 	if (status === "starting") {
-		icon = <BuildingIcon />;
+		icon = <WrenchIcon className="size-icon-xs" />;
 		statusText = "Building";
 	}
 
@@ -372,9 +371,9 @@ const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
 
 	return (
 		<Stack direction="row" spacing={1} alignItems="center">
-			<ErrorIcon
-				css={{ width: 16, height: 16 }}
-				htmlColor={theme.roles.error.outline}
+			<CircleAlertIcon
+				className="size-icon-sm"
+				css={{ color: theme.roles.error.outline }}
 			/>
 			{children}
 		</Stack>

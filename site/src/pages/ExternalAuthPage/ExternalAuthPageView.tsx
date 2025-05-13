@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
@@ -10,6 +9,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
+import { RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 export interface ExternalAuthPageViewProps {
@@ -132,7 +132,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 						onReauthenticate();
 					}}
 				>
-					<RefreshIcon /> Reauthenticate
+					<RotateCwIcon className="size-icon-xs" /> Reauthenticate
 				</Link>
 			</div>
 		</SignInLayout>

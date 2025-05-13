@@ -52,7 +52,8 @@ var (
 	PlanComplete = []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{
-				Plan: []byte("{}"),
+				Plan:        []byte("{}"),
+				ModuleFiles: []byte{},
 			},
 		},
 	}}
@@ -249,6 +250,7 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 					Parameters:            resp.GetApply().GetParameters(),
 					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
 					Plan:                  []byte("{}"),
+					ModuleFiles:           []byte{},
 				}},
 			})
 		}

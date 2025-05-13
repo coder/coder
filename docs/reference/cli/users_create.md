@@ -1,6 +1,8 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # users create
 
+Create a new user.
+
 ## Usage
 
 ```console
