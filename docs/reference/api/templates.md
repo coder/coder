@@ -13,6 +13,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /organizations/{organization}/templates`
 
+Returns a list of templates for the specified organization.
+By default, only non-deprecated templates are returned.
+To include deprecated templates, specify `deprecated:true` in the search query.
+
 ### Parameters
 
 | Name           | In   | Type         | Required | Description     |
@@ -738,6 +742,10 @@ curl -X GET http://coder-server:8080/api/v2/templates \
 ```
 
 `GET /templates`
+
+Returns a list of templates.
+By default, only non-deprecated templates are returned.
+To include deprecated templates, specify `deprecated:true` in the search query.
 
 ### Example responses
 
