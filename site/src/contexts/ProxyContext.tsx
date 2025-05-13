@@ -136,7 +136,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				loadUserSelectedProxy(),
 				proxyLatencies,
 				// Do not auto select based on latencies, as inconsistent latencies can cause this
-				// to behave poorly.
+				// to change on each call. updateProxy should be stable when selecting a proxy to
+				// prevent flickering.
 				false,
 			),
 		);
@@ -150,7 +151,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [proxiesResp, proxyLatencies]);
 
 	// This useEffect will auto select the best proxy if the user has not selected one.
-    // It must wait until all latencies are loaded to select based on latency. This does mean
+	// It must wait until all latencies are loaded to select based on latency. This does mean
 	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
 	// 
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
