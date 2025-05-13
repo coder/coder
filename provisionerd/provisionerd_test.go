@@ -179,7 +179,7 @@ func TestProvisionerd(t *testing.T) {
 	})
 
 	// LargePayloads sends a 3mb tar file to the provisioner. The provisioner also
-	// returns large payload messages back. The limit should be 10mb, so all
+	// returns large payload messages back. The limit should be 4mb, so all
 	// these messages should work.
 	t.Run("LargePayloads", func(t *testing.T) {
 		t.Parallel()
