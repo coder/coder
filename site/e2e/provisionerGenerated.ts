@@ -294,6 +294,7 @@ export interface Module {
   source: string;
   version: string;
   key: string;
+  dir: string;
 }
 
 export interface Role {
@@ -360,6 +361,7 @@ export interface PlanRequest {
   richParameterValues: RichParameterValue[];
   variableValues: VariableValue[];
   externalAuthProviders: ExternalAuthProvider[];
+  previousParameterValues: RichParameterValue[];
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -372,6 +374,7 @@ export interface PlanComplete {
   modules: Module[];
   presets: Preset[];
   plan: Uint8Array;
+  moduleFiles: Uint8Array;
   resourceReplacements: ResourceReplacement[];
 }
 
@@ -982,6 +985,9 @@ export const Module = {
     if (message.key !== "") {
       writer.uint32(26).string(message.key);
     }
+    if (message.dir !== "") {
+      writer.uint32(34).string(message.dir);
+    }
     return writer;
   },
 };
@@ -1132,6 +1138,9 @@ export const PlanRequest = {
     for (const v of message.externalAuthProviders) {
       ExternalAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
     }
+    for (const v of message.previousParameterValues) {
+      RichParameterValue.encode(v!, writer.uint32(42).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1162,8 +1171,11 @@ export const PlanComplete = {
     if (message.plan.length !== 0) {
       writer.uint32(74).bytes(message.plan);
     }
+    if (message.moduleFiles.length !== 0) {
+      writer.uint32(82).bytes(message.moduleFiles);
+    }
     for (const v of message.resourceReplacements) {
-      ResourceReplacement.encode(v!, writer.uint32(82).fork()).ldelim();
+      ResourceReplacement.encode(v!, writer.uint32(90).fork()).ldelim();
     }
     return writer;
   },
