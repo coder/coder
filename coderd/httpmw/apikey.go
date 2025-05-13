@@ -257,8 +257,10 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
 			})
 		}
-		// Check if the OAuth token is expired
-		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		// Check if the OAuth token is expired OR the API key is expired (to fix issue #17070)
+		// We attempt to refresh the OAuth token even if only the API key is expired
+		if (link.OAuthExpiry.Before(now) || key.ExpiresAt.Before(now)) && 
+			!link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
 			if cfg.OAuth2Configs.IsZero() {
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
@@ -316,6 +318,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// NOTE: The `RequireAuth` React component depends on this `Detail` to detect when
 	// the users token has expired. If you change the text here, make sure to update it
 	// in site/src/components/RequireAuth/RequireAuth.tsx as well.
+	//
+	// This check happens after the OAuth token refresh logic, which now includes
+	// attempting to refresh the OAuth token when the API key is expired (see the condition
+	// above that checks for key.ExpiresAt.Before(now)). This ensures an expired API key
+	// can be refreshed via a valid OAuth2 token, fixing issue #17070.
 	if key.ExpiresAt.Before(now) {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
