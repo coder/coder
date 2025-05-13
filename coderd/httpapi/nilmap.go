@@ -14,7 +14,7 @@ func ContainsNilMap(v any) error {
 		if field != "" {
 			extra = " in field " + field
 		}
-		return xerrors.Errorf("nil maps recieved in type %q%s", ty.String(), extra)
+		return xerrors.Errorf("nil maps received in type %q%s", ty.String(), extra)
 	}
 	return nil
 }
