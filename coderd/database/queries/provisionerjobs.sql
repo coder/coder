@@ -256,6 +256,18 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateProvisionerJobWithCompleteWithStartedAtByID :exec
+UPDATE
+	provisioner_jobs
+SET
+	updated_at = $2,
+	completed_at = $3,
+	error = $4,
+	error_code = $5,
+	started_at = $6
+WHERE
+	id = $1;
+
 -- name: GetHungProvisionerJobs :many
 SELECT
 	*

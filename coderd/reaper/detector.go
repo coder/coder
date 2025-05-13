@@ -311,7 +311,16 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 
 		// Mark the job as failed.
 		now = dbtime.Now()
-		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+
+		// If the job was never started, set the StartedAt time to the current
+		// time so that the build duration is correct.
+		if !job.StartedAt.Valid {
+			job.StartedAt = sql.NullTime{
+				Time:  now,
+				Valid: true,
+			}
+		}
+		err = db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 			ID:        job.ID,
 			UpdatedAt: now,
 			CompletedAt: sql.NullTime{
@@ -325,6 +334,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 			ErrorCode: sql.NullString{
 				Valid: false,
 			},
+			StartedAt: job.StartedAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("mark job as failed: %w", err)

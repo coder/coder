@@ -2706,6 +2706,13 @@ func (m queryMetricsStore) UpdateProvisionerJobWithCompleteByID(ctx context.Cont
 	return err
 }
 
+func (m queryMetricsStore) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerJobWithCompleteWithStartedAtByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
 	start := time.Now()
 	replica, err := m.s.UpdateReplica(ctx, arg)

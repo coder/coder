@@ -4254,6 +4254,10 @@ func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg 
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
+func (q *querier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	return q.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
+}
+
 func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err
