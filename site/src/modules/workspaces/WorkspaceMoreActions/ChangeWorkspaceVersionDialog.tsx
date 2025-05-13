@@ -16,7 +16,7 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { InfoIcon } from "lucide-react";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { createDayString } from "utils/createDayString";
 
@@ -31,28 +31,23 @@ export const ChangeWorkspaceVersionDialog: FC<
 > = ({ workspace, onClose, onConfirm, ...dialogProps }) => {
 	const { data: versions } = useQuery({
 		...templateVersions(workspace.template_id),
-		select: (data) => data.reverse(),
+		select: (data) => [...data].reverse(),
 	});
 	const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
 	const activeVersion = versions?.find(
 		(v) => workspace.template_active_version_id === v.id,
 	);
-	const [selectedVersion, setSelectedVersion] = useState<TemplateVersion>();
+	const [newVersion, setNewVersion] = useState<TemplateVersion>();
 	const validVersions = versions?.filter((v) => v.job.status === "succeeded");
-
-	useEffect(() => {
-		if (activeVersion) {
-			setSelectedVersion(activeVersion);
-		}
-	}, [activeVersion]);
+	const selectedVersion = newVersion || activeVersion;
 
 	return (
 		<ConfirmDialog
 			{...dialogProps}
 			onClose={onClose}
 			onConfirm={() => {
-				if (selectedVersion) {
-					onConfirm(selectedVersion);
+				if (newVersion) {
+					onConfirm(newVersion);
 				}
 			}}
 			hideCancel={false}
@@ -73,7 +68,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 									id="template-version-autocomplete"
 									open={isAutocompleteOpen}
 									onChange={(_, newTemplateVersion) => {
-										setSelectedVersion(newTemplateVersion);
+										setNewVersion(newTemplateVersion);
 									}}
 									onOpen={() => {
 										setIsAutocompleteOpen(true);

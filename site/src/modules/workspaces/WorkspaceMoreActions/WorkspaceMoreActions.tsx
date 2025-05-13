@@ -21,7 +21,7 @@ import {
 	SettingsIcon,
 	TrashIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
@@ -32,7 +32,7 @@ import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
-	disabled?: boolean;
+	disabled: boolean;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
@@ -63,9 +63,17 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
 
+	// Since the workspace state is not updated immediately after the mutation, we
+	// need to be sure the menu is closed when the action gets disabled.
+	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
+	const [open, setOpen] = useState(false);
+	useEffect(() => {
+		setOpen((open) => (disabled ? false : open));
+	});
+
 	return (
 		<>
-			<DropdownMenu>
+			<DropdownMenu open={open} onOpenChange={setOpen}>
 				<DropdownMenuTrigger asChild>
 					<Button
 						size="icon-lg"
@@ -136,16 +144,16 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 			<UpdateBuildParametersDialog
 				missedParameters={
-					isMissingBuildParameters(changeVersionMutation.error)
+					changeVersionMutation.error instanceof MissingBuildParameters
 						? changeVersionMutation.error.parameters
 						: []
 				}
-				open={isMissingBuildParameters(changeVersionMutation.error)}
+				open={changeVersionMutation.error instanceof MissingBuildParameters}
 				onClose={() => {
 					changeVersionMutation.reset();
 				}}
 				onUpdate={(buildParameters) => {
-					if (isMissingBuildParameters(changeVersionMutation.error)) {
+					if (changeVersionMutation.error instanceof MissingBuildParameters) {
 						changeVersionMutation.mutate({
 							versionId: changeVersionMutation.error.versionId,
 							buildParameters,
@@ -180,8 +188,4 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 			/>
 		</>
 	);
-};
-
-const isMissingBuildParameters = (e: unknown): e is MissingBuildParameters => {
-	return Boolean(e && e instanceof MissingBuildParameters);
 };

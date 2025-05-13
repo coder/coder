@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
+import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
@@ -8,7 +9,6 @@ import {
 	withDesktopViewport,
 } from "testHelpers/storybook";
 import { WorkspaceActions } from "./WorkspaceActions";
-import { deploymentConfigQueryKey } from "api/queries/deployment";
 
 const meta: Meta<typeof WorkspaceActions> = {
 	title: "pages/WorkspacePage/WorkspaceActions",

@@ -65,7 +65,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 		workspace,
 		{
 			canDebug: !!deployment?.config.enable_terraform_debug_mode,
-			isOwner: !!user.roles.find((role) => role.name === "owner"),
+			isOwner: user.roles.some((role) => role.name === "owner"),
 		},
 	);
 
