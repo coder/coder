@@ -25,6 +25,10 @@ const (
 	// before it is considered hung.
 	HungJobDuration = 5 * time.Minute
 
+	// NotStartedTimeElapsed is the duration of time since the last update to a job
+	// before it is considered hung.
+	NotStartedTimeElapsed = 30 * time.Minute
+
 	// HungJobExitTimeout is the duration of time that provisioners should allow
 	// for a graceful exit upon cancellation due to failing to send an update to
 	// a job.
@@ -36,6 +40,13 @@ const (
 	// MaxJobsPerRun is the maximum number of hung jobs that the detector will
 	// terminate in a single run.
 	MaxJobsPerRun = 10
+)
+
+type jobType string
+
+const (
+	hungJobType       jobType = "hung"
+	notStartedJobType jobType = "not started"
 )
 
 // HungJobLogMessages are written to provisioner job logs when a job is hung and
@@ -176,17 +187,17 @@ func (d *Detector) run(t time.Time) Stats {
 	// received an update in the last 5 minutes.
 	jobs, err := d.db.GetHungProvisionerJobs(ctx, t.Add(-HungJobDuration))
 	if err != nil {
-		stats.Error = xerrors.Errorf("get hung provisioner jobs: %w", err)
+		stats.Error = xerrors.Errorf("get %s provisioner jobs: %w", hungJobType, err)
 		return stats
 	}
-	// Find all provisioner jobs that are currently running but have not
-	// received an update in the last 5 minutes.
+	// Find all provisioner jobs that have not been started yet and have not
+	// received an update in the last 30 minutes.
+	jobsNotStarted, err := d.db.GetNotStartedProvisionerJobs(ctx, t.Add(-NotStartedTimeElapsed))
 	if err != nil {
-		stats.Error = xerrors.Errorf("get not started provisioner jobs: %w", err)
+		stats.Error = xerrors.Errorf("get %s provisioner jobs: %w", notStartedJobType, err)
 		return stats
 	}
-	jobsUnstarted, err := d.db.GetNotStartedProvisionerJobs(ctx, t.Add(-HungJobDuration))
-	jobs = append(jobs, jobsUnstarted...)
+	jobs = append(jobs, jobsNotStarted...)
 
 	// Limit the number of jobs we'll unhang in a single run to avoid
 	// timing out.
@@ -198,7 +209,7 @@ func (d *Detector) run(t time.Time) Stats {
 		jobs = jobs[:MaxJobsPerRun]
 	}
 
-	// Send a message into the build log for each hung job saying that it
+	// Send a message into the build log for each hung or not startedjob saying that it
 	// has been detected and will be terminated, then mark the job as
 	// failed.
 	for _, job := range jobs {
@@ -206,8 +217,12 @@ func (d *Detector) run(t time.Time) Stats {
 
 		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
 		if err != nil {
+			jobType := notStartedJobType
+			if job.StartedAt.Valid {
+				jobType = hungJobType
+			}
 			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobIneligibleError{})) {
-				log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
+				log.Error(ctx, fmt.Sprintf("error forcefully terminating %s provisioner job", jobType), slog.Error(err))
 			}
 			continue
 		}
@@ -222,7 +237,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 	var lowestLogID int64
 
 	err := db.InTx(func(db database.Store) error {
-		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("hang-detector:%s", jobID)))
+		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("unhanger:%s", jobID)))
 		if err != nil {
 			return xerrors.Errorf("acquire lock: %w", err)
 		}
@@ -237,6 +252,14 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
+		jobType := hungJobType
+		threshold := HungJobDuration.Minutes()
+
+		if !job.StartedAt.Valid {
+			jobType = notStartedJobType
+			threshold = NotStartedTimeElapsed.Minutes()
+		}
+
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
@@ -249,8 +272,8 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 
 		log.Warn(
-			ctx, "detected hung provisioner job, forcefully terminating",
-			"threshold", HungJobDuration,
+			ctx, fmt.Sprintf("detected %s provisioner job, forcefully terminating", jobType),
+			"threshold", threshold,
 		)
 
 		// First, get the latest logs from the build so we can make sure
@@ -260,7 +283,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			CreatedAfter: 0,
 		})
 		if err != nil {
-			return xerrors.Errorf("get logs for hung job: %w", err)
+			return xerrors.Errorf("get logs for %s job: %w", jobType, err)
 		}
 		logStage := ""
 		if len(logs) != 0 {
@@ -291,12 +314,13 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		newLogs, err := db.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
-			return xerrors.Errorf("insert logs for hung job: %w", err)
+			return xerrors.Errorf("insert logs for %s job: %w", jobType, err)
 		}
 		lowestLogID = newLogs[0].ID
 
 		now = dbtime.Now()
-		// If we are unhanging a job that was never picked up by the
+
+		// If we are failing a job that was never picked up by the
 		// provisioner, we need to set the started_at time to the current
 		// time so that the build duration is correct.
 		if !job.StartedAt.Valid {
@@ -315,7 +339,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 				Valid: true,
 			},
 			Error: sql.NullString{
-				String: "Coder: Build has been detected as hung for 5 minutes and has been terminated by hang detector.",
+				String: fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and has been terminated by hang detector.", jobType, threshold),
 				Valid:  true,
 			},
 			ErrorCode: sql.NullString{
