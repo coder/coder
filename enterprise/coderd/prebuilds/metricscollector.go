@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
@@ -75,7 +76,7 @@ type MetricsCollector struct {
 	logger      slog.Logger
 	snapshotter prebuilds.StateSnapshotter
 
-	latestState atomic.Pointer[state]
+	latestState atomic.Pointer[metricsState]
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
@@ -106,6 +107,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	currentState := mc.latestState.Load() // Grab a copy; it's ok if it goes stale during the course of this func.
 	if currentState == nil {
 		mc.logger.Warn(context.Background(), "failed to set prebuilds metrics; state not set")
+		metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, 0)
 		return
 	}
 
@@ -135,7 +137,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, float64(currentState.createdAt.Unix()))
 }
 
-type state struct {
+type metricsState struct {
 	prebuildMetrics []database.GetPrebuildMetricsRow
 	snapshot        *prebuilds.GlobalSnapshot
 	createdAt       time.Time
@@ -164,7 +166,6 @@ func (mc *MetricsCollector) BackgroundFetch(ctx context.Context, updateInterval,
 // UpdateState builds the current metrics state.
 func (mc *MetricsCollector) UpdateState(ctx context.Context, timeout time.Duration) error {
 	start := time.Now()
-	mc.logger.Debug(ctx, "fetching prebuilds metrics state")
 	fetchCtx, fetchCancel := context.WithTimeout(ctx, timeout)
 	defer fetchCancel()
 
@@ -179,10 +180,10 @@ func (mc *MetricsCollector) UpdateState(ctx context.Context, timeout time.Durati
 	}
 	mc.logger.Debug(ctx, "fetched prebuilds metrics state", slog.F("duration_secs", fmt.Sprintf("%.2f", time.Since(start).Seconds())))
 
-	mc.latestState.Store(&state{
+	mc.latestState.Store(&metricsState{
 		prebuildMetrics: prebuildMetrics,
 		snapshot:        snapshot,
-		createdAt:       time.Now(),
+		createdAt:       dbtime.Now(),
 	})
 	return nil
 }

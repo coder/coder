@@ -68,10 +68,12 @@ func NewStoreReconciler(store database.Store,
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
 
-	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
-	if err := registerer.Register(reconciler.metrics); err != nil {
-		// If the registerer fails to register the metrics collector, it's not fatal.
-		logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
+	if registerer != nil {
+		reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
+		if err := registerer.Register(reconciler.metrics); err != nil {
+			// If the registerer fails to register the metrics collector, it's not fatal.
+			logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
+		}
 	}
 
 	return reconciler
@@ -92,8 +94,8 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
 	defer func() {
-		c.done <- struct{}{}
 		wg.Wait()
+		c.done <- struct{}{}
 	}()
 
 	// nolint:gocritic // Reconciliation Loop needs Prebuilds Orchestrator permissions.
