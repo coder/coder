@@ -32,15 +32,17 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useDebouncedValue } from "hooks/debounce";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import { Info, LinkIcon, Settings, TriangleAlert } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
 export interface DynamicParameterProps {
 	parameter: PreviewParameter;
 	value?: string;
-	onChange: (value: string) => void;
+	onChange: (value: string) => Promise<void>;
 	disabled?: boolean;
 	isPreset?: boolean;
 	autofill: boolean;
@@ -68,13 +70,24 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 				autofill={autofill}
 			/>
 			<div className="max-w-lg">
-				<ParameterField
-					id={id}
-					parameter={parameter}
-					value={value}
-					onChange={onChange}
-					disabled={disabled}
-				/>
+				{parameter.form_type === "input" ||
+				parameter.form_type === "textarea" ? (
+					<DebouncedParameterField
+						id={id}
+						parameter={parameter}
+						value={value}
+						onChange={onChange}
+						disabled={disabled}
+					/>
+				) : (
+					<ParameterField
+						id={id}
+						parameter={parameter}
+						value={value}
+						onChange={onChange}
+						disabled={disabled}
+					/>
+				)}
 			</div>
 			{parameter.diagnostics.length > 0 && (
 				<ParameterDiagnostics diagnostics={parameter.diagnostics} />
@@ -187,15 +200,15 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	);
 };
 
-interface ParameterFieldProps {
+interface DebouncedParameterFieldProps {
 	parameter: PreviewParameter;
 	value?: string;
-	onChange: (value: string) => void;
+	onChange: (value: string) => Promise<void>;
 	disabled?: boolean;
 	id: string;
 }
 
-const ParameterField: FC<ParameterFieldProps> = ({
+const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -205,167 +218,20 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	const [localValue, setLocalValue] = useState(
 		value !== undefined ? value : validValue(parameter.value),
 	);
-	if (value !== undefined && value !== localValue) {
-		setLocalValue(value);
-	}
+	const debouncedLocalValue = useDebouncedValue(localValue, 500);
+	const onChangeEvent = useEffectEvent(onChange);
+	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
+	const prevDebouncedValueRef = useRef<string | undefined>();
+
+	useEffect(() => {
+		if (prevDebouncedValueRef.current !== undefined) {
+			onChangeEvent(debouncedLocalValue);
+		}
+
+		prevDebouncedValueRef.current = debouncedLocalValue;
+	}, [debouncedLocalValue, onChangeEvent]);
 
 	switch (parameter.form_type) {
-		case "dropdown":
-			return (
-				<Select
-					onValueChange={onChange}
-					value={localValue}
-					disabled={disabled}
-					required={parameter.required}
-				>
-					<SelectTrigger id={id}>
-						<SelectValue
-							placeholder={parameter.styling?.placeholder || "Select option"}
-						/>
-					</SelectTrigger>
-					<SelectContent>
-						{parameter.options.map((option) => (
-							<SelectItem key={option.value.value} value={option.value.value}>
-								<OptionDisplay option={option} />
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			);
-
-		case "multi-select": {
-			const values = parseStringArrayValue(localValue ?? "");
-
-			// Map parameter options to MultiSelectCombobox options format
-			const options: Option[] = parameter.options.map((opt) => ({
-				value: opt.value.value,
-				label: opt.name,
-				disable: false,
-			}));
-
-			const optionMap = new Map(
-				parameter.options.map((opt) => [opt.value.value, opt.name]),
-			);
-
-			const selectedOptions: Option[] = values.map((val) => {
-				return {
-					value: val,
-					label: optionMap.get(val) || val,
-					disable: false,
-				};
-			});
-
-			return (
-				<MultiSelectCombobox
-					inputProps={{
-						id: id,
-					}}
-					options={options}
-					defaultOptions={selectedOptions}
-					onChange={(newValues) => {
-						const values = newValues.map((option) => option.value);
-						onChange(JSON.stringify(values));
-					}}
-					hidePlaceholderWhenSelected
-					placeholder={parameter.styling?.placeholder || "Select option"}
-					emptyIndicator={
-						<p className="text-center text-md text-content-primary">
-							No results found
-						</p>
-					}
-					disabled={disabled}
-				/>
-			);
-		}
-
-		case "tag-select": {
-			const values = parseStringArrayValue(localValue ?? "");
-
-			return (
-				<TagInput
-					id={id}
-					label={parameter.display_name || parameter.name}
-					values={values}
-					onChange={(values) => {
-						onChange(JSON.stringify(values));
-					}}
-				/>
-			);
-		}
-
-		case "switch":
-			return (
-				<Switch
-					id={id}
-					checked={localValue === "true"}
-					onCheckedChange={(checked) => {
-						onChange(checked ? "true" : "false");
-					}}
-					disabled={disabled}
-				/>
-			);
-
-		case "radio":
-			return (
-				<RadioGroup
-					onValueChange={onChange}
-					disabled={disabled}
-					value={localValue}
-				>
-					{parameter.options.map((option) => (
-						<div
-							key={option.value.value}
-							className="flex items-center space-x-2"
-						>
-							<RadioGroupItem
-								id={`${id}-${option.value.value}`}
-								value={option.value.value}
-							/>
-							<Label
-								htmlFor={`${id}-${option.value.value}`}
-								className="cursor-pointer"
-							>
-								<OptionDisplay option={option} />
-							</Label>
-						</div>
-					))}
-				</RadioGroup>
-			);
-
-		case "checkbox":
-			return (
-				<div className="flex items-center space-x-2">
-					<Checkbox
-						id={id}
-						checked={localValue === "true"}
-						onCheckedChange={(checked) => {
-							onChange(checked ? "true" : "false");
-						}}
-						disabled={disabled}
-					/>
-					<Label htmlFor={id}>{parameter.styling?.label}</Label>
-				</div>
-			);
-
-		case "slider":
-			return (
-				<div className="flex flex-row items-baseline gap-3">
-					<Slider
-						id={id}
-						className="mt-2"
-						value={[Number(localValue)]}
-						onValueChange={([value]) => {
-							setLocalValue(value.toString());
-							onChange(value.toString());
-						}}
-						min={parameter.validations[0]?.validation_min ?? 0}
-						max={parameter.validations[0]?.validation_max ?? 100}
-						disabled={disabled}
-					/>
-					<span className="w-4 font-medium">{parameter.value.value}</span>
-				</div>
-			);
-
 		case "textarea":
 			return (
 				<Textarea
@@ -374,7 +240,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					value={localValue}
 					onChange={(e) => {
 						setLocalValue(e.target.value);
-						onChange(e.target.value);
 					}}
 					onInput={(e) => {
 						const target = e.currentTarget;
@@ -411,7 +276,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					value={localValue}
 					onChange={(e) => {
 						setLocalValue(e.target.value);
-						onChange(e.target.value);
 					}}
 					disabled={disabled}
 					required={parameter.required}
@@ -423,21 +287,214 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	}
 };
 
-const parseStringArrayValue = (value: string): string[] => {
-	let values: string[] = [];
+interface ParameterFieldProps {
+	parameter: PreviewParameter;
+	value?: string;
+	onChange: (value: string) => Promise<void>;
+	disabled?: boolean;
+	id: string;
+}
+
+const ParameterField: FC<ParameterFieldProps> = ({
+	parameter,
+	value,
+	onChange,
+	disabled,
+	id,
+}) => {
+	switch (parameter.form_type) {
+		case "dropdown":
+			return (
+				<Select
+					onValueChange={onChange}
+					value={value}
+					disabled={disabled}
+					required={parameter.required}
+				>
+					<SelectTrigger id={id}>
+						<SelectValue
+							placeholder={parameter.styling?.placeholder || "Select option"}
+						/>
+					</SelectTrigger>
+					<SelectContent>
+						{parameter.options.map((option) => (
+							<SelectItem key={option.value.value} value={option.value.value}>
+								<OptionDisplay option={option} />
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			);
+
+		case "multi-select": {
+			const parsedValues = parseStringArrayValue(value ?? "");
+
+			if (parsedValues.error) {
+				return (
+					<p className="text-sm text-content-destructive">
+						{parsedValues.error}
+					</p>
+				);
+			}
+
+			// Map parameter options to MultiSelectCombobox options format
+			const options: Option[] = parameter.options.map((opt) => ({
+				value: opt.value.value,
+				label: opt.name,
+				disable: false,
+			}));
+
+			const optionMap = new Map(
+				parameter.options.map((opt) => [opt.value.value, opt.name]),
+			);
+
+			const selectedOptions: Option[] = parsedValues.values.map((val) => {
+				return {
+					value: val,
+					label: optionMap.get(val) || val,
+					disable: false,
+				};
+			});
+
+			return (
+				<MultiSelectCombobox
+					inputProps={{
+						id: id,
+					}}
+					options={options}
+					defaultOptions={selectedOptions}
+					onChange={(newValues) => {
+						const values = newValues.map((option) => option.value);
+						onChange(JSON.stringify(values));
+					}}
+					hidePlaceholderWhenSelected
+					placeholder={parameter.styling?.placeholder || "Select option"}
+					emptyIndicator={
+						<p className="text-center text-md text-content-primary">
+							No results found
+						</p>
+					}
+					disabled={disabled}
+				/>
+			);
+		}
+
+		case "tag-select": {
+			const parsedValues = parseStringArrayValue(value ?? "");
+
+			if (parsedValues.error) {
+				return (
+					<p className="text-sm text-content-destructive">
+						{parsedValues.error}
+					</p>
+				);
+			}
+
+			return (
+				<TagInput
+					id={id}
+					label={parameter.display_name || parameter.name}
+					values={parsedValues.values}
+					onChange={(values) => {
+						onChange(JSON.stringify(values));
+					}}
+				/>
+			);
+		}
+
+		case "switch":
+			return (
+				<Switch
+					id={id}
+					checked={value === "true"}
+					onCheckedChange={(checked) => {
+						onChange(checked ? "true" : "false");
+					}}
+					disabled={disabled}
+				/>
+			);
+
+		case "radio":
+			return (
+				<RadioGroup onValueChange={onChange} disabled={disabled} value={value}>
+					{parameter.options.map((option) => (
+						<div
+							key={option.value.value}
+							className="flex items-center space-x-2"
+						>
+							<RadioGroupItem
+								id={`${id}-${option.value.value}`}
+								value={option.value.value}
+							/>
+							<Label
+								htmlFor={`${id}-${option.value.value}`}
+								className="cursor-pointer"
+							>
+								<OptionDisplay option={option} />
+							</Label>
+						</div>
+					))}
+				</RadioGroup>
+			);
+
+		case "checkbox":
+			return (
+				<div className="flex items-center space-x-2">
+					<Checkbox
+						id={id}
+						checked={value === "true"}
+						onCheckedChange={(checked) => {
+							onChange(checked ? "true" : "false");
+						}}
+						disabled={disabled}
+					/>
+					<Label htmlFor={id}>{parameter.styling?.label}</Label>
+				</div>
+			);
+
+		case "slider":
+			return (
+				<div className="flex flex-row items-baseline gap-3">
+					<Slider
+						id={id}
+						className="mt-2"
+						value={[Number(value)]}
+						onValueChange={([value]) => {
+							onChange(value.toString());
+						}}
+						min={parameter.validations[0]?.validation_min ?? 0}
+						max={parameter.validations[0]?.validation_max ?? 100}
+						disabled={disabled}
+					/>
+					<span className="w-4 font-medium">{parameter.value.value}</span>
+				</div>
+			);
+	}
+};
+
+type ParsedValues = {
+	values: string[];
+	error: string;
+};
+
+const parseStringArrayValue = (value: string): ParsedValues => {
+	const parsedValues: ParsedValues = {
+		values: [],
+		error: "",
+	};
 
 	if (value) {
 		try {
 			const parsed = JSON.parse(value);
 			if (Array.isArray(parsed)) {
-				values = parsed;
+				parsedValues.values = parsed;
 			}
 		} catch (e) {
-			console.error("Error parsing parameter of type list(string)", e);
+			parsedValues.error = `Error parsing parameter of type list(string), ${e}`;
 		}
 	}
 
-	return values;
+	return parsedValues;
 };
 
 interface OptionDisplayProps {
@@ -542,10 +599,6 @@ const isValidParameterOption = (
 				values = parsed;
 			}
 		} catch (e) {
-			console.error(
-				"Error parsing parameter value with form_type multi-select",
-				e,
-			);
 			return false;
 		}
 
