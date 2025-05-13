@@ -69,7 +69,6 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	}
 
 	fs, err := api.FileCache.Acquire(fileCtx, fileID)
-	defer api.FileCache.Release(fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error fetching template version Terraform.",
@@ -77,6 +76,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		})
 		return
 	}
+	defer api.FileCache.Release(fileID)
 
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If

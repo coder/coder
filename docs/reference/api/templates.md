@@ -2356,6 +2356,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "logs_overflowed": true,
         "name": "string",
         "operating_system": "string",
+        "parent_id": {
+          "uuid": "string",
+          "valid": true
+        },
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "scripts": [
@@ -2478,6 +2482,9 @@ Status Code **200**
 | `»» logs_overflowed`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
+| `»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
@@ -2877,6 +2884,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "logs_overflowed": true,
         "name": "string",
         "operating_system": "string",
+        "parent_id": {
+          "uuid": "string",
+          "valid": true
+        },
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "scripts": [
@@ -2999,6 +3010,9 @@ Status Code **200**
 | `»» logs_overflowed`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
+| `»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |

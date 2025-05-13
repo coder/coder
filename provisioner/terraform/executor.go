@@ -19,11 +19,13 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -307,14 +309,28 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
-	return &proto.PlanComplete{
+	moduleFiles, err := getModulesArchive(os.DirFS(e.workdir))
+	if err != nil {
+		// TODO: we probably want to persist this error or make it louder eventually
+		e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+	}
+
+	msg := &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		Presets:               state.Presets,
 		Plan:                  plan,
-	}, nil
+		ModuleFiles:           moduleFiles,
+	}
+
+	if protobuf.Size(msg) > drpcsdk.MaxMessageSize {
+		e.logger.Warn(ctx, "cannot persist terraform modules, message payload too big", slog.F("archive_size", len(msg.ModuleFiles)))
+		msg.ModuleFiles = nil
+	}
+
+	return msg, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
