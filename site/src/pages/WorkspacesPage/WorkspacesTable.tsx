@@ -26,11 +26,6 @@ import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -48,8 +43,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { EllipsisVertical } from "lucide-react";
@@ -70,6 +63,7 @@ import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/Worksp
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -86,14 +80,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
 	getDisplayWorkspaceTemplateName,
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-
-dayjs.extend(relativeTime);
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
@@ -398,30 +388,11 @@ type WorkspaceStatusCellProps = {
 	workspace: Workspace;
 };
 
-const variantByStatusType: Record<
-	DisplayWorkspaceStatusType,
-	StatusIndicatorProps["variant"]
-> = {
-	active: "pending",
-	inactive: "inactive",
-	success: "success",
-	error: "failed",
-	danger: "warning",
-	warning: "warning",
-};
-
 const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
-	const { text, type } = getDisplayWorkspaceStatus(
-		workspace.latest_build.status,
-		workspace.latest_build.job,
-	);
-
 	return (
 		<TableCell>
 			<div className="flex flex-col">
-				<StatusIndicator variant={variantByStatusType[type]}>
-					<StatusIndicatorDot />
-					{text}
+				<WorkspaceStatusIndicator workspace={workspace}>
 					{workspace.latest_build.status === "running" &&
 						!workspace.health.healthy && (
 							<InfoTooltip
@@ -433,7 +404,7 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 					{workspace.dormant_at && (
 						<WorkspaceDormantBadge workspace={workspace} />
 					)}
-				</StatusIndicator>
+				</WorkspaceStatusIndicator>
 				<span className="text-xs font-medium text-content-secondary ml-6">
 					{lastUsedMessage(workspace.last_used_at)}
 				</span>
