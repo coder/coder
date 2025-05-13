@@ -48,6 +48,7 @@ export const useProxyLatency = (
 	// Until the new values are loaded, the old values will still be used.
 	refetch: () => Date;
 	proxyLatencies: Record<string, ProxyLatencyReport>;
+	loaded: boolean;
 } => {
 	// maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
 	let maxStoredLatencies = 1;
@@ -72,6 +73,8 @@ export const useProxyLatency = (
 		// in the cache are still valid.
 		new Date(new Date().getTime() - proxyIntervalSeconds * 1000).toISOString(),
 	);
+
+	const [loaded, setLoaded] = useState(false);
 
 	// Refetch will always set the latestFetchRequest to the current time, making all the cached latencies
 	// stale and triggering a refetch of all proxies in the list.
@@ -231,6 +234,7 @@ export const useProxyLatency = (
 
 				// Local storage cleanup
 				garbageCollectStoredLatencies(proxies, maxStoredLatencies);
+				setLoaded(true);
 			});
 
 		return () => {
@@ -241,6 +245,7 @@ export const useProxyLatency = (
 	return {
 		proxyLatencies,
 		refetch,
+		loaded
 	};
 };
 

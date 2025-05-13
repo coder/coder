@@ -122,41 +122,24 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	// Every time we get a new proxiesResponse, update the latency check
 	// to each workspace proxy.
-	const { proxyLatencies, refetch: refetchProxyLatencies } =
+	const { proxyLatencies, refetch: refetchProxyLatencies, loaded: latenciesLoaded } =
 		useProxyLatency(proxiesResp);
 
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
-		const userSelectedProxy = loadUserSelectedProxy();
-		// preferred proxy is the proxy that will be used.
-		// 1. It first selects from the user selected proxy.
-		// 2. If no user selected proxy is found, it will select
-		//    the best proxy based on latency.
-		//  2a. The auto select is saved to local storage. So latency changes will not change 
-		//      the selected proxy, unless the user manually changes it from the auto selected. 
-		const preferred = getPreferredProxy(
-			proxiesResp ?? [],
-			loadUserSelectedProxy(),
-			proxyLatencies,
-			// Autoselect iff the user has not selected a proxy yet. We will save this to local storage.
-			// If the user disagrees with the auto selected proxy, they can always change it.
-			true,
-		)
-
-		// Always update the proxy in local storage. We do not want this changing automatically.
-		// It should be set with latencies on load, and then the user can change it.
-		// If an unhealthy proxy is selected, it will behave as if the user loaded the page for the first time.
-		if(proxyLatencies && preferred.proxy && proxyLatencies[preferred.proxy.id]) {
-			// This stores the first proxy to return a latency report.
-			saveUserSelectedProxy(preferred.proxy);
-			// Update the saved user proxy for the caller.
-			setUserSavedProxy(preferred.proxy);
-		} else {
-			setUserSavedProxy(userSelectedProxy);
-		}
-
-		setProxy(preferred);
+		// Update the saved user proxy for the caller.
+		setUserSavedProxy(loadUserSelectedProxy());
+		setProxy(
+			getPreferredProxy(
+				proxiesResp ?? [],
+				loadUserSelectedProxy(),
+				proxyLatencies,
+				// Do not auto select based on latencies, as inconsistent latencies can cause this
+				// to behave poorly.
+				false,
+			),
+		);
 	}, [proxiesResp, proxyLatencies]);
 
 	// This useEffect ensures the proxy to be used is updated whenever the state changes.
@@ -165,6 +148,34 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	useEffect(() => {
 		updateProxy();
 	}, [proxiesResp, proxyLatencies]);
+
+	// This useEffect will auto select the best proxy if the user has not selected one.
+    // It must wait until all latencies are loaded to select based on latency. This does mean
+	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
+	// 
+	// Once the page is loaded, or the user selects a proxy, this will not run again.
+	useEffect(() => {
+		if(loadUserSelectedProxy() !== undefined) {
+			return; // User has selected a proxy, do not auto select.
+		}
+		if(!latenciesLoaded) {
+			// Wait until the latencies are loaded before
+			return;
+		}
+
+		const best = getPreferredProxy(
+			proxiesResp ?? [],
+			loadUserSelectedProxy(),
+			proxyLatencies,
+			true,
+		);
+
+		if(best?.proxy) {
+			saveUserSelectedProxy(best.proxy);
+			updateProxy();
+		}
+
+	}, [latenciesLoaded])
 
 	return (
 		<ProxyContext.Provider
@@ -237,8 +248,8 @@ export const getPreferredProxy = (
 			selectedProxy = best;
 		}
 
-		// Use the primary proxy if we don't have latencies
-		if(!best) {
+		// Use the primary proxy if we don't have  any other options.
+		if(!selectedProxy) {
 			selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 		}
 	}
