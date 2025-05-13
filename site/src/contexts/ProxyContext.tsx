@@ -128,18 +128,30 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
+		const userProxy = loadUserSelectedProxy();
 		// Update the saved user proxy for the caller.
-		setUserSavedProxy(loadUserSelectedProxy());
-		setProxy(
-			getPreferredProxy(
-				proxiesResp ?? [],
-				loadUserSelectedProxy(),
-				proxyLatencies,
-				// Do not auto select based on latencies, as inconsistent latencies can cause this
-				// to behave poorly.
-				false,
-			),
-		);
+		setUserSavedProxy(userProxy);
+		
+		// preferred proxy is the proxy that will be used.
+		// 1. It first selects from the user selected proxy.
+		// 2. If no user selected proxy is found, it will select
+		//    the best proxy based on latency.
+		//  2a. The auto select is saved to local storage. So latency changes will not change 
+		//      the selected proxy, unless the user manually changes it from the auto selected. 
+		const preferred = getPreferredProxy(
+			proxiesResp ?? [],
+			userProxy,
+			proxyLatencies,
+			// Autoselect iff the user has not selected a proxy yet. We will save this to local storage.
+			// If the user disagrees with the auto selected proxy, they can always change it.
+			true,
+		)
+
+		if(userProxy === undefined) {
+			setUserSavedProxy(preferred.proxy);
+		}
+
+		setProxy(preferred);
 	}, [proxiesResp, proxyLatencies]);
 
 	// This useEffect ensures the proxy to be used is updated whenever the state changes.
