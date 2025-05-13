@@ -19,7 +19,7 @@ SELECT
 FROM workspaces
 LEFT JOIN LATERAL (
 	SELECT
-        workspace_builds.id AS id,
+		workspace_builds.id AS id,
 		workspace_builds.workspace_id AS workspace_id,
 		workspace_builds.template_version_id AS template_version_id,
 		workspace_builds.job_id AS job_id,
