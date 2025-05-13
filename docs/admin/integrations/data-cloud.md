@@ -86,5 +86,6 @@ reports, and analysis tools that you can use to:
 ## Related Resources
 
 - [DX Data Cloud Documentation](https://help.getdx.com/en/)
-- [Coder API Documentation](../../reference/api/users)
+- [Coder CLI](../../reference/cli/users.md)
+- [Coder API](../../reference/api/users.md)
 - [PlatformX Integration](./platformx.md)
