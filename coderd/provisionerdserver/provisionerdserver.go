@@ -2,7 +2,9 @@ package provisionerdserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/quartz"
 
@@ -45,11 +48,14 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+)
+
+const (
+	tarMimeType = "application/x-tar"
 )
 
 const (
@@ -545,6 +551,30 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
+		// A previous workspace build exists
+		var lastWorkspaceBuildParameters []database.WorkspaceBuildParameter
+		if workspaceBuild.BuildNumber > 1 {
+			// TODO: Should we fetch the last build that succeeded? This fetches the
+			//   previous build regardless of the status of the build.
+			buildNum := workspaceBuild.BuildNumber - 1
+			previous, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspaceBuild.WorkspaceID,
+				BuildNumber: buildNum,
+			})
+
+			// If the error is ErrNoRows, then assume previous values are empty.
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, xerrors.Errorf("get last build with number=%d: %w", buildNum, err)
+			}
+
+			if err == nil {
+				lastWorkspaceBuildParameters, err = s.Database.GetWorkspaceBuildParameters(ctx, previous.ID)
+				if err != nil {
+					return nil, xerrors.Errorf("get last build parameters %q: %w", previous.ID, err)
+				}
+			}
+		}
+
 		workspaceBuildParameters, err := s.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
@@ -620,7 +650,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		runningAgentAuthTokens := []*sdkproto.RunningAgentAuthToken{}
-		if input.PrebuildClaimedByUser != uuid.Nil {
+		if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 			// runningAgentAuthTokens are *only* used for prebuilds. We fetch them when we want to rebuild a prebuilt workspace
 			// but not generate new agent tokens. The provisionerdserver will push them down to
 			// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where they will be
@@ -645,12 +675,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:      workspaceBuild.ID.String(),
-				WorkspaceName:         workspace.Name,
-				State:                 workspaceBuild.ProvisionerState,
-				RichParameterValues:   convertRichParameterValues(workspaceBuildParameters),
-				VariableValues:        asVariableValues(templateVariables),
-				ExternalAuthProviders: externalAuthProviders,
+				WorkspaceBuildId:        workspaceBuild.ID.String(),
+				WorkspaceName:           workspace.Name,
+				State:                   workspaceBuild.ProvisionerState,
+				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
+				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
+				VariableValues:          asVariableValues(templateVariables),
+				ExternalAuthProviders:   externalAuthProviders,
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -671,8 +702,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
-					IsPrebuild:                    input.IsPrebuild,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
+					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -734,8 +765,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	default:
 		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
 	}
-	if protobuf.Size(protoJob) > drpc.MaxMessageSize {
-		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpc.MaxMessageSize))
+	if protobuf.Size(protoJob) > drpcsdk.MaxMessageSize {
+		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpcsdk.MaxMessageSize))
 	}
 
 	return protoJob, err
@@ -1453,11 +1484,59 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
-		if len(jobType.TemplateImport.Plan) > 0 {
-			err := s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-				JobID:      jobID,
-				CachedPlan: jobType.TemplateImport.Plan,
-				UpdatedAt:  now,
+		plan := jobType.TemplateImport.Plan
+		moduleFiles := jobType.TemplateImport.ModuleFiles
+		// If there is a plan, or a module files archive we need to insert a
+		// template_version_terraform_values row.
+		if len(plan) > 0 || len(moduleFiles) > 0 {
+			// ...but the plan and the module files archive are both optional! So
+			// we need to fallback to a valid JSON object if the plan was omitted.
+			if len(plan) == 0 {
+				plan = []byte("{}")
+			}
+
+			// ...and we only want to insert a files row if an archive was provided.
+			var fileID uuid.NullUUID
+			if len(moduleFiles) > 0 {
+				hashBytes := sha256.Sum256(moduleFiles)
+				hash := hex.EncodeToString(hashBytes[:])
+
+				// nolint:gocritic // Requires reading "system" files
+				file, err := s.Database.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
+				switch {
+				case err == nil:
+					// This set of modules is already cached, which means we can reuse them
+					fileID = uuid.NullUUID{
+						Valid: true,
+						UUID:  file.ID,
+					}
+				case !xerrors.Is(err, sql.ErrNoRows):
+					return nil, xerrors.Errorf("check for cached modules: %w", err)
+				default:
+					// nolint:gocritic // Requires creating a "system" file
+					file, err = s.Database.InsertFile(dbauthz.AsSystemRestricted(ctx), database.InsertFileParams{
+						ID:        uuid.New(),
+						Hash:      hash,
+						CreatedBy: uuid.Nil,
+						CreatedAt: dbtime.Now(),
+						Mimetype:  tarMimeType,
+						Data:      moduleFiles,
+					})
+					if err != nil {
+						return nil, xerrors.Errorf("insert template version terraform modules: %w", err)
+					}
+					fileID = uuid.NullUUID{
+						Valid: true,
+						UUID:  file.ID,
+					}
+				}
+			}
+
+			err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:             jobID,
+				UpdatedAt:         now,
+				CachedPlan:        plan,
+				CachedModuleFiles: fileID,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert template version terraform data: %w", err)
@@ -1761,13 +1840,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 
-		if input.PrebuildClaimedByUser != uuid.Nil {
+		if input.PrebuiltWorkspaceBuildStage != sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
-				slog.F("user", input.PrebuildClaimedByUser.String()),
 				slog.F("workspace_id", workspace.ID))
 
 			err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
-				UserID:      input.PrebuildClaimedByUser,
 				WorkspaceID: workspace.ID,
 				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 			})
@@ -2049,6 +2126,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
+			ParentID:                 uuid.NullUUID{},
 			CreatedAt:                dbtime.Now(),
 			UpdatedAt:                dbtime.Now(),
 			ResourceID:               resource.ID,
@@ -2514,11 +2592,10 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
-	DryRun                bool      `json:"dry_run"`
-	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
-	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
-	LogLevel              string    `json:"log_level,omitempty"`
+	WorkspaceBuildID            uuid.UUID                            `json:"workspace_build_id"`
+	DryRun                      bool                                 `json:"dry_run"`
+	LogLevel                    string                               `json:"log_level,omitempty"`
+	PrebuiltWorkspaceBuildStage sdkproto.PrebuiltWorkspaceBuildStage `json:"prebuilt_workspace_stage,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

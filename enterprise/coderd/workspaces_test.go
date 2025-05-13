@@ -535,7 +535,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		var metadata provisionerdserver.WorkspaceProvisionJob
 		require.NoError(t, json.Unmarshal(job.Input, &metadata))
-		require.Equal(t, metadata.PrebuildClaimedByUser, user.UserID)
+		require.Equal(t, metadata.PrebuiltWorkspaceBuildStage, proto.PrebuiltWorkspaceBuildStage_CLAIM)
 	})
 }
 

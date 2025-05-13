@@ -23,11 +23,13 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -40,7 +42,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -301,6 +302,10 @@ func TestAcquireJob(t *testing.T) {
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
 				})
+				var buildState sdkproto.PrebuiltWorkspaceBuildStage
+				if prebuiltWorkspace {
+					buildState = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
+				}
 				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					ID:             build.ID,
 					OrganizationID: pd.OrganizationID,
@@ -310,8 +315,8 @@ func TestAcquireJob(t *testing.T) {
 					FileID:         file.ID,
 					Type:           database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID: build.ID,
-						IsPrebuild:       prebuiltWorkspace,
+						WorkspaceBuildID:            build.ID,
+						PrebuiltWorkspaceBuildStage: buildState,
 					})),
 				})
 
@@ -382,7 +387,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
 				}
 				if prebuiltWorkspace {
-					wantedMetadata.IsPrebuild = true
+					wantedMetadata.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
 				}
 
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
@@ -1784,7 +1789,7 @@ func TestCompleteJob(t *testing.T) {
 				}
 				if tc.shouldReinitializeAgent { // This is the key lever in the test
 					// GIVEN the enqueued provisioner job is for a workspace being claimed by a user:
-					jobInput.PrebuildClaimedByUser = userID
+					jobInput.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
 				}
 				input, err := json.Marshal(jobInput)
 				require.NoError(t, err)
@@ -2259,6 +2264,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, agents, 1)
 		agent := agents[0]
+		require.Equal(t, uuid.NullUUID{}, agent.ParentID)
 		require.Equal(t, "amd64", agent.Architecture)
 		require.Equal(t, "linux", agent.OperatingSystem)
 		want, err := json.Marshal(map[string]string{

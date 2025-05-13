@@ -9339,6 +9339,7 @@ func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Cont
 	row := database.TemplateVersionTerraformValue{
 		TemplateVersionID: templateVersion.ID,
 		CachedPlan:        arg.CachedPlan,
+		CachedModuleFiles: arg.CachedModuleFiles,
 		UpdatedAt:         arg.UpdatedAt,
 	}
 	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
@@ -9593,6 +9594,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 
 	agent := database.WorkspaceAgent{
 		ID:                       arg.ID,
+		ParentID:                 arg.ParentID,
 		CreatedAt:                arg.CreatedAt,
 		UpdatedAt:                arg.UpdatedAt,
 		ResourceID:               arg.ResourceID,

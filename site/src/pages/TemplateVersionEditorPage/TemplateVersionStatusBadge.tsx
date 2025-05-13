@@ -1,8 +1,8 @@
 import CheckIcon from "@mui/icons-material/CheckOutlined";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
+import { CircleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 import { getPendingStatusLabel } from "utils/provisionerJob";
@@ -57,14 +57,14 @@ const getStatus = (
 			return {
 				type: "inactive",
 				text: "Canceled",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon className="size-icon-sm" />,
 			};
 		case "unknown":
 		case "failed":
 			return {
 				type: "error",
 				text: "Failed",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon className="size-icon-sm" />,
 			};
 		case "succeeded":
 			return {

@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
@@ -17,6 +16,7 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import { RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -104,7 +104,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({ workspace }) => {
 
 				<HelpTooltipLinksGroup>
 					<HelpTooltipAction
-						icon={RefreshIcon}
+						icon={RotateCcwIcon}
 						onClick={updateWorkspace.update}
 					>
 						Update

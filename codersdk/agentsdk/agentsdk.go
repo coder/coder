@@ -26,7 +26,7 @@ import (
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
-	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
