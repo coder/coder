@@ -40,14 +40,20 @@ func findNilMapsRec(val reflect.Value, visited map[uintptr]bool) (bool, string) 
 	switch val.Kind() {
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
-			if ok, _ := findNilMapsRec(val.Field(i), visited); ok {
-				return true, val.Field(i).String()
+			if ok, field := findNilMapsRec(val.Field(i), visited); ok {
+				fn := val.Type().Field(i).Name
+				if field != "" {
+					field = fn + "." + field
+				} else {
+					field = fn
+				}
+				return true, field
 			}
 		}
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < val.Len(); i++ {
-			if ok, _ := findNilMapsRec(val.Index(i), visited); ok {
-				return true, ""
+			if ok, field := findNilMapsRec(val.Index(i), visited); ok {
+				return true, field
 			}
 		}
 	case reflect.Map:

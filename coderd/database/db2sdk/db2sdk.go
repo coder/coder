@@ -341,7 +341,7 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 }
 
 func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[string]string, error) {
-	var envs map[string]string
+	envs := make(map[string]string, 0)
 	if workspaceAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(workspaceAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
