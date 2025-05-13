@@ -19,11 +19,7 @@
  *
  * For example, `utils/delay` must be imported using `../utils/delay` instead.
  */
-import globalAxios, {
-	type AxiosInstance,
-	type AxiosRequestConfig,
-	isAxiosError,
-} from "axios";
+import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";

@@ -32,8 +32,8 @@ import {
 	renderWithAuth,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import WorkspacePage from "./WorkspacePage";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
 
