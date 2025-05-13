@@ -1,4 +1,3 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
@@ -29,8 +28,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { TrashIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, PlusIcon, TrashIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
@@ -190,7 +188,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 							workspacePermissions.createWorkspaceForUserID && (
 								<Button
 									variant="contained"
-									startIcon={<AddIcon />}
+									startIcon={<PlusIcon className="size-icon-sm" />}
 									component={RouterLink}
 									to={`${templateLink}/workspace`}
 								>

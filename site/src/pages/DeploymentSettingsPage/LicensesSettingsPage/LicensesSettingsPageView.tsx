@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";
@@ -14,7 +13,7 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
-import { RotateCwIcon } from "lucide-react";
+import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
@@ -75,7 +74,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 					<Button
 						component={Link}
 						to="/deployment/licenses/add"
-						startIcon={<AddIcon />}
+						startIcon={<PlusIcon className="size-icon-sm" />}
 					>
 						Add a license
 					</Button>
