@@ -26,7 +26,11 @@ import type * as ProxyLatency from "./useProxyLatency";
 // here and not inside a unit test.
 jest.mock("contexts/useProxyLatency", () => ({
 	useProxyLatency: () => {
-		return { proxyLatencies: hardCodedLatencies, refetch: jest.fn(), loaded: true };
+		return {
+			proxyLatencies: hardCodedLatencies,
+			refetch: jest.fn(),
+			loaded: true,
+		};
 	},
 }));
 

@@ -245,7 +245,7 @@ export const useProxyLatency = (
 	return {
 		proxyLatencies,
 		refetch,
-		loaded
+		loaded,
 	};
 };
 

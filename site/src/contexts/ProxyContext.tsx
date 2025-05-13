@@ -122,8 +122,11 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	// Every time we get a new proxiesResponse, update the latency check
 	// to each workspace proxy.
-	const { proxyLatencies, refetch: refetchProxyLatencies, loaded: latenciesLoaded } =
-		useProxyLatency(proxiesResp);
+	const {
+		proxyLatencies,
+		refetch: refetchProxyLatencies,
+		loaded: latenciesLoaded,
+	} = useProxyLatency(proxiesResp);
 
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
@@ -153,13 +156,14 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// This useEffect will auto select the best proxy if the user has not selected one.
 	// It must wait until all latencies are loaded to select based on latency. This does mean
 	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
-	// 
+	//
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
-		if(loadUserSelectedProxy() !== undefined) {
+		if (loadUserSelectedProxy() !== undefined) {
 			return; // User has selected a proxy, do not auto select.
 		}
-		if(!latenciesLoaded) {
+		if (!latenciesLoaded) {
 			// Wait until the latencies are loaded before
 			return;
 		}
@@ -171,12 +175,11 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 			true,
 		);
 
-		if(best?.proxy) {
+		if (best?.proxy) {
 			saveUserSelectedProxy(best.proxy);
 			updateProxy();
 		}
-
-	}, [latenciesLoaded])
+	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
 
 	return (
 		<ProxyContext.Provider
@@ -250,7 +253,7 @@ export const getPreferredProxy = (
 		}
 
 		// Use the primary proxy if we don't have  any other options.
-		if(!selectedProxy) {
+		if (!selectedProxy) {
 			selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 		}
 	}
