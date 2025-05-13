@@ -36,7 +36,7 @@ Visit the [users list](../../reference/cli/users_list.md) documentation for more
 
 ### API
 
-Use [get users](../../reference/api/users#get-users):
+Use [get users](../../reference/api/users.md#get-users):
 
 ```bash
 curl -X GET http://coder-server:8080/api/v2/users \
