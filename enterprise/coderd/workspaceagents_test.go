@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -155,7 +155,7 @@ func TestReinitializeAgent(t *testing.T) {
 										Scripts: []*proto.Script{
 											{
 												RunOnStart: true,
-												Script:     fmt.Sprintf("sleep 5; printenv | grep 'CODER_AGENT_TOKEN' >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name()), // Make reinitialization take long enough to assert that it happened
+												Script:     fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name()), // Make reinitialization take long enough to assert that it happened
 											},
 										},
 										Auth: &proto.Agent_Token{
@@ -219,20 +219,21 @@ func TestReinitializeAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
-		WorkspaceID: workspace.ID,
-		UserID:      user.UserID,
-	})
-
-	// THEN the now claimed workspace agent reinitializes
-	waiter.WaitFor(coderdtest.AgentsNotReady)
 
 	// THEN reinitialization completes
 	waiter.WaitFor(coderdtest.AgentsReady)
 
 	// THEN the agent script ran again and reused the same agent token
 	contents, err := os.ReadFile(tempAgentLog.Name())
-	_ = contents
+	// UUID regex pattern (matches UUID v4-like strings)
+	uuidRegex := regexp.MustCompile(`\bCODER_AGENT_TOKEN=(.+)\b`)
+
+	matches := uuidRegex.FindAll(contents, -1)
+	// When an agent reinitializes, we expect it to run startup scripts again.
+	// As such, we expect to have written the agent environment to the temp file twice.
+	// Once on initial startup and then once on reinitialization.
+	require.Len(t, matches, 2, "expected exactly 1 occurrence of the agent token per startup script execution")
+	require.Equal(t, matches[0], matches[1])
 	require.NoError(t, err)
 }
 

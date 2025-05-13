@@ -22,7 +22,7 @@ type PubsubWorkspaceClaimPublisher struct {
 
 func (p PubsubWorkspaceClaimPublisher) PublishWorkspaceClaim(claim agentsdk.ReinitializationEvent) error {
 	channel := agentsdk.PrebuildClaimedChannel(claim.WorkspaceID)
-	if err := p.ps.Publish(channel, []byte(claim.UserID.String())); err != nil {
+	if err := p.ps.Publish(channel, []byte(claim.Reason)); err != nil {
 		return xerrors.Errorf("failed to trigger prebuilt workspace agent reinitialization: %w", err)
 	}
 	return nil
@@ -48,16 +48,10 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 	default:
 	}
 
-	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, id []byte) {
-		claimantID, err := uuid.ParseBytes(id)
-		if err != nil {
-			p.logger.Error(ctx, "invalid prebuild claimed channel payload", slog.F("input", string(id)))
-			return
-		}
+	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, reason []byte) {
 		claim := agentsdk.ReinitializationEvent{
-			UserID:      claimantID,
 			WorkspaceID: workspaceID,
-			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			Reason:      agentsdk.ReinitializationReason(reason),
 		}
 
 		select {

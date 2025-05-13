@@ -698,7 +698,6 @@ const (
 
 type ReinitializationEvent struct {
 	WorkspaceID uuid.UUID
-	UserID      uuid.UUID
 	Reason      ReinitializationReason `json:"reason"`
 }
 
@@ -806,8 +805,9 @@ func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <
 		return xerrors.Errorf("failed to create sse transmitter: %w", err)
 	}
 
-	// Prevent handler from returning until the sender is closed.
 	defer func() {
+		// Block returning until the ServerSentEventSender is closed
+		// to avoid a race condition where we might write or flush to rw after the handler returns.
 		<-sseSenderClosed
 	}()
 

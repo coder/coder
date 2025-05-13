@@ -22,7 +22,6 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		t.Parallel()
 
 		eventToSend := agentsdk.ReinitializationEvent{
-			UserID:      uuid.New(),
 			WorkspaceID: uuid.New(),
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 		}
@@ -56,7 +55,6 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		t.Parallel()
 
 		eventToSend := agentsdk.ReinitializationEvent{
-			UserID:      uuid.New(),
 			WorkspaceID: uuid.New(),
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 		}
@@ -92,7 +90,6 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		t.Parallel()
 
 		eventToSend := agentsdk.ReinitializationEvent{
-			UserID:      uuid.New(),
 			WorkspaceID: uuid.New(),
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 		}

@@ -25,7 +25,6 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		logger := testutil.Logger(t)
 		ps := pubsub.NewInMemory()
 		workspaceID := uuid.New()
-		userID := uuid.New()
 		reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
 		publisher := prebuilds.NewPubsubWorkspaceClaimPublisher(ps)
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, logger)
@@ -35,15 +34,15 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		defer cancel()
 
 		claim := agentsdk.ReinitializationEvent{
-			UserID:      userID,
 			WorkspaceID: workspaceID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 		}
 		err = publisher.PublishWorkspaceClaim(claim)
 		require.NoError(t, err)
 
-		gotUserID := testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, reinitEvents)
-		require.Equal(t, userID, gotUserID.UserID)
+		gotEvent := testutil.RequireReceive(ctx, t, reinitEvents)
+		require.Equal(t, workspaceID, gotEvent.WorkspaceID)
+		require.Equal(t, claim.Reason, gotEvent.Reason)
 	})
 
 	t.Run("fail to publish claim", func(t *testing.T) {
@@ -53,7 +52,6 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 
 		publisher := prebuilds.NewPubsubWorkspaceClaimPublisher(ps)
 		claim := agentsdk.ReinitializationEvent{
-			UserID:      uuid.New(),
 			WorkspaceID: uuid.New(),
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 		}
@@ -74,26 +72,21 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		claims := make(chan agentsdk.ReinitializationEvent, 1) // Buffer to avoid messing with goroutines in the rest of the test
 
 		workspaceID := uuid.New()
-		userID := uuid.New()
 		cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID, claims)
 		require.NoError(t, err)
 		defer cancelFunc()
 
 		// Publish a claim
 		channel := agentsdk.PrebuildClaimedChannel(workspaceID)
-		err = ps.Publish(channel, []byte(userID.String()))
+		reason := agentsdk.ReinitializeReasonPrebuildClaimed
+		err = ps.Publish(channel, []byte(reason))
 		require.NoError(t, err)
 
 		// Verify we receive the claim
-		select {
-		case claim, ok := <-claims:
-			require.True(t, ok, "received on a closed channel")
-			require.Equal(t, userID, claim.UserID)
-			require.Equal(t, workspaceID, claim.WorkspaceID)
-			require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, claim.Reason)
-		case <-time.After(testutil.WaitSuperLong): // TODO: revert to waitshort
-			t.Fatal("timeout waiting for claim")
-		}
+		ctx := testutil.Context(t, testutil.WaitShort)
+		claim := testutil.RequireReceive(ctx, t, claims)
+		require.Equal(t, workspaceID, claim.WorkspaceID)
+		require.Equal(t, reason, claim.Reason)
 	})
 
 	t.Run("ignores claim events for other workspaces", func(t *testing.T) {
@@ -111,7 +104,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 
 		// Publish a claim for a different workspace
 		channel := agentsdk.PrebuildClaimedChannel(otherWorkspaceID)
-		err = ps.Publish(channel, []byte(uuid.New().String()))
+		err = ps.Publish(channel, []byte(agentsdk.ReinitializeReasonPrebuildClaimed))
 		require.NoError(t, err)
 
 		// Verify we don't receive the claim

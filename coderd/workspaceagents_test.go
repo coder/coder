@@ -2647,62 +2647,60 @@ func TestAgentConnectionInfo(t *testing.T) {
 func TestReinit(t *testing.T) {
 	t.Parallel()
 
-	t.Run("claimed workspaces are reinitialized", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		pubsubSpy := pubsubReinitSpy{
-			Pubsub:        ps,
-			subscriptions: make(chan string),
-		}
-		client := coderdtest.New(t, &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsubSpy,
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).WithAgent().Do()
-
-		agentCtx := testutil.Context(t, testutil.WaitShort)
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
-
-		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
-		go func() {
-			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
-			assert.NoError(t, err)
-			agentReinitializedCh <- reinitEvent
-		}()
-
-		// We need to subscribe before we publish, lest we miss the event
-		for subscription := range pubsubSpy.subscriptions {
-			if subscription == agentsdk.PrebuildClaimedChannel(r.Workspace.ID) {
-				break
-			}
-		}
-
-		err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
-			WorkspaceID: r.Workspace.ID,
-			UserID:      user.UserID,
-		})
-		require.NoError(t, err)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
-		require.NotNil(t, reinitEvent)
-		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+	db, ps := dbtestutil.NewDB(t)
+	pubsubSpy := pubsubReinitSpy{
+		Pubsub:     ps,
+		subscribed: make(chan string),
+	}
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   &pubsubSpy,
 	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+
+	agentCtx := testutil.Context(t, testutil.WaitShort)
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(r.AgentToken)
+
+	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+	go func() {
+		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+		assert.NoError(t, err)
+		agentReinitializedCh <- reinitEvent
+	}()
+
+	// We need to subscribe before we publish, lest we miss the event
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(ctx, t, pubsubSpy.subscribed) // Wait for the appropriate subscription
+
+	// Now that we're subscribed, publish the event
+	err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+		WorkspaceID: r.Workspace.ID,
+		Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+	})
+	require.NoError(t, err)
+
+	ctx = testutil.Context(t, testutil.WaitShort)
+	reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+	require.NotNil(t, reinitEvent)
+	require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 }
 
 type pubsubReinitSpy struct {
 	pubsub.Pubsub
-	subscriptions chan string
+	subscribed    chan string
+	expectedEvent string
 }
 
-func (p pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
-	p.subscriptions <- event
+func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	if p.expectedEvent != "" && event == p.expectedEvent {
+		close(p.subscribed)
+	}
 	return p.Pubsub.Subscribe(event, listener)
 }

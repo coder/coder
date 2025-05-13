@@ -169,8 +169,12 @@ func TestAcquireJob(t *testing.T) {
 			_, err = tc.acquire(ctx, srv)
 			require.ErrorContains(t, err, "sql: no rows in result set")
 		})
-		for _, prebuiltWorkspace := range []bool{false, true} {
-			prebuiltWorkspace := prebuiltWorkspace
+		for _, prebuiltWorkspaceBuildStage := range []sdkproto.PrebuiltWorkspaceBuildStage{
+			sdkproto.PrebuiltWorkspaceBuildStage_NONE,
+			sdkproto.PrebuiltWorkspaceBuildStage_CREATE,
+			sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
+		} {
+			prebuiltWorkspaceBuildStage := prebuiltWorkspaceBuildStage
 			t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
 				t.Parallel()
 				// Set the max session token lifetime so we can assert we
@@ -294,31 +298,43 @@ func TestAcquireJob(t *testing.T) {
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
 				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				build := database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
 					BuildNumber:       1,
 					JobID:             uuid.New(),
 					TemplateVersionID: version.ID,
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
-				})
-				var buildState sdkproto.PrebuiltWorkspaceBuildStage
-				if prebuiltWorkspace {
-					buildState = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
 				}
-				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					ID:             build.ID,
+				input := provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: build.ID,
+				}
+				dbJob := database.ProvisionerJob{
+					ID:             build.JobID,
 					OrganizationID: pd.OrganizationID,
 					InitiatorID:    user.ID,
 					Provisioner:    database.ProvisionerTypeEcho,
 					StorageMethod:  database.ProvisionerStorageMethodFile,
 					FileID:         file.ID,
 					Type:           database.ProvisionerJobTypeWorkspaceBuild,
-					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID:            build.ID,
-						PrebuiltWorkspaceBuildStage: buildState,
-					})),
-				})
+					Input:          must(json.Marshal(input)),
+				}
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					dbgen.WorkspaceBuild(t, db, build)
+					prebuildJob := dbgen.ProvisionerJob(t, db, ps, dbJob)
+					resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+						JobID: prebuildJob.ID,
+					})
+					dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ResourceID: resource.ID,
+						AuthToken:  uuid.New(),
+					})
+					build.BuildNumber = 2
+					input.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
+					dbJob.Input = must(json.Marshal(input))
+				}
+				build = dbgen.WorkspaceBuild(t, db, build)
+				dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
 
 				startPublished := make(chan struct{})
 				var closed bool
@@ -352,7 +368,7 @@ func TestAcquireJob(t *testing.T) {
 
 				<-startPublished
 
-				got, err := json.Marshal(job.Type)
+				got, err := json.Marshal(dbJob.Type)
 				require.NoError(t, err)
 
 				// Validate that a session token is generated during the job.
@@ -385,9 +401,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
-				}
-				if prebuiltWorkspace {
-					wantedMetadata.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
+					PrebuiltWorkspaceBuildStage:   prebuiltWorkspaceBuildStage,
 				}
 
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {

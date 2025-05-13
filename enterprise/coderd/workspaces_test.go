@@ -527,7 +527,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// THEN a new build is scheduled with the claimant and agent tokens specified
+		// THEN a new build is scheduled with the build stage specified
 		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		require.NotEqual(t, build.ID, r.Build.ID)
