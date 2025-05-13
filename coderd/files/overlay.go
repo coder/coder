@@ -27,7 +27,7 @@ func NewOverlayFS(baseFS fs.FS, overlays []Overlay) fs.FS {
 	}
 }
 
-func (f overlayFS) Open(p string) (fs.File, error) {
+func (f overlayFS) target(p string) fs.FS {
 	target := f.baseFS
 	for _, overlay := range f.overlays {
 		if strings.HasPrefix(path.Clean(p), overlay.Path) {
@@ -35,27 +35,17 @@ func (f overlayFS) Open(p string) (fs.File, error) {
 			break
 		}
 	}
-	return target.Open(p)
+	return target
+}
+
+func (f overlayFS) Open(p string) (fs.File, error) {
+	return f.target(p).Open(p)
 }
 
 func (f overlayFS) ReadDir(p string) ([]fs.DirEntry, error) {
-	target := f.baseFS
-	for _, overlay := range f.overlays {
-		if strings.HasPrefix(path.Clean(p), overlay.Path) {
-			target = overlay.FS
-			break
-		}
-	}
-	return fs.ReadDir(target, p)
+	return fs.ReadDir(f.target(p), p)
 }
 
 func (f overlayFS) ReadFile(p string) ([]byte, error) {
-	target := f.baseFS
-	for _, overlay := range f.overlays {
-		if strings.HasPrefix(path.Clean(p), overlay.Path) {
-			target = overlay.FS
-			break
-		}
-	}
-	return fs.ReadFile(target, p)
+	return fs.ReadFile(f.target(p), p)
 }
