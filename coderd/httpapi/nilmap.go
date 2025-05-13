@@ -27,6 +27,12 @@ func findNilMapsRec(val reflect.Value, visited map[uintptr]bool) (bool, string) 
 	// Handle pointers
 	for val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
 		if val.IsNil() {
+			// If someone makes a *map[string]string, this will return early.
+			// That is ok, because the typegen will union the type with a null
+			// based on the pointer.
+			return false, ""
+		}
+		if val.Kind() == reflect.Interface && !val.CanAddr() {
 			return false, ""
 		}
 		ptr := val.Pointer()

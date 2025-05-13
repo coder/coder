@@ -514,6 +514,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	)
 	require.NoError(t, err)
 
+	if options.ConfigSSH.SSHConfigOptions == nil {
+		options.ConfigSSH.SSHConfigOptions = make(map[string]string)
+	}
+
 	return func(h http.Handler) {
 			mutex.Lock()
 			defer mutex.Unlock()

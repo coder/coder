@@ -207,8 +207,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			cliConfig := codersdk.SSHConfigResponse{
-				HostnamePrefix: hostPrefix,
-				HostnameSuffix: hostnameSuffix,
+				HostnamePrefix:   hostPrefix,
+				HostnameSuffix:   hostnameSuffix,
+				SSHConfigOptions: map[string]string{},
 			}
 
 			workspace, workspaceAgent, err := findWorkspaceAndAgentByHostname(

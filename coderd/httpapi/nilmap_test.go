@@ -87,9 +87,25 @@ func TestContainsNilMap(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "Interface holding struct ptr with nil map",
+			input:    (interface{})(&SimpleStruct{M: nil}),
+			expected: true,
+		},
+		{
 			name:     "nil map",
 			input:    (map[string]string)(nil),
 			expected: true,
+		},
+		{
+			// This is actually allowed because a pty is union'd with a null
+			name:     "nil map ptr",
+			input:    (*map[string]string)(nil),
+			expected: false,
+		},
+		{
+			name:     "nil any ptr",
+			input:    (*any)(nil),
+			expected: false,
 		},
 		{
 			name:     "Slice with nil map",
