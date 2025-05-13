@@ -128,10 +128,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
-		const userProxy = loadUserSelectedProxy();
-		// Update the saved user proxy for the caller.
-		setUserSavedProxy(userProxy);
-		
+		const userSelectedProxy = loadUserSelectedProxy();
 		// preferred proxy is the proxy that will be used.
 		// 1. It first selects from the user selected proxy.
 		// 2. If no user selected proxy is found, it will select
@@ -140,7 +137,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		//      the selected proxy, unless the user manually changes it from the auto selected. 
 		const preferred = getPreferredProxy(
 			proxiesResp ?? [],
-			userProxy,
+			loadUserSelectedProxy(),
 			proxyLatencies,
 			// Autoselect iff the user has not selected a proxy yet. We will save this to local storage.
 			// If the user disagrees with the auto selected proxy, they can always change it.
@@ -150,7 +147,14 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		// Always update the proxy in local storage. We do not want this changing automatically.
 		// It should be set with latencies on load, and then the user can change it.
 		// If an unhealthy proxy is selected, it will behave as if the user loaded the page for the first time.
-		setUserSavedProxy(preferred.proxy);
+		if(proxyLatencies && preferred.proxy && proxyLatencies[preferred.proxy.id]) {
+			// This stores the first proxy to return a latency report.
+			saveUserSelectedProxy(preferred.proxy);
+			// Update the saved user proxy for the caller.
+			setUserSavedProxy(preferred.proxy);
+		} else {
+			setUserSavedProxy(userSelectedProxy);
+		}
 
 		setProxy(preferred);
 	}, [proxiesResp, proxyLatencies]);
@@ -227,13 +231,15 @@ export const getPreferredProxy = (
 
 	// If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
 	if (!selectedProxy || !selectedProxy.healthy) {
-		// By default, use the primary proxy.
-		selectedProxy = proxies.find((proxy) => proxy.name === "primary");
-
 		// If we have latencies, then attempt to use the best proxy by latency instead.
 		const best = selectByLatency(proxies, latencies);
 		if (autoSelectBasedOnLatency && best) {
 			selectedProxy = best;
+		}
+
+		// Use the primary proxy if we don't have latencies
+		if(!best) {
+			selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 		}
 	}
 
