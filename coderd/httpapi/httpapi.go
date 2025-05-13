@@ -192,10 +192,22 @@ func RouteNotFound(rw http.ResponseWriter) {
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	// Pretty up JSON when testing.
 	if flag.Lookup("test.v") != nil {
-		if ContainsNilMap(response) {
+		if err := ContainsNilMap(response); err != nil {
+			// If you are here, you discovered a `nil` map being sent to the api.
+			// An example is `var m map[string]string` not being initialized.
+			//
 			// Nil maps passed to the frontend are json serialized as "null".
 			// The frontend expects the map to be initialized as an empty map.
-			panic("response contains nil map")
+			// If `null` is sent, and the FE expects it to be a `Record<any, any>`,
+			// the FE will throw an error. This can break pages, and should never
+			// occur.
+			//
+			// To fix this, make sure the map is initialized before being serialized
+			// to JSON.
+			//
+			// This should only fail in tests. In production, we do not want
+			// to incur the overhead of checking for nil maps on all responses.
+			panic(fmt.Sprintf("!Nil Map in API Response: %v", err))
 		}
 
 		WriteIndent(ctx, rw, status, response)

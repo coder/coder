@@ -102,7 +102,7 @@ func TestContainsNilMap(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := httpapi.ContainsNilMap(c.input)
+			result := httpapi.ContainsNilMap(c.input) != nil
 			if c.expected != result {
 				v := reflect.ValueOf(c.input)
 				t.Logf("type=%q does not match expected", v.Type().String())
