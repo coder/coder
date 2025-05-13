@@ -52,6 +52,9 @@ type DRPCAgentClient interface {
 	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
+	CreateDevContainerAgent(ctx context.Context, in *CreateDevContainerAgentRequest) (*CreateDevContainerAgentResponse, error)
+	DeleteDevContainerAgent(ctx context.Context, in *DeleteDevContainerAgentRequest) (*emptypb.Empty, error)
+	ListDevContainerAgents(ctx context.Context, in *ListDevContainerAgentsRequest) (*ListDevContainerAgentsResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -181,6 +184,33 @@ func (c *drpcAgentClient) ReportConnection(ctx context.Context, in *ReportConnec
 	return out, nil
 }
 
+func (c *drpcAgentClient) CreateDevContainerAgent(ctx context.Context, in *CreateDevContainerAgentRequest) (*CreateDevContainerAgentResponse, error) {
+	out := new(CreateDevContainerAgentResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/CreateDevContainerAgent", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentClient) DeleteDevContainerAgent(ctx context.Context, in *DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/DeleteDevContainerAgent", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentClient) ListDevContainerAgents(ctx context.Context, in *ListDevContainerAgentsRequest) (*ListDevContainerAgentsResponse, error) {
+	out := new(ListDevContainerAgentsResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ListDevContainerAgents", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -195,6 +225,9 @@ type DRPCAgentServer interface {
 	GetResourcesMonitoringConfiguration(context.Context, *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(context.Context, *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(context.Context, *ReportConnectionRequest) (*emptypb.Empty, error)
+	CreateDevContainerAgent(context.Context, *CreateDevContainerAgentRequest) (*CreateDevContainerAgentResponse, error)
+	DeleteDevContainerAgent(context.Context, *DeleteDevContainerAgentRequest) (*emptypb.Empty, error)
+	ListDevContainerAgents(context.Context, *ListDevContainerAgentsRequest) (*ListDevContainerAgentsResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -251,9 +284,21 @@ func (s *DRPCAgentUnimplementedServer) ReportConnection(context.Context, *Report
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) CreateDevContainerAgent(context.Context, *CreateDevContainerAgentRequest) (*CreateDevContainerAgentResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentUnimplementedServer) DeleteDevContainerAgent(context.Context, *DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentUnimplementedServer) ListDevContainerAgents(context.Context, *ListDevContainerAgentsRequest) (*ListDevContainerAgentsResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 13 }
+func (DRPCAgentDescription) NumMethods() int { return 16 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -374,6 +419,33 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*ReportConnectionRequest),
 					)
 			}, DRPCAgentServer.ReportConnection, true
+	case 13:
+		return "/coder.agent.v2.Agent/CreateDevContainerAgent", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					CreateDevContainerAgent(
+						ctx,
+						in1.(*CreateDevContainerAgentRequest),
+					)
+			}, DRPCAgentServer.CreateDevContainerAgent, true
+	case 14:
+		return "/coder.agent.v2.Agent/DeleteDevContainerAgent", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					DeleteDevContainerAgent(
+						ctx,
+						in1.(*DeleteDevContainerAgentRequest),
+					)
+			}, DRPCAgentServer.DeleteDevContainerAgent, true
+	case 15:
+		return "/coder.agent.v2.Agent/ListDevContainerAgents", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					ListDevContainerAgents(
+						ctx,
+						in1.(*ListDevContainerAgentsRequest),
+					)
+			}, DRPCAgentServer.ListDevContainerAgents, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -585,6 +657,54 @@ type drpcAgent_ReportConnectionStream struct {
 }
 
 func (x *drpcAgent_ReportConnectionStream) SendAndClose(m *emptypb.Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_CreateDevContainerAgentStream interface {
+	drpc.Stream
+	SendAndClose(*CreateDevContainerAgentResponse) error
+}
+
+type drpcAgent_CreateDevContainerAgentStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_CreateDevContainerAgentStream) SendAndClose(m *CreateDevContainerAgentResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_DeleteDevContainerAgentStream interface {
+	drpc.Stream
+	SendAndClose(*emptypb.Empty) error
+}
+
+type drpcAgent_DeleteDevContainerAgentStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_DeleteDevContainerAgentStream) SendAndClose(m *emptypb.Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_ListDevContainerAgentsStream interface {
+	drpc.Stream
+	SendAndClose(*ListDevContainerAgentsResponse) error
+}
+
+type drpcAgent_ListDevContainerAgentsStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_ListDevContainerAgentsStream) SendAndClose(m *ListDevContainerAgentsResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

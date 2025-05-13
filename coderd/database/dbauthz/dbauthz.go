@@ -1482,6 +1482,13 @@ func (q *querier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUI
 	return q.db.DeleteWebpushSubscriptions(ctx, ids)
 }
 
+func (q *querier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteWorkspaceAgentByID(ctx, id)
+}
+
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -3061,6 +3068,15 @@ func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Conte
 	}
 
 	return q.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+}
+
+func (q *querier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
+	// TODO(DanielleMaywood):
+	// Replace usage of ResourceSystem with more appropriate resource type.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsWithParentID(ctx, parentID)
 }
 
 func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {

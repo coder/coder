@@ -452,6 +452,13 @@ func (m queryMetricsStore) DeleteWebpushSubscriptions(ctx context.Context, ids [
 	return r0
 }
 
+func (m queryMetricsStore) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceAgentByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteWorkspaceAgentPortShare(ctx, arg)
@@ -1780,6 +1787,13 @@ func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx cont
 	agents, err := m.s.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsInLatestBuildByWorkspaceID").Observe(time.Since(start).Seconds())
 	return agents, err
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsWithParentID(ctx, parentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsWithParentID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {

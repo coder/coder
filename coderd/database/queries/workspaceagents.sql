@@ -330,3 +330,9 @@ INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.reso
 INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 WHERE workspace_builds.id = $1
 ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at;
+
+-- name: GetWorkspaceAgentsWithParentID :many
+SELECT * FROM workspace_agents WHERE parent_id = $1;
+
+-- name: DeleteWorkspaceAgentByID :exec
+DELETE FROM workspace_agents WHERE id = $1;

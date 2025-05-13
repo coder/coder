@@ -2498,6 +2498,20 @@ func (q *FakeQuerier) DeleteWebpushSubscriptions(_ context.Context, ids []uuid.U
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, agent := range q.workspaceAgents {
+		if agent.ID != id {
+			continue
+		}
+		q.workspaceAgents = append(q.workspaceAgents[:i], q.workspaceAgents[i+1:]...)
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7746,6 +7760,22 @@ func (q *FakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.C
 	}
 
 	return agents, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceAgents := make([]database.WorkspaceAgent, 0)
+	for _, agent := range q.workspaceAgents {
+		if agent.ParentID != parentID {
+			continue
+		}
+
+		workspaceAgents = append(workspaceAgents, agent)
+	}
+
+	return workspaceAgents, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {

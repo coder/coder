@@ -377,6 +377,31 @@ message ReportConnectionRequest {
 	Connection connection = 1;
 }
 
+message CreateDevContainerAgentRequest {
+	string name = 1;
+	string directory = 2;
+}
+
+message CreateDevContainerAgentResponse {
+	bytes id = 1;
+	bytes auth_token = 2;
+}
+
+message DeleteDevContainerAgentRequest {
+	bytes id = 1;
+}
+
+message ListDevContainerAgentsRequest {}
+
+message ListDevContainerAgentsResponse {
+	message DevContainerAgent {
+		string name = 1;
+		bytes id = 2;
+	}
+
+	repeated DevContainerAgent agents = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -391,4 +416,7 @@ service Agent {
 	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
+	rpc CreateDevContainerAgent(CreateDevContainerAgentRequest) returns (CreateDevContainerAgentResponse);
+	rpc DeleteDevContainerAgent(DeleteDevContainerAgentRequest) returns (google.protobuf.Empty);
+	rpc ListDevContainerAgents(ListDevContainerAgentsRequest) returns (ListDevContainerAgentsResponse);
 }
