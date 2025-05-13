@@ -28,7 +28,7 @@ workspace startup=E2=80=94even when claiming a prebuilt environment.
 
 For tips on preventing replacements and improving claim performance, see th=
 is guide (https://coder.com/docs/admin/templates/extending-templates/prebui=
-lt-workspaces.md#preventing-resource-replacement).
+lt-workspaces#preventing-resource-replacement).
 
 NOTE: this prebuilt workspace used the particle-accelerator preset.
 
@@ -90,7 +90,7 @@ workspace startup=E2=80=94even when claiming a prebuilt environment.</p>
 
 <p>For tips on preventing replacements and improving claim performance, see=
  <a href=3D"https://coder.com/docs/admin/templates/extending-templates/preb=
-uilt-workspaces.md#preventing-resource-replacement">this guide</a>.</p>
+uilt-workspaces#preventing-resource-replacement">this guide</a>.</p>
 
 <p>NOTE: this prebuilt workspace used the <strong>particle-accelerator</str=
 ong> preset.</p>
