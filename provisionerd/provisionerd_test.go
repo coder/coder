@@ -178,6 +178,79 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
+	// LargePayloads sends a 3mb tar file to the provisioner. The provisioner also
+	// returns large payload messages back. The limit should be 4mb, so all
+	// these messages should work.
+	t.Run("LargePayloads", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			close(done)
+		})
+		var (
+			largeSize    = 3 * 1024 * 1024
+			completeChan = make(chan struct{})
+			completeOnce sync.Once
+			acq          = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
+					"toolarge.txt": string(make([]byte, largeSize)),
+				}),
+				Type: &proto.AcquiredJob_TemplateImport_{
+					TemplateImport: &proto.AcquiredJob_TemplateImport{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
+		)
+
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+				acquireJobWithCancel: acq.acquireWithCancel,
+				updateJob:            noopUpdateJob,
+				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
+					completeOnce.Do(func() { close(completeChan) })
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.LocalProvisioners{
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				parse: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.ParseRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.ParseComplete {
+					return &sdkproto.ParseComplete{
+						// 6mb readme
+						Readme: make([]byte, largeSize),
+					}
+				},
+				plan: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					_ <-chan struct{},
+				) *sdkproto.PlanComplete {
+					return &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{},
+						Plan:      make([]byte, largeSize),
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					return &sdkproto.ApplyComplete{
+						State: make([]byte, largeSize),
+					}
+				},
+			}),
+		})
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.NoError(t, closer.Close())
+	})
+
 	t.Run("RunningPeriodicUpdate", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -1115,7 +1188,9 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterProvisionerDaemon(mux, &server)
 	require.NoError(t, err)
-	srv := drpcserver.New(mux)
+	srv := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcsdk.DefaultDRPCOptions(nil),
+	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	closed := make(chan struct{})
 	go func() {
