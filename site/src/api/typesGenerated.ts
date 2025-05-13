@@ -1643,12 +1643,6 @@ export interface OrganizationSyncSettings {
 }
 
 // From codersdk/organizations.go
-export interface PaginatedMembersRequest {
-	readonly limit?: number;
-	readonly offset?: number;
-}
-
-// From codersdk/organizations.go
 export interface PaginatedMembersResponse {
 	readonly members: readonly OrganizationMemberWithUserData[];
 	readonly count: number;

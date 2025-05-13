@@ -81,11 +81,6 @@ type OrganizationMemberWithUserData struct {
 	OrganizationMember `table:"m,recursive_inline"`
 }
 
-type PaginatedMembersRequest struct {
-	Limit  int `json:"limit,omitempty"`
-	Offset int `json:"offset,omitempty"`
-}
-
 type PaginatedMembersResponse struct {
 	Members []OrganizationMemberWithUserData `json:"members"`
 	Count   int                              `json:"count"`
