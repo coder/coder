@@ -102,7 +102,7 @@ type MetricsCollector struct {
 
 	latestState atomic.Pointer[metricsState]
 
-	replacementsCounter   map[replacementKey]*atomic.Int64
+	replacementsCounter   map[replacementKey]float64
 	replacementsCounterMu sync.Mutex
 }
 
@@ -114,7 +114,7 @@ func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter preb
 		database:            db,
 		logger:              log,
 		snapshotter:         snapshotter,
-		replacementsCounter: make(map[replacementKey]*atomic.Int64),
+		replacementsCounter: make(map[replacementKey]float64),
 	}
 }
 
@@ -148,7 +148,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	mc.replacementsCounterMu.Lock()
 	for key, val := range mc.replacementsCounter {
-		metricsCh <- prometheus.MustNewConstMetric(resourceReplacementsDesc, prometheus.CounterValue, float64(val.Load()), key.templateName, key.presetName, key.orgName)
+		metricsCh <- prometheus.MustNewConstMetric(resourceReplacementsDesc, prometheus.CounterValue, val, key.templateName, key.presetName, key.orgName)
 	}
 	mc.replacementsCounterMu.Unlock()
 
@@ -236,13 +236,10 @@ func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, pres
 	defer mc.replacementsCounterMu.Unlock()
 
 	key := replacementKey{orgName: orgName, templateName: templateName, presetName: presetName}
-	if _, ok := mc.replacementsCounter[key]; !ok {
-		mc.replacementsCounter[key] = &atomic.Int64{}
-	}
 
 	// We only track _that_ a resource replacement occurred, not how many.
 	// Just one is enough to ruin a prebuild, but we can't know apriori which replacement would cause this.
 	// For example, say we have 2 replacements: a docker_container and a null_resource; we don't know which one might
 	// cause an issue (or indeed if either would), so we just track the replacement.
-	mc.replacementsCounter[key].Add(1)
+	mc.replacementsCounter[key] += 1
 }
