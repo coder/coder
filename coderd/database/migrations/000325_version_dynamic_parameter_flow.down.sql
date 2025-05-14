@@ -1,1 +1,1 @@
-ALTER TABLE templates DROP COLUMN dynamic_parameter_flow;
+ALTER TABLE templates DROP COLUMN classic_parameter_flow;

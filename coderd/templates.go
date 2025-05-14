@@ -728,6 +728,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Defaults to the existing.
+	classicTemplateFlow := template.ClassicParameterFlow
+	if req.ClassicParameterFlow != nil {
+		classicTemplateFlow = *req.ClassicParameterFlow
+	}
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
@@ -747,6 +753,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
+			(classicTemplateFlow == template.ClassicParameterFlow) &&
 			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
@@ -788,6 +795,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
+			ClassicParameterFlow:         classicTemplateFlow,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)

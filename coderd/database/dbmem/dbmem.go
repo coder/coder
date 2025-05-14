@@ -11082,6 +11082,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.GroupACL = arg.GroupACL
 		tpl.AllowUserCancelWorkspaceJobs = arg.AllowUserCancelWorkspaceJobs
 		tpl.MaxPortSharingLevel = arg.MaxPortSharingLevel
+		tpl.ClassicParameterFlow = arg.ClassicParameterFlow
 		q.templates[idx] = tpl
 		return nil
 	}
