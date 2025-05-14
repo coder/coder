@@ -218,7 +218,7 @@ func TestAcquireJob(t *testing.T) {
 					Roles:          []string{rbac.RoleOrgAuditor()},
 				})
 
-				// Add extra erronous roles
+				// Add extra erroneous roles
 				secondOrg := dbgen.Organization(t, db, database.Organization{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{
 					UserID:         user.ID,
@@ -293,11 +293,12 @@ func TestAcquireJob(t *testing.T) {
 					Required:          true,
 					Sensitive:         false,
 				})
-				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				workspace := database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
-				})
+				}
+				workspace = dbgen.Workspace(t, db, workspace)
 				build := database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
 					BuildNumber:       1,
@@ -306,6 +307,7 @@ func TestAcquireJob(t *testing.T) {
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
 				}
+				build = dbgen.WorkspaceBuild(t, db, build)
 				input := provisionerdserver.WorkspaceProvisionJob{
 					WorkspaceBuildID: build.ID,
 				}
@@ -319,22 +321,46 @@ func TestAcquireJob(t *testing.T) {
 					Type:           database.ProvisionerJobTypeWorkspaceBuild,
 					Input:          must(json.Marshal(input)),
 				}
+				dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
+
+				var agent database.WorkspaceAgent
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
-					dbgen.WorkspaceBuild(t, db, build)
-					prebuildJob := dbgen.ProvisionerJob(t, db, ps, dbJob)
 					resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-						JobID: prebuildJob.ID,
+						JobID: dbJob.ID,
 					})
-					dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+					agent = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ResourceID: resource.ID,
 						AuthToken:  uuid.New(),
 					})
-					build.BuildNumber = 2
-					input.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
-					dbJob.Input = must(json.Marshal(input))
+					// At this point we have an unclaimed workspace and build, now we need to setup the claim
+					// build
+					build = database.WorkspaceBuild{
+						WorkspaceID:       workspace.ID,
+						BuildNumber:       2,
+						JobID:             uuid.New(),
+						TemplateVersionID: version.ID,
+						Transition:        database.WorkspaceTransitionStart,
+						Reason:            database.BuildReasonInitiator,
+						InitiatorID:       user.ID,
+					}
+					build = dbgen.WorkspaceBuild(t, db, build)
+
+					input = provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID:            build.ID,
+						PrebuiltWorkspaceBuildStage: prebuiltWorkspaceBuildStage,
+					}
+					dbJob = database.ProvisionerJob{
+						ID:             build.JobID,
+						OrganizationID: pd.OrganizationID,
+						InitiatorID:    user.ID,
+						Provisioner:    database.ProvisionerTypeEcho,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						FileID:         file.ID,
+						Type:           database.ProvisionerJobTypeWorkspaceBuild,
+						Input:          must(json.Marshal(input)),
+					}
+					dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
 				}
-				build = dbgen.WorkspaceBuild(t, db, build)
-				dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
 
 				startPublished := make(chan struct{})
 				var closed bool
@@ -368,7 +394,20 @@ func TestAcquireJob(t *testing.T) {
 
 				<-startPublished
 
-				got, err := json.Marshal(dbJob.Type)
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					for {
+						// In the case of a prebuild claim, there is a second build, which is the
+						// one that we're interested in.
+						job, err = tc.acquire(ctx, srv)
+						require.NoError(t, err)
+						if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+							break
+						}
+					}
+					<-startPublished
+				}
+
+				got, err := json.Marshal(job.Type)
 				require.NoError(t, err)
 
 				// Validate that a session token is generated during the job.
@@ -401,7 +440,15 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
-					PrebuiltWorkspaceBuildStage:   prebuiltWorkspaceBuildStage,
+				}
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
+					// and we expect tokens from the first build to be set for reuse
+					wantedMetadata.PrebuiltWorkspaceBuildStage = prebuiltWorkspaceBuildStage
+					wantedMetadata.RunningAgentAuthTokens = append(wantedMetadata.RunningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+						AgentId: agent.ID.String(),
+						Token:   agent.AuthToken.String(),
+					})
 				}
 
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {

@@ -223,18 +223,23 @@ func TestReinitializeAgent(t *testing.T) {
 	// THEN reinitialization completes
 	waiter.WaitFor(coderdtest.AgentsReady)
 
-	// THEN the agent script ran again and reused the same agent token
-	contents, err := os.ReadFile(tempAgentLog.Name())
-	// UUID regex pattern (matches UUID v4-like strings)
-	uuidRegex := regexp.MustCompile(`\bCODER_AGENT_TOKEN=(.+)\b`)
+	var matches [][]byte
+	require.Eventually(t, func() bool {
+		// THEN the agent script ran again and reused the same agent token
+		contents, err := os.ReadFile(tempAgentLog.Name())
+		if err != nil {
+			return false
+		}
+		// UUID regex pattern (matches UUID v4-like strings)
+		uuidRegex := regexp.MustCompile(`\bCODER_AGENT_TOKEN=(.+)\b`)
 
-	matches := uuidRegex.FindAll(contents, -1)
-	// When an agent reinitializes, we expect it to run startup scripts again.
-	// As such, we expect to have written the agent environment to the temp file twice.
-	// Once on initial startup and then once on reinitialization.
-	require.Len(t, matches, 2, "expected exactly 1 occurrence of the agent token per startup script execution")
+		matches = uuidRegex.FindAll(contents, -1)
+		// When an agent reinitializes, we expect it to run startup scripts again.
+		// As such, we expect to have written the agent environment to the temp file twice.
+		// Once on initial startup and then once on reinitialization.
+		return len(matches) == 2
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	require.Equal(t, matches[0], matches[1])
-	require.NoError(t, err)
 }
 
 type setupResp struct {

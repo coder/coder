@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2694,13 +2695,16 @@ func TestReinit(t *testing.T) {
 
 type pubsubReinitSpy struct {
 	pubsub.Pubsub
+	sync.Mutex
 	subscribed    chan string
 	expectedEvent string
 }
 
 func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	p.Lock()
 	if p.expectedEvent != "" && event == p.expectedEvent {
 		close(p.subscribed)
 	}
+	p.Unlock()
 	return p.Pubsub.Subscribe(event, listener)
 }
