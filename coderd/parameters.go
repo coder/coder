@@ -116,9 +116,8 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	var staticDiagnostics hcl.Diagnostics
 	// If the err is sql.ErrNoRows, an empty terraform values struct is correct.
-	staticDiagnostics = staticDiagnostics.Extend(parameterProvisionerVersionDiagnostic(tf))
+	staticDiagnostics := parameterProvisionerVersionDiagnostic(tf)
 
 	owner, err := api.getWorkspaceOwnerData(ctx, user, templateVersion.OrganizationID)
 	if err != nil {
