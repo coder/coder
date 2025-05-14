@@ -9343,10 +9343,11 @@ func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Cont
 
 	// Insert the new row
 	row := database.TemplateVersionTerraformValue{
-		TemplateVersionID: templateVersion.ID,
-		CachedPlan:        arg.CachedPlan,
-		CachedModuleFiles: arg.CachedModuleFiles,
-		UpdatedAt:         arg.UpdatedAt,
+		TemplateVersionID:   templateVersion.ID,
+		UpdatedAt:           arg.UpdatedAt,
+		CachedPlan:          arg.CachedPlan,
+		CachedModuleFiles:   arg.CachedModuleFiles,
+		ProvisionerdVersion: arg.ProvisionerdVersion,
 	}
 	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
 	return nil
