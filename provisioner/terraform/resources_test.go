@@ -561,7 +561,7 @@ func TestConvertResources(t *testing.T) {
 							DisplayName: "Startup Script",
 							RunOnStart:  true,
 							LogPath:     "coder-startup-script.log",
-							Icon:        "/emojis/25b6.png",
+							Icon:        "/emojis/25b6-fe0f.png",
 							Script:      "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
 						}},
 					}},

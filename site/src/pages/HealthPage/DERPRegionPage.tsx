@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type {
@@ -11,6 +10,7 @@ import type {
 	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { CodeIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
@@ -94,7 +94,9 @@ const DERPRegionPage: FC = () => {
 							<Pill icon={<TagOutlined />}>{region!.RegionID}</Pill>
 						</Tooltip>
 						<Tooltip title="Region Code">
-							<Pill icon={<CodeOutlined />}>{region!.RegionCode}</Pill>
+							<Pill icon={<CodeIcon className="size-icon-sm" />}>
+								{region!.RegionCode}
+							</Pill>
 						</Tooltip>
 						<BooleanPill value={region!.EmbeddedRelay}>
 							Embedded Relay

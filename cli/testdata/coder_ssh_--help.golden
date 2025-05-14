@@ -5,6 +5,10 @@ USAGE:
 
   Start a shell into a workspace
 
+  This command does not have full parity with the standard SSH command. For
+  users who need the full functionality of SSH, create an ssh configuration with
+  `coder config-ssh`.
+
 OPTIONS:
       --disable-autostart bool, $CODER_SSH_DISABLE_AUTOSTART (default: false)
           Disable starting the workspace automatically when connecting via SSH.

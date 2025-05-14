@@ -1,5 +1,3 @@
-import VariablesIcon from "@mui/icons-material/CodeOutlined";
-import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -7,6 +5,8 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { CodeIcon as VariablesIcon } from "lucide-react";
+import { TimerIcon as ScheduleIcon } from "lucide-react";
 import { SettingsIcon } from "lucide-react";
 import { LockIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";

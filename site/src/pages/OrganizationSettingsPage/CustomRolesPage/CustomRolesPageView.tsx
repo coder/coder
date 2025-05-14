@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import type { AssignableRoles, Role } from "api/typesGenerated";
@@ -27,7 +25,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -74,7 +72,11 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					</span>
 				</span>
 				{canCreateOrgRole && isCustomRolesEnabled && (
-					<Button component={RouterLink} startIcon={<AddIcon />} to="create">
+					<Button
+						component={RouterLink}
+						startIcon={<PlusIcon className="size-icon-sm" />}
+						to="create"
+					>
 						Create custom role
 					</Button>
 				)}
@@ -158,7 +160,7 @@ const RoleTable: FC<RoleTableProps> = ({
 											<Button
 												component={RouterLink}
 												to="create"
-												startIcon={<AddOutlined />}
+												startIcon={<PlusIcon className="size-icon-sm" />}
 												variant="contained"
 											>
 												Create custom role

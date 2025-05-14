@@ -1,7 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -16,6 +13,7 @@ import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
+import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -41,7 +39,7 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 }) => {
 	const icon = (
 		<TopbarIcon>
-			<ScheduleOutlined aria-label="Schedule" />
+			<ClockIcon aria-label="Schedule" className="size-icon-sm" />
 		</TopbarIcon>
 	);
 
@@ -211,7 +209,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						handleDeadlineChange(deadline.subtract(1, "h"));
 					}}
 				>
-					<RemoveIcon />
+					<MinusIcon className="size-icon-xs" />
 					<span style={visuallyHidden}>Subtract 1 hour</span>
 				</IconButton>
 			</Tooltip>
@@ -224,7 +222,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						handleDeadlineChange(deadline.add(1, "h"));
 					}}
 				>
-					<AddIcon />
+					<PlusIcon className="size-icon-xs" />
 					<span style={visuallyHidden}>Add 1 hour</span>
 				</IconButton>
 			</Tooltip>

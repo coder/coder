@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1000,10 +1001,11 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	t.Helper()
 
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:             takeFirst(orig.JobID, uuid.New()),
-		CachedPlan:        takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		CachedModuleFiles: orig.CachedModuleFiles,
-		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		JobID:               takeFirst(orig.JobID, uuid.New()),
+		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles:   orig.CachedModuleFiles,
+		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ProvisionerdVersion: takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
 	}
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
@@ -1224,6 +1226,7 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 
 func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
 	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
 		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
 		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),

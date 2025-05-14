@@ -20,7 +20,7 @@ import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
@@ -201,18 +201,13 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 			</div>
 
 			{!isImmutable && (
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 8,
-					}}
-				>
+				<div className="flex items-center gap-4">
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}
 						canUpdateSchedule={permissions.updateWorkspace}
 					/>
+
 					<WorkspaceNotifications
 						workspace={workspace}
 						template={template}
@@ -222,7 +217,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						onUpdateWorkspace={handleUpdate}
 						onActivateWorkspace={handleDormantActivate}
 					/>
-					<WorkspaceStatusBadge workspace={workspace} />
+
+					<WorkspaceStatusIndicator workspace={workspace} />
+
 					<WorkspaceActions
 						workspace={workspace}
 						permissions={permissions}

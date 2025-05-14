@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AddOutlined from "@mui/icons-material/AddOutlined";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Skeleton from "@mui/material/Skeleton";
 import type { Group } from "api/typesGenerated";
@@ -24,6 +23,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
+import { PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -81,7 +81,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 													canCreateGroup && (
 														<Button asChild>
 															<RouterLink to="create">
-																<AddOutlined />
+																<PlusIcon className="size-icon-sm" />
 																Create group
 															</RouterLink>
 														</Button>
