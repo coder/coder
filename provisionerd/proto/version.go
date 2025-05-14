@@ -20,6 +20,7 @@ import "github.com/coder/coder/v2/apiversion"
 //     the previous values for the `terraform apply` to enforce monotonicity
 //     in the terraform provider.
 //   - Add new field named `running_agent_auth_tokens` to provisioner job metadata
+//   - Add new field named `resource_replacements` in PlanComplete & CompletedJob.WorkspaceBuild.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 5

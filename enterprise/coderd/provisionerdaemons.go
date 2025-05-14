@@ -19,6 +19,8 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -34,7 +36,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/websocket"
 )
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
@@ -357,6 +358,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		&api.AGPL.PrebuildsReconciler,
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

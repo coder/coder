@@ -40,9 +40,10 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -1795,6 +1796,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		&api.PrebuildsReconciler,
 	)
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,50 +17,73 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
+const (
+	namespace = "coderd_prebuilt_workspaces_"
+
+	MetricCreatedCount              = namespace + "created_total"
+	MetricFailedCount               = namespace + "failed_total"
+	MetricClaimedCount              = namespace + "claimed_total"
+	MetricResourceReplacementsCount = namespace + "resource_replacements_total"
+	MetricDesiredGauge              = namespace + "desired"
+	MetricRunningGauge              = namespace + "running"
+	MetricEligibleGauge             = namespace + "eligible"
+	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
+)
+
 var (
 	labels               = []string{"template_name", "preset_name", "organization_name"}
 	createdPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_created_total",
+		MetricCreatedCount,
 		"Total number of prebuilt workspaces that have been created to meet the desired instance count of each "+
 			"template preset.",
 		labels,
 		nil,
 	)
 	failedPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_failed_total",
+		MetricFailedCount,
 		"Total number of prebuilt workspaces that failed to build.",
 		labels,
 		nil,
 	)
 	claimedPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_claimed_total",
+		MetricClaimedCount,
 		"Total number of prebuilt workspaces which were claimed by users. Claiming refers to creating a workspace "+
 			"with a preset selected for which eligible prebuilt workspaces are available and one is reassigned to a user.",
 		labels,
 		nil,
 	)
+	resourceReplacementsDesc = prometheus.NewDesc(
+		MetricResourceReplacementsCount,
+		"Total number of prebuilt workspaces whose resource(s) got replaced upon being claimed. "+
+			"In Terraform, drift on immutable attributes results in resource replacement. "+
+			"This represents a worst-case scenario for prebuilt workspaces because the pre-provisioned resource "+
+			"would have been recreated when claiming, thus obviating the point of pre-provisioning. "+
+			"See https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#preventing-resource-replacement",
+		labels,
+		nil,
+	)
 	desiredPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_desired",
+		MetricDesiredGauge,
 		"Target number of prebuilt workspaces that should be available for each template preset.",
 		labels,
 		nil,
 	)
 	runningPrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_running",
+		MetricRunningGauge,
 		"Current number of prebuilt workspaces that are in a running state. These workspaces have started "+
 			"successfully but may not yet be claimable by users (see coderd_prebuilt_workspaces_eligible).",
 		labels,
 		nil,
 	)
 	eligiblePrebuildsDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_eligible",
+		MetricEligibleGauge,
 		"Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that "+
 			"have completed their build process with their agent reporting 'ready' status.",
 		labels,
 		nil,
 	)
 	lastUpdateDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_metrics_last_updated",
+		MetricLastUpdatedGauge,
 		"The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.",
 		[]string{},
 		nil,
@@ -77,6 +101,9 @@ type MetricsCollector struct {
 	snapshotter prebuilds.StateSnapshotter
 
 	latestState atomic.Pointer[metricsState]
+
+	replacementsCounter   map[replacementKey]float64
+	replacementsCounterMu sync.Mutex
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
@@ -84,9 +111,10 @@ var _ prometheus.Collector = new(MetricsCollector)
 func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter prebuilds.StateSnapshotter) *MetricsCollector {
 	log := logger.Named("prebuilds_metrics_collector")
 	return &MetricsCollector{
-		database:    db,
-		logger:      log,
-		snapshotter: snapshotter,
+		database:            db,
+		logger:              log,
+		snapshotter:         snapshotter,
+		replacementsCounter: make(map[replacementKey]float64),
 	}
 }
 
@@ -94,6 +122,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- createdPrebuildsDesc
 	descCh <- failedPrebuildsDesc
 	descCh <- claimedPrebuildsDesc
+	descCh <- resourceReplacementsDesc
 	descCh <- desiredPrebuildsDesc
 	descCh <- runningPrebuildsDesc
 	descCh <- eligiblePrebuildsDesc
@@ -116,6 +145,12 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(failedPrebuildsDesc, prometheus.CounterValue, float64(metric.FailedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName, metric.OrganizationName)
 	}
+
+	mc.replacementsCounterMu.Lock()
+	for key, val := range mc.replacementsCounter {
+		metricsCh <- prometheus.MustNewConstMetric(resourceReplacementsDesc, prometheus.CounterValue, val, key.templateName, key.presetName, key.orgName)
+	}
+	mc.replacementsCounterMu.Unlock()
 
 	for _, preset := range currentState.snapshot.Presets {
 		if !preset.UsingActiveVersion {
@@ -186,4 +221,25 @@ func (mc *MetricsCollector) UpdateState(ctx context.Context, timeout time.Durati
 		createdAt:       dbtime.Now(),
 	})
 	return nil
+}
+
+type replacementKey struct {
+	orgName, templateName, presetName string
+}
+
+func (k replacementKey) String() string {
+	return fmt.Sprintf("%s:%s:%s", k.orgName, k.templateName, k.presetName)
+}
+
+func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, presetName string) {
+	mc.replacementsCounterMu.Lock()
+	defer mc.replacementsCounterMu.Unlock()
+
+	key := replacementKey{orgName: orgName, templateName: templateName, presetName: presetName}
+
+	// We only track _that_ a resource replacement occurred, not how many.
+	// Just one is enough to ruin a prebuild, but we can't know apriori which replacement would cause this.
+	// For example, say we have 2 replacements: a docker_container and a null_resource; we don't know which one might
+	// cause an issue (or indeed if either would), so we just track the replacement.
+	mc.replacementsCounter[key]++
 }
