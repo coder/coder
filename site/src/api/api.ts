@@ -225,7 +225,7 @@ export const watchWorkspaceAgentLogs = (
 ) => {
 	const searchParams = new URLSearchParams({
 		follow: "true",
-		after: params?.after ? params?.after.toString() : "",
+		after: params?.after?.toString() ?? "",
 	});
 
 	/**

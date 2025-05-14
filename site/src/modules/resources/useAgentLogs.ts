@@ -6,14 +6,14 @@ import { useEffect, useState } from "react";
 export function useAgentLogs(
 	agent: WorkspaceAgent,
 	enabled: boolean,
-): readonly WorkspaceAgentLog[] | undefined {
-	const [logs, setLogs] = useState<WorkspaceAgentLog[]>();
+): readonly WorkspaceAgentLog[] {
+	const [logs, setLogs] = useState<WorkspaceAgentLog[]>([]);
 
 	useEffect(() => {
 		if (!enabled) {
 			// Clean up the logs when the agent is not enabled. So it can receive logs
 			// from the beginning without duplicating the logs.
-			setLogs(undefined);
+			setLogs([]);
 			return;
 		}
 
@@ -26,9 +26,7 @@ export function useAgentLogs(
 				console.warn("Error parsing agent log: ", e.parseError);
 				return;
 			}
-			setLogs((logs) =>
-				logs ? [...logs, ...e.parsedMessage] : [...e.parsedMessage],
-			);
+			setLogs((logs) => [...logs, ...e.parsedMessage]);
 		});
 
 		socket.addEventListener("error", (e) => {
