@@ -627,7 +627,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
 	const userApps = agent.apps
-		.filter((app) => app.health === "healthy")
+		.filter((app) => app.health === "healthy" && !app.hidden)
 		.slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
