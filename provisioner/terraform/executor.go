@@ -350,6 +350,68 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 	return filtered
 }
 
+func (e *executor) logResourceReplacements(ctx context.Context, plan *tfjson.Plan) {
+	if plan == nil {
+		return
+	}
+
+	if len(plan.ResourceChanges) == 0 {
+		return
+	}
+	var (
+		count        int
+		replacements = make(map[string][]string, len(plan.ResourceChanges))
+	)
+
+	for _, ch := range plan.ResourceChanges {
+		// No change, no problem!
+		if ch.Change == nil {
+			continue
+		}
+
+		// No-op change, no problem!
+		if ch.Change.Actions.NoOp() {
+			continue
+		}
+
+		// No replacements, no problem!
+		if len(ch.Change.ReplacePaths) == 0 {
+			continue
+		}
+
+		// Replacing our resources, no problem!
+		if strings.Index(ch.Type, "coder_") == 0 {
+			continue
+		}
+
+		for _, p := range ch.Change.ReplacePaths {
+			var path string
+			switch p := p.(type) {
+			case []interface{}:
+				segs := p
+				list := make([]string, 0, len(segs))
+				for _, s := range segs {
+					list = append(list, fmt.Sprintf("%v", s))
+				}
+				path = strings.Join(list, ".")
+			default:
+				path = fmt.Sprintf("%v", p)
+			}
+
+			replacements[ch.Address] = append(replacements[ch.Address], path)
+		}
+
+		count++
+	}
+
+	if count > 0 {
+		e.server.logger.Warn(ctx, "plan introduces resource changes", slog.F("count", count))
+		for n, p := range replacements {
+			e.server.logger.Warn(ctx, "resource will be replaced", slog.F("name", n), slog.F("replacement_paths", strings.Join(p, ",")))
+		}
+	}
+}
+
 // planResources must only be called while the lock is held.
 func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, json.RawMessage, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
@@ -359,6 +421,8 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 	if err != nil {
 		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
+
+	e.logResourceReplacements(ctx, plan)
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {

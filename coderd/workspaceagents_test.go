@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,10 +45,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -2640,4 +2643,71 @@ func TestAgentConnectionInfo(t *testing.T) {
 	require.Equal(t, "yallah", info.HostnameSuffix)
 	require.True(t, info.DisableDirectConnections)
 	require.True(t, info.DERPForceWebSockets)
+}
+
+func TestReinit(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	pubsubSpy := pubsubReinitSpy{
+		Pubsub:     ps,
+		subscribed: make(chan string),
+	}
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   &pubsubSpy,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	pubsubSpy.Mutex.Lock()
+	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+	pubsubSpy.Mutex.Unlock()
+
+	agentCtx := testutil.Context(t, testutil.WaitShort)
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(r.AgentToken)
+
+	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+	go func() {
+		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+		assert.NoError(t, err)
+		agentReinitializedCh <- reinitEvent
+	}()
+
+	// We need to subscribe before we publish, lest we miss the event
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(ctx, t, pubsubSpy.subscribed) // Wait for the appropriate subscription
+
+	// Now that we're subscribed, publish the event
+	err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+		WorkspaceID: r.Workspace.ID,
+		Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+	})
+	require.NoError(t, err)
+
+	ctx = testutil.Context(t, testutil.WaitShort)
+	reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+	require.NotNil(t, reinitEvent)
+	require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+}
+
+type pubsubReinitSpy struct {
+	pubsub.Pubsub
+	sync.Mutex
+	subscribed    chan string
+	expectedEvent string
+}
+
+func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	p.Lock()
+	if p.expectedEvent != "" && event == p.expectedEvent {
+		close(p.subscribed)
+	}
+	p.Unlock()
+	return p.Pubsub.Subscribe(event, listener)
 }
