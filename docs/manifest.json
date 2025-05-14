@@ -1625,6 +1625,7 @@
 						},
 						{
 							"title": "users create",
+							"description": "Create a new user.",
 							"path": "reference/cli/users_create.md"
 						},
 						{
@@ -1639,6 +1640,7 @@
 						},
 						{
 							"title": "users list",
+							"description": "Prints the list of users.",
 							"path": "reference/cli/users_list.md"
 						},
 						{

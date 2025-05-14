@@ -482,10 +482,10 @@ class ApiMethods {
 		return response.data;
 	};
 
-	checkAuthorization = async (
+	checkAuthorization = async <TResponse extends TypesGen.AuthorizationResponse>(
 		params: TypesGen.AuthorizationRequest,
-	): Promise<TypesGen.AuthorizationResponse> => {
-		const response = await this.axios.post<TypesGen.AuthorizationResponse>(
+	) => {
+		const response = await this.axios.post<TResponse>(
 			"/api/v2/authcheck",
 			params,
 		);
@@ -823,6 +823,13 @@ class ApiMethods {
 		params.set("claimField", field);
 		const response = await this.axios.get<readonly string[]>(
 			`/api/v2/settings/idpsync/field-values?${params}`,
+		);
+		return response.data;
+	};
+
+	getDeploymentLLMs = async (): Promise<TypesGen.LanguageModelConfig> => {
+		const response = await this.axios.get<TypesGen.LanguageModelConfig>(
+			"/api/v2/deployment/llms",
 		);
 		return response.data;
 	};
@@ -2488,6 +2495,23 @@ class ApiMethods {
 
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+	};
+
+	createChat = async () => {
+		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
+		return res.data;
+	};
+
+	getChats = async () => {
+		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		return res.data;
+	};
+
+	getChatMessages = async (chatId: string) => {
+		const res = await this.axios.get<TypesGen.ChatMessage[]>(
+			`/api/v2/chats/${chatId}/messages`,
+		);
+		return res.data;
 	};
 }
 

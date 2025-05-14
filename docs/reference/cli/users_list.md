@@ -1,6 +1,8 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # users list
 
+Prints the list of users.
+
 Aliases:
 
 * ls

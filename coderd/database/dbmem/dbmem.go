@@ -1380,6 +1380,12 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(
 	return jobs, nil
 }
 
+// isDeprecated returns true if the template is deprecated.
+// A template is considered deprecated when it has a deprecation message.
+func isDeprecated(template database.Template) bool {
+	return template.Deprecated != ""
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -13023,7 +13029,17 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
 			continue
 		}
-		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
+		// Filters templates based on the search query filter 'Deprecated' status
+		// Matching SQL logic:
+		// -- Filter by deprecated
+		// AND CASE
+		//   WHEN :deprecated IS NOT NULL THEN
+		//     CASE
+		//       WHEN :deprecated THEN deprecated != ''
+		//       ELSE deprecated = ''
+		//     END
+		//   ELSE true
+		if arg.Deprecated.Valid && arg.Deprecated.Bool != isDeprecated(template) {
 			continue
 		}
 		if arg.FuzzyName != "" {

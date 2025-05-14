@@ -53,6 +53,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		blockFileTransfer   bool
 		agentHeaderCommand  string
 		agentHeader         []string
+		subAgent            bool
 
 		experimentalDevcontainersEnabled bool
 	)
@@ -350,6 +351,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				PrometheusRegistry: prometheusRegistry,
 				BlockFileTransfer:  blockFileTransfer,
 				Execer:             execer,
+				SubAgent:           subAgent,
 
 				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 			})
@@ -480,6 +482,17 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
 			Description: "Allow the agent to automatically detect running devcontainers.",
 			Value:       serpent.BoolOf(&experimentalDevcontainersEnabled),
+		},
+		{
+			Flag:        "is-sub-agent",
+			Default:     "false",
+			Env:         "CODER_AGENT_IS_SUB_AGENT",
+			Description: "Specify whether this is a sub agent or not.",
+			Value:       serpent.BoolOf(&subAgent),
+			// As `coderd` handles the creation of sub-agents, it does not make
+			// sense for this to be exposed. We do not want people setting an
+			// agent as a sub-agent if it is not.
+			Hidden: true,
 		},
 	}
 

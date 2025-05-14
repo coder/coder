@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -68,7 +69,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	fs, err := api.FileCache.Acquire(fileCtx, fileID)
+	templateFS, err := api.FileCache.Acquire(fileCtx, fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error fetching template version Terraform.",
@@ -85,6 +86,26 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 	if err == nil {
 		plan = tf.CachedPlan
+
+		if tf.CachedModuleFiles.Valid {
+			moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+					Message: "Internal error fetching Terraform modules.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
+			templateFS, err = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error creating overlay filesystem.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
 	} else if !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to retrieve Terraform values for template version",
@@ -124,7 +145,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	)
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := preview.Preview(ctx, input, fs)
+	result, diagnostics := preview.Preview(ctx, input, templateFS)
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1,
 		Diagnostics: previewtypes.Diagnostics(diagnostics),
@@ -152,7 +173,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 				return
 			}
 			input.ParameterValues = update.Inputs
-			result, diagnostics := preview.Preview(ctx, input, fs)
+			result, diagnostics := preview.Preview(ctx, input, templateFS)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
 				Diagnostics: previewtypes.Diagnostics(diagnostics),

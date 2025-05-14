@@ -16,6 +16,7 @@ import (
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -247,6 +248,10 @@ func TestMetricsCollector(t *testing.T) {
 										)
 										setupTestDBWorkspaceAgent(t, db, workspace.ID, eligible)
 									}
+
+									// Force an update to the metrics state to allow the collector to collect fresh metrics.
+									// nolint:gocritic // Authz context needed to retrieve state.
+									require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
 
 									metricsFamilies, err := registry.Gather()
 									require.NoError(t, err)

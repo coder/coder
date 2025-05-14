@@ -50,6 +50,7 @@ site/stats/
 *.tfplan
 *.lock.hcl
 .terraform/
+!coderd/testdata/parameters/modules/.terraform/
 !provisioner/terraform/testdata/modules-source-caching/.terraform/
 
 **/.coderv2/*
