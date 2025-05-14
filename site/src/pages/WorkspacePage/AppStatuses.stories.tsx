@@ -21,6 +21,7 @@ const meta: Meta<typeof AppStatuses> = {
 					proxy: getPreferredProxy([], undefined),
 					proxies: [],
 					isLoading: false,
+					latenciesLoaded: true,
 					isFetched: true,
 					clearProxy: () => {
 						return;

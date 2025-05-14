@@ -157,6 +157,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 					proxy: getPreferredProxy([], undefined),
 					proxies: [],
 					isLoading: false,
+					latenciesLoaded: true,
 					isFetched: true,
 					clearProxy: () => {
 						return;

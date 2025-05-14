@@ -53,6 +53,7 @@ const meta: Meta<typeof Workspace> = {
 					proxy: getPreferredProxy([], undefined),
 					proxies: [],
 					isLoading: false,
+					latenciesLoaded: true,
 					isFetched: true,
 					clearProxy: () => {
 						return;

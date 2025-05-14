@@ -102,6 +102,7 @@ const meta: Meta<typeof AgentRow> = {
 					proxy: getPreferredProxy([], undefined),
 					proxies: [],
 					isLoading: false,
+					latenciesLoaded: true,
 					isFetched: true,
 					setProxy: () => {
 						return;
@@ -263,6 +264,7 @@ export const ShowingPortForward: Story = {
 					),
 					proxies: M.MockWorkspaceProxies,
 					isLoading: false,
+					latenciesLoaded: true,
 					isFetched: true,
 					setProxy: () => {
 						return;

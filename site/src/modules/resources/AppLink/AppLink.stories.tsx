@@ -28,6 +28,7 @@ const meta: Meta<typeof AppLink> = {
 					},
 					proxies: MockWorkspaceProxies,
 					isLoading: false,
+					latenciesLoaded: true,
 					isFetched: true,
 					setProxy: () => {
 						return;
