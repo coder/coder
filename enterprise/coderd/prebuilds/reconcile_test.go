@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -951,10 +950,9 @@ func TestTrackResourceReplacement(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 
-	ep := newFakeEnqueuer()
+	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
-	reconciler := prebuilds.NewStoreReconciler(db, ps, codersdk.PrebuildsConfig{}, logger, clock, registry, ep)
-	fakeEnqueuer := (*ep.Load()).(*notificationstest.FakeEnqueuer)
+	reconciler := prebuilds.NewStoreReconciler(db, ps, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer)
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -1025,18 +1023,12 @@ func TestTrackResourceReplacement(t *testing.T) {
 	require.EqualValues(t, 1, metric.GetCounter().GetValue())
 }
 
-func newNoopEnqueuer() *atomic.Pointer[notifications.Enqueuer] {
-	var ep atomic.Pointer[notifications.Enqueuer]
-	enqueuer := notifications.NewNoopEnqueuer()
-	ep.Store(&enqueuer)
-	return &ep
+func newNoopEnqueuer() *notifications.NoopEnqueuer {
+	return notifications.NewNoopEnqueuer()
 }
 
-func newFakeEnqueuer() *atomic.Pointer[notifications.Enqueuer] {
-	var ep atomic.Pointer[notifications.Enqueuer]
-	fakeEnqueuer := notificationstest.NewFakeEnqueuer()
-	ep.Store(&fakeEnqueuer)
-	return &ep
+func newFakeEnqueuer() *notificationstest.FakeEnqueuer {
+	return notificationstest.NewFakeEnqueuer()
 }
 
 // nolint:revive // It's a control flag, but this is a test.

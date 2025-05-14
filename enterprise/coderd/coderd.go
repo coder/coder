@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/coder/quartz"
@@ -20,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/notifications"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1166,11 +1164,7 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
 	}
 
-	// api.NotificationsEnqueuer may not be fully setup by the time the reconciler is created; ensure it can be updated
-	// later safely and keep a reference to the underlying value.
-	var enqueuer atomic.Pointer[notifications.Enqueuer]
-	enqueuer.Store(&api.NotificationsEnqueuer)
 	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
-		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, &enqueuer)
+		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }

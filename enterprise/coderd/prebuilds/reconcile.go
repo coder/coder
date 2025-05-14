@@ -44,11 +44,7 @@ type StoreReconciler struct {
 	clock      quartz.Clock
 	registerer prometheus.Registerer
 	metrics    *MetricsCollector
-	// Kept as an atomic.Pointer so the implementation can swap at runtime;
-	// a plain interface value would be copied into the struct and wouldn't
-	// reflect later assignments. The enqueuer starts as a NoopEnqueuer and is later changed,
-	// and refactoring the order of operations would be too onerous.
-	notifEnq *atomic.Pointer[notifications.Enqueuer]
+	notifEnq   notifications.Enqueuer
 
 	cancelFn          context.CancelCauseFunc
 	running           atomic.Bool
@@ -65,7 +61,7 @@ func NewStoreReconciler(store database.Store,
 	logger slog.Logger,
 	clock quartz.Clock,
 	registerer prometheus.Registerer,
-	notifEnq *atomic.Pointer[notifications.Enqueuer],
+	notifEnq notifications.Enqueuer,
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
 		store:             store,
@@ -713,7 +709,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 	}
 
 	// Send notification to template admins.
-	if c.notifEnq == nil || c.notifEnq.Load() == nil {
+	if c.notifEnq == nil {
 		c.logger.Warn(ctx, "notification enqueuer not set, cannot send resource replacement notification(s)")
 		return nil
 	}
@@ -732,7 +728,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 
 	var notifErr error
 	for _, templateAdmin := range templateAdmins {
-		if _, err := (*c.notifEnq.Load()).EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
+		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
 			map[string]string{
 				"org":                 org.Name,
 				"workspace":           workspace.Name,

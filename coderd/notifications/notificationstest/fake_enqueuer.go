@@ -22,7 +22,7 @@ type FakeEnqueuer struct {
 
 var _ notifications.Enqueuer = &FakeEnqueuer{}
 
-func NewFakeEnqueuer() notifications.Enqueuer {
+func NewFakeEnqueuer() *FakeEnqueuer {
 	return &FakeEnqueuer{}
 }
 
