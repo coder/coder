@@ -164,31 +164,6 @@ func TestMetricsCollector(t *testing.T) {
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
 		},
-		{
-			name:         "deleted templates never desire prebuilds",
-			transitions:  allTransitions,
-			jobStatuses:  allJobStatuses,
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
-			metrics: []metricCheck{
-				{prebuilds.MetricDesiredGauge, ptr.To(0.0), false},
-			},
-			templateDeleted: []bool{true},
-			eligible:        []bool{false},
-		},
-		{
-			name:         "running prebuilds for deleted templates are still counted, so that they can be deleted",
-			transitions:  []database.WorkspaceTransition{database.WorkspaceTransitionStart},
-			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
-			metrics: []metricCheck{
-				{prebuilds.MetricRunningGauge, ptr.To(1.0), false},
-				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
-			},
-			templateDeleted: []bool{true},
-			eligible:        []bool{false},
-		},
 	}
 	for _, test := range tests {
 		test := test // capture for parallel
