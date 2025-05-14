@@ -371,8 +371,8 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	defaultOrg := dbgen.Organization(t, db, database.Organization{
 		Name: defaultOrgName,
 	})
-	setupTemplateWithDeps := func(templateDeleted bool) {
-		template := setupTestDBTemplateWithinOrg(t, db, test.ownerID, true, defaultTemplateName, defaultOrg)
+	setupTemplateWithDeps := func(templateDeleted bool) database.Template {
+		template := setupTestDBTemplateWithinOrg(t, db, test.ownerID, templateDeleted, defaultTemplateName, defaultOrg)
 		templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, defaultOrg.ID, test.ownerID, template.ID)
 		preset := setupTestDBPreset(t, db, templateVersionID, 1, defaultPresetName)
 		workspace, _ := setupTestDBWorkspace(
@@ -380,18 +380,52 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 			test.transition, test.jobStatus, defaultOrg.ID, preset, template.ID, templateVersionID, test.initiatorID, test.ownerID,
 		)
 		setupTestDBWorkspaceAgent(t, db, workspace.ID, test.eligible)
+		return template
 	}
 	// Simulates creating and then deleting a template.
 	setupTemplateWithDeps(true)
 	// Simulates creating a template with the same org, template name, and preset name.
-	setupTemplateWithDeps(false)
+	newTemplate := setupTemplateWithDeps(false)
 
 	// Force an update to the metrics state to allow the collector to collect fresh metrics.
 	// nolint:gocritic // Authz context needed to retrieve state.
 	require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
 
-	_, err := registry.Gather()
+	metricsFamilies, err := registry.Gather()
 	require.NoError(t, err)
+
+	templateVersions, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
+		TemplateID: newTemplate.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(templateVersions))
+
+	presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersions[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(presets))
+
+	for _, preset := range presets {
+		labels := map[string]string{
+			"template_name":     newTemplate.Name,
+			"preset_name":       preset.Name,
+			"organization_name": defaultOrg.Name,
+		}
+
+		for _, check := range test.metrics {
+			metric := findMetric(metricsFamilies, check.name, labels)
+			if check.value == nil {
+				continue
+			}
+
+			require.NotNil(t, metric, "metric %s should exist", check.name)
+
+			if check.isCounter {
+				require.Equal(t, *check.value, metric.GetCounter().GetValue(), "counter %s value mismatch", check.name)
+			} else {
+				require.Equal(t, *check.value, metric.GetGauge().GetValue(), "gauge %s value mismatch", check.name)
+			}
+		}
+	}
 }
 
 func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, labels map[string]string) *prometheus_client.Metric {
