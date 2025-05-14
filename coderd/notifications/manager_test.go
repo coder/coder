@@ -182,6 +182,28 @@ func TestStopBeforeRun(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+func TestRunStopRace(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
+	store, ps := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	// GIVEN: a standard manager
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), store, ps, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	require.NoError(t, err)
+
+	// Start Run and Stop after each other (run does "go loop()").
+	// This is to catch a (now fixed) race condition where the manager
+	// would be accessed/stopped while it was being created/starting up.
+	mgr.Run(ctx)
+	err = mgr.Stop(ctx)
+	require.NoError(t, err)
+}
+
 type syncInterceptor struct {
 	notifications.Store
 

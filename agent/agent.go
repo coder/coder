@@ -89,6 +89,7 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
+	SubAgent                     bool
 
 	ExperimentalDevcontainersEnabled bool
 	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
@@ -190,6 +191,8 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
+		subAgent: options.SubAgent,
+
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
 		containerAPIOptions:              options.ContainerAPIOptions,
 	}
@@ -271,6 +274,8 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
+
+	subAgent bool
 
 	experimentalDevcontainersEnabled bool
 	containerAPIOptions              []agentcontainers.Option
@@ -363,9 +368,11 @@ func (a *agent) runLoop() {
 		if ctx.Err() != nil {
 			// Context canceled errors may come from websocket pings, so we
 			// don't want to use `errors.Is(err, context.Canceled)` here.
+			a.logger.Warn(ctx, "runLoop exited with error", slog.Error(ctx.Err()))
 			return
 		}
 		if a.isClosed() {
+			a.logger.Warn(ctx, "runLoop exited because agent is closed")
 			return
 		}
 		if errors.Is(err, io.EOF) {
@@ -1046,7 +1053,11 @@ func (a *agent) run() (retErr error) {
 		return a.statsReporter.reportLoop(ctx, aAPI)
 	})
 
-	return connMan.wait()
+	err = connMan.wait()
+	if err != nil {
+		a.logger.Info(context.Background(), "connection manager errored", slog.Error(err))
+	}
+	return err
 }
 
 // handleManifest returns a function that fetches and processes the manifest
@@ -1085,6 +1096,8 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if err != nil {
 			return xerrors.Errorf("expand directory: %w", err)
 		}
+		// Normalize all devcontainer paths by making them absolute.
+		manifest.Devcontainers = agentcontainers.ExpandAllDevcontainerPaths(a.logger, expandPathToAbs, manifest.Devcontainers)
 		subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
@@ -1127,7 +1140,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			)
 			if a.experimentalDevcontainersEnabled {
 				var dcScripts []codersdk.WorkspaceAgentScript
-				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(a.logger, expandPathToAbs, manifest.Devcontainers, scripts)
+				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(manifest.Devcontainers, scripts)
 				// See ExtractAndInitializeDevcontainerScripts for motivation
 				// behind running dcScripts as post start scripts.
 				scriptRunnerOpts = append(scriptRunnerOpts, agentscripts.WithPostStartScripts(dcScripts...))

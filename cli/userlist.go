@@ -23,6 +23,7 @@ func (r *RootCmd) userList() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:     "list",
+		Short:   "Prints the list of users.",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),

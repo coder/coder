@@ -111,7 +111,7 @@ export const DropdownMenuItem = forwardRef<
 			[
 				"relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-2 text-sm text-content-secondary font-medium outline-none transition-colors",
 				"focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-				"[&>svg]:size-4 [&>svg]:shrink-0",
+				"[&>svg]:size-4 [&>svg]:shrink-0 no-underline",
 				inset && "pl-8",
 			],
 			className,

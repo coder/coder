@@ -1380,6 +1380,12 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(
 	return jobs, nil
 }
 
+// isDeprecated returns true if the template is deprecated.
+// A template is considered deprecated when it has a deprecation message.
+func isDeprecated(template database.Template) bool {
+	return template.Deprecated != ""
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -7652,6 +7658,30 @@ func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resou
 	return q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	build, err := q.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams(arg))
+	if err != nil {
+		return nil, err
+	}
+
+	resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, build.JobID)
+	if err != nil {
+		return nil, err
+	}
+
+	var resourceIDs []uuid.UUID
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	return q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -9319,6 +9349,7 @@ func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Cont
 	row := database.TemplateVersionTerraformValue{
 		TemplateVersionID: templateVersion.ID,
 		CachedPlan:        arg.CachedPlan,
+		CachedModuleFiles: arg.CachedModuleFiles,
 		UpdatedAt:         arg.UpdatedAt,
 	}
 	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
@@ -9573,6 +9604,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 
 	agent := database.WorkspaceAgent{
 		ID:                       arg.ID,
+		ParentID:                 arg.ParentID,
 		CreatedAt:                arg.CreatedAt,
 		UpdatedAt:                arg.UpdatedAt,
 		ResourceID:               arg.ResourceID,
@@ -13025,7 +13057,17 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
 			continue
 		}
-		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
+		// Filters templates based on the search query filter 'Deprecated' status
+		// Matching SQL logic:
+		// -- Filter by deprecated
+		// AND CASE
+		//   WHEN :deprecated IS NOT NULL THEN
+		//     CASE
+		//       WHEN :deprecated THEN deprecated != ''
+		//       ELSE deprecated = ''
+		//     END
+		//   ELSE true
+		if arg.Deprecated.Valid && arg.Deprecated.Bool != isDeprecated(template) {
 			continue
 		}
 		if arg.FuzzyName != "" {

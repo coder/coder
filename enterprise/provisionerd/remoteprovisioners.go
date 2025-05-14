@@ -27,6 +27,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	agpl "github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -188,8 +189,10 @@ func (r *remoteConnector) handleConn(conn net.Conn) {
 	logger.Info(r.ctx, "provisioner connected")
 	closeConn = false // we're passing the conn over the channel
 	w.respCh <- agpl.ConnectResponse{
-		Job:    w.job,
-		Client: sdkproto.NewDRPCProvisionerClient(drpcconn.New(tlsConn)),
+		Job: w.job,
+		Client: sdkproto.NewDRPCProvisionerClient(drpcconn.NewWithOptions(tlsConn, drpcconn.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
+		})),
 	}
 }
 

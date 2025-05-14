@@ -1,6 +1,7 @@
+import { workspaces } from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
 import { compareAsc } from "date-fns";
-import { useWorkspacesData } from "pages/WorkspacesPage/data";
+import { useQuery } from "react-query";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 
 export const useWorkspacesToGoDormant = (
@@ -8,11 +9,11 @@ export const useWorkspacesToGoDormant = (
 	formValues: TemplateScheduleFormValues,
 	fromDate: Date,
 ) => {
-	const { data } = useWorkspacesData({
-		page: 0,
-		limit: 0,
-		query: `template:${template.name}`,
-	});
+	const { data } = useQuery(
+		workspaces({
+			q: `template:${template.name}`,
+		}),
+	);
 
 	return data?.workspaces?.filter((workspace: Workspace) => {
 		if (!formValues.time_til_dormant_ms) {
@@ -39,11 +40,12 @@ export const useWorkspacesToBeDeleted = (
 	formValues: TemplateScheduleFormValues,
 	fromDate: Date,
 ) => {
-	const { data } = useWorkspacesData({
-		page: 0,
-		limit: 0,
-		query: `template:${template.name} dormant:true`,
-	});
+	const { data } = useQuery(
+		workspaces({
+			q: `template:${template.name} dormant:true`,
+		}),
+	);
+
 	return data?.workspaces?.filter((workspace: Workspace) => {
 		if (!workspace.dormant_at || !formValues.time_til_dormant_autodelete_ms) {
 			return false;

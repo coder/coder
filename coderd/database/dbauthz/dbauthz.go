@@ -12,21 +12,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa/topdown"
 	"golang.org/x/xerrors"
 
-	"github.com/open-policy-agent/opa/topdown"
-
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/provisionersdk"
 )
@@ -347,6 +345,7 @@ var (
 					rbac.ResourceNotificationPreference.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -3028,6 +3027,15 @@ func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uui
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
+}
+
+func (q *querier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	_, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {

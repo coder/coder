@@ -38,6 +38,16 @@ export enum WorkspaceTransition {
   UNRECOGNIZED = -1,
 }
 
+export enum PrebuiltWorkspaceBuildStage {
+  /** NONE - Default value for builds unrelated to prebuilds. */
+  NONE = 0,
+  /** CREATE - A prebuilt workspace is being provisioned. */
+  CREATE = 1,
+  /** CLAIM - A prebuilt workspace is being claimed. */
+  CLAIM = 2,
+  UNRECOGNIZED = -1,
+}
+
 export enum TimingState {
   STARTED = 0,
   COMPLETED = 1,
@@ -108,6 +118,11 @@ export interface Preset {
 export interface PresetParameter {
   name: string;
   value: string;
+}
+
+export interface ResourceReplacement {
+  resource: string;
+  paths: string[];
 }
 
 /** VariableValue holds the key/value mapping of a Terraform variable. */
@@ -279,11 +294,17 @@ export interface Module {
   source: string;
   version: string;
   key: string;
+  dir: string;
 }
 
 export interface Role {
   name: string;
   orgId: string;
+}
+
+export interface RunningAgentAuthToken {
+  agentId: string;
+  token: string;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -307,8 +328,9 @@ export interface Metadata {
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
   workspaceOwnerRbacRoles: Role[];
-  isPrebuild: boolean;
-  runningWorkspaceAgentToken: string;
+  /** Indicates that a prebuilt workspace is being built. */
+  prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
+  runningAgentAuthTokens: RunningAgentAuthToken[];
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -343,6 +365,7 @@ export interface PlanRequest {
   richParameterValues: RichParameterValue[];
   variableValues: VariableValue[];
   externalAuthProviders: ExternalAuthProvider[];
+  previousParameterValues: RichParameterValue[];
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -355,6 +378,8 @@ export interface PlanComplete {
   modules: Module[];
   presets: Preset[];
   plan: Uint8Array;
+  moduleFiles: Uint8Array;
+  resourceReplacements: ResourceReplacement[];
 }
 
 /**
@@ -549,6 +574,18 @@ export const PresetParameter = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+};
+
+export const ResourceReplacement = {
+  encode(message: ResourceReplacement, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.resource !== "") {
+      writer.uint32(10).string(message.resource);
+    }
+    for (const v of message.paths) {
+      writer.uint32(18).string(v!);
     }
     return writer;
   },
@@ -952,6 +989,9 @@ export const Module = {
     if (message.key !== "") {
       writer.uint32(26).string(message.key);
     }
+    if (message.dir !== "") {
+      writer.uint32(34).string(message.dir);
+    }
     return writer;
   },
 };
@@ -963,6 +1003,18 @@ export const Role = {
     }
     if (message.orgId !== "") {
       writer.uint32(18).string(message.orgId);
+    }
+    return writer;
+  },
+};
+
+export const RunningAgentAuthToken = {
+  encode(message: RunningAgentAuthToken, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.agentId !== "") {
+      writer.uint32(10).string(message.agentId);
+    }
+    if (message.token !== "") {
+      writer.uint32(18).string(message.token);
     }
     return writer;
   },
@@ -1027,11 +1079,11 @@ export const Metadata = {
     for (const v of message.workspaceOwnerRbacRoles) {
       Role.encode(v!, writer.uint32(154).fork()).ldelim();
     }
-    if (message.isPrebuild === true) {
-      writer.uint32(160).bool(message.isPrebuild);
+    if (message.prebuiltWorkspaceBuildStage !== 0) {
+      writer.uint32(160).int32(message.prebuiltWorkspaceBuildStage);
     }
-    if (message.runningWorkspaceAgentToken !== "") {
-      writer.uint32(170).string(message.runningWorkspaceAgentToken);
+    for (const v of message.runningAgentAuthTokens) {
+      RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
     }
     return writer;
   },
@@ -1102,6 +1154,9 @@ export const PlanRequest = {
     for (const v of message.externalAuthProviders) {
       ExternalAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
     }
+    for (const v of message.previousParameterValues) {
+      RichParameterValue.encode(v!, writer.uint32(42).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1131,6 +1186,12 @@ export const PlanComplete = {
     }
     if (message.plan.length !== 0) {
       writer.uint32(74).bytes(message.plan);
+    }
+    if (message.moduleFiles.length !== 0) {
+      writer.uint32(82).bytes(message.moduleFiles);
+    }
+    for (const v of message.resourceReplacements) {
+      ResourceReplacement.encode(v!, writer.uint32(90).fork()).ldelim();
     }
     return writer;
   },

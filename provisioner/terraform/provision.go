@@ -152,7 +152,7 @@ func (s *server) Plan(
 
 	s.logger.Debug(ctx, "ran initialization")
 
-	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.ExternalAuthProviders)
+	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
@@ -163,10 +163,7 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	resp, err := e.plan(
-		ctx, killCtx, env, vars, sess,
-		request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY,
-	)
+	resp, err := e.plan(ctx, killCtx, env, vars, sess, request.Metadata)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
@@ -205,7 +202,7 @@ func (s *server) Apply(
 
 	// Earlier in the session, Plan() will have written the state file and the plan file.
 	statefilePath := getStateFilePath(sess.WorkDirectory)
-	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil)
+	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
 	}
@@ -236,7 +233,7 @@ func planVars(plan *proto.PlanRequest) ([]string, error) {
 
 func provisionEnv(
 	config *proto.Config, metadata *proto.Metadata,
-	richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
+	previousParams, richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
 ) ([]string, error) {
 	env := safeEnviron()
 	ownerGroups, err := json.Marshal(metadata.GetWorkspaceOwnerGroups())
@@ -270,12 +267,29 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
-	if metadata.GetIsPrebuild() {
+	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	}
+	tokens := metadata.GetRunningAgentAuthTokens()
+	if len(tokens) == 1 {
+		env = append(env, provider.RunningAgentTokenEnvironmentVariable("")+"="+tokens[0].Token)
+	} else {
+		// Not currently supported, but added for forward-compatibility
+		for _, t := range tokens {
+			// If there are multiple agents, provide all the tokens to terraform so that it can
+			// choose the correct one for each agent ID.
+			env = append(env, provider.RunningAgentTokenEnvironmentVariable(t.AgentId)+"="+t.Token)
+		}
+	}
+	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() {
+		env = append(env, provider.IsPrebuildClaimEnvironmentVariable()+"=true")
 	}
 
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
+	}
+	for _, param := range previousParams {
+		env = append(env, provider.ParameterEnvironmentVariablePrevious(param.Name)+"="+param.Value)
 	}
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)

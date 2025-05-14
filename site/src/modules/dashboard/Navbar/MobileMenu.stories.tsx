@@ -6,8 +6,8 @@ import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
 	MockSupportLinks,
-	MockUser,
-	MockUser2,
+	MockUserMember,
+	MockUserOwner,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
 import { MobileMenu } from "./MobileMenu";
@@ -36,7 +36,7 @@ const meta: Meta<typeof MobileMenu> = {
 			proxyLatencies: MockProxyLatencies,
 			proxies: MockWorkspaceProxies,
 		},
-		user: MockUser,
+		user: MockUserOwner,
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
@@ -63,7 +63,7 @@ export const Admin: Story = {
 
 export const Auditor: Story = {
 	args: {
-		user: MockUser2,
+		user: MockUserMember,
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -74,7 +74,7 @@ export const Auditor: Story = {
 
 export const OrgAdmin: Story = {
 	args: {
-		user: MockUser2,
+		user: MockUserMember,
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -85,7 +85,7 @@ export const OrgAdmin: Story = {
 
 export const Member: Story = {
 	args: {
-		user: MockUser2,
+		user: MockUserMember,
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,

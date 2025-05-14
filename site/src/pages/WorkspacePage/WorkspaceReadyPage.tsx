@@ -1,18 +1,16 @@
-import { API, MissingBuildParameters } from "api/api";
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { buildInfo } from "api/queries/buildInfo";
-import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
-import { templateVersion, templateVersions } from "api/queries/templates";
+import { deploymentSSHConfig } from "api/queries/deployment";
+import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
 	activate,
 	cancelBuild,
-	changeVersion,
 	deleteWorkspace,
 	startWorkspace,
 	stopWorkspace,
 	toggleFavorite,
-	updateWorkspace,
 } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import {
@@ -20,23 +18,19 @@ import {
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import {
+	WorkspaceUpdateDialogs,
+	useWorkspaceUpdate,
+} from "modules/workspaces/WorkspaceUpdateDialogs";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { ChangeVersionDialog } from "./ChangeVersionDialog";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
-import type { WorkspacePermissions } from "./permissions";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
@@ -51,23 +45,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-
 	const featureVisibility = useFeatureVisibility();
-	if (workspace === undefined) {
-		throw Error("Workspace is undefined");
-	}
-
-	// Owner
-	const { user: me } = useAuthenticated();
-	const isOwner = me.roles.find((role) => role.name === "owner") !== undefined;
-
-	// Debug mode
-	const { data: deploymentValues } = useQuery({
-		...deploymentConfig(),
-		enabled: permissions.viewDeploymentConfig,
-	});
 
 	// Build logs
 	const shouldStreamBuildLogs = workspace.latest_build.status !== "running";
@@ -102,33 +81,19 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		setFaviconTheme(isDark.matches ? "light" : "dark");
 	}, []);
 
-	// Change version
-	const canChangeVersions = permissions.updateTemplate;
-	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
-	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient),
-	);
-
-	// Versions
-	const { data: allVersions } = useQuery({
-		...templateVersions(workspace.template_id),
-		enabled: changeVersionDialogOpen,
-	});
+	// Active version
 	const { data: latestVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: workspace.outdated,
 	});
 
 	// Update workspace
-	const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
-	const updateWorkspaceMutation = useMutation(
-		updateWorkspace(workspace, queryClient),
-	);
+	const workspaceUpdate = useWorkspaceUpdate({
+		workspace,
+		latestVersion,
+	});
 
-	// If a user can update the template then they can force a delete
-	// (via orphan).
-	const canUpdateTemplate = Boolean(permissions.updateTemplate);
-	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	// Delete workspace
 	const deleteWorkspaceMutation = useMutation(
 		deleteWorkspace(workspace, queryClient),
 	);
@@ -233,34 +198,30 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 			<Workspace
 				permissions={permissions}
-				isUpdating={updateWorkspaceMutation.isLoading}
+				isUpdating={workspaceUpdate.isUpdating}
 				isRestarting={isRestarting}
 				workspace={workspace}
+				latestVersion={latestVersion}
+				hideSSHButton={featureVisibility.browser_only}
+				hideVSCodeDesktopButton={featureVisibility.browser_only}
+				buildInfo={buildInfoQuery.data}
+				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
+				template={template}
+				buildLogs={buildLogs}
+				timings={timingsQuery.data}
 				handleStart={(buildParameters) => {
 					startWorkspaceMutation.mutate({ buildParameters });
 				}}
 				handleStop={() => {
 					stopWorkspaceMutation.mutate({});
 				}}
-				handleDelete={() => {
-					setIsConfirmingDelete(true);
-				}}
 				handleRestart={(buildParameters) => {
 					setConfirmingRestart({ open: true, buildParameters });
 				}}
-				handleUpdate={() => {
-					setIsConfirmingUpdate(true);
-				}}
+				handleUpdate={workspaceUpdate.update}
 				handleCancel={cancelBuildMutation.mutate}
-				handleSettings={() => navigate("settings")}
 				handleRetry={handleRetry}
 				handleDebug={handleDebug}
-				canDebugMode={
-					deploymentValues?.config.enable_terraform_debug_mode ?? false
-				}
-				handleChangeVersion={() => {
-					setChangeVersionDialogOpen(true);
-				}}
 				handleDormantActivate={async () => {
 					try {
 						await activateWorkspaceMutation.mutateAsync();
@@ -272,108 +233,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				handleToggleFavorite={() => {
 					toggleFavoriteMutation.mutate();
 				}}
-				latestVersion={latestVersion}
-				canChangeVersions={canChangeVersions}
-				hideSSHButton={featureVisibility.browser_only}
-				hideVSCodeDesktopButton={featureVisibility.browser_only}
-				buildInfo={buildInfoQuery.data}
-				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
-				template={template}
-				buildLogs={buildLogs}
-				isOwner={isOwner}
-				timings={timingsQuery.data}
-			/>
-
-			<WorkspaceDeleteDialog
-				workspace={workspace}
-				canUpdateTemplate={canUpdateTemplate}
-				isOpen={isConfirmingDelete}
-				onCancel={() => {
-					setIsConfirmingDelete(false);
-				}}
-				onConfirm={(orphan) => {
-					deleteWorkspaceMutation.mutate({ orphan });
-					setIsConfirmingDelete(false);
-				}}
-				workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
-			/>
-
-			<UpdateBuildParametersDialog
-				missedParameters={
-					changeVersionMutation.error instanceof MissingBuildParameters
-						? changeVersionMutation.error.parameters
-						: []
-				}
-				open={changeVersionMutation.error instanceof MissingBuildParameters}
-				onClose={() => {
-					changeVersionMutation.reset();
-				}}
-				onUpdate={(buildParameters) => {
-					if (changeVersionMutation.error instanceof MissingBuildParameters) {
-						changeVersionMutation.mutate({
-							versionId: changeVersionMutation.error.versionId,
-							buildParameters,
-						});
-					}
-				}}
-			/>
-
-			<UpdateBuildParametersDialog
-				missedParameters={
-					updateWorkspaceMutation.error instanceof MissingBuildParameters
-						? updateWorkspaceMutation.error.parameters
-						: []
-				}
-				open={updateWorkspaceMutation.error instanceof MissingBuildParameters}
-				onClose={() => {
-					updateWorkspaceMutation.reset();
-				}}
-				onUpdate={(buildParameters) => {
-					if (updateWorkspaceMutation.error instanceof MissingBuildParameters) {
-						updateWorkspaceMutation.mutate(buildParameters);
-					}
-				}}
-			/>
-
-			<ChangeVersionDialog
-				templateVersions={allVersions?.reverse()}
-				template={template}
-				defaultTemplateVersion={allVersions?.find(
-					(v) => workspace.latest_build.template_version_id === v.id,
-				)}
-				open={changeVersionDialogOpen}
-				onClose={() => {
-					setChangeVersionDialogOpen(false);
-				}}
-				onConfirm={(templateVersion) => {
-					setChangeVersionDialogOpen(false);
-					changeVersionMutation.mutate({ versionId: templateVersion.id });
-				}}
-			/>
-
-			<WarningDialog
-				open={isConfirmingUpdate}
-				onConfirm={() => {
-					updateWorkspaceMutation.mutate(undefined);
-					setIsConfirmingUpdate(false);
-				}}
-				onClose={() => setIsConfirmingUpdate(false)}
-				title="Update workspace?"
-				confirmText="Update"
-				description={
-					<Stack>
-						<p>
-							Updating your workspace will start the workspace on the latest
-							template version. This can{" "}
-							<strong>delete non-persistent data</strong>.
-						</p>
-						{latestVersion?.message && (
-							<MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
-								{latestVersion.message}
-							</MemoizedInlineMarkdown>
-						)}
-					</Stack>
-				}
 			/>
 
 			<WarningDialog
@@ -395,6 +254,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					</>
 				}
 			/>
+
+			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
 		</>
 	);
 };

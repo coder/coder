@@ -81,32 +81,25 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				</span>
 
 				{selectedProxy ? (
-					<div css={{ display: "flex", gap: 8, alignItems: "center" }}>
-						<div css={{ width: 16, height: 16, lineHeight: 0 }}>
-							<img
-								// Empty alt text used because we don't want to double up on
-								// screen reader announcements from visually-hidden span
-								alt=""
-								src={selectedProxy.icon_url}
-								css={{
-									objectFit: "contain",
-									width: "100%",
-									height: "100%",
-								}}
-							/>
-						</div>
+					<>
+						<img
+							// Empty alt text used because we don't want to double up on
+							// screen reader announcements from visually-hidden span
+							alt=""
+							src={selectedProxy.icon_url}
+						/>
 
 						<Latency
 							latency={latencies?.[selectedProxy.id]?.latencyMS}
 							isLoading={proxyLatencyLoading(selectedProxy)}
 							size={24}
 						/>
-					</div>
+					</>
 				) : (
 					"Select Proxy"
 				)}
 
-				<ChevronDownIcon className="text-content-primary !size-icon-xs" />
+				<ChevronDownIcon className="text-content-primary !size-icon-sm" />
 			</Button>
 
 			<Menu

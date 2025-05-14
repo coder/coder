@@ -1,5 +1,4 @@
 import PersonAdd from "@mui/icons-material/PersonAdd";
-import LoadingButton from "@mui/lab/LoadingButton";
 import { getErrorMessage } from "api/errors";
 import type {
 	Group,
@@ -24,6 +23,7 @@ import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -237,15 +237,16 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 					}}
 				/>
 
-				<LoadingButton
-					loadingPosition="start"
-					disabled={!selectedUser}
+				<Button
+					disabled={!selectedUser || isLoading}
 					type="submit"
-					startIcon={<PersonAdd />}
-					loading={isLoading}
+					variant="outline"
 				>
+					<Spinner loading={isLoading}>
+						<PersonAdd />
+					</Spinner>
 					Add user
-				</LoadingButton>
+				</Button>
 			</Stack>
 		</form>
 	);

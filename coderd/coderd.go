@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
+
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -41,12 +43,13 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+
 	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/webpush"
 
@@ -84,7 +87,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1189,15 +1191,25 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParamOptional(options.Database))
+						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 						// Creating workspaces does not require permissions on the user, only the
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
 						r.Post("/workspaces", api.postUserWorkspaces)
+						r.Route("/workspace/{workspacename}", func(r chi.Router) {
+							r.Get("/", api.workspaceByOwnerAndName)
+							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
+						})
+					})
+
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
 
 						// Similarly to creating a workspace, evaluating parameters for a
 						// new workspace should also match the authz story of
 						// postWorkspacesByOrganization
+						// TODO: Do not require site wide read user permission. Make this work
+						//   with org member permissions.
 						r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 							r.Use(
 								httpmw.ExtractTemplateVersionParam(options.Database),
@@ -1205,10 +1217,6 @@ func New(options *Options) *API {
 							)
 							r.Get("/parameters", api.templateVersionDynamicParameters)
 						})
-					})
-
-					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParam(options.Database))
 
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
@@ -1250,10 +1258,7 @@ func New(options *Options) *API {
 							r.Get("/", api.organizationsByUser)
 							r.Get("/{organizationname}", api.organizationByUserAndName)
 						})
-						r.Route("/workspace/{workspacename}", func(r chi.Router) {
-							r.Get("/", api.workspaceByOwnerAndName)
-							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
-						})
+
 						r.Get("/gitsshkey", api.gitSSHKey)
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/notifications", func(r chi.Router) {
@@ -1296,6 +1301,7 @@ func New(options *Options) *API {
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
+				r.Get("/reinit", api.workspaceAgentReinit)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1722,7 +1728,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 
 func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
-	clientSession, serverSession := drpc.MemTransportPipe()
+	clientSession, serverSession := drpcsdk.MemTransportPipe()
 	defer func() {
 		if err != nil {
 			_ = clientSession.Close()
@@ -1790,6 +1796,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		&api.PrebuildsReconciler,
 	)
 	if err != nil {
 		return nil, err
@@ -1800,6 +1807,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
 				if xerrors.Is(err, io.EOF) {
 					return

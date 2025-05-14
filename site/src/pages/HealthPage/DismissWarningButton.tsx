@@ -1,10 +1,11 @@
 import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
 import NotificationOutlined from "@mui/icons-material/NotificationsOutlined";
-import LoadingButton from "@mui/lab/LoadingButton";
 import Skeleton from "@mui/material/Skeleton";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
 import type { HealthSection } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
@@ -33,11 +34,9 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 
 	if (isDismissed) {
 		return (
-			<LoadingButton
-				disabled={healthSettingsQuery.isLoading}
-				loading={enableMutation.isLoading}
-				loadingPosition="start"
-				startIcon={<NotificationsOffOutlined />}
+			<Button
+				disabled={healthSettingsQuery.isLoading || enableMutation.isLoading}
+				variant="outline"
 				onClick={async () => {
 					const updatedSettings = dismissed_healthchecks.filter(
 						(dismissedHealthcheck) =>
@@ -49,17 +48,18 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 					displaySuccess("Warnings enabled successfully!");
 				}}
 			>
+				<Spinner loading={enableMutation.isLoading}>
+					<NotificationsOffOutlined />
+				</Spinner>
 				Enable warnings
-			</LoadingButton>
+			</Button>
 		);
 	}
 
 	return (
-		<LoadingButton
-			disabled={healthSettingsQuery.isLoading}
-			loading={dismissMutation.isLoading}
-			loadingPosition="start"
-			startIcon={<NotificationOutlined />}
+		<Button
+			disabled={healthSettingsQuery.isLoading || dismissMutation.isLoading}
+			variant="outline"
 			onClick={async () => {
 				const updatedSettings = [...dismissed_healthchecks, props.healthcheck];
 				await dismissMutation.mutateAsync({
@@ -68,7 +68,10 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				displaySuccess("Warnings dismissed successfully!");
 			}}
 		>
+			<Spinner loading={dismissMutation.isLoading}>
+				<NotificationOutlined />
+			</Spinner>
 			Dismiss warnings
-		</LoadingButton>
+		</Button>
 	);
 };

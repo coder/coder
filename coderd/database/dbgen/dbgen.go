@@ -181,6 +181,7 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
+		ParentID:   takeFirst(orig.ParentID, uuid.NullUUID{}),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
 		Name:       takeFirst(orig.Name, testutil.GetRandomName(t)),
@@ -999,9 +1000,10 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	t.Helper()
 
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:      takeFirst(orig.JobID, uuid.New()),
-		CachedPlan: takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
+		JobID:             takeFirst(orig.JobID, uuid.New()),
+		CachedPlan:        takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles: orig.CachedModuleFiles,
+		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
 	}
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
@@ -1222,6 +1224,7 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 
 func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
 	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
 		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
 		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),

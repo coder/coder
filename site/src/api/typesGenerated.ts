@@ -1797,8 +1797,7 @@ export interface PreviewParameterData {
 	readonly type: PreviewParameterType;
 	// this is likely an enum in an external package "github.com/coder/terraform-provider-coder/v2/provider.ParameterFormType"
 	readonly form_type: string;
-	// empty interface{} type, falling back to unknown
-	readonly styling: unknown;
+	readonly styling: PreviewParameterStyling;
 	readonly mutable: boolean;
 	readonly default_value: NullHCLString;
 	readonly icon: string;
@@ -1817,6 +1816,13 @@ export interface PreviewParameterOption {
 	readonly icon: string;
 }
 
+// From types/parameter.go
+export interface PreviewParameterStyling {
+	readonly placeholder?: string;
+	readonly disabled?: boolean;
+	readonly label?: string;
+}
+
 // From types/enum.go
 export type PreviewParameterType = string;
 
@@ -1827,7 +1833,6 @@ export interface PreviewParameterValidation {
 	readonly validation_min: number | null;
 	readonly validation_max: number | null;
 	readonly validation_monotonic: string | null;
-	readonly validation_invalid: boolean | null;
 }
 
 // From codersdk/deployment.go
@@ -3250,6 +3255,7 @@ export interface Workspace {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
 	readonly id: string;
+	readonly parent_id: string | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly first_connected_at?: string;
@@ -3475,16 +3481,16 @@ export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
 	readonly id: string;
-	readonly url: string;
+	readonly url?: string;
 	readonly external: boolean;
 	readonly slug: string;
-	readonly display_name: string;
+	readonly display_name?: string;
 	readonly command?: string;
 	readonly icon?: string;
 	readonly subdomain: boolean;
 	readonly subdomain_name?: string;
 	readonly sharing_level: WorkspaceAppSharingLevel;
-	readonly healthcheck: Healthcheck;
+	readonly healthcheck?: Healthcheck;
 	readonly health: WorkspaceAppHealth;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;

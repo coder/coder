@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -361,7 +362,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		},
 		Short: "Start the Coder MCP server.",
 		Middleware: serpent.Chain(
-			r.InitClient(client),
+			r.TryInitClient(client),
 		),
 		Options: []serpent.Option{
 			{
@@ -396,19 +397,38 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 
 	fs := afero.NewOsFs()
 
-	me, err := client.User(ctx, codersdk.Me)
-	if err != nil {
-		cliui.Errorf(inv.Stderr, "Failed to log in to the Coder deployment.")
-		cliui.Errorf(inv.Stderr, "Please check your URL and credentials.")
-		cliui.Errorf(inv.Stderr, "Tip: Run `coder whoami` to check your credentials.")
-		return err
-	}
 	cliui.Infof(inv.Stderr, "Starting MCP server")
-	cliui.Infof(inv.Stderr, "User          : %s", me.Username)
-	cliui.Infof(inv.Stderr, "URL           : %s", client.URL)
-	cliui.Infof(inv.Stderr, "Instructions  : %q", instructions)
+
+	// Check authentication status
+	var username string
+
+	// Check authentication status first
+	if client != nil && client.URL != nil && client.SessionToken() != "" {
+		// Try to validate the client
+		me, err := client.User(ctx, codersdk.Me)
+		if err == nil {
+			username = me.Username
+			cliui.Infof(inv.Stderr, "Authentication : Successful")
+			cliui.Infof(inv.Stderr, "User           : %s", username)
+		} else {
+			// Authentication failed but we have a client URL
+			cliui.Warnf(inv.Stderr, "Authentication : Failed (%s)", err)
+			cliui.Warnf(inv.Stderr, "Some tools that require authentication will not be available.")
+		}
+	} else {
+		cliui.Infof(inv.Stderr, "Authentication : None")
+	}
+
+	// Display URL separately from authentication status
+	if client != nil && client.URL != nil {
+		cliui.Infof(inv.Stderr, "URL            : %s", client.URL.String())
+	} else {
+		cliui.Infof(inv.Stderr, "URL            : Not configured")
+	}
+
+	cliui.Infof(inv.Stderr, "Instructions   : %q", instructions)
 	if len(allowedTools) > 0 {
-		cliui.Infof(inv.Stderr, "Allowed Tools : %v", allowedTools)
+		cliui.Infof(inv.Stderr, "Allowed Tools  : %v", allowedTools)
 	}
 	cliui.Infof(inv.Stderr, "Press Ctrl+C to stop the server")
 
@@ -431,13 +451,33 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	// Get the workspace agent token from the environment.
 	toolOpts := make([]func(*toolsdk.Deps), 0)
 	var hasAgentClient bool
-	if agentToken, err := getAgentToken(fs); err == nil && agentToken != "" {
-		hasAgentClient = true
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		toolOpts = append(toolOpts, toolsdk.WithAgentClient(agentClient))
+
+	var agentURL *url.URL
+	if client != nil && client.URL != nil {
+		agentURL = client.URL
+	} else if agntURL, err := getAgentURL(); err == nil {
+		agentURL = agntURL
+	}
+
+	// First check if we have a valid client URL, which is required for agent client
+	if agentURL == nil {
+		cliui.Infof(inv.Stderr, "Agent URL      : Not configured")
 	} else {
-		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
+		cliui.Infof(inv.Stderr, "Agent URL      : %s", agentURL.String())
+		agentToken, err := getAgentToken(fs)
+		if err != nil || agentToken == "" {
+			cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
+		} else {
+			// Happy path: we have both URL and agent token
+			agentClient := agentsdk.New(agentURL)
+			agentClient.SetSessionToken(agentToken)
+			toolOpts = append(toolOpts, toolsdk.WithAgentClient(agentClient))
+			hasAgentClient = true
+		}
+	}
+
+	if (client == nil || client.URL == nil || client.SessionToken() == "") && !hasAgentClient {
+		return xerrors.New(notLoggedInMessage)
 	}
 
 	if appStatusSlug != "" {
@@ -458,6 +498,13 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 			cliui.Warnf(inv.Stderr, "Task reporting not available")
 			continue
 		}
+
+		// Skip user-dependent tools if no authenticated user
+		if !tool.UserClientOptional && username == "" {
+			cliui.Warnf(inv.Stderr, "Tool %q requires authentication and will not be available", tool.Tool.Name)
+			continue
+		}
+
 		if len(allowedTools) == 0 || slices.ContainsFunc(allowedTools, func(t string) bool {
 			return t == tool.Tool.Name
 		}) {
@@ -728,6 +775,15 @@ func getAgentToken(fs afero.Fs) (string, error) {
 		return "", xerrors.Errorf("failed to read agent token file: %w", err)
 	}
 	return string(bs), nil
+}
+
+func getAgentURL() (*url.URL, error) {
+	urlString, ok := os.LookupEnv("CODER_AGENT_URL")
+	if !ok || urlString == "" {
+		return nil, xerrors.New("CODEDR_AGENT_URL is empty")
+	}
+
+	return url.Parse(urlString)
 }
 
 // mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.

@@ -72,7 +72,7 @@ const (
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 
-	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
+	notLoggedInMessage = "You are not logged in. Try logging in using '%s login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -534,7 +534,11 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
-					return xerrors.New(notLoggedInMessage)
+					binPath, err := os.Executable()
+					if err != nil {
+						binPath = "coder"
+					}
+					return xerrors.Errorf(notLoggedInMessage, binPath)
 				}
 				if err != nil {
 					return err
@@ -566,6 +570,58 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 				client.SetLogBodies(true)
 			}
 			client.DisableDirectConnections = r.disableDirect
+			return next(inv)
+		}
+	}
+}
+
+// TryInitClient is similar to InitClient but doesn't error when credentials are missing.
+// This allows commands to run without requiring authentication, but still use auth if available.
+func (r *RootCmd) TryInitClient(client *codersdk.Client) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			conf := r.createConfig()
+			var err error
+			// Read the client URL stored on disk.
+			if r.clientURL == nil || r.clientURL.String() == "" {
+				rawURL, err := conf.URL().Read()
+				// If the configuration files are absent, just continue without URL
+				if err != nil {
+					// Continue with a nil or empty URL
+					if !os.IsNotExist(err) {
+						return err
+					}
+				} else {
+					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+					if err != nil {
+						return err
+					}
+				}
+			}
+			// Read the token stored on disk.
+			if r.token == "" {
+				r.token, err = conf.Session().Read()
+				// Even if there isn't a token, we don't care.
+				// Some API routes can be unauthenticated.
+				if err != nil && !os.IsNotExist(err) {
+					return err
+				}
+			}
+
+			// Only configure the client if we have a URL
+			if r.clientURL != nil && r.clientURL.String() != "" {
+				err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+				if err != nil {
+					return err
+				}
+				client.SetSessionToken(r.token)
+
+				if r.debugHTTP {
+					client.PlainLogger = os.Stderr
+					client.SetLogBodies(true)
+				}
+				client.DisableDirectConnections = r.disableDirect
+			}
 			return next(inv)
 		}
 	}

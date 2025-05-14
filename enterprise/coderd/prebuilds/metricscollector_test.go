@@ -16,6 +16,7 @@ import (
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -56,12 +57,12 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_created_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_claimed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_failed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(0.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
+				{prebuilds.MetricFailedCount, ptr.To(0.0), true},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(0.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
@@ -73,12 +74,12 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_created_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_claimed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_failed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
+				{prebuilds.MetricFailedCount, ptr.To(0.0), true},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(1.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
@@ -90,11 +91,11 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_created_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_failed_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(0.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+				{prebuilds.MetricFailedCount, ptr.To(1.0), true},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(0.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
@@ -106,12 +107,12 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_created_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_claimed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_failed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(1.0), false},
+				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
+				{prebuilds.MetricFailedCount, ptr.To(0.0), true},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(1.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(1.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{true},
@@ -123,12 +124,12 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_created_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_claimed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_failed_total", ptr.To(0.0), true},
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
+				{prebuilds.MetricFailedCount, ptr.To(0.0), true},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(1.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
@@ -140,11 +141,11 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{uuid.New()},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_created_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_claimed_total", ptr.To(1.0), true},
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(0.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+				{prebuilds.MetricClaimedCount, ptr.To(1.0), true},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(0.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
@@ -156,9 +157,9 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{uuid.New()},
 			ownerIDs:     []uuid.UUID{uuid.New()},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_desired", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_running", ptr.To(0.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(0.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
@@ -170,7 +171,7 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_desired", ptr.To(0.0), false},
+				{prebuilds.MetricDesiredGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{true},
 			eligible:        []bool{false},
@@ -182,8 +183,8 @@ func TestMetricsCollector(t *testing.T) {
 			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics: []metricCheck{
-				{"coderd_prebuilt_workspaces_running", ptr.To(1.0), false},
-				{"coderd_prebuilt_workspaces_eligible", ptr.To(0.0), false},
+				{prebuilds.MetricRunningGauge, ptr.To(1.0), false},
+				{prebuilds.MetricEligibleGauge, ptr.To(0.0), false},
 			},
 			templateDeleted: []bool{true},
 			eligible:        []bool{false},
@@ -219,7 +220,7 @@ func TestMetricsCollector(t *testing.T) {
 									})
 									clock := quartz.NewMock(t)
 									db, pubsub := dbtestutil.NewDB(t)
-									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry())
+									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 									ctx := testutil.Context(t, testutil.WaitLong)
 
 									createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}
@@ -241,12 +242,16 @@ func TestMetricsCollector(t *testing.T) {
 										org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
 										templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
 										preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
-										workspace := setupTestDBWorkspace(
+										workspace, _ := setupTestDBWorkspace(
 											t, clock, db, pubsub,
 											transition, jobStatus, org.ID, preset, template.ID, templateVersionID, initiatorID, ownerID,
 										)
 										setupTestDBWorkspaceAgent(t, db, workspace.ID, eligible)
 									}
+
+									// Force an update to the metrics state to allow the collector to collect fresh metrics.
+									// nolint:gocritic // Authz context needed to retrieve state.
+									require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
 
 									metricsFamilies, err := registry.Gather()
 									require.NoError(t, err)
