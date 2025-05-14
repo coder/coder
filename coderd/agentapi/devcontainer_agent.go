@@ -33,11 +33,6 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 	}
 
 	// TODO(DanielleMaywood):
-	// We need the following
-	// - Architecture
-	// - Operating System
-
-	// TODO(DanielleMaywood):
 	// Validate this agent name
 	agentName := strings.ToLower(req.Name)
 
