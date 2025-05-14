@@ -241,5 +241,5 @@ func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, pres
 	// Just one is enough to ruin a prebuild, but we can't know apriori which replacement would cause this.
 	// For example, say we have 2 replacements: a docker_container and a null_resource; we don't know which one might
 	// cause an issue (or indeed if either would), so we just track the replacement.
-	mc.replacementsCounter[key] += 1
+	mc.replacementsCounter[key]++
 }
