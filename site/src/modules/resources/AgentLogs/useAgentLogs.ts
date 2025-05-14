@@ -1,54 +1,34 @@
 import { watchWorkspaceAgentLogs } from "api/api";
-import { agentLogs } from "api/queries/workspaces";
-import type {
-	WorkspaceAgent,
-	WorkspaceAgentLifecycle,
-	WorkspaceAgentLog,
-} from "api/typesGenerated";
+import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { useEffect } from "react";
-import { useQuery, useQueryClient } from "react-query";
-
-const ON_GOING_STATES: WorkspaceAgentLifecycle[] = ["starting", "created"];
+import { useEffect, useState } from "react";
 
 export function useAgentLogs(
 	agent: WorkspaceAgent,
+	enabled: boolean,
 ): readonly WorkspaceAgentLog[] | undefined {
-	const queryClient = useQueryClient();
-	const agentLogsOptions = agentLogs(agent.id);
-	const shouldUseSocket = ON_GOING_STATES.includes(agent.lifecycle_state);
-	const { data: logs } = useQuery({
-		...agentLogsOptions,
-		enabled: !shouldUseSocket,
-	});
-
-	const appendAgentLogs = useEffectEvent(
-		async (newLogs: WorkspaceAgentLog[]) => {
-			await queryClient.cancelQueries(agentLogsOptions.queryKey);
-			queryClient.setQueryData<WorkspaceAgentLog[]>(
-				agentLogsOptions.queryKey,
-				(oldLogs) => (oldLogs ? [...oldLogs, ...newLogs] : newLogs),
-			);
-		},
-	);
-
-	const refreshAgentLogs = useEffectEvent(() => {
-		queryClient.invalidateQueries(agentLogsOptions.queryKey);
-	});
+	const [logs, setLogs] = useState<WorkspaceAgentLog[]>();
 
 	useEffect(() => {
-		if (!shouldUseSocket) {
+		if (!enabled) {
+			// Clean up the logs when the agent is not enabled. So it can receive logs
+			// from the beginning without duplicating the logs.
+			setLogs(undefined);
 			return;
 		}
 
+		// Always fetch the logs from the beginning. We may want to optimize this in
+		// the future, but it would add some complexity in the code that maybe does
+		// not worth it.
 		const socket = watchWorkspaceAgentLogs(agent.id, { after: 0 });
 		socket.addEventListener("message", (e) => {
 			if (e.parseError) {
 				console.warn("Error parsing agent log: ", e.parseError);
 				return;
 			}
-			appendAgentLogs(e.parsedMessage);
+			setLogs((logs) =>
+				logs ? [...logs, ...e.parsedMessage] : [...e.parsedMessage],
+			);
 		});
 
 		socket.addEventListener("error", (e) => {
@@ -62,12 +42,8 @@ export function useAgentLogs(
 
 		return () => {
 			socket.close();
-			// For some reason, after closing the socket, a few logs still getting
-			// generated in the BE. This is a workaround to avoid we don't display
-			// them in the UI.
-			refreshAgentLogs();
 		};
-	}, [agent.id, shouldUseSocket, appendAgentLogs, refreshAgentLogs]);
+	}, [agent.id, enabled]);
 
 	return logs;
 }

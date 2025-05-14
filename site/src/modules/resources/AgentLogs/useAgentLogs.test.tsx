@@ -97,7 +97,7 @@ describe("useAgentLogs", () => {
 });
 
 function renderUseAgentLogs(queryClient: QueryClient, agent: WorkspaceAgent) {
-	return renderHook(() => useAgentLogs(agent), {
+	return renderHook(() => useAgentLogs(agent, true), {
 		wrapper: ({ children }) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 		),
