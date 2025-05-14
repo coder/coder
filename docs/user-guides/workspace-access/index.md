@@ -33,9 +33,10 @@ coder ssh my-workspace
 
 Or, you can configure plain SSH on your client below.
 
-> **Note:** The `coder ssh` command does not have full parity with the standard
-SSH command. For users who need the full functionality of SSH, use the
-configuration method below.
+> [!Note]
+> The `coder ssh` command does not have full parity with the standard
+> SSH command. For users who need the full functionality of SSH, use the
+> configuration method below.
 
 ### Configure SSH
 
