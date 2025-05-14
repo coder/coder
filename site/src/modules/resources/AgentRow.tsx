@@ -155,13 +155,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		select: (res) => res.containers.filter((c) => c.status === "running"),
 		// TODO: Implement a websocket connection to get updates on containers
 		// without having to poll.
-		refetchInterval: (data) => {
-			if (!data) {
-				return false;
-			}
-
-			return data.length > 0 ? 10_000 : false;
-		},
+		refetchInterval: 10_000,
 	});
 
 	return (
