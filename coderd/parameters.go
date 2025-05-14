@@ -97,14 +97,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 				return
 			}
 			defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
-			templateFS, err = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error creating overlay filesystem.",
-					Detail:  err.Error(),
-				})
-				return
-			}
+			templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 		}
 	} else if !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
