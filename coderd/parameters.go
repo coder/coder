@@ -24,6 +24,7 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 	"github.com/coder/websocket"
 )
 
@@ -250,8 +251,8 @@ func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.U
 				Mutable:      it.Mutable,
 				DefaultValue: previewtypes.StringLiteral(it.DefaultValue),
 				Icon:         it.Icon,
-				Options:      nil,
-				Validations:  nil,
+				Options:      make([]*previewtypes.ParameterOption, 0),
+				Validations:  make([]*previewtypes.ParameterValidation, 0),
 				Required:     it.Required,
 				Order:        int64(it.DisplayOrder),
 				Ephemeral:    it.Ephemeral,
@@ -302,6 +303,11 @@ func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.U
 				Icon:        opt.Icon,
 			})
 		}
+
+		// Take the form type from the ValidateFormType function. This is a bit
+		// unfortunate we have to do this, but it will return the default form_type
+		// for a given set of conditions.
+		_, param.FormType, _ = provider.ValidateFormType(provider.OptionType(param.Type), len(param.Options), param.FormType)
 
 		param.Diagnostics = previewtypes.Diagnostics(param.Valid(param.Value))
 		params = append(params, param)
