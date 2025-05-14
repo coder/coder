@@ -6572,6 +6572,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "p95": 146
     }
   },
+  "classic_parameter_flow": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -6610,6 +6611,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                 |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                      |
 | `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                 |
+| `classic_parameter_flow`           | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `created_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
