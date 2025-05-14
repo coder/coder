@@ -15,7 +15,7 @@ WHERE w.id IN (
 		AND b.template_version_id = t.active_version_id
 		AND p.current_preset_id = @preset_id::uuid
 		AND p.ready
-	    AND NOT t.deleted
+		AND NOT t.deleted
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name;
