@@ -753,6 +753,8 @@ You can add instructions here
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
 	{
 		...MockTemplateVersion,
+		id: "test-template-version-markdown",
+		name: "test-version-markdown",
 		message: `
 # Abiding Grace
 ## Enchantment

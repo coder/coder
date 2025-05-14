@@ -324,7 +324,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			if attrs.StartupScript != "" {
 				agent.Scripts = append(agent.Scripts, &proto.Script{
 					// This is ▶️
-					Icon:             "/emojis/25b6.png",
+					Icon:             "/emojis/25b6-fe0f.png",
 					LogPath:          "coder-startup-script.log",
 					DisplayName:      "Startup Script",
 					Script:           attrs.StartupScript,

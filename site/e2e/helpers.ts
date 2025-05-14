@@ -152,7 +152,7 @@ export const createWorkspace = async (
 	const user = currentUser(page);
 	await expectUrl(page).toHavePathName(`/@${user.username}/${name}`);
 
-	await page.waitForSelector("[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 	return name;
@@ -364,7 +364,7 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
 
 	await page.getByTestId("workspace-stop-button").click();
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Stopped", {
+	await page.waitForSelector("text=Workspace status: Stopped", {
 		state: "visible",
 	});
 };
@@ -389,7 +389,7 @@ export const buildWorkspaceWithParameters = async (
 		await page.getByTestId("confirm-button").click();
 	}
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 };
@@ -412,11 +412,12 @@ export const startAgent = async (
 export const downloadCoderVersion = async (
 	version: string,
 ): Promise<string> => {
-	if (version.startsWith("v")) {
-		version = version.slice(1);
+	let versionNumber = version;
+	if (versionNumber.startsWith("v")) {
+		versionNumber = versionNumber.slice(1);
 	}
 
-	const binaryName = `coder-e2e-${version}`;
+	const binaryName = `coder-e2e-${versionNumber}`;
 	const tempDir = "/tmp/coder-e2e-cache";
 	// The install script adds `./bin` automatically to the path :shrug:
 	const binaryPath = path.join(tempDir, "bin", binaryName);
@@ -438,7 +439,7 @@ export const downloadCoderVersion = async (
 			path.join(__dirname, "../../install.sh"),
 			[
 				"--version",
-				version,
+				versionNumber,
 				"--method",
 				"standalone",
 				"--prefix",
@@ -551,11 +552,8 @@ const emptyPlan = new TextEncoder().encode("{}");
  * converts it into an uploadable tar file.
  */
 const createTemplateVersionTar = async (
-	responses?: EchoProvisionerResponses,
+	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
-	if (!responses) {
-		responses = {};
-	}
 	if (!responses.parse) {
 		responses.parse = [
 			{
@@ -1012,7 +1010,7 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 };
@@ -1031,7 +1029,7 @@ export const updateWorkspaceParameters = async (
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /submit and restart/i }).click();
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 };

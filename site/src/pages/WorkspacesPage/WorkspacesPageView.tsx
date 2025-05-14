@@ -143,7 +143,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									css={{ borderRadius: 9999, marginLeft: "auto" }}
 									endIcon={<ChevronDownIcon className="size-4" />}
 								>
-									Actions
+									Bulk actions
 								</LoadingButton>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">

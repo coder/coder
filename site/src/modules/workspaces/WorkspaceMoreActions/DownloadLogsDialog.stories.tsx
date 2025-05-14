@@ -6,7 +6,7 @@ import { withDesktopViewport } from "testHelpers/storybook";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 
 const meta: Meta<typeof DownloadLogsDialog> = {
-	title: "pages/WorkspacePage/DownloadLogsDialog",
+	title: "modules/workspaces/DownloadLogsDialog",
 	component: DownloadLogsDialog,
 	args: {
 		open: true,

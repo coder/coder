@@ -1,5 +1,6 @@
 -- name: InsertPreset :one
 INSERT INTO template_version_presets (
+	id,
 	template_version_id,
 	name,
 	created_at,
@@ -7,6 +8,7 @@ INSERT INTO template_version_presets (
 	invalidate_after_secs
 )
 VALUES (
+	@id,
 	@template_version_id,
 	@name,
 	@created_at,

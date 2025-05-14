@@ -139,9 +139,14 @@ export const templateVersionByName = (
 	};
 };
 
+export const templateVersionsQueryKey = (templateId: string) => [
+	"templateVersions",
+	templateId,
+];
+
 export const templateVersions = (templateId: string) => {
 	return {
-		queryKey: ["templateVersions", templateId],
+		queryKey: templateVersionsQueryKey(templateId),
 		queryFn: () => API.getTemplateVersions(templateId),
 	};
 };

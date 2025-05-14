@@ -7,6 +7,7 @@ import {
 	DashboardContext,
 	type DashboardProvider,
 } from "modules/dashboard/DashboardProvider";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
 import { type Location, useLocation } from "react-router-dom";
@@ -126,11 +127,14 @@ describe("WorkspacePage", () => {
 		// set permissions
 		server.use(
 			http.post("/api/v2/authcheck", async () => {
-				return HttpResponse.json({
-					updateTemplates: true,
+				const permissions: WorkspacePermissions = {
+					deleteFailedWorkspace: true,
+					deploymentConfig: true,
+					readWorkspace: true,
 					updateWorkspace: true,
-					updateTemplate: true,
-				});
+					updateWorkspaceVersion: true,
+				};
+				return HttpResponse.json(permissions);
 			}),
 		);
 
