@@ -1,12 +1,21 @@
 package httpapi
 
 import (
+	"flag"
 	"reflect"
 
 	"golang.org/x/xerrors"
 )
 
 func ContainsNilMap(v any) error {
+	if flag.Lookup("test.v") == nil {
+		// Always skip this check in production code. Its purpose is to detect potential
+		// problems in api structures. It will have a lot of false positives of errors
+		// that would occur, and it is not worth the performance cost to check in
+		// production.
+		return nil
+	}
+
 	visited := make(map[uintptr]bool)
 	if hasNil, field := findNilMapsRec(reflect.ValueOf(v), visited); hasNil {
 		ty := reflect.TypeOf(v)
