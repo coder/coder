@@ -7,6 +7,7 @@ import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { CopyButton } from "components/CopyButton/CopyButton";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -350,9 +351,20 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
 					<TopbarAvatar src={templateIconUrl} fallback={templateDisplayName} />
-					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
-						{workspaceName}
-					</span>
+					<div css={{ display: "flex", alignItems: "center", gap: "4px" }}>
+						<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+							{workspaceName}
+						</span>
+						<CopyButton
+							text={workspaceName}
+							tooltipTitle="Copy workspace name"
+							buttonStyles={{
+								padding: "4px",
+								minWidth: "24px",
+								height: "24px",
+							}}
+						/>
+					</div>
 				</span>
 			</PopoverTrigger>
 
