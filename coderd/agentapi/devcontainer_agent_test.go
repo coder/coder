@@ -87,12 +87,25 @@ func TestDevContainerAgentAPI(t *testing.T) {
 
 	// When: We create a dev container agent.
 	createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
-		Name:      "some-child-agent",
-		Directory: "/workspaces/coder",
+		Name:            "some-child-agent",
+		Directory:       "/workspaces/coder",
+		Architecture:    "amd64",
+		OperatingSystem: "linux",
 	})
 	require.NoError(t, err)
 
+	agentID, err := uuid.FromBytes(createResp.Id)
+	require.NoError(t, err)
+
 	// Then: We expect this dev container agent to be created.
+	agent, err := api.Database.GetWorkspaceAgentByID(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, "/workspaces/coder", agent.Directory)
+	require.Equal(t, "amd64", agent.Architecture)
+	require.Equal(t, "linux", agent.OperatingSystem)
+	require.Equal(t, "some-child-agent", agent.Name)
+
+	// Then: We expect to be able to list this dev container agent.
 	listResp, err = api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
 	require.NoError(t, err)
 	require.Len(t, listResp.Agents, 1)
