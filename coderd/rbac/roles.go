@@ -503,7 +503,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						// the ability to create templates and provisioners has
 						// a lot of overlap.
 						ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-						ResourceProvisionerJobs.Type:   {policy.ActionRead},
+						ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					}),
 				},
 				User: []Permission{},
