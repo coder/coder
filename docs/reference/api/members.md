@@ -215,6 +215,7 @@ Status Code **200**
 | `resource_type` | `user`                             |
 | `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent`                  |
 | `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
@@ -384,6 +385,7 @@ Status Code **200**
 | `resource_type` | `user`                             |
 | `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent`                  |
 | `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
@@ -553,6 +555,7 @@ Status Code **200**
 | `resource_type` | `user`                             |
 | `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent`                  |
 | `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
@@ -691,6 +694,7 @@ Status Code **200**
 | `resource_type` | `user`                             |
 | `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent`                  |
 | `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
@@ -1051,6 +1055,7 @@ Status Code **200**
 | `resource_type` | `user`                             |
 | `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent`                  |
 | `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |

@@ -320,6 +320,15 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceAgent
+	// Valid Actions
+	//  - "ActionCreate" :: create workspace agent
+	//  - "ActionDelete" :: delete workspace agent
+	//  - "ActionRead" :: read workspace agent
+	ResourceWorkspaceAgent = Object{
+		Type: "workspace_agent",
+	}
+
 	// ResourceWorkspaceAgentDevcontainers
 	// Valid Actions
 	//  - "ActionCreate" :: create workspace agent devcontainers
@@ -398,6 +407,7 @@ func AllResources() []Objecter {
 		ResourceUser,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
+		ResourceWorkspaceAgent,
 		ResourceWorkspaceAgentDevcontainers,
 		ResourceWorkspaceAgentResourceMonitor,
 		ResourceWorkspaceDormant,

@@ -840,6 +840,21 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "WorkspaceAgent",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionDelete},
+			Resource: rbac.ResourceWorkspaceAgent,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
 		// Members may read their own chats.
 		{
 			Name:     "CreateReadUpdateDeleteMyChats",
