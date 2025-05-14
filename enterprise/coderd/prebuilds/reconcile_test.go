@@ -1060,6 +1060,7 @@ func setupTestDBTemplate(
 	return org, template
 }
 
+// nolint:revive // It's a control flag, but this is a test.
 func setupTestDBTemplateWithinOrg(
 	t *testing.T,
 	db database.Store,
