@@ -1595,7 +1595,7 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore  *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer          atomic.Pointer[portsharing.PortSharer]
-	FileCache           files.Cache
+	FileCache           *files.Cache
 	PrebuildsClaimer    atomic.Pointer[prebuilds.Claimer]
 	PrebuildsReconciler atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 

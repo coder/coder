@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -38,8 +39,6 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	user := httpmw.UserParam(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	dynamicPreview := preview.Preview
-
 	// Check that the job has completed successfully
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if httpapi.Is404Error(err) {
@@ -60,77 +59,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	// nolint:gocritic // We need to fetch the templates files for the Terraform
-	// evaluator, and the user likely does not have permission.
-	fileCtx := dbauthz.AsProvisionerd(ctx)
-	fileID, err := api.Database.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error finding template version Terraform.",
-			Detail:  err.Error(),
-		})
+	render, closer, success := prepareDynamicPreview(ctx, rw, api.Database, api.FileCache, templateVersion, user)
+	if !success {
 		return
 	}
-
-	templateFS, err := api.FileCache.Acquire(fileCtx, fileID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Internal error fetching template version Terraform.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defer api.FileCache.Release(fileID)
-
-	// Having the Terraform plan available for the evaluation engine is helpful
-	// for populating values from data blocks, but isn't strictly required. If
-	// we don't have a cached plan available, we just use an empty one instead.
-	plan := json.RawMessage("{}")
-	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-	if err == nil {
-		plan = tf.CachedPlan
-
-		if tf.CachedModuleFiles.Valid {
-			moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: "Internal error fetching Terraform modules.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
-			templateFS, err = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error creating overlay filesystem.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		}
-	} else if !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to retrieve Terraform values for template version",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	owner, err := api.getWorkspaceOwnerData(ctx, user, templateVersion.OrganizationID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace owner.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	input := preview.Input{
-		PlanJSON:        plan,
-		ParameterValues: map[string]string{},
-		Owner:           owner,
-	}
+	defer closer()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -148,7 +81,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	)
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := preview.Preview(ctx, input, templateFS)
+	result, diagnostics := render(ctx, map[string]string{})
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1,
 		Diagnostics: previewtypes.Diagnostics(diagnostics),
@@ -175,8 +108,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 				// The connection has been closed, so there is no one to write to
 				return
 			}
-			input.ParameterValues = update.Inputs
-			result, diagnostics := preview.Preview(ctx, input, templateFS)
+			result, diagnostics := render(ctx, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
 				Diagnostics: previewtypes.Diagnostics(diagnostics),
@@ -191,6 +123,99 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 			}
 		}
 	}
+}
+
+type previewFunction func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics)
+
+func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db database.Store, fc *files.Cache, templateVersion database.TemplateVersion, user database.User) (render previewFunction, closer func(), success bool) {
+	openFiles := make([]uuid.UUID, 0)
+	closeFiles := func() {
+		for _, it := range openFiles {
+			fc.Release(it)
+		}
+	}
+	defer func() {
+		if !success {
+			closeFiles()
+		}
+	}()
+
+	// nolint:gocritic // We need to fetch the templates files for the Terraform
+	// evaluator, and the user likely does not have permission.
+	fileCtx := dbauthz.AsProvisionerd(ctx)
+	fileID, err := db.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error finding template version Terraform.",
+			Detail:  err.Error(),
+		})
+		return nil, nil, false
+	}
+
+	templateFS, err := fc.Acquire(fileCtx, fileID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error fetching template version Terraform.",
+			Detail:  err.Error(),
+		})
+		return nil, nil, false
+	}
+	openFiles = append(openFiles, fileID)
+
+	// Having the Terraform plan available for the evaluation engine is helpful
+	// for populating values from data blocks, but isn't strictly required. If
+	// we don't have a cached plan available, we just use an empty one instead.
+	plan := json.RawMessage("{}")
+	tf, err := db.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+	if err == nil {
+		plan = tf.CachedPlan
+
+		if tf.CachedModuleFiles.Valid {
+			moduleFilesFS, err := fc.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+					Message: "Internal error fetching Terraform modules.",
+					Detail:  err.Error(),
+				})
+				return nil, nil, false
+			}
+			openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
+
+			templateFS, err = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error creating overlay filesystem.",
+					Detail:  err.Error(),
+				})
+				return nil, nil, false
+			}
+		}
+	} else if !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve Terraform values for template version",
+			Detail:  err.Error(),
+		})
+		return nil, nil, false
+	}
+
+	owner, err := getWorkspaceOwnerData(ctx, db, user, templateVersion.OrganizationID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace owner.",
+			Detail:  err.Error(),
+		})
+		return nil, nil, false
+	}
+
+	input := preview.Input{
+		PlanJSON:        plan,
+		ParameterValues: map[string]string{},
+		Owner:           owner,
+	}
+
+	return func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+		return preview.Preview(ctx, input, templateFS)
+	}, closeFiles, true
 }
 
 func staticPreview(ctx context.Context, db database.Store, version uuid.UUID) func(ctx context.Context, input preview.Input, fs fs.FS) preview.Output {
@@ -232,8 +257,9 @@ func staticPreview(ctx context.Context, db database.Store, version uuid.UUID) fu
 	}
 }
 
-func (api *API) getWorkspaceOwnerData(
+func getWorkspaceOwnerData(
 	ctx context.Context,
+	db database.Store,
 	user database.User,
 	organizationID uuid.UUID,
 ) (previewtypes.WorkspaceOwner, error) {
@@ -244,7 +270,7 @@ func (api *API) getWorkspaceOwnerData(
 		// nolint:gocritic // This is kind of the wrong query to use here, but it
 		// matches how the provisioner currently works. We should figure out
 		// something that needs less escalation but has the correct behavior.
-		row, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+		row, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			return err
 		}
@@ -271,7 +297,7 @@ func (api *API) getWorkspaceOwnerData(
 
 	var publicKey string
 	g.Go(func() error {
-		key, err := api.Database.GetGitSSHKey(ctx, user.ID)
+		key, err := db.GetGitSSHKey(ctx, user.ID)
 		if err != nil {
 			return err
 		}
@@ -281,7 +307,7 @@ func (api *API) getWorkspaceOwnerData(
 
 	var groupNames []string
 	g.Go(func() error {
-		groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{
+		groups, err := db.GetGroups(ctx, database.GetGroupsParams{
 			OrganizationID: organizationID,
 			HasMemberID:    user.ID,
 		})
