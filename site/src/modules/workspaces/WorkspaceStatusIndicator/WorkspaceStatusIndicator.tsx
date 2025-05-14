@@ -40,7 +40,9 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 	return (
 		<StatusIndicator variant={variantByStatusType[type]}>
 			<StatusIndicatorDot />
-			{text}
+			<span>
+				<span className="sr-only">Workspace status:</span> {text}
+			</span>
 			{children}
 		</StatusIndicator>
 	);
