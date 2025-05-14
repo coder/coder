@@ -282,7 +282,7 @@ func (api *API) getWorkspaceOwnerData(
 // required.
 func parameterProvisionerVersionDiagnostic(tf database.TemplateVersionTerraformValue) hcl.Diagnostics {
 	missingMetaData := hcl.Diagnostic{
-		Severity: hcl.DiagWarning,
+		Severity: hcl.DiagError,
 		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
 		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
 	}
