@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import PlusIcon from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -13,7 +12,7 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 
@@ -58,7 +57,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 							variant="contained"
 							component={Link}
 							to={`/templates/new?exampleId=${starterTemplate.id}`}
-							startIcon={<PlusIcon />}
+							startIcon={<PlusIcon className="size-icon-sm" />}
 						>
 							Use template
 						</Button>
