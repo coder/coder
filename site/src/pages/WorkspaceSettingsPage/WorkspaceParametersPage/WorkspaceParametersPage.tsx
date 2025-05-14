@@ -4,11 +4,12 @@ import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button as ShadcnButton } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
+import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
 	WorkspaceParametersForm,
@@ -112,9 +114,23 @@ export const WorkspaceParametersPageView: FC<
 	isSubmitting,
 	onCancel,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	return (
 		<>
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader
+				css={{ paddingTop: 0 }}
+				actions={
+					experimentalFormContext && (
+						<ShadcnButton
+							size="sm"
+							variant="outline"
+							onClick={experimentalFormContext.toggleOptedOut}
+						>
+							Try out the new workspace parameters ✨
+						</ShadcnButton>
+					)
+				}
+			>
 				<PageHeaderTitle>Workspace parameters</PageHeaderTitle>
 			</PageHeader>
 
