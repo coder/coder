@@ -235,6 +235,7 @@ var (
 	// ResourceProvisionerJobs
 	// Valid Actions
 	//  - "ActionRead" :: read provisioner jobs
+	//  - "ActionUpdate" :: update provisioner jobs
 	ResourceProvisionerJobs = Object{
 		Type: "provisioner_jobs",
 	}

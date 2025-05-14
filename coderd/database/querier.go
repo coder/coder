@@ -213,7 +213,6 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
-	GetNotStartedProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
 	// Fetch the notification report generator log indicating recent activity.
 	GetNotificationReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (NotificationReportGeneratorLog, error)
@@ -238,6 +237,7 @@ type sqlcQuerier interface {
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	GetPendingProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)

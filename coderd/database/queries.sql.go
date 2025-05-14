@@ -7430,7 +7430,7 @@ func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.
 	return items, nil
 }
 
-const getNotStartedProvisionerJobs = `-- name: GetNotStartedProvisionerJobs :many
+const getPendingProvisionerJobs = `-- name: GetPendingProvisionerJobs :many
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 FROM
@@ -7441,8 +7441,8 @@ WHERE
 	AND completed_at IS NULL
 `
 
-func (q *sqlQuerier) GetNotStartedProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getNotStartedProvisionerJobs, updatedAt)
+func (q *sqlQuerier) GetPendingProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingProvisionerJobs, updatedAt)
 	if err != nil {
 		return nil, err
 	}

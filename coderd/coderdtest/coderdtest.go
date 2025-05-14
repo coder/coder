@@ -365,11 +365,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
-	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
-	defer hangDetectorTicker.Stop()
-	hangDetector := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), hangDetectorTicker.C)
-	hangDetector.Start()
-	t.Cleanup(hangDetector.Close)
+	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
+	defer jobReaperTicker.Stop()
+	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C)
+	jobReaper.Start()
+	t.Cleanup(jobReaper.Close)
 
 	if options.TelemetryReporter == nil {
 		options.TelemetryReporter = telemetry.NewNoop()

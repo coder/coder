@@ -182,7 +182,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"provisioner_jobs": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead: actDef("read provisioner jobs"),
+			ActionRead:   actDef("read provisioner jobs"),
+			ActionUpdate: actDef("update provisioner jobs"),
 		},
 	},
 	"organization": {

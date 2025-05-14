@@ -949,13 +949,6 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
-func (m queryMetricsStore) GetNotStartedProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotStartedProvisionerJobs(ctx, updatedAt)
-	m.queryLatencies.WithLabelValues("GetNotStartedProvisionerJobs").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
@@ -1115,6 +1108,13 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	schemas, err := m.s.GetParameterSchemasByJobID(ctx, jobID)
 	m.queryLatencies.WithLabelValues("GetParameterSchemasByJobID").Observe(time.Since(start).Seconds())
 	return schemas, err
+}
+
+func (m queryMetricsStore) GetPendingProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPendingProvisionerJobs(ctx, updatedAt)
+	m.queryLatencies.WithLabelValues("GetPendingProvisionerJobs").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {

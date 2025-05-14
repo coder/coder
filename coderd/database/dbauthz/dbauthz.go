@@ -220,18 +220,19 @@ var (
 	}.WithCachedASTValue()
 
 	// See reaper package.
-	subjectHangDetector = rbac.Subject{
-		Type:         rbac.SubjectTypeHangDetector,
-		FriendlyName: "Hang Detector",
+	subjectJobReaper = rbac.Subject{
+		Type:         rbac.SubjectTypeJobReaper,
+		FriendlyName: "Job Reaper",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Identifier:  rbac.RoleIdentifier{Name: "hangdetector"},
-				DisplayName: "Hang Detector Daemon",
+				Identifier:  rbac.RoleIdentifier{Name: "jobreaper"},
+				DisplayName: "Job Reaper Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {policy.ActionRead},
-					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:        {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:       {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -407,10 +408,10 @@ func AsAutostart(ctx context.Context) context.Context {
 	return As(ctx, subjectAutostart)
 }
 
-// AsHangDetector returns a context with an actor that has permissions required
+// AsJobReaper returns a context with an actor that has permissions required
 // for reaper.Detector to function.
-func AsHangDetector(ctx context.Context) context.Context {
-	return As(ctx, subjectHangDetector)
+func AsJobReaper(ctx context.Context) context.Context {
+	return As(ctx, subjectJobReaper)
 }
 
 // AsKeyRotator returns a context with an actor that has permissions required for rotating crypto keys.
@@ -1072,6 +1073,13 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	}
 
 	return nil
+}
+
+func (q *querier) GetPendingProvisionerJobs(ctx context.Context, lastUpdatedSince time.Time) ([]database.ProvisionerJob, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
+	return q.db.GetPendingProvisionerJobs(ctx, lastUpdatedSince)
 }
 
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
@@ -1912,11 +1920,10 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	return q.db.GetHealthSettings(ctx)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return nil, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
 	return q.db.GetHungProvisionerJobs(ctx, hungSince)
 }
 
@@ -1990,10 +1997,6 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
-}
-
-func (q *querier) GetNotStartedProvisionerJobs(ctx context.Context, notStartedSince time.Time) ([]database.ProvisionerJob, error) {
-	return q.db.GetNotStartedProvisionerJobs(ctx, notStartedSince)
 }
 
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -4180,6 +4183,10 @@ func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.Upd
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
+
 	job, err := q.db.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -4246,15 +4253,17 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 	return q.db.UpdateProvisionerJobWithCancelByID(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-	// return err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
 }
 

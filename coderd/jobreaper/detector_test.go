@@ -31,8 +31,8 @@ import (
 type jobType string
 
 const (
-	hungJobType       jobType = "hung"
-	notStartedJobType jobType = "not started"
+	hungJobType    jobType = "hung"
+	pendingJobType jobType = "pending"
 )
 
 // jobLogMessages returns the messages to be written to provisioner job logs when a job is reaped
@@ -51,8 +51,8 @@ func reapParamsFromJob(job database.ProvisionerJob) (jobType, float64) {
 	jobType := hungJobType
 	threshold := jobreaper.HungJobDuration.Minutes()
 	if !job.StartedAt.Valid {
-		jobType = notStartedJobType
-		threshold = jobreaper.NotStartedTimeElapsed.Minutes()
+		jobType = pendingJobType
+		threshold = jobreaper.PendingJobTimeElapsed.Minutes()
 	}
 	return jobType, threshold
 }
@@ -469,7 +469,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	detector.Wait()
 }
 
-func TestDetectorNotStartedWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T) {
+func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -551,7 +551,7 @@ func TestDetectorNotStartedWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *tes
 	require.True(t, job.StartedAt.Valid)
 	require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
 	require.True(t, job.Error.Valid)
-	require.Contains(t, job.Error.String, "Build has been detected as not started")
+	require.Contains(t, job.Error.String, "Build has been detected as pending")
 	require.False(t, job.ErrorCode.Valid)
 
 	// Check that the provisioner state was NOT updated.
@@ -667,7 +667,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	detector.Wait()
 }
 
-func TestDetectorNotStartedOtherJobTypes(t *testing.T) {
+func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -755,7 +755,7 @@ func TestDetectorNotStartedOtherJobTypes(t *testing.T) {
 	require.True(t, job.StartedAt.Valid)
 	require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
 	require.True(t, job.Error.Valid)
-	require.Contains(t, job.Error.String, "Build has been detected as not started")
+	require.Contains(t, job.Error.String, "Build has been detected as pending")
 	require.False(t, job.ErrorCode.Valid)
 
 	// Check that the template dry-run job was updated.
@@ -767,7 +767,7 @@ func TestDetectorNotStartedOtherJobTypes(t *testing.T) {
 	require.True(t, job.StartedAt.Valid)
 	require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
 	require.True(t, job.Error.Valid)
-	require.Contains(t, job.Error.String, "Build has been detected as not started")
+	require.Contains(t, job.Error.String, "Build has been detected as pending")
 	require.False(t, job.ErrorCode.Valid)
 
 	detector.Close()

@@ -1386,6 +1386,10 @@ func isDeprecated(template database.Template) bool {
 	return template.Deprecated != ""
 }
 
+func (q *FakeQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
+	panic("not implemented")
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -3897,23 +3901,6 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
-func (q *FakeQuerier) GetNotStartedProvisionerJobs(ctx context.Context, notStartedSince time.Time) ([]database.ProvisionerJob, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notStartedJobs := []database.ProvisionerJob{}
-	for _, provisionerJob := range q.provisionerJobs {
-		if !provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(notStartedSince) {
-			// clone the Tags before appending, since maps are reference types and
-			// we don't want the caller to be able to mutate the map we have inside
-			// dbmem!
-			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
-			notStartedJobs = append(notStartedJobs, provisionerJob)
-		}
-	}
-	return notStartedJobs, nil
-}
-
 func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -4289,6 +4276,23 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 		return parameters[i].Index < parameters[j].Index
 	})
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPendingProvisionerJobs(_ context.Context, lastUpdatedSince time.Time) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	pendingJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if !provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(lastUpdatedSince) {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
+			pendingJobs = append(pendingJobs, provisionerJob)
+		}
+	}
+	return pendingJobs, nil
 }
 
 func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {

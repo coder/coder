@@ -1127,11 +1127,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer)
 			autobuildExecutor.Run()
 
-			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
-			defer hangDetectorTicker.Stop()
-			hangDetector := jobreaper.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
-			hangDetector.Start()
-			defer hangDetector.Close()
+			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
+			defer jobReaperTicker.Stop()
+			jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, logger, jobReaperTicker.C)
+			jobReaper.Start()
+			defer jobReaper.Close()
 
 			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut
