@@ -15,7 +15,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import type { WorkspacePermissions } from "../permissions";
+import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,
 	type NotificationItem,

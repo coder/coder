@@ -1,7 +1,8 @@
 import { useTheme } from "@emotion/react";
-import LoadingButton from "@mui/lab/LoadingButton";
 import { API } from "api/api";
+import { Button } from "components/Button/Button";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 
@@ -29,17 +30,17 @@ export const Troubleshooting: FC = () => {
 			</div>
 			<div>
 				<span>
-					<LoadingButton
-						variant="outlined"
-						loading={isLoading}
-						size="small"
-						css={{ minWidth: "auto", aspectRatio: "1" }}
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isLoading}
 						onClick={() => {
 							sendTestNotificationApi();
 						}}
 					>
+						<Spinner loading={isLoading} />
 						Send notification
-					</LoadingButton>
+					</Button>
 				</span>
 			</div>
 		</>

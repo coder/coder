@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CreateIcon from "@mui/icons-material/AddOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
@@ -26,7 +25,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { PlayIcon, XIcon } from "lucide-react";
+import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -360,7 +359,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											event.currentTarget.blur();
 										}}
 									>
-										<CreateIcon css={{ width: 16, height: 16 }} />
+										<PlusIcon className="size-icon-xs" />
 									</IconButton>
 								</Tooltip>
 							</div>

@@ -294,6 +294,8 @@ type TemplateVersionBuilder struct {
 	ps                 pubsub.Pubsub
 	resources          []*sdkproto.Resource
 	params             []database.TemplateVersionParameter
+	presets            []database.TemplateVersionPreset
+	presetParams       []database.TemplateVersionPresetParameter
 	promote            bool
 	autoCreateTemplate bool
 }
@@ -339,6 +341,13 @@ func (t TemplateVersionBuilder) Params(ps ...database.TemplateVersionParameter) 
 	return t
 }
 
+func (t TemplateVersionBuilder) Preset(preset database.TemplateVersionPreset, params ...database.TemplateVersionPresetParameter) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.presets = append(t.presets, preset)
+	t.presetParams = append(t.presetParams, params...)
+	return t
+}
+
 func (t TemplateVersionBuilder) SkipCreateTemplate() TemplateVersionBuilder {
 	// nolint: revive // returns modified struct
 	t.autoCreateTemplate = false
@@ -376,6 +385,25 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			UpdatedAt:       dbtime.Now(),
 		})
 		require.NoError(t.t, err)
+	}
+
+	for _, preset := range t.presets {
+		dbgen.Preset(t.t, t.db, database.InsertPresetParams{
+			ID:                  preset.ID,
+			TemplateVersionID:   version.ID,
+			Name:                preset.Name,
+			CreatedAt:           version.CreatedAt,
+			DesiredInstances:    preset.DesiredInstances,
+			InvalidateAfterSecs: preset.InvalidateAfterSecs,
+		})
+	}
+
+	for _, presetParam := range t.presetParams {
+		dbgen.PresetParameter(t.t, t.db, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: presetParam.TemplateVersionPresetID,
+			Names:                   []string{presetParam.Name},
+			Values:                  []string{presetParam.Value},
+		})
 	}
 
 	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{

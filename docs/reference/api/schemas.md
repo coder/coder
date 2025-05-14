@@ -182,6 +182,36 @@
 | `icon`         | string | false    |              |                                                                                                                                                                                                |
 | `id`           | string | false    |              | ID is a unique identifier for the log source. It is scoped to a workspace agent, and can be statically defined inside code to prevent duplicate sources from being created for the same agent. |
 
+## agentsdk.ReinitializationEvent
+
+```json
+{
+  "reason": "prebuild_claimed",
+  "workspaceID": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                               | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspaceID` | string                                                             | false    |              |             |
+
+## agentsdk.ReinitializationReason
+
+```json
+"prebuild_claimed"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value              |
+|--------------------|
+| `prebuild_claimed` |
+
 ## aisdk.Attachment
 
 ```json

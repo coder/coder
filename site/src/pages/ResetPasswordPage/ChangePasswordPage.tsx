@@ -1,12 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
+import MUIButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
@@ -115,16 +116,16 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 								/>
 
 								<Stack spacing={1}>
-									<LoadingButton
-										loading={form.isSubmitting}
-										type="submit"
-										size="large"
-										fullWidth
-										variant="contained"
-									>
-										Reset password
-									</LoadingButton>
 									<Button
+										disabled={form.isSubmitting}
+										type="submit"
+										size="lg"
+										className="w-full"
+									>
+										<Spinner loading={form.isSubmitting} />
+										Reset password
+									</Button>
+									<MUIButton
 										component={RouterLink}
 										size="large"
 										fullWidth
@@ -132,7 +133,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 										to="/login"
 									>
 										Back to login
-									</Button>
+									</MUIButton>
 								</Stack>
 							</Stack>
 						</fieldset>

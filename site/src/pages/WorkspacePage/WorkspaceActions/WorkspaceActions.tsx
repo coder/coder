@@ -1,25 +1,14 @@
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
-import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import { deploymentConfig } from "api/queries/deployment";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks/useAuthenticated";
-import { SettingsIcon } from "lucide-react";
-import { TrashIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
 } from "modules/workspaces/actions";
-import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
-import { type FC, Fragment, type ReactNode, useState } from "react";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { type FC, Fragment, type ReactNode } from "react";
+import { useQuery } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
 import {
 	ActivateButton,
@@ -34,64 +23,61 @@ import {
 	UpdateButton,
 } from "./Buttons";
 import { DebugButton } from "./DebugButton";
-import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
 
 export interface WorkspaceActionsProps {
 	workspace: Workspace;
+	isUpdating: boolean;
+	isRestarting: boolean;
+	permissions: WorkspacePermissions;
 	handleToggleFavorite: () => void;
 	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
-	handleDelete: () => void;
 	handleUpdate: () => void;
 	handleCancel: () => void;
-	handleSettings: () => void;
-	handleChangeVersion: () => void;
 	handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDormantActivate: () => void;
-	isUpdating: boolean;
-	isRestarting: boolean;
-	children?: ReactNode;
-	canChangeVersions: boolean;
-	canDebug: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	workspace,
+	isUpdating,
+	isRestarting,
+	permissions,
 	handleToggleFavorite,
 	handleStart,
 	handleStop,
 	handleRestart,
-	handleDelete,
 	handleUpdate,
 	handleCancel,
-	handleSettings,
 	handleRetry,
 	handleDebug,
-	handleChangeVersion,
 	handleDormantActivate,
-	isUpdating,
-	isRestarting,
-	canChangeVersions,
-	canDebug,
 }) => {
-	const { duplicateWorkspace, isDuplicationReady } =
-		useWorkspaceDuplication(workspace);
-
-	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
-
 	const { user } = useAuthenticated();
-	const isOwner =
-		user.roles.find((role) => role.name === "owner") !== undefined;
+	const { data: deployment } = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.deploymentConfig,
+	});
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
-		{ canDebug, isOwner },
+		{
+			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			isOwner: user.roles.some((role) => role.name === "owner"),
+		},
 	);
 
-	const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
-	const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
+	const mustUpdate = mustUpdateWorkspace(
+		workspace,
+		permissions.updateWorkspaceVersion,
+	);
+	const tooltipText = getTooltipText(
+		workspace,
+		mustUpdate,
+		permissions.updateWorkspaceVersion,
+	);
 
 	// A mapping of button type to the corresponding React component
 	const buttonMapping: Record<ActionType, ReactNode> = {
@@ -179,66 +165,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						size="icon-lg"
-						variant="subtle"
-						aria-label="Workspace actions"
-						data-testid="workspace-options-button"
-						aria-controls="workspace-options"
-						disabled={!canAcceptJobs}
-					>
-						<EllipsisVertical aria-hidden="true" />
-						<span className="sr-only">Workspace actions</span>
-					</Button>
-				</DropdownMenuTrigger>
-
-				<DropdownMenuContent id="workspace-options" align="end">
-					<DropdownMenuItem onClick={handleSettings}>
-						<SettingsIcon className="size-icon-sm" />
-						Settings
-					</DropdownMenuItem>
-
-					{canChangeVersions && (
-						<DropdownMenuItem onClick={handleChangeVersion}>
-							<HistoryIcon />
-							Change version&hellip;
-						</DropdownMenuItem>
-					)}
-
-					<DropdownMenuItem
-						onClick={duplicateWorkspace}
-						disabled={!isDuplicationReady}
-					>
-						<DuplicateIcon />
-						Duplicate&hellip;
-					</DropdownMenuItem>
-
-					<DropdownMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
-						<DownloadOutlined />
-						Download logs&hellip;
-					</DropdownMenuItem>
-
-					<DropdownMenuSeparator />
-
-					<DropdownMenuItem
-						className="text-content-destructive focus:text-content-destructive"
-						onClick={handleDelete}
-						data-testid="delete-button"
-					>
-						<TrashIcon />
-						Delete&hellip;
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-
-			<DownloadLogsDialog
-				workspace={workspace}
-				open={isDownloadDialogOpen}
-				onClose={() => setIsDownloadDialogOpen(false)}
-				onConfirm={() => {}}
-			/>
+			<WorkspaceMoreActions workspace={workspace} disabled={!canAcceptJobs} />
 		</div>
 	);
 };
