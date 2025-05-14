@@ -13,7 +13,7 @@ import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
-import { ClockIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -209,7 +209,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						handleDeadlineChange(deadline.subtract(1, "h"));
 					}}
 				>
-					<TrashIcon className="size-icon-xs" />
+					<MinusIcon className="size-icon-xs" />
 					<span style={visuallyHidden}>Subtract 1 hour</span>
 				</IconButton>
 			</Tooltip>
