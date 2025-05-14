@@ -380,6 +380,8 @@ message ReportConnectionRequest {
 message CreateDevContainerAgentRequest {
 	string name = 1;
 	string directory = 2;
+	string architecture = 3;
+	string operating_system = 4;
 }
 
 message CreateDevContainerAgentResponse {
