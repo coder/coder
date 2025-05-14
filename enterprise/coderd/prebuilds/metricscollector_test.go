@@ -307,6 +307,93 @@ func TestMetricsCollector(t *testing.T) {
 	}
 }
 
+func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	type metricCheck struct {
+		name      string
+		value     *float64
+		isCounter bool
+	}
+
+	type testCase struct {
+		transition  database.WorkspaceTransition
+		jobStatus   database.ProvisionerJobStatus
+		initiatorID uuid.UUID
+		ownerID     uuid.UUID
+		metrics     []metricCheck
+		eligible    bool
+	}
+
+	test := testCase{
+		transition:  database.WorkspaceTransitionStart,
+		jobStatus:   database.ProvisionerJobStatusSucceeded,
+		initiatorID: agplprebuilds.SystemUserID,
+		ownerID:     agplprebuilds.SystemUserID,
+		metrics: []metricCheck{
+			{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
+			{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
+			{prebuilds.MetricFailedCount, ptr.To(0.0), true},
+			{prebuilds.MetricDesiredGauge, ptr.To(1.0), false},
+			{prebuilds.MetricRunningGauge, ptr.To(1.0), false},
+			{prebuilds.MetricEligibleGauge, ptr.To(1.0), false},
+		},
+		eligible: true,
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	clock := quartz.NewMock(t)
+	db, pubsub := dbtestutil.NewDB(t)
+	reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}
+	for _, user := range []uuid.UUID{test.ownerID, test.initiatorID} {
+		if !slices.Contains(createdUsers, user) {
+			dbgen.User(t, db, database.User{
+				ID: user,
+			})
+			createdUsers = append(createdUsers, user)
+		}
+	}
+
+	collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
+	registry := prometheus.NewPedanticRegistry()
+	registry.Register(collector)
+
+	defaultOrgName := "default-org"
+	defaultTemplateName := "default-template"
+	defaultPresetName := "default-preset"
+	defaultOrg := dbgen.Organization(t, db, database.Organization{
+		Name: defaultOrgName,
+	})
+	setupTemplateWithDeps := func(templateDeleted bool) {
+		template := setupTestDBTemplateWithinOrg(t, db, test.ownerID, true, defaultTemplateName, defaultOrg)
+		templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, defaultOrg.ID, test.ownerID, template.ID)
+		preset := setupTestDBPreset(t, db, templateVersionID, 1, defaultPresetName)
+		workspace, _ := setupTestDBWorkspace(
+			t, clock, db, pubsub,
+			test.transition, test.jobStatus, defaultOrg.ID, preset, template.ID, templateVersionID, test.initiatorID, test.ownerID,
+		)
+		setupTestDBWorkspaceAgent(t, db, workspace.ID, test.eligible)
+	}
+	// Simulates creating and then deleting a template.
+	setupTemplateWithDeps(true)
+	// Simulates creating a template with the same org, template name, and preset name.
+	setupTemplateWithDeps(false)
+
+	// Force an update to the metrics state to allow the collector to collect fresh metrics.
+	// nolint:gocritic // Authz context needed to retrieve state.
+	require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
+
+	_, err := registry.Gather()
+	require.NoError(t, err)
+}
+
 func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, labels map[string]string) *prometheus_client.Metric {
 	for _, metricFamily := range metricsFamilies {
 		if metricFamily.GetName() != name {

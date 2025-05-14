@@ -1060,6 +1060,32 @@ func setupTestDBTemplate(
 	return org, template
 }
 
+func setupTestDBTemplateWithinOrg(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	templateDeleted bool,
+	templateName string,
+	org database.Organization,
+) database.Template {
+	t.Helper()
+
+	template := dbgen.Template(t, db, database.Template{
+		Name:           templateName,
+		CreatedBy:      userID,
+		OrganizationID: org.ID,
+		CreatedAt:      time.Now().Add(muchEarlier),
+	})
+	if templateDeleted {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+			ID:      template.ID,
+			Deleted: true,
+		}))
+	}
+	return template
+}
+
 const (
 	earlier     = -time.Hour
 	muchEarlier = -time.Hour * 2
