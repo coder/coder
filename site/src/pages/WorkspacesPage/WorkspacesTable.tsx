@@ -626,7 +626,9 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	builtinApps.delete("ssh_helper");
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
-	const userApps = agent.apps.slice(0, remainingSlots);
+	const userApps = agent.apps
+		.filter((app) => app.health === "healthy" && !app.hidden)
+		.slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
 
