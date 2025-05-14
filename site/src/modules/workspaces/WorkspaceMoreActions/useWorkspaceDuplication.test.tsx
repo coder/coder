@@ -5,7 +5,7 @@ import {
 	type GetLocationSnapshot,
 	renderHookWithAuth,
 } from "testHelpers/hooks";
-import CreateWorkspacePage from "./CreateWorkspacePage";
+import CreateWorkspacePage from "../../../pages/CreateWorkspacePage/CreateWorkspacePage";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 function render(workspace?: Workspace) {

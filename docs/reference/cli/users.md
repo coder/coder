@@ -17,8 +17,8 @@ coder users [subcommand]
 
 | Name                                             | Purpose                                                                               |
 |--------------------------------------------------|---------------------------------------------------------------------------------------|
-| [<code>create</code>](./users_create.md)         |                                                                                       |
-| [<code>list</code>](./users_list.md)             |                                                                                       |
+| [<code>create</code>](./users_create.md)         | Create a new user.                                                                    |
+| [<code>list</code>](./users_list.md)             | Prints the list of users.                                                             |
 | [<code>show</code>](./users_show.md)             | Show a single user. Use 'me' to indicate the currently authenticated user.            |
 | [<code>delete</code>](./users_delete.md)         | Delete a user by username or user_id.                                                 |
 | [<code>edit-roles</code>](./users_edit-roles.md) | Edit a user's roles by username or id                                                 |

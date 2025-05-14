@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -67,10 +68,12 @@ func NewStoreReconciler(store database.Store,
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
 
-	reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
-	if err := registerer.Register(reconciler.metrics); err != nil {
-		// If the registerer fails to register the metrics collector, it's not fatal.
-		logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
+	if registerer != nil {
+		reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
+		if err := registerer.Register(reconciler.metrics); err != nil {
+			// If the registerer fails to register the metrics collector, it's not fatal.
+			logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
+		}
 	}
 
 	return reconciler
@@ -87,15 +90,26 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()),
 		slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
 
+	var wg sync.WaitGroup
 	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
 	defer func() {
+		wg.Wait()
 		c.done <- struct{}{}
 	}()
 
 	// nolint:gocritic // Reconciliation Loop needs Prebuilds Orchestrator permissions.
 	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 	c.cancelFn = cancel
+
+	// Start updating metrics in the background.
+	if c.metrics != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.metrics.BackgroundFetch(ctx, metricsUpdateInterval, metricsUpdateTimeout)
+		}()
+	}
 
 	// Everything is in place, reconciler can now be considered as running.
 	//

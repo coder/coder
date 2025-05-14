@@ -1,17 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockFailedWorkspace, MockWorkspace } from "testHelpers/entities";
+import { daysAgo } from "utils/time";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 const meta: Meta<typeof WorkspaceDeleteDialog> = {
-	title: "pages/WorkspacePage/WorkspaceDeleteDialog",
+	title: "modules/workspaces/WorkspaceDeleteDialog",
 	component: WorkspaceDeleteDialog,
 	args: {
-		workspace: MockWorkspace,
-		canUpdateTemplate: false,
+		workspace: {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				created_at: daysAgo(2),
+			},
+		},
+		canDeleteFailedWorkspace: false,
 		isOpen: true,
-		onCancel: () => {},
-		onConfirm: () => {},
-		workspaceBuildDateStr: "2 days ago",
 	},
 };
 
@@ -30,7 +34,7 @@ export const Unhealthy: Story = {
 // Should look the same as `Example`
 export const AdminView: Story = {
 	args: {
-		canUpdateTemplate: true,
+		canDeleteFailedWorkspace: true,
 	},
 };
 
@@ -38,6 +42,6 @@ export const AdminView: Story = {
 export const UnhealthyAdminView: Story = {
 	args: {
 		workspace: MockFailedWorkspace,
-		canUpdateTemplate: true,
+		canDeleteFailedWorkspace: true,
 	},
 };

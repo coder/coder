@@ -273,6 +273,10 @@ message Role {
     string org_id = 2;
 }
 
+message RunningAgentAuthToken {
+    string agent_id = 1;
+    string token = 2;
+}
 enum PrebuiltWorkspaceBuildStage {
 	NONE = 0;   // Default value for builds unrelated to prebuilds.
 	CREATE = 1; // A prebuilt workspace is being provisioned.
@@ -301,7 +305,7 @@ message Metadata {
     string workspace_owner_login_type =  18;
     repeated Role workspace_owner_rbac_roles = 19;
     PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
-    string running_workspace_agent_token = 21;                       // Preserves the running agent token of a prebuilt workspace so it can reinitialize.
+    repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
