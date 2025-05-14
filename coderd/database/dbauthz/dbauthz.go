@@ -3001,6 +3001,15 @@ func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uui
 	return q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
 }
 
+func (q *querier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	_, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

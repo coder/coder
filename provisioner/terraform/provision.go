@@ -273,6 +273,17 @@ func provisionEnv(
 	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
 	}
+	tokens := metadata.GetRunningAgentAuthTokens()
+	if len(tokens) == 1 {
+		env = append(env, provider.RunningAgentTokenEnvironmentVariable("")+"="+tokens[0].Token)
+	} else {
+		// Not currently supported, but added for forward-compatibility
+		for _, t := range tokens {
+			// If there are multiple agents, provide all the tokens to terraform so that it can
+			// choose the correct one for each agent ID.
+			env = append(env, provider.RunningAgentTokenEnvironmentVariable(t.AgentId)+"="+t.Token)
+		}
+	}
 	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() {
 		env = append(env, provider.IsPrebuildClaimEnvironmentVariable()+"=true")
 	}

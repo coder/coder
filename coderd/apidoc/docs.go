@@ -8252,6 +8252,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/reinit": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent reinitialization",
+                "operationId": "get-workspace-agent-reinitialization",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ReinitializationEvent"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/rpc": {
             "get": {
                 "security": [
@@ -10296,6 +10321,26 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "agentsdk.ReinitializationEvent": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "$ref": "#/definitions/agentsdk.ReinitializationReason"
+                },
+                "workspaceID": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.ReinitializationReason": {
+            "type": "string",
+            "enum": [
+                "prebuild_claimed"
+            ],
+            "x-enum-varnames": [
+                "ReinitializeReasonPrebuildClaimed"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",

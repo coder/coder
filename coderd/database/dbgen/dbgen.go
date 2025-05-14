@@ -1198,6 +1198,7 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 
 func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
 	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
 		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
 		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
