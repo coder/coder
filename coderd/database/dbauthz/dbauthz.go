@@ -188,6 +188,8 @@ var (
 					// Provisionerd creates workspaces resources monitor
 					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionCreate},
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
+					// Provisionerd creates workspace agents
+					rbac.ResourceWorkspaceAgent.Type: {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -339,6 +341,7 @@ var (
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
+					rbac.ResourceWorkspaceAgent.Type:         {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
 					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -3014,14 +3017,14 @@ func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, crea
 // GetWorkspaceAgentsByResourceIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgent); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
 }
 
 func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgent); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)
@@ -3691,7 +3694,7 @@ func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorksp
 }
 
 func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgent); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	return q.db.InsertWorkspaceAgent(ctx, arg)

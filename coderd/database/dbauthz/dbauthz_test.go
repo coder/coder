@@ -3870,7 +3870,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(time.Now()).Asserts(rbac.ResourceWorkspaceAgent, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAppsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -3972,7 +3972,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args([]uuid.UUID{res.ID}).
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspaceAgent, policy.ActionRead).
 			Returns([]database.WorkspaceAgent{agt})
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
@@ -3988,7 +3988,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertWorkspaceAgentParams{
 			ID:   uuid.New(),
 			Name: "dev",
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}).Asserts(rbac.ResourceWorkspaceAgent, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

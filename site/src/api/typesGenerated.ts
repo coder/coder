@@ -2151,6 +2151,7 @@ export type RBACResource =
 	| "webpush_subscription"
 	| "*"
 	| "workspace"
+	| "workspace_agent"
 	| "workspace_agent_devcontainers"
 	| "workspace_agent_resource_monitor"
 	| "workspace_dormant"
@@ -2190,6 +2191,7 @@ export const RBACResources: RBACResource[] = [
 	"webpush_subscription",
 	"*",
 	"workspace",
+	"workspace_agent",
 	"workspace_agent_devcontainers",
 	"workspace_agent_resource_monitor",
 	"workspace_dormant",
