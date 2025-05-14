@@ -564,7 +564,7 @@ func TestAPI(t *testing.T) {
 				}
 
 				if len(tt.knownDevcontainers) > 0 {
-					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers))
+					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers, nil))
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)
