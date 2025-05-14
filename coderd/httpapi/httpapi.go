@@ -198,7 +198,7 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 			//
 			// Nil maps passed to the frontend are json serialized as "null".
 			// The frontend expects the map to be initialized as an empty map.
-			// If `null` is sent, and the FE expects it to be a `Record<any, any>`,
+			// If `null` is sent, and the FE expects it to be a `Record<string, any>`,
 			// the FE will throw an error. This can break pages, and should never
 			// occur.
 			//
@@ -210,7 +210,13 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 			//
 			// This should only fail in tests. In production, we do not want
 			// to incur the overhead of checking for nil maps on all responses.
-			panic(fmt.Sprintf("!Nil Map in API Response, this is a developer error asserted in unit tests. Go to `httpapi.go` to see why you are seeing this: %v", err))
+			panic(fmt.Sprintf(
+				"Developer error: HTTP API response contains a nil map. "+
+					"This will serialize as `null` and potentially break the frontend. "+
+					"Initialize the map before returning. See `httpapi.go` for details. "+
+					"Error: %v",
+				err,
+			))
 		}
 
 		WriteIndent(ctx, rw, status, response)
