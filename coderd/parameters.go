@@ -81,33 +81,13 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	}
 	defer api.FileCache.Release(fileID)
 
-	staticDiagnostics := hcl.Diagnostics{}
-	missingMetaData := hcl.Diagnostic{
-		Severity: hcl.DiagWarning,
-		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
-		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
-	}
-
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
 	// we don't have a cached plan available, we just use an empty one instead.
 	plan := json.RawMessage("{}")
 	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		staticDiagnostics = staticDiagnostics.Append(&missingMetaData)
-	}
 	if err == nil {
 		plan = tf.CachedPlan
-
-		major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
-		if err != nil || tf.ProvisionerdVersion == "" {
-			staticDiagnostics = staticDiagnostics.Append(&missingMetaData)
-		} else if major < 1 || (major == 1 && minor < 5) {
-			missingMetaData.Detail = "This template version requires provisioner v1.5 or newer to support dynamic parameters. " +
-				"Some options may be missing or incorrect. " +
-				"Please contact an administrator to update the provisioner and re-import the template version."
-			staticDiagnostics = staticDiagnostics.Append(&missingMetaData)
-		}
 
 		if tf.CachedModuleFiles.Valid {
 			moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
@@ -135,6 +115,10 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		})
 		return
 	}
+
+	var staticDiagnostics hcl.Diagnostics
+	// If the err is sql.ErrNoRows, an empty terraform values struct is correct.
+	staticDiagnostics = staticDiagnostics.Extend(parameterProvisionerVersionDiagnostic(tf))
 
 	owner, err := api.getWorkspaceOwnerData(ctx, user, templateVersion.OrganizationID)
 	if err != nil {
@@ -290,4 +274,32 @@ func (api *API) getWorkspaceOwnerData(
 		SSHPublicKey: publicKey,
 		Groups:       groupNames,
 	}, nil
+}
+
+// parameterProvisionerVersionDiagnostic checks the version of the provisioner
+// used to create the template version. If the version is less than 1.5, it
+// returns a warning diagnostic. Only versions 1.5+ return the module & plan data
+// required.
+func parameterProvisionerVersionDiagnostic(tf database.TemplateVersionTerraformValue) hcl.Diagnostics {
+	missingMetaData := hcl.Diagnostic{
+		Severity: hcl.DiagWarning,
+		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
+		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
+	}
+
+	if tf.ProvisionerdVersion == "" {
+		return hcl.Diagnostics{&missingMetaData}
+	}
+
+	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
+	if err != nil || tf.ProvisionerdVersion == "" {
+		return hcl.Diagnostics{&missingMetaData}
+	} else if major < 1 || (major == 1 && minor < 5) {
+		missingMetaData.Detail = "This template version requires provisioner v1.5 or newer to support dynamic parameters. " +
+			"Some options may be missing or incorrect. " +
+			"Please contact an administrator to update the provisioner and re-import the template version."
+		return hcl.Diagnostics{&missingMetaData}
+	}
+
+	return nil
 }
