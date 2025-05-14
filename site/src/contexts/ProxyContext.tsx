@@ -54,7 +54,7 @@ export interface ProxyContextValue {
 	// then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
 	// Refer to the returned report for a given proxy for more information.
 	proxyLatencies: ProxyLatencies;
-	// latenciesLoaded is true when the latencies have been initially loaded.  
+	// latenciesLoaded is true when the latencies have been initially loaded.
 	// Once set to true, it will not be set to false again.
 	latenciesLoaded: boolean;
 	// refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies

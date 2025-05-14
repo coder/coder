@@ -142,11 +142,23 @@ const TestingComponent = () => {
 
 // TestingScreen just mounts some components that we can check in the unit test.
 const TestingScreen = () => {
-	const { proxy, userProxy, isFetched, isLoading, latenciesLoaded, clearProxy, setProxy } =
-		useProxy();
+	const {
+		proxy,
+		userProxy,
+		isFetched,
+		isLoading,
+		latenciesLoaded,
+		clearProxy,
+		setProxy,
+	} = useProxy();
+
+	console.log(proxy);
 	return (
 		<>
-			<div data-testid="latenciesLoaded" title={latenciesLoaded.toString()}></div>
+			<div
+				data-testid="latenciesLoaded"
+				title={latenciesLoaded.toString()}
+			></div>
 			<div data-testid="isFetched" title={isFetched.toString()}></div>
 			<div data-testid="isLoading" title={isLoading.toString()}></div>
 			<div data-testid="preferredProxy" title={proxy.proxy?.id}></div>
