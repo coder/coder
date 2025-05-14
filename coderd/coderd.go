@@ -1774,6 +1774,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
 		api.ctx, // use the same ctx as the API
+		daemon.APIVersion,
 		api.AccessURL,
 		daemon.ID,
 		defaultOrg.ID,

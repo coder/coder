@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/files"
@@ -84,7 +85,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	result, diagnostics := render(ctx, map[string]string{})
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1,
-		Diagnostics: previewtypes.Diagnostics(diagnostics),
+		Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
 	}
 	if result != nil {
 		response.Parameters = result.Parameters
@@ -111,7 +112,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 			result, diagnostics := render(ctx, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
-				Diagnostics: previewtypes.Diagnostics(diagnostics),
+				Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
 			}
 			if result != nil {
 				response.Parameters = result.Parameters
@@ -336,4 +337,32 @@ func getWorkspaceOwnerData(
 		SSHPublicKey: publicKey,
 		Groups:       groupNames,
 	}, nil
+}
+
+// parameterProvisionerVersionDiagnostic checks the version of the provisioner
+// used to create the template version. If the version is less than 1.5, it
+// returns a warning diagnostic. Only versions 1.5+ return the module & plan data
+// required.
+func parameterProvisionerVersionDiagnostic(tf database.TemplateVersionTerraformValue) hcl.Diagnostics {
+	missingMetadata := hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
+		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
+	}
+
+	if tf.ProvisionerdVersion == "" {
+		return hcl.Diagnostics{&missingMetadata}
+	}
+
+	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
+	if err != nil || tf.ProvisionerdVersion == "" {
+		return hcl.Diagnostics{&missingMetadata}
+	} else if major < 1 || (major == 1 && minor < 5) {
+		missingMetadata.Detail = "This template version does not support dynamic parameters. " +
+			"Some options may be missing or incorrect. " +
+			"Please contact an administrator to update the provisioner and re-import the template version."
+		return hcl.Diagnostics{&missingMetadata}
+	}
+
+	return nil
 }

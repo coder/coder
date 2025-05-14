@@ -11702,7 +11702,7 @@ func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx conte
 
 const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
 SELECT
-	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files, template_version_terraform_values.provisionerd_version
 FROM
 	template_version_terraform_values
 WHERE
@@ -11717,6 +11717,7 @@ func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, temp
 		&i.UpdatedAt,
 		&i.CachedPlan,
 		&i.CachedModuleFiles,
+		&i.ProvisionerdVersion,
 	)
 	return i, err
 }
@@ -11727,22 +11728,25 @@ INSERT INTO
 		template_version_id,
 		cached_plan,
 		cached_module_files,
-		updated_at
+		updated_at,
+	    provisionerd_version
 	)
 VALUES
 	(
 		(select id from template_versions where job_id = $1),
 		$2,
 		$3,
-		$4
+		$4,
+		$5
 	)
 `
 
 type InsertTemplateVersionTerraformValuesByJobIDParams struct {
-	JobID             uuid.UUID       `db:"job_id" json:"job_id"`
-	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
-	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
-	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	JobID               uuid.UUID       `db:"job_id" json:"job_id"`
+	CachedPlan          json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedModuleFiles   uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	ProvisionerdVersion string          `db:"provisionerd_version" json:"provisionerd_version"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error {
@@ -11751,6 +11755,7 @@ func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Con
 		arg.CachedPlan,
 		arg.CachedModuleFiles,
 		arg.UpdatedAt,
+		arg.ProvisionerdVersion,
 	)
 	return err
 }
