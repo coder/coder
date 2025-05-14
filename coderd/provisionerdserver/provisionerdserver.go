@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/quartz"
@@ -40,12 +41,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -114,6 +117,7 @@ type server struct {
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
 	NotificationsEnqueuer       notifications.Enqueuer
+	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -149,8 +153,7 @@ func (t Tags) Valid() error {
 	return nil
 }
 
-func NewServer(
-	lifecycleCtx context.Context,
+func NewServer(lifecycleCtx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
 	organizationID uuid.UUID,
@@ -169,6 +172,7 @@ func NewServer(
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
 	enqueuer notifications.Enqueuer,
+	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -233,6 +237,7 @@ func NewServer(
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
 		heartbeatInterval:           options.HeartbeatInterval,
 		heartbeatFn:                 options.HeartbeatFn,
+		PrebuildsOrchestrator:       prebuildsOrchestrator,
 	}
 
 	if s.heartbeatFn == nil {
@@ -647,6 +652,30 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		runningAgentAuthTokens := []*sdkproto.RunningAgentAuthToken{}
+		if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+			// runningAgentAuthTokens are *only* used for prebuilds. We fetch them when we want to rebuild a prebuilt workspace
+			// but not generate new agent tokens. The provisionerdserver will push them down to
+			// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where they will be
+			// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
+			// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
+			// obviating the whole point of the prebuild.
+			agents, err := s.Database.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+				WorkspaceID: workspace.ID,
+				BuildNumber: 1,
+			})
+			if err != nil {
+				s.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
+					slog.F("workspace_id", workspace.ID), slog.Error(err))
+			}
+			for _, agent := range agents {
+				runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+					AgentId: agent.ID.String(),
+					Token:   agent.AuthToken.String(),
+				})
+			}
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
@@ -676,6 +705,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
+					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
 				},
 				LogLevel: input.LogLevel,
@@ -1801,6 +1831,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 		}
 
+		if s.PrebuildsOrchestrator != nil {
+			// Track resource replacements, if there are any.
+			orchestrator := s.PrebuildsOrchestrator.Load()
+			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
+				// Fire and forget. Bind to the lifecycle of the server so shutdowns are handled gracefully.
+				go (*orchestrator).TrackResourceReplacement(s.lifecycleCtx, workspace.ID, workspaceBuild.ID, resourceReplacements)
+			}
+		}
+
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,
 			WorkspaceID: workspace.ID,
@@ -1811,6 +1850,19 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
+		}
+
+		if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
+				slog.F("workspace_id", workspace.ID))
+
+			err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+				WorkspaceID: workspace.ID,
+				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			})
+			if err != nil {
+				s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
+			}
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {
@@ -1955,6 +2007,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			}
 		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			ID:                uuid.New(),
 			TemplateVersionID: templateVersionID,
 			Name:              protoPreset.Name,
 			CreatedAt:         t,

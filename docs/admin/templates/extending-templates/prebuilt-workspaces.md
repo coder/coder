@@ -163,6 +163,12 @@ resource "docker_container" "workspace" {
 
 Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
 
+_A note on "immutable" attributes: Terraform providers may specify `ForceNew` on their resources' attributes. Any change
+to these attributes require the replacement (destruction and recreation) of the managed resource instance, rather than an in-place update.
+For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance#ami-1) attribute on the `aws_instance` resource
+has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
+since the AMI cannot be changed in-place._
+
 ### Current limitations
 
 The prebuilt workspaces feature has these current limitations:

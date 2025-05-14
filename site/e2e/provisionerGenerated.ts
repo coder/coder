@@ -120,6 +120,11 @@ export interface PresetParameter {
   value: string;
 }
 
+export interface ResourceReplacement {
+  resource: string;
+  paths: string[];
+}
+
 /** VariableValue holds the key/value mapping of a Terraform variable. */
 export interface VariableValue {
   name: string;
@@ -297,6 +302,11 @@ export interface Role {
   orgId: string;
 }
 
+export interface RunningAgentAuthToken {
+  agentId: string;
+  token: string;
+}
+
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -320,8 +330,7 @@ export interface Metadata {
   workspaceOwnerRbacRoles: Role[];
   /** Indicates that a prebuilt workspace is being built. */
   prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
-  /** Preserves the running agent token of a prebuilt workspace so it can reinitialize. */
-  runningWorkspaceAgentToken: string;
+  runningAgentAuthTokens: RunningAgentAuthToken[];
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -370,6 +379,7 @@ export interface PlanComplete {
   presets: Preset[];
   plan: Uint8Array;
   moduleFiles: Uint8Array;
+  resourceReplacements: ResourceReplacement[];
 }
 
 /**
@@ -564,6 +574,18 @@ export const PresetParameter = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+};
+
+export const ResourceReplacement = {
+  encode(message: ResourceReplacement, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.resource !== "") {
+      writer.uint32(10).string(message.resource);
+    }
+    for (const v of message.paths) {
+      writer.uint32(18).string(v!);
     }
     return writer;
   },
@@ -986,6 +1008,18 @@ export const Role = {
   },
 };
 
+export const RunningAgentAuthToken = {
+  encode(message: RunningAgentAuthToken, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.agentId !== "") {
+      writer.uint32(10).string(message.agentId);
+    }
+    if (message.token !== "") {
+      writer.uint32(18).string(message.token);
+    }
+    return writer;
+  },
+};
+
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -1048,8 +1082,8 @@ export const Metadata = {
     if (message.prebuiltWorkspaceBuildStage !== 0) {
       writer.uint32(160).int32(message.prebuiltWorkspaceBuildStage);
     }
-    if (message.runningWorkspaceAgentToken !== "") {
-      writer.uint32(170).string(message.runningWorkspaceAgentToken);
+    for (const v of message.runningAgentAuthTokens) {
+      RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
     }
     return writer;
   },
@@ -1155,6 +1189,9 @@ export const PlanComplete = {
     }
     if (message.moduleFiles.length !== 0) {
       writer.uint32(82).bytes(message.moduleFiles);
+    }
+    for (const v of message.resourceReplacements) {
+      ResourceReplacement.encode(v!, writer.uint32(90).fork()).ldelim();
     }
     return writer;
   },
