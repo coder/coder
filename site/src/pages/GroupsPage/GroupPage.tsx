@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import PersonAdd from "@mui/icons-material/PersonAdd";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
+import MuiButton from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";
 import {
 	addMember,
@@ -18,7 +17,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { Button as ShadcnButton } from "components/Button/Button";
+import { Button } from "components/Button/Button";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
@@ -35,6 +34,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -121,14 +121,14 @@ const GroupPage: FC = () => {
 
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
-						<Button
+						<MuiButton
 							component={RouterLink}
 							startIcon={<SettingsIcon className="size-icon-sm" />}
 							to="settings"
 						>
 							Settings
-						</Button>
-						<Button
+						</MuiButton>
+						<MuiButton
 							disabled={groupData?.id === groupData?.organization_id}
 							onClick={() => {
 								setIsDeletingGroup(true);
@@ -137,7 +137,7 @@ const GroupPage: FC = () => {
 							css={styles.removeButton}
 						>
 							Delete&hellip;
-						</Button>
+						</MuiButton>
 					</Stack>
 				)}
 			</Stack>
@@ -279,15 +279,12 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({
 					}}
 				/>
 
-				<LoadingButton
-					loadingPosition="start"
-					disabled={!selectedUser}
-					type="submit"
-					startIcon={<PersonAdd />}
-					loading={isLoading}
-				>
+				<Button disabled={!selectedUser || isLoading} type="submit">
+					<Spinner loading={isLoading}>
+						<PersonAdd />
+					</Spinner>
 					Add user
-				</LoadingButton>
+				</Button>
 			</Stack>
 		</form>
 	);
@@ -332,14 +329,10 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<ShadcnButton
-								size="icon-lg"
-								variant="subtle"
-								aria-label="Open menu"
-							>
+							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
 								<EllipsisVertical aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
-							</ShadcnButton>
+							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem
