@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import PersonAdd from "@mui/icons-material/PersonAdd";
-import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectProps } from "@mui/material/Select";
 import Table from "@mui/material/Table";
@@ -29,6 +28,7 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { EllipsisVertical } from "lucide-react";
@@ -116,15 +116,15 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					</MenuItem>
 				</Select>
 
-				<LoadingButton
-					loadingPosition="start"
-					disabled={!selectedRole || !selectedOption}
+				<Button
+					disabled={!selectedRole || !selectedOption || isLoading}
 					type="submit"
-					startIcon={<PersonAdd />}
-					loading={isLoading}
 				>
+					<Spinner loading={isLoading}>
+						<PersonAdd />
+					</Spinner>
 					Add member
-				</LoadingButton>
+				</Button>
 			</Stack>
 		</form>
 	);
