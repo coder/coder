@@ -167,7 +167,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 			return; // User has selected a proxy, do not auto select.
 		}
 		if (!latenciesLoaded) {
-			// Wait until the latencies are loaded before
+			// Wait until the latencies are loaded first.
 			return;
 		}
 

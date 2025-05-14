@@ -48,6 +48,10 @@ export const useProxyLatency = (
 	// Until the new values are loaded, the old values will still be used.
 	refetch: () => Date;
 	proxyLatencies: Record<string, ProxyLatencyReport>;
+	// loaded signals all latency requests have completed. Once set to true, this will not change.
+	// Latencies at this point should be loaded from local storage, and updated asynchronously as needed.
+	// If local storage has updated latencies, then this will be set to true with 0 actual network requests.
+	// The loaded latencies will all be from the cache.
 	loaded: boolean;
 } => {
 	// maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
