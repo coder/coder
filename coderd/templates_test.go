@@ -1540,6 +1540,41 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.False(t, template.Deprecated)
 		})
 	})
+
+	t.Run("ClassicParameterFlow", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.False(t, template.ClassicParameterFlow, "default is false")
+
+		bTrue := true
+		bFalse := false
+		req := codersdk.UpdateTemplateMeta{
+			ClassicParameterFlow: &bTrue,
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// set to true
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.ClassicParameterFlow, "expected true")
+
+		// noop
+		req.ClassicParameterFlow = nil
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.ClassicParameterFlow, "expected true")
+
+		// back to false
+		req.ClassicParameterFlow = &bFalse
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.False(t, updated.ClassicParameterFlow, "expected false")
+	})
 }
 
 func TestDeleteTemplate(t *testing.T) {

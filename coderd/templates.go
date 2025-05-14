@@ -1078,6 +1078,7 @@ func (api *API) convertTemplate(
 		Deprecated:           templateAccessControl.IsDeprecated(),
 		DeprecationMessage:   templateAccessControl.Deprecated,
 		MaxPortShareLevel:    maxPortShareLevel,
+		ClassicParameterFlow: template.ClassicParameterFlow,
 	}
 }
 

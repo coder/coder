@@ -61,6 +61,8 @@ type Template struct {
 	// template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+
+	ClassicParameterFlow bool `json:"classic_parameter_flow"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
