@@ -1,6 +1,5 @@
 import EditIcon from "@mui/icons-material/EditOutlined";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import Button from "@mui/material/Button";
 import { workspaces } from "api/queries/workspaces";
 import type {
@@ -28,7 +27,12 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { EllipsisVertical, PlusIcon, TrashIcon } from "lucide-react";
+import {
+	EllipsisVertical,
+	PlusIcon,
+	SettingsIcon,
+	TrashIcon,
+} from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
@@ -77,7 +81,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 					<DropdownMenuItem
 						onClick={() => navigate(`${templateLink}/settings`)}
 					>
-						<SettingsIcon />
+						<SettingsIcon className="size-icon-sm" />
 						Settings
 					</DropdownMenuItem>
 

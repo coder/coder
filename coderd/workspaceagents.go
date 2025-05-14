@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -1181,6 +1182,60 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 	apiSource := convertLogSources(sources)[0]
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiSource)
+}
+
+// @Summary Get workspace agent reinitialization
+// @ID get-workspace-agent-reinitialization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} agentsdk.ReinitializationEvent
+// @Router /workspaceagents/me/reinit [get]
+func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	log := api.Logger.Named("workspace_agent_reinit_watcher").With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+	)
+
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		log.Error(ctx, "failed to retrieve workspace from agent token", slog.Error(err))
+		httpapi.InternalServerError(rw, xerrors.New("failed to determine workspace from agent token"))
+	}
+
+	log.Info(ctx, "agent waiting for reinit instruction")
+
+	reinitEvents := make(chan agentsdk.ReinitializationEvent)
+	cancel, err = prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
+	if err != nil {
+		log.Error(ctx, "subscribe to prebuild claimed channel", slog.Error(err))
+		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
+		return
+	}
+	defer cancel()
+
+	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
+
+	err = transmitter.Transmit(ctx, reinitEvents)
+	switch {
+	case errors.Is(err, agentsdk.ErrTransmissionSourceClosed):
+		log.Info(ctx, "agent reinitialization subscription closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case errors.Is(err, agentsdk.ErrTransmissionTargetClosed):
+		log.Info(ctx, "agent connection closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case errors.Is(err, context.Canceled):
+		log.Info(ctx, "agent reinitialization", slog.Error(err))
+	case err != nil:
+		log.Error(ctx, "failed to stream agent reinit events", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error streaming agent reinitialization events.",
+			Detail:  err.Error(),
+		})
+	}
 }
 
 // convertProvisionedApps converts applications that are in the middle of provisioning process.

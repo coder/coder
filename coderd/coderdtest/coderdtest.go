@@ -1105,6 +1105,69 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	return w
 }
 
+// WaitForAgentFn represents a boolean assertion to be made against each agent
+// that a given WorkspaceAgentWaited knows about. Each WaitForAgentFn should apply
+// the check to a single agent, but it should be named for plural, because `func (w WorkspaceAgentWaiter) WaitFor`
+// applies the check to all agents that it is aware of. This ensures that the public API of the waiter
+// reads correctly. For example:
+//
+// waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+// waiter.WaitFor(coderdtest.AgentsReady)
+type WaitForAgentFn func(agent codersdk.WorkspaceAgent) bool
+
+// AgentsReady checks that the latest lifecycle state of an agent is "Ready".
+func AgentsReady(agent codersdk.WorkspaceAgent) bool {
+	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+}
+
+// AgentsNotReady checks that the latest lifecycle state of an agent is anything except "Ready".
+func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
+	return !AgentsReady(agent)
+}
+
+func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
+	w.t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(w.agentNames))
+	for _, name := range w.agentNames {
+		agentNamesMap[name] = struct{}{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
+	require.Eventually(w.t, func() bool {
+		var err error
+		workspace, err := w.client.Workspace(ctx, w.workspaceID)
+		if err != nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				if len(w.agentNames) > 0 {
+					if _, ok := agentNamesMap[agent.Name]; !ok {
+						continue
+					}
+				}
+				for _, criterium := range criteria {
+					if !criterium(agent) {
+						return false
+					}
+				}
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
+}
+
 // Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
 func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 	w.t.Helper()

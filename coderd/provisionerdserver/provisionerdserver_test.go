@@ -26,7 +26,10 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -39,7 +42,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -167,8 +169,12 @@ func TestAcquireJob(t *testing.T) {
 			_, err = tc.acquire(ctx, srv)
 			require.ErrorContains(t, err, "sql: no rows in result set")
 		})
-		for _, prebuiltWorkspace := range []bool{false, true} {
-			prebuiltWorkspace := prebuiltWorkspace
+		for _, prebuiltWorkspaceBuildStage := range []sdkproto.PrebuiltWorkspaceBuildStage{
+			sdkproto.PrebuiltWorkspaceBuildStage_NONE,
+			sdkproto.PrebuiltWorkspaceBuildStage_CREATE,
+			sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
+		} {
+			prebuiltWorkspaceBuildStage := prebuiltWorkspaceBuildStage
 			t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
 				t.Parallel()
 				// Set the max session token lifetime so we can assert we
@@ -212,7 +218,7 @@ func TestAcquireJob(t *testing.T) {
 					Roles:          []string{rbac.RoleOrgAuditor()},
 				})
 
-				// Add extra erronous roles
+				// Add extra erroneous roles
 				secondOrg := dbgen.Organization(t, db, database.Organization{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{
 					UserID:         user.ID,
@@ -287,36 +293,74 @@ func TestAcquireJob(t *testing.T) {
 					Required:          true,
 					Sensitive:         false,
 				})
-				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				workspace := database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
-				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				}
+				workspace = dbgen.Workspace(t, db, workspace)
+				build := database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
 					BuildNumber:       1,
 					JobID:             uuid.New(),
 					TemplateVersionID: version.ID,
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
-				})
-				var buildState sdkproto.PrebuiltWorkspaceBuildStage
-				if prebuiltWorkspace {
-					buildState = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
 				}
-				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					ID:             build.ID,
+				build = dbgen.WorkspaceBuild(t, db, build)
+				input := provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: build.ID,
+				}
+				dbJob := database.ProvisionerJob{
+					ID:             build.JobID,
 					OrganizationID: pd.OrganizationID,
 					InitiatorID:    user.ID,
 					Provisioner:    database.ProvisionerTypeEcho,
 					StorageMethod:  database.ProvisionerStorageMethodFile,
 					FileID:         file.ID,
 					Type:           database.ProvisionerJobTypeWorkspaceBuild,
-					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					Input:          must(json.Marshal(input)),
+				}
+				dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
+
+				var agent database.WorkspaceAgent
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+						JobID: dbJob.ID,
+					})
+					agent = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ResourceID: resource.ID,
+						AuthToken:  uuid.New(),
+					})
+					// At this point we have an unclaimed workspace and build, now we need to setup the claim
+					// build
+					build = database.WorkspaceBuild{
+						WorkspaceID:       workspace.ID,
+						BuildNumber:       2,
+						JobID:             uuid.New(),
+						TemplateVersionID: version.ID,
+						Transition:        database.WorkspaceTransitionStart,
+						Reason:            database.BuildReasonInitiator,
+						InitiatorID:       user.ID,
+					}
+					build = dbgen.WorkspaceBuild(t, db, build)
+
+					input = provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID:            build.ID,
-						PrebuiltWorkspaceBuildStage: buildState,
-					})),
-				})
+						PrebuiltWorkspaceBuildStage: prebuiltWorkspaceBuildStage,
+					}
+					dbJob = database.ProvisionerJob{
+						ID:             build.JobID,
+						OrganizationID: pd.OrganizationID,
+						InitiatorID:    user.ID,
+						Provisioner:    database.ProvisionerTypeEcho,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						FileID:         file.ID,
+						Type:           database.ProvisionerJobTypeWorkspaceBuild,
+						Input:          must(json.Marshal(input)),
+					}
+					dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
+				}
 
 				startPublished := make(chan struct{})
 				var closed bool
@@ -349,6 +393,19 @@ func TestAcquireJob(t *testing.T) {
 				}
 
 				<-startPublished
+
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					for {
+						// In the case of a prebuild claim, there is a second build, which is the
+						// one that we're interested in.
+						job, err = tc.acquire(ctx, srv)
+						require.NoError(t, err)
+						if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+							break
+						}
+					}
+					<-startPublished
+				}
 
 				got, err := json.Marshal(job.Type)
 				require.NoError(t, err)
@@ -384,8 +441,14 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerLoginType:       string(user.LoginType),
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
 				}
-				if prebuiltWorkspace {
-					wantedMetadata.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
+					// and we expect tokens from the first build to be set for reuse
+					wantedMetadata.PrebuiltWorkspaceBuildStage = prebuiltWorkspaceBuildStage
+					wantedMetadata.RunningAgentAuthTokens = append(wantedMetadata.RunningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+						AgentId: agent.ID.String(),
+						Token:   agent.AuthToken.String(),
+					})
 				}
 
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
@@ -1746,6 +1809,110 @@ func TestCompleteJob(t *testing.T) {
 				}
 				for _, module := range modules {
 					require.Equal(t, "matched", module.Key)
+				}
+			})
+		}
+	})
+
+	t.Run("ReinitializePrebuiltAgents", func(t *testing.T) {
+		t.Parallel()
+		type testcase struct {
+			name                    string
+			shouldReinitializeAgent bool
+		}
+
+		for _, tc := range []testcase{
+			// Whether or not there are presets and those presets define prebuilds, etc
+			// are all irrelevant at this level. Those factors are useful earlier in the process.
+			// Everything relevant to this test is determined by the value of `PrebuildClaimedByUser`
+			// on the provisioner job. As such, there are only two significant test cases:
+			{
+				name:                    "claimed prebuild",
+				shouldReinitializeAgent: true,
+			},
+			{
+				name:                    "not a claimed prebuild",
+				shouldReinitializeAgent: false,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// GIVEN an enqueued provisioner job and its dependencies:
+
+				srv, db, ps, pd := setup(t, false, &overrides{})
+
+				buildID := uuid.New()
+				jobInput := provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				}
+				if tc.shouldReinitializeAgent { // This is the key lever in the test
+					// GIVEN the enqueued provisioner job is for a workspace being claimed by a user:
+					jobInput.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
+				}
+				input, err := json.Marshal(jobInput)
+				require.NoError(t, err)
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+					Input:         input,
+					Provisioner:   database.ProvisionerTypeEcho,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+				})
+				require.NoError(t, err)
+
+				tpl := dbgen.Template(t, db, database.Template{
+					OrganizationID: pd.OrganizationID,
+				})
+				tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+					JobID:      job.ID,
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID: tpl.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                buildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: tv.ID,
+				})
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				// GIVEN something is listening to process workspace reinitialization:
+				reinitChan := make(chan agentsdk.ReinitializationEvent, 1) // Buffered to simplify test structure
+				cancel, err := prebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID, reinitChan)
+				require.NoError(t, err)
+				defer cancel()
+
+				// WHEN the job is completed
+				completedJob := proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{},
+					},
+				}
+				_, err = srv.CompleteJob(ctx, &completedJob)
+				require.NoError(t, err)
+
+				if tc.shouldReinitializeAgent {
+					event := testutil.RequireReceive(ctx, t, reinitChan)
+					require.Equal(t, workspace.ID, event.WorkspaceID)
+				} else {
+					select {
+					case <-reinitChan:
+						t.Fatal("unexpected reinitialization event published")
+					default:
+						// OK
+					}
 				}
 			})
 		}
