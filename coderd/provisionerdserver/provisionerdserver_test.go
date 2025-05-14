@@ -1903,14 +1903,16 @@ func TestCompleteJob(t *testing.T) {
 				_, err = srv.CompleteJob(ctx, &completedJob)
 				require.NoError(t, err)
 
-				select {
-				case reinitEvent := <-reinitChan:
-					// THEN workspace agent reinitialization instruction was received:
-					require.True(t, tc.shouldReinitializeAgent)
-					require.Equal(t, workspace.ID, reinitEvent.WorkspaceID)
-				default:
-					// THEN workspace agent reinitialization instruction was not received.
-					require.False(t, tc.shouldReinitializeAgent)
+				if tc.shouldReinitializeAgent {
+					event := testutil.RequireReceive(ctx, t, reinitChan)
+					require.Equal(t, workspace.ID, event.WorkspaceID)
+				} else {
+					select {
+					case <-reinitChan:
+						t.Fatal("unexpected reinitialization event published")
+					default:
+						// OK
+					}
 				}
 			})
 		}
