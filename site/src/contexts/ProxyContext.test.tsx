@@ -224,6 +224,7 @@ describe("ProxyContextSelection", () => {
 			"regions_no_selection",
 			{
 				expProxyID: MockPrimaryWorkspaceProxy.id,
+				expUserProxyID: MockPrimaryWorkspaceProxy.id,
 				regions: MockWorkspaceProxies,
 				storageProxy: undefined,
 			},
@@ -270,6 +271,7 @@ describe("ProxyContextSelection", () => {
 			"regions_default_low_latency",
 			{
 				expProxyID: MockHealthyWildWorkspaceProxy.id,
+				expUserProxyID: MockHealthyWildWorkspaceProxy.id,
 				regions: MockWorkspaceProxies,
 				storageProxy: undefined,
 				latencies: {
