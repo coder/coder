@@ -62,7 +62,7 @@ type Template struct {
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 
-	ClassicParameterFlow bool `json:"classic_parameter_flow"`
+	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -252,12 +252,12 @@ type UpdateTemplateMeta struct {
 	// of the template.
 	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
-	// ClassicParameterFlow is a flag that switches the default behavior to use the classic
+	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
 	// parameter flow when creating a workspace. This only affects deployments with the experiment
 	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
-	ClassicParameterFlow *bool `json:"classic_parameter_flow,omitempty"`
+	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
 }
 
 type TemplateExample struct {

@@ -1,8 +1,8 @@
 -- Default to `false`. Users will have to manually opt back into the classic parameter flow.
 -- We want the new experience to be tried first.
-ALTER TABLE templates ADD COLUMN classic_parameter_flow BOOL NOT NULL DEFAULT false;
+ALTER TABLE templates ADD COLUMN use_classic_parameter_flow BOOL NOT NULL DEFAULT false;
 
-COMMENT ON COLUMN templates.classic_parameter_flow IS
+COMMENT ON COLUMN templates.use_classic_parameter_flow IS
 	'Determines whether to default to the dynamic parameter creation flow for this template '
 	'or continue using the legacy classic parameter creation flow.'
 	'This is a template wide setting, the template admin can revert to the classic flow if there are any issues. '

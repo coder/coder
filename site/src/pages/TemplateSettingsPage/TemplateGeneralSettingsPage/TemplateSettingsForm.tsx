@@ -47,7 +47,7 @@ export const validationSchema = Yup.object({
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
-	classic_parameter_flow: Yup.boolean(),
+	use_classic_parameter_flow: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
 });
@@ -90,7 +90,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			deprecation_message: template.deprecation_message,
 			disable_everyone_group_access: false,
 			max_port_share_level: template.max_port_share_level,
-			classic_parameter_flow: template.classic_parameter_flow,
+			use_classic_parameter_flow: template.use_classic_parameter_flow,
 		},
 		validationSchema,
 		onSubmit,
@@ -228,9 +228,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						control={
 							<Checkbox
 								size="small"
-								id="classic_parameter_flow"
-								name="classic_parameter_flow"
-								checked={form.values.classic_parameter_flow}
+								id="use_classic_parameter_flow"
+								name="use_classic_parameter_flow"
+								checked={form.values.use_classic_parameter_flow}
 								onChange={form.handleChange}
 								disabled={false}
 							/>

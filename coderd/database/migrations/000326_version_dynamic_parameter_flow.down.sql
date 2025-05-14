@@ -1,7 +1,7 @@
 DROP VIEW template_with_names;
 
 -- Drop the column
-ALTER TABLE templates DROP COLUMN classic_parameter_flow;
+ALTER TABLE templates DROP COLUMN use_classic_parameter_flow;
 
 
 CREATE VIEW
