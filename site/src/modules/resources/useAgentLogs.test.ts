@@ -33,7 +33,7 @@ describe("useAgentLogs", () => {
 
 		// Disable the hook
 		rerender({ enabled: false });
-		expect(result.current).toBeUndefined();
+		expect(result.current).toHaveLength(0);
 
 		// Enable the hook again
 		rerender({ enabled: true });
