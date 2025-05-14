@@ -2,21 +2,27 @@ package agentapi_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
-func devContainerAgentAPI(t *testing.T) *agentapi.DevContainerAgentAPI {
+func devContainerAgentAPI(t *testing.T, log slog.Logger) *agentapi.DevContainerAgentAPI {
 	db, _ := dbtestutil.NewDB(t)
+
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	template := dbgen.Template(t, db, database.Template{
@@ -50,22 +56,29 @@ func devContainerAgentAPI(t *testing.T) *agentapi.DevContainerAgentAPI {
 
 	clock := quartz.NewMock(t)
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
 	return &agentapi.DevContainerAgentAPI{
 		AgentID: agent.ID,
 		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 			return agent, nil
 		},
 		Clock:    clock,
-		Database: db,
+		Database: dbauthz.New(db, auth, log, accessControlStore),
 	}
 }
 
 func TestDevContainerAgentAPI(t *testing.T) {
 	t.Parallel()
 
+	log := testutil.Logger(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	api := devContainerAgentAPI(t)
+	api := devContainerAgentAPI(t, log)
 
 	// Given: There are no dev container agents.
 	listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})

@@ -25,6 +25,8 @@ type DevContainerAgentAPI struct {
 }
 
 func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
+
 	parentAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("get parent agent: %w", err)
@@ -39,7 +41,7 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 	// Validate this agent name
 	agentName := strings.ToLower(req.Name)
 
-	devContainerAgent, err := a.Database.InsertWorkspaceAgent(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAgentParams{
+	devContainerAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
 		CreatedAt:                a.Clock.Now(),
@@ -71,12 +73,14 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 }
 
 func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
+
 	devContainerAgentID, err := uuid.FromBytes(req.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := a.Database.DeleteWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), devContainerAgentID); err != nil {
+	if err := a.Database.DeleteWorkspaceAgentByID(ctx, devContainerAgentID); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +88,9 @@ func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req 
 }
 
 func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, req *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
-	workspaceAgents, err := a.Database.GetWorkspaceAgentsWithParentID(dbauthz.AsSystemRestricted(ctx), uuid.NullUUID{Valid: true, UUID: a.AgentID})
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
+
+	workspaceAgents, err := a.Database.GetWorkspaceAgentsWithParentID(ctx, uuid.NullUUID{Valid: true, UUID: a.AgentID})
 	if err != nil {
 		return nil, err
 	}
