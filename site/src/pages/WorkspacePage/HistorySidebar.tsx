@@ -48,15 +48,10 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 			{buildsQuery.hasNextPage && (
 				<div css={{ padding: 16 }}>
 					<Button
-						fullWidth
 						onClick={() => buildsQuery.fetchNextPage()}
 						disabled={buildsQuery.isFetchingNextPage}
 						variant="outline"
-						css={{
-							display: "inline-flex",
-							borderRadius: "9999px",
-							fontSize: 13,
-						}}
+						className="w-full"
 					>
 						<Spinner loading={buildsQuery.isFetchingNextPage}>
 							<ArrowDownwardOutlined />
