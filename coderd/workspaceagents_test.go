@@ -2663,7 +2663,10 @@ func TestReinit(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
+
+	pubsubSpy.Mutex.Lock()
 	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+	pubsubSpy.Mutex.Unlock()
 
 	agentCtx := testutil.Context(t, testutil.WaitShort)
 	agentClient := agentsdk.New(client.URL)
