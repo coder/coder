@@ -257,7 +257,7 @@ type UpdateTemplateMeta struct {
 	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
-	ClassicParameterFlow *bool `json:"dynamic_parameter_flow,omitempty"`
+	ClassicParameterFlow *bool `json:"classic_parameter_flow,omitempty"`
 }
 
 type TemplateExample struct {

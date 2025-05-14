@@ -2,6 +2,10 @@
 -- We want the new experience to be tried first.
 ALTER TABLE templates ADD COLUMN classic_parameter_flow BOOL NOT NULL DEFAULT false;
 
+-- Existing templates will default to `true` for the classic parameter flow.
+-- They will be incompatible with the new parameter flow until they are re-imported.
+UPDATE templates SET classic_parameter_flow = true;
+
 COMMENT ON COLUMN templates.classic_parameter_flow IS
 	'Determines whether to default to the dynamic parameter creation flow for this template '
 	'or continue using the legacy classic parameter creation flow.'
