@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"io/fs"
 	"net/http"
 	"time"
 
@@ -19,8 +18,10 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
 	"github.com/coder/websocket"
@@ -60,11 +61,38 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	render, closer, success := prepareDynamicPreview(ctx, rw, api.Database, api.FileCache, templateVersion, user)
-	if !success {
+	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve Terraform values for template version",
+			Detail:  err.Error(),
+		})
 		return
 	}
-	defer closer()
+
+	staticDiagnostics := parameterProvisionerVersionDiagnostic(tf)
+
+	var render previewFunction
+	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
+	if err != nil || major < 1 || (major == 1 && minor < 5) {
+		staticRender, err := prepareStaticPreview(ctx, api.Database, templateVersion.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to setup static rendering",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		render = staticRender
+	} else {
+		// If the major version is 1.5+, we can use the dynamic preview
+		dynamicRender, closer, success := prepareDynamicPreview(ctx, rw, api.Database, api.FileCache, tf, templateVersion, user)
+		if !success {
+			return
+		}
+		defer closer()
+		render = dynamicRender
+	}
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -128,7 +156,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 
 type previewFunction func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
-func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db database.Store, fc *files.Cache, templateVersion database.TemplateVersion, user database.User) (render previewFunction, closer func(), success bool) {
+func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db database.Store, fc *files.Cache, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion, user database.User) (render previewFunction, closer func(), success bool) {
 	openFiles := make([]uuid.UUID, 0)
 	closeFiles := func() {
 		for _, it := range openFiles {
@@ -167,36 +195,20 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 	// for populating values from data blocks, but isn't strictly required. If
 	// we don't have a cached plan available, we just use an empty one instead.
 	plan := json.RawMessage("{}")
-	tf, err := db.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-	if err == nil {
-		plan = tf.CachedPlan
+	plan = tf.CachedPlan
 
-		if tf.CachedModuleFiles.Valid {
-			moduleFilesFS, err := fc.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: "Internal error fetching Terraform modules.",
-					Detail:  err.Error(),
-				})
-				return nil, nil, false
-			}
-			openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
-
-			templateFS, err = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error creating overlay filesystem.",
-					Detail:  err.Error(),
-				})
-				return nil, nil, false
-			}
+	if tf.CachedModuleFiles.Valid {
+		moduleFilesFS, err := fc.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Internal error fetching Terraform modules.",
+				Detail:  err.Error(),
+			})
+			return nil, nil, false
 		}
-	} else if !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to retrieve Terraform values for template version",
-			Detail:  err.Error(),
-		})
-		return nil, nil, false
+		openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
+
+		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
 	owner, err := getWorkspaceOwnerData(ctx, db, user, templateVersion.OrganizationID)
@@ -219,15 +231,15 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 	}, closeFiles, true
 }
 
-func staticPreview(ctx context.Context, db database.Store, version uuid.UUID) func(ctx context.Context, input preview.Input, fs fs.FS) preview.Output {
+func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.UUID) (previewFunction, error) {
 	dbTemplateVersionParameters, err := db.GetTemplateVersionParameters(ctx, version)
 	if err != nil {
-		return nil
+		return nil, xerrors.Errorf("error fetching template version parameters: %w", err)
 	}
 
 	params := make([]previewtypes.Parameter, 0, len(dbTemplateVersionParameters))
 	for _, it := range dbTemplateVersionParameters {
-		params = append(params, previewtypes.Parameter{
+		param := previewtypes.Parameter{
 			ParameterData: previewtypes.ParameterData{
 				Name:         it.Name,
 				DisplayName:  it.DisplayName,
@@ -240,22 +252,77 @@ func staticPreview(ctx context.Context, db database.Store, version uuid.UUID) fu
 				Icon:         it.Icon,
 				Options:      nil,
 				Validations:  nil,
-				Required:     false,
-				Order:        0,
-				Ephemeral:    false,
+				Required:     it.Required,
+				Order:        int64(it.DisplayOrder),
+				Ephemeral:    it.Ephemeral,
 				Source:       nil,
 			},
-			Value:       previewtypes.NullString(),
+			// Always use the default, since we used to assume the empty string
+			Value:       previewtypes.StringLiteral(it.DefaultValue),
 			Diagnostics: nil,
-		})
-	}
-
-	return func(_ context.Context, in preview.Input, _ fs.FS) preview.Output {
-
-		return preview.Output{
-			Parameters: nil,
 		}
+
+		if it.ValidationError != "" || it.ValidationRegex != "" || it.ValidationMonotonic != "" {
+			var reg *string
+			if it.ValidationRegex != "" {
+				reg = ptr.Ref(it.ValidationRegex)
+			}
+
+			var vMin *int64
+			if it.ValidationMin.Valid {
+				vMin = ptr.Ref(int64(it.ValidationMin.Int32))
+			}
+
+			var vMax *int64
+			if it.ValidationMax.Valid {
+				vMin = ptr.Ref(int64(it.ValidationMax.Int32))
+			}
+
+			var monotonic *string
+			if it.ValidationMonotonic != "" {
+				monotonic = ptr.Ref(it.ValidationMonotonic)
+			}
+
+			param.Validations = append(param.Validations, &previewtypes.ParameterValidation{
+				Error:     it.ValidationError,
+				Regex:     reg,
+				Min:       vMin,
+				Max:       vMax,
+				Monotonic: monotonic,
+			})
+		}
+
+		var protoOptions []*sdkproto.RichParameterOption
+		_ = json.Unmarshal(it.Options, &protoOptions) // Not going to make this fatal
+		for _, opt := range protoOptions {
+			param.Options = append(param.Options, &previewtypes.ParameterOption{
+				Name:        opt.Name,
+				Description: opt.Description,
+				Value:       previewtypes.StringLiteral(opt.Value),
+				Icon:        opt.Icon,
+			})
+		}
+
+		param.Diagnostics = previewtypes.Diagnostics(param.Valid(param.Value))
+		params = append(params, param)
 	}
+
+	return func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+		for i := range params {
+			param := &params[i]
+			paramValue, ok := values[param.Name]
+			if ok {
+				param.Value = previewtypes.StringLiteral(paramValue)
+			} else {
+				paramValue = param.DefaultValue.AsString()
+			}
+			param.Diagnostics = previewtypes.Diagnostics(param.Valid(param.Value))
+		}
+
+		return &preview.Output{
+			Parameters: params,
+		}, nil
+	}, nil
 }
 
 func getWorkspaceOwnerData(

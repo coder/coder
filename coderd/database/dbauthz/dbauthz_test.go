@@ -1214,8 +1214,8 @@ func (s *MethodTestSuite) TestTemplate() {
 			JobID:          job.ID,
 			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
 		})
-		dbgen.TemplateVersionTerraformValues(s.T(), db, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-			JobID: job.ID,
+		dbgen.TemplateVersionTerraformValues(s.T(), db, database.TemplateVersionTerraformValue{
+			TemplateVersionID: tv.ID,
 		})
 		check.Args(tv.ID).Asserts(t, policy.ActionRead)
 	}))

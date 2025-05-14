@@ -24,9 +24,9 @@ func Test_prepareDynamicPreview(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Success", func(t *testing.T) {
-		db, fc, ver, user := setupPrepareDynamicPreview(t, ``, ptr.Ref("{}"))
+		db, fc, tf, ver, user := setupPrepareDynamicPreview(t, ``, ptr.Ref("{}"))
 		rec := httptest.NewRecorder()
-		_, closer, success := prepareDynamicPreview(context.Background(), rec, db, fc, ver, user)
+		_, closer, success := prepareDynamicPreview(context.Background(), rec, db, fc, tf, ver, user)
 		require.True(t, success)
 
 		require.Equal(t, fc.Count(), 3)
@@ -36,7 +36,7 @@ func Test_prepareDynamicPreview(t *testing.T) {
 	})
 }
 
-func setupPrepareDynamicPreview(t *testing.T, tf string, modules *string) (database.Store, *files.Cache, database.TemplateVersion, database.User) {
+func setupPrepareDynamicPreview(t *testing.T, tf string, modules *string) (database.Store, *files.Cache, database.TemplateVersionTerraformValue, database.TemplateVersion, database.User) {
 	db := dbmem.New()
 
 	versionFile := dbgen.File(t, db, database.File{})
@@ -58,8 +58,8 @@ func setupPrepareDynamicPreview(t *testing.T, tf string, modules *string) (datab
 		}
 	}
 
-	dbgen.TemplateVersionTerraformValues(t, db, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:             job.ID,
+	tfVals := dbgen.TemplateVersionTerraformValues(t, db, database.TemplateVersionTerraformValue{
+		TemplateVersionID: ver.ID,
 		UpdatedAt:         time.Time{},
 		CachedPlan:        nil,
 		CachedModuleFiles: modulesFile,
@@ -91,7 +91,7 @@ func setupPrepareDynamicPreview(t *testing.T, tf string, modules *string) (datab
 		return nil, sql.ErrNoRows
 	})
 
-	return db, fc, ver, user
+	return db, fc, tfVals, ver, user
 }
 
 func Test_parameterProvisionerVersionDiagnostic(t *testing.T) {
