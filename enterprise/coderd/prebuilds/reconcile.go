@@ -641,6 +641,16 @@ func (c *StoreReconciler) provision(
 	return nil
 }
 
+// ForceMetricsUpdate forces the metrics collector, if defined, to update its state (we cache the metrics state to
+// reduce load on the database).
+func (c *StoreReconciler) ForceMetricsUpdate(ctx context.Context) error {
+	if c.metrics == nil {
+		return nil
+	}
+
+	return c.metrics.UpdateState(ctx, time.Second*10)
+}
+
 func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
 	// nolint:gocritic // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)

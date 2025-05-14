@@ -968,6 +968,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 	prebuiltWorkspace, prebuild := setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded, org.ID, preset, template.ID, templateVersionID)
 
 	// Given: no replacement has been tracked yet, we should not see a metric for it yet.
+	require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
 	mf, err := registry.Gather()
 	require.NoError(t, err)
 	require.Nil(t, findMetric(mf, prebuilds.MetricResourceReplacementsCount, map[string]string{

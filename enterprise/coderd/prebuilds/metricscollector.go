@@ -27,6 +27,7 @@ const (
 	MetricDesiredGauge              = namespace + "desired"
 	MetricRunningGauge              = namespace + "running"
 	MetricEligibleGauge             = namespace + "eligible"
+	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
 )
 
 var (
@@ -82,7 +83,7 @@ var (
 		nil,
 	)
 	lastUpdateDesc = prometheus.NewDesc(
-		"coderd_prebuilt_workspaces_metrics_last_updated",
+		MetricLastUpdatedGauge,
 		"The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.",
 		[]string{},
 		nil,
