@@ -1,4 +1,4 @@
-package reaper_test
+package jobreaper_test
 
 import (
 	"context"
@@ -20,9 +20,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/reaper"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -49,10 +49,10 @@ func jobLogMessages(jobType jobType, threshold float64) []string {
 // reapParamsFromJob determines the type and threshold for a job being reaped
 func reapParamsFromJob(job database.ProvisionerJob) (jobType, float64) {
 	jobType := hungJobType
-	threshold := reaper.HungJobDuration.Minutes()
+	threshold := jobreaper.HungJobDuration.Minutes()
 	if !job.StartedAt.Valid {
 		jobType = notStartedJobType
-		threshold = reaper.NotStartedTimeElapsed.Minutes()
+		threshold = jobreaper.NotStartedTimeElapsed.Minutes()
 	}
 	return jobType, threshold
 }
@@ -69,10 +69,10 @@ func TestDetectorNoJobs(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- time.Now()
 
@@ -92,7 +92,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	// Insert some jobs that are running and haven't been updated in a while,
@@ -119,7 +119,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 		})
 	}
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -139,7 +139,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -225,7 +225,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	t.Log("previous job ID: ", previousWorkspaceBuildJob.ID)
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -261,7 +261,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -348,7 +348,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	t.Log("previous job ID: ", previousWorkspaceBuildJob.ID)
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -384,7 +384,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -441,7 +441,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -477,7 +477,7 @@ func TestDetectorNotStartedWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *tes
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -533,7 +533,7 @@ func TestDetectorNotStartedWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *tes
 
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -571,7 +571,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -633,7 +633,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Log("template import job ID: ", templateImportJob.ID)
 	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -675,7 +675,7 @@ func TestDetectorNotStartedOtherJobTypes(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -736,7 +736,7 @@ func TestDetectorNotStartedOtherJobTypes(t *testing.T) {
 	t.Log("template import job ID: ", templateImportJob.ID)
 	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -782,7 +782,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -822,7 +822,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 
 	t.Log("template import job ID: ", templateImportJob.ID)
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -884,7 +884,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 				db, pubsub = dbtestutil.NewDB(t)
 				log        = testutil.Logger(t)
 				tickCh     = make(chan time.Time)
-				statsCh    = make(chan reaper.Stats)
+				statsCh    = make(chan jobreaper.Stats)
 			)
 
 			var (
@@ -937,7 +937,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 				require.Len(t, logs, 10)
 			}
 
-			detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+			detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 			detector.Start()
 
 			// Create pubsub subscription to listen for new log events.
@@ -1004,7 +1004,7 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan reaper.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 		org        = dbgen.Organization(t, db, database.Organization{})
 		user       = dbgen.User(t, db, database.User{})
 		file       = dbgen.File(t, db, database.File{})
@@ -1012,7 +1012,7 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 
 	// Create MaxJobsPerRun + 1 hung jobs.
 	now := time.Now()
-	for i := 0; i < reaper.MaxJobsPerRun+1; i++ {
+	for i := 0; i < jobreaper.MaxJobsPerRun+1; i++ {
 		pj := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
@@ -1035,14 +1035,14 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 		})
 	}
 
-	detector := reaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
 	// Make sure that only MaxJobsPerRun jobs are terminated.
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Len(t, stats.TerminatedJobIDs, reaper.MaxJobsPerRun)
+	require.Len(t, stats.TerminatedJobIDs, jobreaper.MaxJobsPerRun)
 
 	// Run the detector again and make sure that only the remaining job is
 	// terminated.

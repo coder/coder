@@ -1,4 +1,4 @@
-package reaper
+package jobreaper
 
 import (
 	"context"

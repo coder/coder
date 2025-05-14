@@ -16,7 +16,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/reaper"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -131,7 +131,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.Tracer = trace.NewNoopTracerProvider().Tracer("noop")
 	}
 	if options.ExitTimeout == 0 {
-		options.ExitTimeout = reaper.HungJobExitTimeout
+		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
 		execMut:       &sync.Mutex{},
