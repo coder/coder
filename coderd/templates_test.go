@@ -1548,12 +1548,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.False(t, template.ClassicParameterFlow, "default is false")
+		require.False(t, template.UseClassicParameterFlow, "default is false")
 
 		bTrue := true
 		bFalse := false
 		req := codersdk.UpdateTemplateMeta{
-			ClassicParameterFlow: &bTrue,
+			UseClassicParameterFlow: &bTrue,
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1561,19 +1561,19 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// set to true
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
-		assert.True(t, updated.ClassicParameterFlow, "expected true")
+		assert.True(t, updated.UseClassicParameterFlow, "expected true")
 
 		// noop
-		req.ClassicParameterFlow = nil
+		req.UseClassicParameterFlow = nil
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
-		assert.True(t, updated.ClassicParameterFlow, "expected true")
+		assert.True(t, updated.UseClassicParameterFlow, "expected true")
 
 		// back to false
-		req.ClassicParameterFlow = &bFalse
+		req.UseClassicParameterFlow = &bFalse
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
-		assert.False(t, updated.ClassicParameterFlow, "expected false")
+		assert.False(t, updated.UseClassicParameterFlow, "expected false")
 	})
 }
 

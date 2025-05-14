@@ -57,7 +57,6 @@ To include deprecated templates, specify `deprecated:true` in the search query.
         "p95": 146
       }
     },
-    "classic_parameter_flow": true,
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
@@ -79,7 +78,8 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -113,7 +113,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
 |`»»» p95`|integer|false|||
-|`» classic_parameter_flow`|boolean|false|||
 |`» created_at`|string(date-time)|false|||
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
@@ -136,6 +135,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
+|`» use_classic_parameter_flow`|boolean|false|||
 
 #### Enumerated Values
 
@@ -236,7 +236,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "p95": 146
     }
   },
-  "classic_parameter_flow": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -258,7 +257,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -385,7 +385,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "p95": 146
     }
   },
-  "classic_parameter_flow": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -407,7 +406,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -785,7 +785,6 @@ To include deprecated templates, specify `deprecated:true` in the search query.
         "p95": 146
       }
     },
-    "classic_parameter_flow": true,
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
@@ -807,7 +806,8 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -841,7 +841,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
 |`»»» p95`|integer|false|||
-|`» classic_parameter_flow`|boolean|false|||
 |`» created_at`|string(date-time)|false|||
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
@@ -864,6 +863,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
+|`» use_classic_parameter_flow`|boolean|false|||
 
 #### Enumerated Values
 
@@ -984,7 +984,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
       "p95": 146
     }
   },
-  "classic_parameter_flow": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -1006,7 +1005,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1114,7 +1114,6 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
       "p95": 146
     }
   },
-  "classic_parameter_flow": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -1136,7 +1135,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 

@@ -15497,9 +15497,6 @@ const docTemplate = `{
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
                 },
-                "classic_parameter_flow": {
-                    "type": "boolean"
-                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -15576,6 +15573,9 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_classic_parameter_flow": {
+                    "type": "boolean"
                 }
             }
         },

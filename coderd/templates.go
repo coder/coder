@@ -729,9 +729,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Defaults to the existing.
-	classicTemplateFlow := template.ClassicParameterFlow
-	if req.ClassicParameterFlow != nil {
-		classicTemplateFlow = *req.ClassicParameterFlow
+	classicTemplateFlow := template.UseClassicParameterFlow
+	if req.UseClassicParameterFlow != nil {
+		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
 
 	var updated database.Template
@@ -753,7 +753,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
-			(classicTemplateFlow == template.ClassicParameterFlow) &&
+			(classicTemplateFlow == template.UseClassicParameterFlow) &&
 			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
@@ -795,7 +795,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
-			ClassicParameterFlow:         classicTemplateFlow,
+			UseClassicParameterFlow:      classicTemplateFlow,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1074,11 +1074,11 @@ func (api *API) convertTemplate(
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 		// These values depend on entitlements and come from the templateAccessControl
-		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
-		Deprecated:           templateAccessControl.IsDeprecated(),
-		DeprecationMessage:   templateAccessControl.Deprecated,
-		MaxPortShareLevel:    maxPortShareLevel,
-		ClassicParameterFlow: template.ClassicParameterFlow,
+		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
+		Deprecated:              templateAccessControl.IsDeprecated(),
+		DeprecationMessage:      templateAccessControl.Deprecated,
+		MaxPortShareLevel:       maxPortShareLevel,
+		UseClassicParameterFlow: template.UseClassicParameterFlow,
 	}
 }
 
