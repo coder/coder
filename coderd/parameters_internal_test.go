@@ -74,5 +74,4 @@ func Test_parameterProvisionerVersionDiagnostic(t *testing.T) {
 			}
 		})
 	}
-
 }
