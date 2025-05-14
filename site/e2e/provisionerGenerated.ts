@@ -120,6 +120,11 @@ export interface PresetParameter {
   value: string;
 }
 
+export interface ResourceReplacement {
+  resource: string;
+  paths: string[];
+}
+
 /** VariableValue holds the key/value mapping of a Terraform variable. */
 export interface VariableValue {
   name: string;
@@ -371,6 +376,7 @@ export interface PlanComplete {
   modules: Module[];
   presets: Preset[];
   plan: Uint8Array;
+  resourceReplacements: ResourceReplacement[];
 }
 
 /**
@@ -565,6 +571,18 @@ export const PresetParameter = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+};
+
+export const ResourceReplacement = {
+  encode(message: ResourceReplacement, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.resource !== "") {
+      writer.uint32(10).string(message.resource);
+    }
+    for (const v of message.paths) {
+      writer.uint32(18).string(v!);
     }
     return writer;
   },
@@ -1159,6 +1177,9 @@ export const PlanComplete = {
     }
     if (message.plan.length !== 0) {
       writer.uint32(74).bytes(message.plan);
+    }
+    for (const v of message.resourceReplacements) {
+      ResourceReplacement.encode(v!, writer.uint32(82).fork()).ldelim();
     }
     return writer;
   },

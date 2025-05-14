@@ -583,6 +583,7 @@ const createTemplateVersionTar = async (
 					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
 					timings: response.apply?.timings ?? [],
 					presets: [],
+					resourceReplacements: [],
 					plan: emptyPlan,
 				},
 			};
@@ -706,6 +707,7 @@ const createTemplateVersionTar = async (
 			timings: [],
 			modules: [],
 			presets: [],
+			resourceReplacements: [],
 			plan: emptyPlan,
 			...response.plan,
 		} as PlanComplete;
