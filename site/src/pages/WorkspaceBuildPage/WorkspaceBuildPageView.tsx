@@ -21,7 +21,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { BuildAvatar } from "modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
-import { useAgentLogs } from "modules/resources/AgentLogs/useAgentLogs";
+import { useAgentLogs } from "modules/resources/useAgentLogs";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
