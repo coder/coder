@@ -152,7 +152,6 @@ const TestingScreen = () => {
 		setProxy,
 	} = useProxy();
 
-	console.log(proxy);
 	return (
 		<>
 			<div
