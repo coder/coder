@@ -365,15 +365,15 @@ func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequ
 	return slices.Clone(f.connectionReports)
 }
 
-func (f *FakeAgentAPI) CreateDevContainerAgent(_ context.Context, req *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
+func (*FakeAgentAPI) CreateDevContainerAgent(_ context.Context, _ *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
 	panic("unimplemented")
 }
 
-func (f *FakeAgentAPI) DeleteDevContainerAgent(_ context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+func (*FakeAgentAPI) DeleteDevContainerAgent(_ context.Context, _ *agentproto.DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
 	panic("unimplemented")
 }
 
-func (f *FakeAgentAPI) ListDevContainerAgents(_ context.Context, req *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
+func (*FakeAgentAPI) ListDevContainerAgents(_ context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
 	panic("unimplemented")
 }
 

@@ -4,15 +4,16 @@ import (
 	"context"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/quartz"
-	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/xerrors"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type DevContainerAgentAPI struct {
@@ -25,6 +26,7 @@ type DevContainerAgentAPI struct {
 }
 
 func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
+	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
 	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
 
 	parentAgent, err := a.AgentFn(ctx)
@@ -68,6 +70,7 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 }
 
 func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
 	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
 
 	devContainerAgentID, err := uuid.FromBytes(req.Id)
@@ -82,7 +85,8 @@ func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req 
 	return &emptypb.Empty{}, nil
 }
 
-func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, req *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
+func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
+	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
 	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
 
 	workspaceAgents, err := a.Database.GetWorkspaceAgentsWithParentID(ctx, uuid.NullUUID{Valid: true, UUID: a.AgentID})
