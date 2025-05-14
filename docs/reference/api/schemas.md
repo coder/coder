@@ -187,7 +187,6 @@
 ```json
 {
   "reason": "prebuild_claimed",
-  "userID": "string",
   "workspaceID": "string"
 }
 ```
@@ -197,7 +196,6 @@
 | Name          | Type                                                               | Required | Restrictions | Description |
 |---------------|--------------------------------------------------------------------|----------|--------------|-------------|
 | `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
-| `userID`      | string                                                             | false    |              |             |
 | `workspaceID` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
