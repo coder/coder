@@ -55,6 +55,10 @@ export const useAppLink = (
 			window.addEventListener("blur", () => {
 				clearTimeout(openAppExternallyFailed);
 			});
+
+			// External apps don't support open_in since they only should open
+			// external apps.
+			return;
 		}
 
 		switch (app.open_in) {
