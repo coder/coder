@@ -13,6 +13,7 @@ import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { type FC, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { AppStatuses } from "./AppStatuses";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -24,68 +25,57 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {
-	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleStop: () => void;
-	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDelete: () => void;
-	handleUpdate: () => void;
-	handleCancel: () => void;
-	handleSettings: () => void;
-	handleChangeVersion: () => void;
-	handleDormantActivate: () => void;
-	handleToggleFavorite: () => void;
+	workspace: TypesGen.Workspace;
+	template: TypesGen.Template;
+	permissions: WorkspacePermissions;
 	isUpdating: boolean;
 	isRestarting: boolean;
-	workspace: TypesGen.Workspace;
-	canChangeVersions: boolean;
 	hideSSHButton?: boolean;
 	hideVSCodeDesktopButton?: boolean;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	sshPrefix?: string;
-	template: TypesGen.Template;
-	canDebugMode: boolean;
-	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
-	permissions: WorkspacePermissions;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+	handleStop: () => void;
+	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+	handleUpdate: () => void;
+	handleCancel: () => void;
+	handleDormantActivate: () => void;
+	handleToggleFavorite: () => void;
+	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<WorkspaceProps> = ({
-	handleStart,
-	handleStop,
-	handleRestart,
-	handleDelete,
-	handleUpdate,
-	handleCancel,
-	handleSettings,
-	handleChangeVersion,
-	handleDormantActivate,
-	handleToggleFavorite,
 	workspace,
 	isUpdating,
 	isRestarting,
-	canChangeVersions,
 	hideSSHButton,
 	hideVSCodeDesktopButton,
 	buildInfo,
 	sshPrefix,
 	template,
-	canDebugMode,
-	handleRetry,
-	handleDebug,
 	buildLogs,
 	latestVersion,
 	permissions,
 	timings,
+	handleStart,
+	handleStop,
+	handleRestart,
+	handleUpdate,
+	handleCancel,
+	handleDormantActivate,
+	handleToggleFavorite,
+	handleRetry,
+	handleDebug,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -142,26 +132,20 @@ export const Workspace: FC<WorkspaceProps> = ({
 		>
 			<WorkspaceTopbar
 				workspace={workspace}
-				handleStart={handleStart}
-				handleStop={handleStop}
-				handleRestart={handleRestart}
-				handleDelete={handleDelete}
-				handleUpdate={handleUpdate}
-				handleCancel={handleCancel}
-				handleSettings={handleSettings}
-				handleRetry={handleRetry}
-				handleDebug={handleDebug}
-				handleChangeVersion={handleChangeVersion}
-				handleDormantActivate={handleDormantActivate}
-				handleToggleFavorite={handleToggleFavorite}
-				canDebugMode={canDebugMode}
-				canChangeVersions={canChangeVersions}
-				isUpdating={isUpdating}
-				isRestarting={isRestarting}
-				canUpdateWorkspace={permissions.updateWorkspace}
 				template={template}
 				permissions={permissions}
 				latestVersion={latestVersion}
+				isUpdating={isUpdating}
+				isRestarting={isRestarting}
+				handleStart={handleStart}
+				handleStop={handleStop}
+				handleRestart={handleRestart}
+				handleUpdate={handleUpdate}
+				handleCancel={handleCancel}
+				handleRetry={handleRetry}
+				handleDebug={handleDebug}
+				handleDormantActivate={handleDormantActivate}
+				handleToggleFavorite={handleToggleFavorite}
 			/>
 
 			<div

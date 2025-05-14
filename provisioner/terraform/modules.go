@@ -4,10 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -68,7 +70,7 @@ func getModules(workdir string) ([]*proto.Module, error) {
 	return filteredModules, nil
 }
 
-func getModulesArchive(root fs.FS) ([]byte, error) {
+func GetModulesArchive(root fs.FS) ([]byte, error) {
 	modulesFileContent, err := fs.ReadFile(root, ".terraform/modules/modules.json")
 	if err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
@@ -93,31 +95,39 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 			continue
 		}
 
-		err := fs.WalkDir(root, it.Dir, func(filePath string, info fs.DirEntry, err error) error {
+		err := fs.WalkDir(root, it.Dir, func(filePath string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return xerrors.Errorf("failed to create modules archive: %w", err)
 			}
-			if info.IsDir() {
+			fileMode := d.Type()
+			if !fileMode.IsRegular() && !fileMode.IsDir() {
 				return nil
 			}
-
-			content, err := fs.ReadFile(root, filePath)
+			fileInfo, err := d.Info()
 			if err != nil {
-				return xerrors.Errorf("failed to read module file while archiving: %w", err)
+				return xerrors.Errorf("failed to archive module file %q: %w", filePath, err)
+			}
+			header, err := fileHeader(filePath, fileMode, fileInfo)
+			if err != nil {
+				return xerrors.Errorf("failed to archive module file %q: %w", filePath, err)
+			}
+			err = w.WriteHeader(header)
+			if err != nil {
+				return xerrors.Errorf("failed to add module file %q to archive: %w", filePath, err)
+			}
+
+			if !fileMode.IsRegular() {
+				return nil
 			}
 			empty = false
-			err = w.WriteHeader(&tar.Header{
-				Name: filePath,
-				Size: int64(len(content)),
-				Mode: 0o644,
-				Uid:  1000,
-				Gid:  1000,
-			})
+			file, err := root.Open(filePath)
 			if err != nil {
-				return xerrors.Errorf("failed to add module file to archive: %w", err)
+				return xerrors.Errorf("failed to open module file %q while archiving: %w", filePath, err)
 			}
-			if _, err = w.Write(content); err != nil {
-				return xerrors.Errorf("failed to write module file to archive: %w", err)
+			defer file.Close()
+			_, err = io.Copy(w, file)
+			if err != nil {
+				return xerrors.Errorf("failed to copy module file %q while archiving: %w", filePath, err)
 			}
 			return nil
 		})
@@ -126,13 +136,7 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 		}
 	}
 
-	err = w.WriteHeader(&tar.Header{
-		Name: ".terraform/modules/modules.json",
-		Size: int64(len(modulesFileContent)),
-		Mode: 0o644,
-		Uid:  1000,
-		Gid:  1000,
-	})
+	err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
 	if err != nil {
 		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
@@ -148,4 +152,36 @@ func getModulesArchive(root fs.FS) ([]byte, error) {
 		return []byte{}, nil
 	}
 	return b.Bytes(), nil
+}
+
+func fileHeader(filePath string, fileMode fs.FileMode, fileInfo fs.FileInfo) (*tar.Header, error) {
+	header, err := tar.FileInfoHeader(fileInfo, "")
+	if err != nil {
+		return nil, xerrors.Errorf("failed to archive module file %q: %w", filePath, err)
+	}
+	header.Name = filePath
+	if fileMode.IsDir() {
+		header.Name += "/"
+	}
+	// Erase a bunch of metadata that we don't need so that we get more consistent
+	// hashes from the resulting archive.
+	header.AccessTime = time.Time{}
+	header.ChangeTime = time.Time{}
+	header.ModTime = time.Time{}
+	header.Uid = 1000
+	header.Uname = ""
+	header.Gid = 1000
+	header.Gname = ""
+
+	return header, nil
+}
+
+func defaultFileHeader(filePath string, length int) *tar.Header {
+	return &tar.Header{
+		Name: filePath,
+		Size: int64(length),
+		Mode: 0o644,
+		Uid:  1000,
+		Gid:  1000,
+	}
 }

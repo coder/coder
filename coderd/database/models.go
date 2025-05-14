@@ -3225,6 +3225,8 @@ type TemplateVersionTerraformValue struct {
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
 	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
 	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
+	// What version of the provisioning engine was used to generate the cached plan and module files.
+	ProvisionerdVersion string `db:"provisionerd_version" json:"provisionerd_version"`
 }
 
 type TemplateVersionVariable struct {

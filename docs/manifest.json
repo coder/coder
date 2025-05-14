@@ -193,7 +193,7 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Management",
@@ -1625,6 +1625,7 @@
 						},
 						{
 							"title": "users create",
+							"description": "Create a new user.",
 							"path": "reference/cli/users_create.md"
 						},
 						{
@@ -1639,6 +1640,7 @@
 						},
 						{
 							"title": "users list",
+							"description": "Prints the list of users.",
 							"path": "reference/cli/users_list.md"
 						},
 						{

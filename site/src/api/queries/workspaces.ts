@@ -11,12 +11,17 @@ import type {
 	WorkspacesResponse,
 } from "api/typesGenerated";
 import type { Dayjs } from "dayjs";
+import {
+	type WorkspacePermissions,
+	workspaceChecks,
+} from "modules/workspaces/permissions";
 import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
 	QueryClient,
 	QueryOptions,
 	UseMutationOptions,
 } from "react-query";
+import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
@@ -388,5 +393,16 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 		// ...disabledRefetchOptions,
 		refetchInterval: 60000,
 		refetchIntervalInBackground: true,
+	};
+};
+
+export const workspacePermissions = (workspace?: Workspace) => {
+	return {
+		...checkAuthorization<WorkspacePermissions>({
+			checks: workspace ? workspaceChecks(workspace) : {},
+		}),
+		queryKey: ["workspaces", workspace?.id, "permissions"],
+		enabled: !!workspace,
+		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

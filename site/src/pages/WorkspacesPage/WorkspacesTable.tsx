@@ -26,11 +26,6 @@ import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -48,11 +43,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronRightIcon } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -68,7 +61,9 @@ import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -85,14 +80,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
 	getDisplayWorkspaceTemplateName,
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-
-dayjs.extend(relativeTime);
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
@@ -184,7 +175,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					{hasAppStatus && <TableHead className="w-2/6">Activity</TableHead>}
 					<TableHead className="w-2/6">Template</TableHead>
 					<TableHead className="w-2/6">Status</TableHead>
-					<TableHead className="w-0" />
 					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
@@ -303,11 +293,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								onActionSuccess={onActionSuccess}
 								onActionError={onActionError}
 							/>
-							<TableCell>
-								<div className="flex">
-									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
-								</div>
-							</TableCell>
 						</WorkspacesRow>
 					);
 				})}
@@ -382,12 +367,12 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
 				</TableCell>
-				<TableCell className="w-0">
-					<Skeleton variant="rounded" width={40} height={40} />
-				</TableCell>
-				<TableCell>
-					<div className="flex">
-						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
+				<TableCell className="w-0 ">
+					<div className="flex gap-1 justify-end">
+						<Skeleton variant="rounded" width={40} height={40} />
+						<Button size="icon-lg" variant="subtle" disabled>
+							<EllipsisVertical aria-hidden="true" />
+						</Button>
 					</div>
 				</TableCell>
 			</TableRowSkeleton>
@@ -403,30 +388,11 @@ type WorkspaceStatusCellProps = {
 	workspace: Workspace;
 };
 
-const variantByStatusType: Record<
-	DisplayWorkspaceStatusType,
-	StatusIndicatorProps["variant"]
-> = {
-	active: "pending",
-	inactive: "inactive",
-	success: "success",
-	error: "failed",
-	danger: "warning",
-	warning: "warning",
-};
-
 const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
-	const { text, type } = getDisplayWorkspaceStatus(
-		workspace.latest_build.status,
-		workspace.latest_build.job,
-	);
-
 	return (
 		<TableCell>
 			<div className="flex flex-col">
-				<StatusIndicator variant={variantByStatusType[type]}>
-					<StatusIndicatorDot />
-					{text}
+				<WorkspaceStatusIndicator workspace={workspace}>
 					{workspace.latest_build.status === "running" &&
 						!workspace.health.healthy && (
 							<InfoTooltip
@@ -438,7 +404,7 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 					{workspace.dormant_at && (
 						<WorkspaceDormantBadge workspace={workspace} />
 					)}
-				</StatusIndicator>
+				</WorkspaceStatusIndicator>
 				<span className="text-xs font-medium text-content-secondary ml-6">
 					{lastUsedMessage(workspace.last_used_at)}
 				</span>
@@ -537,7 +503,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	};
 
 	return (
-		<TableCell>
+		<TableCell
+			onClick={(e) => {
+				// Prevent the click in the actions to trigger the row click
+				e.stopPropagation();
+			}}
+		>
 			<div className="flex gap-1 justify-end">
 				{workspace.latest_build.status === "running" && (
 					<WorkspaceApps workspace={workspace} />
@@ -585,6 +556,11 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						<RefreshCcwIcon />
 					</PrimaryAction>
 				)}
+
+				<WorkspaceMoreActions
+					workspace={workspace}
+					disabled={!abilities.canAcceptJobs}
+				/>
 			</div>
 		</TableCell>
 	);
@@ -606,14 +582,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={(e) => {
-							e.stopPropagation();
-							onClick();
-						}}
-					>
+					<Button variant="outline" size="icon-lg" onClick={onClick}>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>
@@ -657,7 +626,9 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	builtinApps.delete("ssh_helper");
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
-	const userApps = agent.apps.slice(0, remainingSlots);
+	const userApps = agent.apps
+		.filter((app) => app.health === "healthy" && !app.hidden)
+		.slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
 
@@ -730,6 +701,8 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			</BaseIconLink>,
 		);
 	}
+
+	buttons.push();
 
 	return buttons;
 };

@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -22,6 +21,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { ChevronLeftIcon } from "lucide-react";
@@ -224,14 +224,14 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 				justifyContent="space-between"
 			>
 				<h2>Client secrets</h2>
-				<LoadingButton
-					loading={mutatingResource.createSecret}
+				<Button
+					disabled={mutatingResource.createSecret}
 					type="submit"
-					variant="contained"
 					onClick={generateAppSecret}
 				>
+					<Spinner loading={mutatingResource.createSecret} />
 					Generate secret
-				</LoadingButton>
+				</Button>
 			</Stack>
 
 			<TableContainer>

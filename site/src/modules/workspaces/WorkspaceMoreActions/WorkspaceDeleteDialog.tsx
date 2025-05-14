@@ -7,25 +7,24 @@ import type {
 	Workspace,
 } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { docs } from "utils/docs";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;
-	canUpdateTemplate: boolean;
+	canDeleteFailedWorkspace: boolean;
 	isOpen: boolean;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
-	workspaceBuildDateStr: string;
 }
 
 export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	workspace,
-	canUpdateTemplate,
+	canDeleteFailedWorkspace,
 	isOpen,
 	onCancel,
 	onConfirm,
-	workspaceBuildDateStr,
 }) => {
 	const hookId = useId();
 	const [userConfirmationText, setUserConfirmationText] = useState("");
@@ -62,7 +61,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<p className="label">workspace</p>
 						</div>
 						<div css={{ textAlign: "right" }}>
-							<p className="info">{workspaceBuildDateStr}</p>
+							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
 							<p className="label">created</p>
 						</div>
 					</div>
@@ -102,7 +101,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							// Orphaning is sort of a "last resort" that should really only
 							// be used if Terraform is failing to apply while deleting, which
 							// usually means that builds are failing as well.
-							canUpdateTemplate &&
+							canDeleteFailedWorkspace &&
 								workspace.latest_build.status === "failed" && (
 									<div css={styles.orphanContainer}>
 										<div css={{ flexDirection: "column" }}>

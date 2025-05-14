@@ -3,6 +3,8 @@ coder v0.0.0-devel
 USAGE:
   coder users list [flags]
 
+  Prints the list of users.
+
   Aliases: ls
 
 OPTIONS:
