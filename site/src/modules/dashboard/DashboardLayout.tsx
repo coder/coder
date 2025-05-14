@@ -1,9 +1,9 @@
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
+import { InfoIcon } from "lucide-react";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { type FC, type HTMLAttributes, Suspense } from "react";
@@ -74,7 +74,8 @@ export const DashboardLayout: FC = () => {
 					}}
 					message={
 						<div css={{ display: "flex", gap: 16 }}>
-							<InfoOutlined
+							<InfoIcon
+								className="size-icon-xs"
 								css={(theme) => ({
 									fontSize: 16,
 									height: 20, // 20 is the height of the text line so we can align them
