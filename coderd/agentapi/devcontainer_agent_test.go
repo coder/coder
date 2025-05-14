@@ -99,7 +99,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We expect this dev container agent to be created.
-	agent, err := api.Database.GetWorkspaceAgentByID(ctx, agentID)
+	agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test
 	require.NoError(t, err)
 	require.Equal(t, "/workspaces/coder", agent.Directory)
 	require.Equal(t, "amd64", agent.Architecture)
