@@ -1,13 +1,14 @@
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
-import LoadingButton from "@mui/lab/LoadingButton";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import type { Workspace } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	Sidebar,
 	SidebarCaption,
 	SidebarItem,
 	SidebarLink,
 } from "components/FullPageLayout/Sidebar";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
@@ -46,22 +47,22 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 					))}
 			{buildsQuery.hasNextPage && (
 				<div css={{ padding: 16 }}>
-					<LoadingButton
+					<Button
 						fullWidth
 						onClick={() => buildsQuery.fetchNextPage()}
-						loading={buildsQuery.isFetchingNextPage}
-						loadingPosition="start"
-						variant="outlined"
-						color="neutral"
-						startIcon={<ArrowDownwardOutlined />}
+						disabled={buildsQuery.isFetchingNextPage}
+						variant="outline"
 						css={{
 							display: "inline-flex",
 							borderRadius: "9999px",
 							fontSize: 13,
 						}}
 					>
+						<Spinner loading={buildsQuery.isFetchingNextPage}>
+							<ArrowDownwardOutlined />
+						</Spinner>
 						Show more builds
-					</LoadingButton>
+					</Button>
 				</div>
 			)}
 		</Sidebar>

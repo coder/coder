@@ -1,5 +1,4 @@
 import CloudQueue from "@mui/icons-material/CloudQueue";
-import LoadingButton from "@mui/lab/LoadingButton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -16,6 +15,7 @@ import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import { ChevronDownIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
@@ -135,16 +135,17 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<LoadingButton
-									loading={isRunningBatchAction}
-									loadingPosition="end"
-									variant="text"
-									size="small"
+								<Button
+									disabled={isRunningBatchAction}
+									variant="outline"
+									size="sm"
 									css={{ borderRadius: 9999, marginLeft: "auto" }}
-									endIcon={<ChevronDownIcon className="size-4" />}
 								>
 									Bulk actions
-								</LoadingButton>
+									<Spinner loading={isRunningBatchAction}>
+										<ChevronDownIcon className="size-4" />
+									</Spinner>
+								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
