@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -36,6 +37,8 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	defer cancel()
 	user := httpmw.UserParam(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
+
+	dynamicPreview := preview.Preview
 
 	// Check that the job has completed successfully
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
@@ -186,6 +189,45 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 				stream.Drop()
 				return
 			}
+		}
+	}
+}
+
+func staticPreview(ctx context.Context, db database.Store, version uuid.UUID) func(ctx context.Context, input preview.Input, fs fs.FS) preview.Output {
+	dbTemplateVersionParameters, err := db.GetTemplateVersionParameters(ctx, version)
+	if err != nil {
+		return nil
+	}
+
+	params := make([]previewtypes.Parameter, 0, len(dbTemplateVersionParameters))
+	for _, it := range dbTemplateVersionParameters {
+		params = append(params, previewtypes.Parameter{
+			ParameterData: previewtypes.ParameterData{
+				Name:         it.Name,
+				DisplayName:  it.DisplayName,
+				Description:  it.Description,
+				Type:         previewtypes.ParameterType(it.Type),
+				FormType:     "", // ooooof
+				Styling:      previewtypes.ParameterStyling{},
+				Mutable:      it.Mutable,
+				DefaultValue: previewtypes.StringLiteral(it.DefaultValue),
+				Icon:         it.Icon,
+				Options:      nil,
+				Validations:  nil,
+				Required:     false,
+				Order:        0,
+				Ephemeral:    false,
+				Source:       nil,
+			},
+			Value:       previewtypes.NullString(),
+			Diagnostics: nil,
+		})
+	}
+
+	return func(_ context.Context, in preview.Input, _ fs.FS) preview.Output {
+
+		return preview.Output{
+			Parameters: nil,
 		}
 	}
 }
