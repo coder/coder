@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -9,6 +8,7 @@ import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { MonitorDownIcon } from "lucide-react";
 import { ClockIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueries } from "react-query";
@@ -351,7 +351,7 @@ const Updates: FC<UpdatesProps> = ({ workspaces, updates, error }) => {
 				css={styles.summary}
 			>
 				<Stack direction="row" alignItems="center" spacing={1}>
-					<InstallDesktopIcon css={styles.summaryIcon} />
+					<MonitorDownIcon className="size-icon-sm" />
 					<span>{workspaceCount}</span>
 				</Stack>
 				{updateCount && (
