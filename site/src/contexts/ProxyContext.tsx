@@ -54,6 +54,9 @@ export interface ProxyContextValue {
 	// then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
 	// Refer to the returned report for a given proxy for more information.
 	proxyLatencies: ProxyLatencies;
+	// latenciesLoaded is true when the latencies have been initially loaded.  
+	// Once set to true, it will not be set to false again.
+	latenciesLoaded: boolean;
 	// refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
 	// are loaded once.
 	refetchProxyLatencies: () => Date;
@@ -189,6 +192,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				userProxy: userSavedProxy,
 				proxy: proxy,
 				proxies: proxiesResp,
+				latenciesLoaded: latenciesLoaded,
 				isLoading: proxiesLoading,
 				isFetched: proxiesFetched,
 				error: proxiesError,
@@ -246,15 +250,13 @@ export const getPreferredProxy = (
 
 	// If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
 	if (!selectedProxy || !selectedProxy.healthy) {
+		// Default to the primary proxy
+		selectedProxy = proxies.find((proxy) => proxy.name === "primary");
+
 		// If we have latencies, then attempt to use the best proxy by latency instead.
 		const best = selectByLatency(proxies, latencies);
-		if (autoSelectBasedOnLatency && best) {
+		if (autoSelectBasedOnLatency && best !== undefined) {
 			selectedProxy = best;
-		}
-
-		// Use the primary proxy if we don't have  any other options.
-		if (!selectedProxy) {
-			selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 		}
 	}
 

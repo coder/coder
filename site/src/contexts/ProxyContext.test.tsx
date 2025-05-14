@@ -119,7 +119,7 @@ describe("ProxyContextGetURLs", () => {
 			preferredPathAppURL,
 			preferredWildcardHostname,
 		) => {
-			const preferred = getPreferredProxy(regions, selected, latencies);
+			const preferred = getPreferredProxy(regions, selected, latencies, true);
 			expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL);
 			expect(preferred.preferredWildcardHostname).toBe(
 				preferredWildcardHostname,
@@ -142,10 +142,11 @@ const TestingComponent = () => {
 
 // TestingScreen just mounts some components that we can check in the unit test.
 const TestingScreen = () => {
-	const { proxy, userProxy, isFetched, isLoading, clearProxy, setProxy } =
+	const { proxy, userProxy, isFetched, isLoading, latenciesLoaded, clearProxy, setProxy } =
 		useProxy();
 	return (
 		<>
+			<div data-testid="latenciesLoaded" title={latenciesLoaded.toString()}></div>
 			<div data-testid="isFetched" title={isFetched.toString()}></div>
 			<div data-testid="isLoading" title={isLoading.toString()}></div>
 			<div data-testid="preferredProxy" title={proxy.proxy?.id}></div>
@@ -210,7 +211,6 @@ describe("ProxyContextSelection", () => {
 	};
 
 	it.each([
-		// Not latency behavior
 		[
 			"empty",
 			{
@@ -365,6 +365,10 @@ describe("ProxyContextSelection", () => {
 
 			TestingComponent();
 			await waitForLoaderToBeRemoved();
+
+			await screen.findByTestId("latenciesLoaded").then((x) => {
+				expect(x.title).toBe("true");
+			});
 
 			if (afterLoad) {
 				await afterLoad();
