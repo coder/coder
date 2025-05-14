@@ -280,24 +280,24 @@ func (api *API) getWorkspaceOwnerData(
 // returns a warning diagnostic. Only versions 1.5+ return the module & plan data
 // required.
 func parameterProvisionerVersionDiagnostic(tf database.TemplateVersionTerraformValue) hcl.Diagnostics {
-	missingMetaData := hcl.Diagnostic{
+	missingMetadata := hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
 		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
 	}
 
 	if tf.ProvisionerdVersion == "" {
-		return hcl.Diagnostics{&missingMetaData}
+		return hcl.Diagnostics{&missingMetadata}
 	}
 
 	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
 	if err != nil || tf.ProvisionerdVersion == "" {
-		return hcl.Diagnostics{&missingMetaData}
+		return hcl.Diagnostics{&missingMetadata}
 	} else if major < 1 || (major == 1 && minor < 5) {
-		missingMetaData.Detail = "This template version requires provisioner v1.5 or newer to support dynamic parameters. " +
+		missingMetadata.Detail = "This template version does not support dynamic parameters. " +
 			"Some options may be missing or incorrect. " +
 			"Please contact an administrator to update the provisioner and re-import the template version."
-		return hcl.Diagnostics{&missingMetaData}
+		return hcl.Diagnostics{&missingMetadata}
 	}
 
 	return nil
