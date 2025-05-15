@@ -458,7 +458,7 @@ The "Options" column in the table below indicates whether the form type requires
 
 | Form Type      | Parameter Types                            | Options | Notes                                                                                                                           |
 |----------------|--------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters.<br>Default for boolean parameters.                                                   |
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters.<br>Default for boolean parameters.                                                    |
 | `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list.<br>Default for `string` or `number` parameters with options. |
 | `input`        | `string`, `number`                         | No      | Standard single-line text input field.<br>Default for string/number parameters without options.                                 |
 | `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                         |
