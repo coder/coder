@@ -23,7 +23,7 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 	const [isDownloading, setIsDownloading] = useState(false);
 
 	const fetchLogs = async () => {
-		const queryOpts = agentLogs(workspaceId, agent.id);
+		const queryOpts = agentLogs(agent.id);
 		let logs = queryClient.getQueryData<WorkspaceAgentLog[]>(
 			queryOpts.queryKey,
 		);

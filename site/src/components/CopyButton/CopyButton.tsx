@@ -1,77 +1,44 @@
-import { type Interpolation, type Theme, css } from "@emotion/react";
-import IconButton from "@mui/material/Button";
-import Tooltip from "@mui/material/Tooltip";
+import { Button, type ButtonProps } from "components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks/useClipboard";
-import { CheckIcon } from "lucide-react";
-import { type ReactNode, forwardRef } from "react";
-import { FileCopyIcon } from "../Icons/FileCopyIcon";
+import { CheckIcon, CopyIcon } from "lucide-react";
+import type { FC } from "react";
 
-interface CopyButtonProps {
-	children?: ReactNode;
+type CopyButtonProps = ButtonProps & {
 	text: string;
-	ctaCopy?: string;
-	wrapperStyles?: Interpolation<Theme>;
-	buttonStyles?: Interpolation<Theme>;
-	tooltipTitle?: string;
-}
-
-const Language = {
-	tooltipTitle: "Copy to clipboard",
-	ariaLabel: "Copy to clipboard",
+	label: string;
 };
 
-/**
- * Copy button used inside the CodeBlock component internally
- */
-export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
-	(props, ref) => {
-		const {
-			text,
-			ctaCopy,
-			wrapperStyles,
-			buttonStyles,
-			tooltipTitle = Language.tooltipTitle,
-		} = props;
-		const { showCopiedSuccess, copyToClipboard } = useClipboard({
-			textToCopy: text,
-		});
+export const CopyButton: FC<CopyButtonProps> = ({
+	text,
+	label,
+	...buttonProps
+}) => {
+	const { showCopiedSuccess, copyToClipboard } = useClipboard({
+		textToCopy: text,
+	});
 
-		return (
-			<Tooltip title={tooltipTitle} placement="top">
-				<div css={[{ display: "flex" }, wrapperStyles]}>
-					<IconButton
-						ref={ref}
-						css={[styles.button, buttonStyles]}
-						size="small"
-						aria-label={Language.ariaLabel}
-						variant="text"
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						size="icon"
+						variant="subtle"
 						onClick={copyToClipboard}
+						{...buttonProps}
 					>
-						{showCopiedSuccess ? (
-							<CheckIcon css={styles.copyIcon} />
-						) : (
-							<FileCopyIcon css={styles.copyIcon} />
-						)}
-						{ctaCopy && <div css={{ marginLeft: 8 }}>{ctaCopy}</div>}
-					</IconButton>
-				</div>
+						{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+						<span className="sr-only">{label}</span>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
 			</Tooltip>
-		);
-	},
-);
-
-const styles = {
-	button: (theme) => css`
-    border-radius: 8px;
-    padding: 8px;
-    min-width: 32px;
-
-    &:hover {
-      background: ${theme.palette.background.paper};
-    }
-  `,
-	copyIcon: css`
-    width: 20px;
-    height: 20px;
-  `,
-} satisfies Record<string, Interpolation<Theme>>;
+		</TooltipProvider>
+	);
+};

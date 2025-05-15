@@ -1,10 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import { Pill } from "components/Pill/Pill";
-import { CircleCheck as CircleCheckIcon } from "lucide-react";
-import { CircleMinus as CircleMinusIcon } from "lucide-react";
-import { Tag as TagIcon } from "lucide-react";
+import { CircleCheckIcon, CircleMinusIcon, TagIcon, XIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 
 const parseBool = (s: string): { valid: boolean; value: boolean } => {
@@ -51,7 +48,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 					onDelete(tagName);
 				}}
 			>
-				<CloseIcon fontSize="inherit" css={{ width: 14, height: 14 }} />
+				<XIcon className="size-icon-xs" />
 				<span className="sr-only">Delete {tagName}</span>
 			</IconButton>
 		</>

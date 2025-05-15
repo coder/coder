@@ -31,7 +31,6 @@ import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
-import { useAgentLogs } from "./AgentLogs/useAgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -41,6 +40,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { useAgentLogs } from "./useAgentLogs";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -89,12 +89,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs({
-		workspaceId: workspace.id,
-		agentId: agent.id,
-		agentLifeCycleState: agent.lifecycle_state,
-		enabled: showLogs,
-	});
+	const agentLogs = useAgentLogs(agent, showLogs);
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
 	const startupLogs = useMemo(() => {
