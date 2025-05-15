@@ -91,6 +91,10 @@ You can view available prebuilt workspaces in the **Workspaces** view in the Cod
 ![A prebuilt workspace in the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
 _Note the search term `owner:prebuilds`._
 
+Prebuilt workspaces may be operated on like any other workspace. However, if a prebuilt workspace is stopped, the
+reconciliation loop will not destroy it. The intention behind this design is to give operators the ability to park
+problematic prebuilt workspaces in a stopped state for further investigation.
+
 ### Template updates and the prebuilt workspace lifecycle
 
 Prebuilt workspaces are not updated after they are provisioned.
