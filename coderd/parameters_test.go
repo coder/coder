@@ -182,6 +182,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 	t.Run("OldProvisioner", func(t *testing.T) {
 		t.Parallel()
 
+		const defaultValue = "PS"
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
 			provisionerDaemonVersion: "1.4",
 			mainTF:                   nil,
@@ -191,13 +192,13 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 				{
 					Name:         "jetbrains_ide",
 					Type:         "string",
-					DefaultValue: "PS",
+					DefaultValue: defaultValue,
 					Icon:         "",
 					Options: []*proto.RichParameterOption{
 						{
 							Name:        "PHPStorm",
 							Description: "",
-							Value:       "PS",
+							Value:       defaultValue,
 							Icon:        "",
 						},
 						{
@@ -225,15 +226,18 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.Len(t, preview.Parameters, 1)
 		require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
 		require.True(t, preview.Parameters[0].Value.Valid())
-		require.Equal(t, "PS", preview.Parameters[0].Value.AsString())
+		require.Equal(t, defaultValue, preview.Parameters[0].Value.AsString())
 
 		// Test some inputs
-		for _, exp := range []string{"PS", "GO", "Invalid"} {
+		for _, exp := range []string{defaultValue, "GO", "Invalid", defaultValue} {
+			inputs := map[string]string{}
+			if exp != defaultValue {
+				// Let the default value be the default without being explicitly set
+				inputs["jetbrains_ide"] = exp
+			}
 			err := stream.Send(codersdk.DynamicParametersRequest{
-				ID: 1,
-				Inputs: map[string]string{
-					"jetbrains_ide": exp,
-				},
+				ID:     1,
+				Inputs: inputs,
 			})
 			require.NoError(t, err)
 
@@ -252,7 +256,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			require.True(t, preview.Parameters[0].Value.Valid())
 			require.Equal(t, exp, preview.Parameters[0].Value.AsString())
 		}
-
 	})
 
 	t.Run("FileError", func(t *testing.T) {

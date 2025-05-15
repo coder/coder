@@ -214,7 +214,9 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 	// for populating values from data blocks, but isn't strictly required. If
 	// we don't have a cached plan available, we just use an empty one instead.
 	plan := json.RawMessage("{}")
-	plan = tf.CachedPlan
+	if len(tf.CachedPlan) > 0 {
+		plan = tf.CachedPlan
+	}
 
 	openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
 	if tf.CachedModuleFiles.Valid {
@@ -338,7 +340,7 @@ func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.U
 			if ok {
 				param.Value = previewtypes.StringLiteral(paramValue)
 			} else {
-				paramValue = param.DefaultValue.AsString()
+				param.Value = param.DefaultValue
 			}
 			param.Diagnostics = previewtypes.Diagnostics(param.Valid(param.Value))
 		}
