@@ -11,6 +11,16 @@ inputs:
   use-temp-cache-dirs:
     description: "Whether to use temporary GOCACHE and GOMODCACHE directories."
     default: "false"
+  use-cache:
+    description: "Whether to use the cache."
+    default: "true"
+outputs:
+  go-path:
+    description: "Value of GOPATH"
+    value: ${{ steps.action-outputs.outputs.go-path }}
+  go-mod-cache:
+    description: "Value of GOMODCACHE"
+    value: ${{ steps.action-outputs.outputs.go-mod-cache }}
 runs:
   using: "composite"
   steps:
@@ -39,13 +49,25 @@ runs:
       uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
         go-version: ${{ inputs.use-preinstalled-go == 'false' && inputs.version || '' }}
+        cache: ${{ inputs.use-cache }}
 
     - name: Install gotestsum
       shell: bash
       run: go install gotest.tools/gotestsum@0d9599e513d70e5792bb9334869f82f6e8b53d4d # main as of 2025-05-15
+
+    - name: Install mtimehash
+      shell: bash
+      run: go install github.com/slsyy/mtimehash/cmd/mtimehash@a6b5da4ed2c4a40e7b805534b004e9fde7b53ce0 # v1.0.0
 
     # It isn't necessary that we ever do this, but it helps
     # separate the "setup" from the "run" times.
     - name: go mod download
       shell: bash
       run: go mod download -x
+
+    - name: Set action outputs
+      id: action-outputs
+      shell: bash
+      run: |
+        echo "go-path=$(go env GOPATH)" >> $GITHUB_OUTPUT
+        echo "go-mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
