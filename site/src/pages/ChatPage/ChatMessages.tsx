@@ -1,6 +1,5 @@
 import { type Message, useChat } from "@ai-sdk/react";
 import { type Theme, keyframes, useTheme } from "@emotion/react";
-import SendIcon from "@mui/icons-material/Send";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
@@ -8,6 +7,7 @@ import { getChatMessages } from "api/queries/chats";
 import type { ChatMessage, CreateChatMessageRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { SendIcon } from "lucide-react";
 import {
 	type FC,
 	type KeyboardEvent,
