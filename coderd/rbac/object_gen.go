@@ -234,6 +234,7 @@ var (
 
 	// ResourceProvisionerJobs
 	// Valid Actions
+	//  - "ActionCreate" :: create provisioner jobs
 	//  - "ActionRead" :: read provisioner jobs
 	//  - "ActionUpdate" :: update provisioner jobs
 	ResourceProvisionerJobs = Object{
