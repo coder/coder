@@ -188,13 +188,13 @@ The prebuilt workspaces feature has these current limitations:
 
   Prebuilt workspaces can only be used with the default organization.
 
-  [coder/internal#364](https://github.com/coder/internal/issues/364)
+  [View issue](https://github.com/coder/internal/issues/364)
 
 - **Autoscaling**
 
   Prebuilt workspaces remain running until claimed. There's no automated mechanism to reduce instances during off-hours.
 
-  [coder/internal#312](https://github.com/coder/internal/issues/312)
+  [View issue](https://github.com/coder/internal/issues/312)
 
 ### Monitoring and observability
 
