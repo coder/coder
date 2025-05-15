@@ -40,6 +40,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { isAxiosError } from "axios";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -160,7 +161,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 		select: (res) => res.containers.filter((c) => c.status === "running"),
 		// TODO: Implement a websocket connection to get updates on containers
 		// without having to poll.
-		refetchInterval: 10_000,
+		refetchInterval: (_, query) => {
+			const { error } = query.state;
+			return isAxiosError(error) && error.response?.status === 403
+				? false
+				: 10_000;
+		},
 	});
 
 	return (
