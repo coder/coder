@@ -37,7 +37,7 @@ export const Blocks: FC<BlocksProps> = ({ count }) => {
 			))}
 			{!hasSpacing && (
 				<div css={styles.more}>
-					<EllipsisIcon />
+					<EllipsisIcon className="size-icon-sm" />
 				</div>
 			)}
 		</div>
