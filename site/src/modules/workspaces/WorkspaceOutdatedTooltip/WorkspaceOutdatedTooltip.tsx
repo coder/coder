@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
@@ -16,6 +15,7 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import { InfoIcon } from "lucide-react";
 import { RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";

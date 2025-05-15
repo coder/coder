@@ -2,12 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import MuiButton from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -33,6 +27,14 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -231,41 +233,41 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				<ErrorAlert error={error} />
 			)}
 
-			<TableContainer>
-				<Table>
-					<TableHead>
-						<TableRow>
-							<TableCell width="35%">{Language.nameLabel}</TableCell>
-							<TableCell width="15%">
-								{showOrganizations ? "Organization" : Language.usedByLabel}
-							</TableCell>
-							<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-							<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-							<TableCell width="1%" />
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						{isLoading && <TableLoader />}
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-[35%]">{Language.nameLabel}</TableHead>
+						<TableHead className="w-[15%]">
+							{showOrganizations ? "Organization" : Language.usedByLabel}
+						</TableHead>
+						<TableHead className="w-[10%]">{Language.buildTimeLabel}</TableHead>
+						<TableHead className="w-[15%]">
+							{Language.lastUpdatedLabel}
+						</TableHead>
+						<TableHead className="w-[1%]" />
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{isLoading && <TableLoader />}
 
-						{isEmpty ? (
-							<EmptyTemplates
-								canCreateTemplates={canCreateTemplates}
-								examples={examples ?? []}
-								isUsingFilter={filter.used}
+					{isEmpty ? (
+						<EmptyTemplates
+							canCreateTemplates={canCreateTemplates}
+							examples={examples ?? []}
+							isUsingFilter={filter.used}
+						/>
+					) : (
+						templates?.map((template) => (
+							<TemplateRow
+								key={template.id}
+								showOrganizations={showOrganizations}
+								template={template}
+								workspacePermissions={workspacePermissions}
 							/>
-						) : (
-							templates?.map((template) => (
-								<TemplateRow
-									key={template.id}
-									showOrganizations={showOrganizations}
-									template={template}
-									workspacePermissions={workspacePermissions}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</TableContainer>
+						))
+					)}
+				</TableBody>
+			</Table>
 		</Margins>
 	);
 };

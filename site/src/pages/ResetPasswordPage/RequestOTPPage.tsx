@@ -1,10 +1,11 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
+import MuiButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { requestOneTimePassword } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -88,16 +89,16 @@ const RequestOTP: FC<RequestOTPProps> = ({
 							/>
 
 							<Stack spacing={1}>
-								<LoadingButton
-									loading={isRequesting}
-									type="submit"
-									size="large"
-									fullWidth
-									variant="contained"
-								>
-									Reset password
-								</LoadingButton>
 								<Button
+									disabled={isRequesting}
+									type="submit"
+									size="lg"
+									className="w-full"
+								>
+									<Spinner loading={isRequesting} />
+									Reset password
+								</Button>
+								<MuiButton
 									component={RouterLink}
 									size="large"
 									fullWidth
@@ -105,7 +106,7 @@ const RequestOTP: FC<RequestOTPProps> = ({
 									to="/login"
 								>
 									Cancel
-								</Button>
+								</MuiButton>
 							</Stack>
 						</Stack>
 					</fieldset>
@@ -150,9 +151,9 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 					Contact your deployment administrator if you encounter issues.
 				</p>
 
-				<Button component={RouterLink} to="/login">
+				<MuiButton component={RouterLink} to="/login">
 					Back to login
-				</Button>
+				</MuiButton>
 			</div>
 		</div>
 	);

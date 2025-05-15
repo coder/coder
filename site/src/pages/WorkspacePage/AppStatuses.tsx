@@ -3,7 +3,6 @@ import { useTheme } from "@emotion/react";
 import AppsIcon from "@mui/icons-material/Apps";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import HourglassEmpty from "@mui/icons-material/HourglassEmpty";
 import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
 import OpenInNew from "@mui/icons-material/OpenInNew";
 import Warning from "@mui/icons-material/Warning";
@@ -17,6 +16,7 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import { HourglassIcon } from "lucide-react";
 import { CircleHelpIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
@@ -57,7 +57,7 @@ const getStatusIcon = (
 			return isLatest ? (
 				<CircularProgress size={18} sx={{ color }} />
 			) : (
-				<HourglassEmpty sx={{ color, fontSize: 18 }} />
+				<HourglassIcon className="size-icon-sm" style={{ color }} />
 			);
 		default:
 			return <Warning sx={{ color, fontSize: 18 }} />;
