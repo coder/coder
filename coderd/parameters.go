@@ -101,7 +101,6 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 
 	// Add the file first. Calling `Release` if it fails is a no-op, so this is safe.
 	templateFS, err := api.FileCache.Acquire(fileCtx, fileID)
-	defer api.FileCache.Release(fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error fetching template version Terraform.",
@@ -109,6 +108,7 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+	defer api.FileCache.Release(fileID)
 
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
@@ -120,7 +120,6 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 
 	if tf.CachedModuleFiles.Valid {
 		moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
-		defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Internal error fetching Terraform modules.",
@@ -128,6 +127,7 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 			})
 			return
 		}
+		defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
 
 		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
