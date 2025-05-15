@@ -897,6 +897,21 @@ type Workspace struct {
 	agents        map[uuid.UUID]*Agent
 }
 
+func (w *Workspace) Clone() Workspace {
+	agents := make(map[uuid.UUID]*Agent, len(w.agents))
+	for k, v := range w.agents {
+		clone := v.Clone()
+		agents[k] = &clone
+	}
+	return Workspace{
+		ID:            w.ID,
+		Name:          w.Name,
+		Status:        w.Status,
+		ownerUsername: w.ownerUsername,
+		agents:        agents,
+	}
+}
+
 type DNSNameOptions struct {
 	Suffix string
 }
@@ -1049,6 +1064,7 @@ func (t *tunnelUpdater) recvLoop() {
 	t.logger.Debug(context.Background(), "tunnel updater recvLoop started")
 	defer t.logger.Debug(context.Background(), "tunnel updater recvLoop done")
 	defer close(t.recvLoopDone)
+	updateKind := Snapshot
 	for {
 		update, err := t.client.Recv()
 		if err != nil {
@@ -1061,8 +1077,10 @@ func (t *tunnelUpdater) recvLoop() {
 		}
 		t.logger.Debug(context.Background(), "got workspace update",
 			slog.F("workspace_update", update),
+			slog.F("update_kind", updateKind),
 		)
-		err = t.handleUpdate(update)
+		err = t.handleUpdate(update, updateKind)
+		updateKind = Diff
 		if err != nil {
 			t.logger.Critical(context.Background(), "failed to handle workspace Update", slog.Error(err))
 			cErr := t.client.Close()
@@ -1083,7 +1101,15 @@ type WorkspaceUpdate struct {
 	UpsertedAgents     []*Agent
 	DeletedWorkspaces  []*Workspace
 	DeletedAgents      []*Agent
+	Kind               UpdateKind
 }
+
+type UpdateKind int
+
+const (
+	Diff UpdateKind = iota
+	Snapshot
+)
 
 func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 	clone := WorkspaceUpdate{
@@ -1091,6 +1117,7 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 		UpsertedAgents:     make([]*Agent, len(w.UpsertedAgents)),
 		DeletedWorkspaces:  make([]*Workspace, len(w.DeletedWorkspaces)),
 		DeletedAgents:      make([]*Agent, len(w.DeletedAgents)),
+		Kind:               w.Kind,
 	}
 	for i, ws := range w.UpsertedWorkspaces {
 		clone.UpsertedWorkspaces[i] = &Workspace{
@@ -1115,7 +1142,7 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 	return clone
 }
 
-func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
+func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate, updateKind UpdateKind) error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -1124,6 +1151,7 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 		UpsertedAgents:     []*Agent{},
 		DeletedWorkspaces:  []*Workspace{},
 		DeletedAgents:      []*Agent{},
+		Kind:               updateKind,
 	}
 
 	for _, uw := range update.UpsertedWorkspaces {
