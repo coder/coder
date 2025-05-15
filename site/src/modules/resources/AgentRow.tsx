@@ -10,6 +10,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { isAxiosError } from "axios";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
@@ -160,7 +161,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 		select: (res) => res.containers.filter((c) => c.status === "running"),
 		// TODO: Implement a websocket connection to get updates on containers
 		// without having to poll.
-		refetchInterval: 10_000,
+		refetchInterval: (_, query) => {
+			const { error } = query.state;
+			return isAxiosError(error) && error.response?.status === 403
+				? false
+				: 10_000;
+		},
 	});
 
 	return (
