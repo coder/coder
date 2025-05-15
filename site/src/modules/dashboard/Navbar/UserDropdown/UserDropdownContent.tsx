@@ -8,7 +8,6 @@ import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
 import BugIcon from "@mui/icons-material/BugReportOutlined";
 import ChatIcon from "@mui/icons-material/ChatOutlined";
 import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import LaunchIcon from "@mui/icons-material/LaunchOutlined";
 import DocsIcon from "@mui/icons-material/MenuBook";
 import Divider from "@mui/material/Divider";
@@ -20,6 +19,7 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import { MonitorDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 
@@ -79,7 +79,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 			<Link to="/install" css={styles.link}>
 				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<InstallDesktopIcon css={styles.menuItemIcon} />
+					<MonitorDownIcon css={styles.menuItemIcon} />
 					<span css={styles.menuItemText}>Install CLI</span>
 				</MenuItem>
 			</Link>

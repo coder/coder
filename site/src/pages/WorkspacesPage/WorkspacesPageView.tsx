@@ -1,4 +1,3 @@
-import CloudQueue from "@mui/icons-material/CloudQueue";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -18,6 +17,7 @@ import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidg
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import { CloudIcon } from "lucide-react";
 import { ChevronDownIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
@@ -172,7 +172,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onUpdateAll}>
-									<CloudQueue /> Update&hellip;
+									<CloudIcon className="size-icon-sm" /> Update&hellip;
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
