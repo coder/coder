@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import MuiButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { requestOneTimePassword } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -98,15 +97,16 @@ const RequestOTP: FC<RequestOTPProps> = ({
 									<Spinner loading={isRequesting} />
 									Reset password
 								</Button>
-								<MuiButton
-									component={RouterLink}
-									size="large"
-									fullWidth
-									variant="text"
-									to="/login"
+								<Button
+									asChild
+									size="lg"
+									variant="outline"
+									className="w-full"
 								>
-									Cancel
-								</MuiButton>
+									<RouterLink to="/login">
+										Cancel
+									</RouterLink>
+								</Button>
 							</Stack>
 						</Stack>
 					</fieldset>
@@ -151,9 +151,11 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 					Contact your deployment administrator if you encounter issues.
 				</p>
 
-				<MuiButton component={RouterLink} to="/login">
-					Back to login
-				</MuiButton>
+				<Button asChild variant="default">
+					<RouterLink to="/login">
+						Back to login
+					</RouterLink>
+				</Button>
 			</div>
 		</div>
 	);

@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import MuiButton from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
@@ -163,19 +162,19 @@ const TemplateRow: FC<TemplateRowProps> = ({
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
 						?.createWorkspaceForUserID ? (
-					<MuiButton
-						size="small"
+					<Button
+						size="sm"
 						css={styles.actionButton}
 						className="actionButton"
-						startIcon={<ArrowForwardOutlined />}
 						title={`Create a workspace using the ${template.display_name} template`}
 						onClick={(e) => {
 							e.stopPropagation();
 							navigate(`${templatePageLink}/workspace`);
 						}}
 					>
+						<ArrowForwardOutlined className="size-icon-sm" />
 						Create Workspace
-					</MuiButton>
+					</Button>
 				) : null}
 			</TableCell>
 		</TableRow>
