@@ -292,6 +292,6 @@ type dbRejectGitSSHKey struct {
 	database.Store
 }
 
-func (_ *dbRejectGitSSHKey) GetGitSSHKey(_ context.Context, _ uuid.UUID) (database.GitSSHKey, error) {
+func (*dbRejectGitSSHKey) GetGitSSHKey(_ context.Context, _ uuid.UUID) (database.GitSSHKey, error) {
 	return database.GitSSHKey{}, xerrors.New("forcing a fake error")
 }
