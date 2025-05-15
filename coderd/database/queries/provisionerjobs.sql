@@ -275,14 +275,14 @@ FROM
 	provisioner_jobs
 WHERE
 	(
-		-- If the job has not been started within $1, reap it.
+		-- If the job has not been started before @pending_since, reap it.
 		updated_at < @pending_since
 		AND started_at IS NULL
 		AND completed_at IS NULL
 	)
 	OR
 	(
-		-- If the job has been started but not completed within $2, reap it.
+		-- If the job has been started but not completed before @hung_since, reap it.
 		updated_at < @hung_since
 		AND started_at IS NOT NULL
 		AND completed_at IS NULL
