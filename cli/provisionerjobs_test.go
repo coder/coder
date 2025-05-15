@@ -37,7 +37,7 @@ func TestProvisionerJobs(t *testing.T) {
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	// Create initial resources with a running provisioner.
-	firstProvisioner := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, "default-provisioner", map[string]string{"owner": "", "scope": "organization"})
+	firstProvisioner := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, "default-provisioner", "", map[string]string{"owner": "", "scope": "organization"})
 	t.Cleanup(func() { _ = firstProvisioner.Close() })
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)

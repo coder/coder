@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -189,7 +190,11 @@ func TestDynamicParametersWithTerraformModules(t *testing.T) {
 	t.Run("OldProvisioner", func(t *testing.T) {
 		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
-		ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+		ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			ProvisionerDaemonVersion: "1.4", // Old provisioner daemon
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         cfg,
+		})
 		defer func() {
 			require.Equal(t, 0, api.FileCache.Count(), "file cache released all files")
 		}()
@@ -199,8 +204,6 @@ func TestDynamicParametersWithTerraformModules(t *testing.T) {
 
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
-		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
-		require.NoError(t, err)
 
 		files := echo.WithExtraFiles(map[string][]byte{
 			"main.tf": dynamicParametersTerraformSource,
@@ -209,7 +212,31 @@ func TestDynamicParametersWithTerraformModules(t *testing.T) {
 			Type: &proto.Response_Plan{
 				Plan: &proto.PlanComplete{
 					Plan:        []byte("{}"),
-					ModuleFiles: modulesArchive,
+					ModuleFiles: nil,
+					Parameters: []*proto.RichParameter{
+						{
+							Name:         "jetbrains_ide",
+							Type:         "string",
+							DefaultValue: "CL",
+							Icon:         "",
+							Options: []*proto.RichParameterOption{
+								{
+									Name:        "Clion",
+									Description: "",
+									Value:       "CL",
+									Icon:        "",
+								},
+								{
+									Name:        "Golang",
+									Description: "",
+									Value:       "GO",
+									Icon:        "",
+								},
+							},
+							ValidationRegex: "[CG][LO]",
+							ValidationError: "Regex check",
+						},
+					},
 				},
 			},
 		}}
@@ -236,4 +263,66 @@ func TestDynamicParametersWithTerraformModules(t *testing.T) {
 		require.Equal(t, "CL", preview.Parameters[0].Value.AsString())
 	})
 
+}
+
+type dynamicParamsTestSetupParams struct {
+}
+
+type dynamicParamsTest struct {
+	client *codersdk.Client
+	api    *coderd.API
+}
+
+func dynamicParamsTestSetup(t *testing.T) dynamicParamsTest {
+	cfg := coderdtest.DeploymentValues(t)
+	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+	defer func() {
+		require.Equal(t, 0, api.FileCache.Count(), "file cache released all files")
+	}()
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+	require.NoError(t, err)
+	modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+	require.NoError(t, err)
+
+	files := echo.WithExtraFiles(map[string][]byte{
+		"main.tf": dynamicParametersTerraformSource,
+	})
+	files.ProvisionPlan = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Plan:        []byte("{}"),
+				ModuleFiles: modulesArchive,
+			},
+		},
+	}}
+
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	require.NoError(t, err)
+	defer stream.Close(websocket.StatusGoingAway)
+
+	previews := stream.Chan()
+
+	// Should see the output of the module represented
+	preview := testutil.RequireReceive(ctx, t, previews)
+	require.Equal(t, -1, preview.ID)
+	require.Empty(t, preview.Diagnostics)
+
+	require.Len(t, preview.Parameters, 1)
+	require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
+	require.True(t, preview.Parameters[0].Value.Valid())
+	require.Equal(t, "CL", preview.Parameters[0].Value.AsString())
+
+	return dynamicParamsTest{
+		client: ownerClient,
+		api:    api,
+	}
 }
