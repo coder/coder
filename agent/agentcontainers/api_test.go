@@ -563,8 +563,17 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
 
+				// Generate matching scripts for the known devcontainers
+				// (required to extract log source ID).
+				var scripts []codersdk.WorkspaceAgentScript
+				for i := range tt.knownDevcontainers {
+					scripts = append(scripts, codersdk.WorkspaceAgentScript{
+						ID:          tt.knownDevcontainers[i].ID,
+						LogSourceID: uuid.New(),
+					})
+				}
 				if len(tt.knownDevcontainers) > 0 {
-					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers))
+					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers, scripts))
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)
