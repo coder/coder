@@ -1720,13 +1720,30 @@ func compressHandler(h http.Handler) http.Handler {
 	return cmp.Handler(h)
 }
 
+type MemoryProvisionerDaemonOption func(*memoryProvisionerDaemonOptions)
+
+func MemoryProvisionerWithVersionOverride(version string) MemoryProvisionerDaemonOption {
+	return func(opts *memoryProvisionerDaemonOptions) {
+		opts.versionOverride = version
+	}
+}
+
+type memoryProvisionerDaemonOptions struct {
+	versionOverride string
+}
+
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
-	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, "", provisionerTypes, nil)
+	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
 
-func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, versionOverride string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client proto.DRPCProvisionerDaemonClient, err error) {
+	options := &memoryProvisionerDaemonOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := drpcsdk.MemTransportPipe()
 	defer func() {
@@ -1754,9 +1771,9 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 
 	apiVersion := proto.CurrentVersion.String()
-	if versionOverride != "" && flag.Lookup("test.v") != nil {
+	if options.versionOverride != "" && flag.Lookup("test.v") != nil {
 		// This should only be usable for unit testing. To fake a different provisioner version
-		apiVersion = versionOverride
+		apiVersion = options.versionOverride
 	}
 
 	//nolint:gocritic // in-memory provisioners are owned by system

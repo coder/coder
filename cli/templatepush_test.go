@@ -585,7 +585,7 @@ func TestTemplatePush(t *testing.T) {
 			defer provisionerDocker.Close()
 
 			// Start the second provisioner
-			provisionerFoobar := coderdtest.NewTaggedProvisionerDaemon(t, api, "provisioner-foobar", "", map[string]string{
+			provisionerFoobar := coderdtest.NewTaggedProvisionerDaemon(t, api, "provisioner-foobar", map[string]string{
 				"foobar": "foobaz",
 			})
 			defer provisionerFoobar.Close()
