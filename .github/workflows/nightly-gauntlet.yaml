@@ -53,6 +53,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Go Paths
+        uses: ./.github/actions/setup-go-paths
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
@@ -60,7 +63,6 @@ jobs:
           # download the toolchain configured in go.mod, so we don't
           # need to reinstall it. It's faster on Windows runners.
           use-preinstalled-go: ${{ runner.os == 'Windows' }}
-          use-temp-cache-dirs: ${{ runner.os == 'Windows' }}
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
