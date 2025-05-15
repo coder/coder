@@ -613,7 +613,7 @@ jobs:
       # c.f. discussion on https://github.com/coder/coder/pull/15106
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+          gotestsum --junitfile="gotests.xml" --packages="./..." --rerun-fails=2 --rerun-fails-abort-on-data-race -- -race -parallel 4 -p 4
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -665,7 +665,7 @@ jobs:
           POSTGRES_VERSION: "16"
         run: |
           make test-postgres-docker
-          DB=ci gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+          DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --rerun-fails=2 --rerun-fails-abort-on-data-race -- -race -parallel 4 -p 4
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
