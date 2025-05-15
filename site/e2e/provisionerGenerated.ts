@@ -179,6 +179,7 @@ export interface Agent {
   order: number;
   resourcesMonitoring: ResourcesMonitoring | undefined;
   devcontainers: Devcontainer[];
+  apiKeyScope: string;
 }
 
 export interface Agent_Metadata {
@@ -706,6 +707,9 @@ export const Agent = {
     }
     for (const v of message.devcontainers) {
       Devcontainer.encode(v!, writer.uint32(202).fork()).ldelim();
+    }
+    if (message.apiKeyScope !== "") {
+      writer.uint32(210).string(message.apiKeyScope);
     }
     return writer;
   },
