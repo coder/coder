@@ -86,9 +86,20 @@ running). */}}
         cursor: pointer;
       }
 
+      .button-group .start-workspace-button {
+        background-color: #3070e0;
+        border-color: #3070e0;
+        color: white;
+      }
+
       .button-group a:hover,
       .button-group button:hover {
         border-color: hsl(222, 31%, 40%);
+      }
+
+      .button-group .start-workspace-button:hover {
+        background-color: #2860c5;
+        border-color: #2860c5;
       }
 
       .warning {
@@ -204,6 +215,9 @@ running). */}}
         >
         {{ end }} {{- if .Error.RetryEnabled }}
         <button onclick="window.location.reload()">Retry</button>
+        {{ end }}
+        {{- if eq .Error.Title "Workspace Offline" }}
+        <a href="{{ .Error.DashboardURL }}?start=true" class="start-workspace-button">Start Workspace</a>
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>

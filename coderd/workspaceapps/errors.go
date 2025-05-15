@@ -109,11 +109,30 @@ func WriteWorkspaceOffline(log slog.Logger, accessURL *url.URL, rw http.Response
 		)
 	}
 
+	// Get workspace URL for the direct start action
+	workspaceURL := accessURL.String()
+	
+	// Parse workspace ID from appReq if available
+	workspaceID := ""
+	if appReq != nil && appReq.WorkspaceNameOrID != "" {
+		workspaceID = appReq.WorkspaceNameOrID
+	}
+
+	// Build the start URL if we have a workspace ID
+	startURL := workspaceURL
+	if workspaceID != "" {
+		// Extract the base URL without workspace path
+		baseURL := accessURL.Scheme + "://" + accessURL.Host
+		startURL = fmt.Sprintf("%s/@%s/%s", baseURL, appReq.UsernameOrID, workspaceID)
+	}
+
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusBadRequest,
-		Title:        "Workspace Offline",
-		Description:  fmt.Sprintf("Last workspace transition was to the %q state. Start the workspace to access its applications.", codersdk.WorkspaceTransitionStop),
-		RetryEnabled: false,
-		DashboardURL: accessURL.String(),
+		Status:                http.StatusBadRequest,
+		Title:                 "Workspace Offline",
+		Description:           fmt.Sprintf("Last workspace transition was to the %q state. Start the workspace to access its applications.", codersdk.WorkspaceTransitionStop),
+		RetryEnabled:          false,
+		DashboardURL:          workspaceURL,
+		AdditionalButtonLink:  startURL,
+		AdditionalButtonText:  "Start Workspace",
 	})
 }
