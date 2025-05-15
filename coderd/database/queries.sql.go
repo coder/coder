@@ -5914,6 +5914,7 @@ WHERE w.id IN (
 		AND b.template_version_id = t.active_version_id
 		AND p.current_preset_id = $3::uuid
 		AND p.ready
+		AND NOT t.deleted
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name
@@ -5949,6 +5950,7 @@ FROM workspace_latest_builds wlb
 		-- prebuilds that are still building.
 		INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+  -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_preset_id
 `
 
@@ -6063,6 +6065,7 @@ WITH filtered_builds AS (
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+		AND NOT t.deleted
 ),
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
@@ -6214,6 +6217,7 @@ FROM templates t
 		INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
 		INNER JOIN organizations o ON o.id = t.organization_id
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+  -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = $1::uuid OR $1 IS NULL)
 `
 
@@ -6443,6 +6447,7 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 
 const insertPreset = `-- name: InsertPreset :one
 INSERT INTO template_version_presets (
+	id,
 	template_version_id,
 	name,
 	created_at,
@@ -6454,11 +6459,13 @@ VALUES (
 	$2,
 	$3,
 	$4,
-	$5
+	$5,
+	$6
 ) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs
 `
 
 type InsertPresetParams struct {
+	ID                  uuid.UUID     `db:"id" json:"id"`
 	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
 	Name                string        `db:"name" json:"name"`
 	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
@@ -6468,6 +6475,7 @@ type InsertPresetParams struct {
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
 	row := q.db.QueryRowContext(ctx, insertPreset,
+		arg.ID,
 		arg.TemplateVersionID,
 		arg.Name,
 		arg.CreatedAt,
@@ -14111,6 +14119,80 @@ WHERE
 
 func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByResourceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+			&i.Version,
+			&i.LastConnectedReplicaID,
+			&i.ConnectionTimeoutSeconds,
+			&i.TroubleshootingURL,
+			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.ExpandedDirectory,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+			&i.StartedAt,
+			&i.ReadyAt,
+			pq.Array(&i.Subsystems),
+			pq.Array(&i.DisplayApps),
+			&i.APIVersion,
+			&i.DisplayOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentsByWorkspaceAndBuildNumber = `-- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
+SELECT
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
+WHERE
+	workspace_builds.workspace_id = $1 :: uuid AND
+	workspace_builds.build_number = $2 :: int
+`
+
+type GetWorkspaceAgentsByWorkspaceAndBuildNumberParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	BuildNumber int32     `db:"build_number" json:"build_number"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByWorkspaceAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
 	if err != nil {
 		return nil, err
 	}

@@ -1740,8 +1740,7 @@ export interface PreviewParameterData {
 	readonly type: PreviewParameterType;
 	// this is likely an enum in an external package "github.com/coder/terraform-provider-coder/v2/provider.ParameterFormType"
 	readonly form_type: string;
-	// empty interface{} type, falling back to unknown
-	readonly styling: unknown;
+	readonly styling: PreviewParameterStyling;
 	readonly mutable: boolean;
 	readonly default_value: NullHCLString;
 	readonly icon: string;
@@ -1758,6 +1757,13 @@ export interface PreviewParameterOption {
 	readonly description: string;
 	readonly value: NullHCLString;
 	readonly icon: string;
+}
+
+// From types/parameter.go
+export interface PreviewParameterStyling {
+	readonly placeholder?: string;
+	readonly disabled?: boolean;
+	readonly label?: string;
 }
 
 // From types/enum.go

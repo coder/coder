@@ -7592,6 +7592,30 @@ func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resou
 	return q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	build, err := q.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams(arg))
+	if err != nil {
+		return nil, err
+	}
+
+	resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, build.JobID)
+	if err != nil {
+		return nil, err
+	}
+
+	var resourceIDs []uuid.UUID
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	return q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

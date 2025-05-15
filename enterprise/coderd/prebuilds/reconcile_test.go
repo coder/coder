@@ -9,10 +9,14 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -49,7 +53,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -94,7 +98,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -290,10 +294,15 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:         []bool{false},
 		},
 		{
-			name:                      "delete prebuilds for deleted templates",
+			// Templates can be soft-deleted (`deleted=true`) or hard-deleted (row is removed).
+			// On the former there is *no* DB constraint to prevent soft deletion, so we have to ensure that if somehow
+			// the template was soft-deleted any running prebuilds will be removed.
+			// On the latter there is a DB constraint to prevent row deletion if any workspaces reference the deleting template.
+			name:                      "soft-deleted templates MAY have prebuilds",
 			prebuildLatestTransitions: []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			prebuildJobStatuses:       []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
 			templateVersionActive:     []bool{true, false},
+			shouldCreateNewPrebuild:   ptr.To(false),
 			shouldDeleteOldPrebuild:   ptr.To(true),
 			templateDeleted:           []bool{true},
 		},
@@ -345,7 +354,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 									1,
 									uuid.New().String(),
 								)
-								prebuild := setupTestDBPrebuild(
+								prebuild, _ := setupTestDBPrebuild(
 									t,
 									clock,
 									db,
@@ -367,7 +376,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								if useBrokenPubsub {
 									pubSub = &brokenPublisher{Pubsub: pubSub}
 								}
-								controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+								controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 								// Run the reconciliation multiple times to ensure idempotency
 								// 8 was arbitrary, but large enough to reasonably trust the result
@@ -444,7 +453,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -477,7 +486,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	)
 	prebuildIDs := make([]uuid.UUID, 0)
 	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
-		prebuild := setupTestDBPrebuild(
+		prebuild, _ := setupTestDBPrebuild(
 			t,
 			clock,
 			db,
@@ -528,7 +537,7 @@ func TestInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -592,7 +601,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry())
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -601,7 +610,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
 	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
 	preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
-	prebuiltWorkspace := setupTestDBPrebuild(
+	prebuiltWorkspace, _ := setupTestDBPrebuild(
 		t,
 		clock,
 		db,
@@ -669,7 +678,7 @@ func TestRunLoop(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry())
+	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -702,7 +711,7 @@ func TestRunLoop(t *testing.T) {
 	)
 	prebuildIDs := make([]uuid.UUID, 0)
 	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
-		prebuild := setupTestDBPrebuild(
+		prebuild, _ := setupTestDBPrebuild(
 			t,
 			clock,
 			db,
@@ -799,7 +808,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock, prometheus.NewRegistry())
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -812,7 +821,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 
 	preset := setupTestDBPreset(t, db, templateVersionID, desiredInstances, "test")
 	for range desiredInstances {
-		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
+		_, _ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
 	}
 
 	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
@@ -873,7 +882,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		if i == 1 {
 			status = database.ProvisionerJobStatusSucceeded
 		}
-		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, status, org.ID, preset, template.ID, templateVersionID)
+		_, _ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, status, org.ID, preset, template.ID, templateVersionID)
 	}
 
 	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
@@ -914,7 +923,8 @@ func TestReconciliationLock(t *testing.T) {
 				codersdk.PrebuildsConfig{},
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 				quartz.NewMock(t),
-				prometheus.NewRegistry())
+				prometheus.NewRegistry(),
+				newNoopEnqueuer())
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
@@ -929,6 +939,102 @@ func TestReconciliationLock(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestTrackResourceReplacement(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Setup.
+	clock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	db, ps := dbtestutil.NewDB(t)
+
+	fakeEnqueuer := newFakeEnqueuer()
+	registry := prometheus.NewRegistry()
+	reconciler := prebuilds.NewStoreReconciler(db, ps, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer)
+
+	// Given: a template admin to receive a notification.
+	templateAdmin := dbgen.User(t, db, database.User{
+		RBACRoles: []string{codersdk.RoleTemplateAdmin},
+	})
+
+	// Given: a prebuilt workspace.
+	userID := uuid.New()
+	dbgen.User(t, db, database.User{ID: userID})
+	org, template := setupTestDBTemplate(t, db, userID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
+	preset := setupTestDBPreset(t, db, templateVersionID, 1, "b0rked")
+	prebuiltWorkspace, prebuild := setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded, org.ID, preset, template.ID, templateVersionID)
+
+	// Given: no replacement has been tracked yet, we should not see a metric for it yet.
+	require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
+	mf, err := registry.Gather()
+	require.NoError(t, err)
+	require.Nil(t, findMetric(mf, prebuilds.MetricResourceReplacementsCount, map[string]string{
+		"template_name": template.Name,
+		"preset_name":   preset.Name,
+		"org_name":      org.Name,
+	}))
+
+	// When: a claim occurred and resource replacements are detected (_how_ is out of scope of this test).
+	reconciler.TrackResourceReplacement(ctx, prebuiltWorkspace.ID, prebuild.ID, []*sdkproto.ResourceReplacement{
+		{
+			Resource: "docker_container[0]",
+			Paths:    []string{"env", "image"},
+		},
+		{
+			Resource: "docker_volume[0]",
+			Paths:    []string{"name"},
+		},
+	})
+
+	// Then: a notification will be sent detailing the replacement(s).
+	matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
+		// This is not an exhaustive check of the expected labels/data in the notification. This would tie the implementations
+		// too tightly together.
+		// All we need to validate is that a template of the right kind was sent, to the expected user, with some replacements.
+
+		if !assert.Equal(t, notification.TemplateID, notifications.TemplateWorkspaceResourceReplaced, "unexpected template") {
+			return false
+		}
+
+		if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+			return false
+		}
+
+		if !assert.Len(t, notification.Data["replacements"], 2, "unexpected replacements count") {
+			return false
+		}
+
+		return true
+	})
+	require.Len(t, matching, 1)
+
+	// Then: the metric will be incremented.
+	mf, err = registry.Gather()
+	require.NoError(t, err)
+	metric := findMetric(mf, prebuilds.MetricResourceReplacementsCount, map[string]string{
+		"template_name": template.Name,
+		"preset_name":   preset.Name,
+		"org_name":      org.Name,
+	})
+	require.NotNil(t, metric)
+	require.NotNil(t, metric.GetCounter())
+	require.EqualValues(t, 1, metric.GetCounter().GetValue())
+}
+
+func newNoopEnqueuer() *notifications.NoopEnqueuer {
+	return notifications.NewNoopEnqueuer()
+}
+
+func newFakeEnqueuer() *notificationstest.FakeEnqueuer {
+	return notificationstest.NewFakeEnqueuer()
 }
 
 // nolint:revive // It's a control flag, but this is a test.
@@ -957,6 +1063,33 @@ func setupTestDBTemplate(
 		}))
 	}
 	return org, template
+}
+
+// nolint:revive // It's a control flag, but this is a test.
+func setupTestDBTemplateWithinOrg(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	templateDeleted bool,
+	templateName string,
+	org database.Organization,
+) database.Template {
+	t.Helper()
+
+	template := dbgen.Template(t, db, database.Template{
+		Name:           templateName,
+		CreatedBy:      userID,
+		OrganizationID: org.ID,
+		CreatedAt:      time.Now().Add(muchEarlier),
+	})
+	if templateDeleted {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+			ID:      template.ID,
+			Deleted: true,
+		}))
+	}
+	return template
 }
 
 const (
@@ -1040,7 +1173,7 @@ func setupTestDBPrebuild(
 	preset database.TemplateVersionPreset,
 	templateID uuid.UUID,
 	templateVersionID uuid.UUID,
-) database.WorkspaceTable {
+) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
 	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, agplprebuilds.SystemUserID, agplprebuilds.SystemUserID)
 }
@@ -1058,7 +1191,7 @@ func setupTestDBWorkspace(
 	templateVersionID uuid.UUID,
 	initiatorID uuid.UUID,
 	ownerID uuid.UUID,
-) database.WorkspaceTable {
+) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
 	cancelledAt := sql.NullTime{}
 	completedAt := sql.NullTime{}
@@ -1117,7 +1250,7 @@ func setupTestDBWorkspace(
 		},
 	})
 
-	return workspace
+	return workspace, workspaceBuild
 }
 
 // nolint:revive // It's a control flag, but this is a test.
