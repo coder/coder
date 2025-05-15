@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Button from "@mui/material/Button";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -18,7 +17,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { PlusIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -111,13 +110,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 
 			<TableCell>
 				<div css={{ display: "flex", paddingLeft: 16 }}>
-					<KeyboardArrowRight
-						css={{
-							color: theme.palette.text.secondary,
-							width: 20,
-							height: 20,
-						}}
-					/>
+					<ChevronRightIcon className="size-icon-sm" />
 				</div>
 			</TableCell>
 		</TableRow>

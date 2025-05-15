@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
@@ -24,6 +23,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
 import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -461,11 +461,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												textAlign: "center",
 											}}
 										>
-											<WarningOutlined
+											<TriangleAlertIcon
 												css={{
-													fontSize: 48,
 													color: theme.roles.warning.fill.outline,
 												}}
+												className="size-icon-lg"
 											/>
 											<p
 												css={{
