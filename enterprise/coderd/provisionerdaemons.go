@@ -336,6 +336,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	logger.Info(ctx, "starting external provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
 		srvCtx,
+		daemon.APIVersion,
 		api.AccessURL,
 		daemon.ID,
 		authRes.orgID,

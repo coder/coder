@@ -1935,8 +1935,6 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
 	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -1948,10 +1946,10 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	require.NoError(t, err, "Could not start container")
-	t.Cleanup(func() {
+	defer func() {
 		err := pool.Purge(ct)
 		require.NoError(t, err, "Could not stop container")
-	})
+	}()
 	// Wait for container to start
 	require.Eventually(t, func() bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
@@ -1962,6 +1960,7 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
 	})
+	ctx := testutil.Context(t, testutil.WaitLong)
 	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "/bin/sh", func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = ct.Container.ID
 	})
@@ -2005,9 +2004,6 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	// Connect to Docker
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
 
@@ -2051,7 +2047,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 			},
 		},
 	}
-	// nolint: dogsled
+	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
 	})
@@ -2079,8 +2075,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 
 		return false
 	}, testutil.WaitSuperLong, testutil.IntervalMedium, "no container with workspace folder label found")
-
-	t.Cleanup(func() {
+	defer func() {
 		// We can't rely on pool here because the container is not
 		// managed by it (it is managed by @devcontainer/cli).
 		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
@@ -2089,12 +2084,14 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 			Force:         true,
 		})
 		assert.NoError(t, err, "remove container")
-	})
+	}()
 
 	containerInfo, err := pool.Client.InspectContainer(container.ID)
 	require.NoError(t, err, "inspect container")
 	t.Logf("Container state: status: %v", containerInfo.State.Status)
 	require.True(t, containerInfo.State.Running, "container should be running")
+
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "", func(opts *workspacesdk.AgentReconnectingPTYInit) {
 		opts.Container = container.ID
@@ -2122,6 +2119,173 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 
 	_, err = os.Stat(wantFile)
 	require.NoError(t, err, "file should exist outside devcontainer")
+}
+
+// TestAgent_DevcontainerRecreate tests that RecreateDevcontainer
+// recreates a devcontainer and emits logs.
+//
+// This tests end-to-end functionality of auto-starting a devcontainer.
+// It runs "devcontainer up" which creates a real Docker container. As
+// such, it does not run by default in CI.
+//
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerRecreate
+func TestAgent_DevcontainerRecreate(t *testing.T) {
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+	t.Parallel()
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+
+	// Prepare temporary devcontainer for test (mywork).
+	devcontainerID := uuid.New()
+	devcontainerLogSourceID := uuid.New()
+	workspaceFolder := filepath.Join(t.TempDir(), "mywork")
+	t.Logf("Workspace folder: %s", workspaceFolder)
+	devcontainerPath := filepath.Join(workspaceFolder, ".devcontainer")
+	err = os.MkdirAll(devcontainerPath, 0o755)
+	require.NoError(t, err, "create devcontainer directory")
+	devcontainerFile := filepath.Join(devcontainerPath, "devcontainer.json")
+	err = os.WriteFile(devcontainerFile, []byte(`{
+        "name": "mywork",
+        "image": "busybox:latest",
+        "cmd": ["sleep", "infinity"]
+    }`), 0o600)
+	require.NoError(t, err, "write devcontainer.json")
+
+	manifest := agentsdk.Manifest{
+		// Set up pre-conditions for auto-starting a devcontainer, the
+		// script is used to extract the log source ID.
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{
+				ID:              devcontainerID,
+				Name:            "test",
+				WorkspaceFolder: workspaceFolder,
+			},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{
+				ID:          devcontainerID,
+				LogSourceID: devcontainerLogSourceID,
+			},
+		},
+	}
+
+	//nolint:dogsled
+	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalDevcontainersEnabled = true
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// We enabled autostart for the devcontainer, so ready is a good
+	// indication that the devcontainer is up and running. Importantly,
+	// this also means that the devcontainer startup is no longer
+	// producing logs that may interfere with the recreate logs.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		states := client.GetLifecycleStates()
+		return slices.Contains(states, codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.IntervalMedium, "devcontainer not ready")
+
+	t.Logf("Looking for container with label: devcontainer.local_folder=%s", workspaceFolder)
+
+	var container docker.APIContainers
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+			return false
+		}
+		for _, c := range containers {
+			t.Logf("Found container: %s with labels: %v", c.ID[:12], c.Labels)
+			if v, ok := c.Labels["devcontainer.local_folder"]; ok && v == workspaceFolder {
+				t.Logf("Found matching container: %s", c.ID[:12])
+				container = c
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalMedium, "no container with workspace folder label found")
+	defer func(container docker.APIContainers) {
+		// We can't rely on pool here because the container is not
+		// managed by it (it is managed by @devcontainer/cli).
+		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            container.ID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
+		assert.Error(t, err, "container should be removed by recreate")
+	}(container)
+
+	ctx = testutil.Context(t, testutil.WaitLong) // Reset context.
+
+	// Capture logs via ScriptLogger.
+	logsCh := make(chan *proto.BatchCreateLogsRequest, 1)
+	client.SetLogsChannel(logsCh)
+
+	// Invoke recreate to trigger the destruction and recreation of the
+	// devcontainer, we do it in a goroutine so we can process logs
+	// concurrently.
+	go func(container docker.APIContainers) {
+		err := conn.RecreateDevcontainer(ctx, container.ID)
+		assert.NoError(t, err, "recreate devcontainer should succeed")
+	}(container)
+
+	t.Logf("Checking recreate logs for outcome...")
+
+	// Wait for the logs to be emitted, the @devcontainer/cli up command
+	// will emit a log with the outcome at the end suggesting we did
+	// receive all the logs.
+waitForOutcomeLoop:
+	for {
+		batch := testutil.RequireReceive(ctx, t, logsCh)
+
+		if bytes.Equal(batch.LogSourceId, devcontainerLogSourceID[:]) {
+			for _, log := range batch.Logs {
+				t.Logf("Received log: %s", log.Output)
+				if strings.Contains(log.Output, "\"outcome\"") {
+					break waitForOutcomeLoop
+				}
+			}
+		}
+	}
+
+	t.Logf("Checking there's a new container with label: devcontainer.local_folder=%s", workspaceFolder)
+
+	// Make sure the container exists and isn't the same as the old one.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+			return false
+		}
+		for _, c := range containers {
+			t.Logf("Found container: %s with labels: %v", c.ID[:12], c.Labels)
+			if v, ok := c.Labels["devcontainer.local_folder"]; ok && v == workspaceFolder {
+				if c.ID == container.ID {
+					t.Logf("Found same container: %s", c.ID[:12])
+					return false
+				}
+				t.Logf("Found new container: %s", c.ID[:12])
+				container = c
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalMedium, "new devcontainer not found")
+	defer func(container docker.APIContainers) {
+		// We can't rely on pool here because the container is not
+		// managed by it (it is managed by @devcontainer/cli).
+		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            container.ID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
+		assert.NoError(t, err, "remove container")
+	}(container)
 }
 
 func TestAgent_Dial(t *testing.T) {

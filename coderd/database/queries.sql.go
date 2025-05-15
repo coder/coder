@@ -6149,6 +6149,7 @@ WHERE w.id IN (
 		AND b.template_version_id = t.active_version_id
 		AND p.current_preset_id = $3::uuid
 		AND p.ready
+		AND NOT t.deleted
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name
@@ -6184,6 +6185,7 @@ FROM workspace_latest_builds wlb
 		-- prebuilds that are still building.
 		INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+  -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_preset_id
 `
 
@@ -6298,6 +6300,7 @@ WITH filtered_builds AS (
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+		AND NOT t.deleted
 ),
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
@@ -6449,6 +6452,7 @@ FROM templates t
 		INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
 		INNER JOIN organizations o ON o.id = t.organization_id
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+  -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = $1::uuid OR $1 IS NULL)
 `
 
@@ -11702,7 +11706,7 @@ func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx conte
 
 const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
 SELECT
-	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files, template_version_terraform_values.provisionerd_version
 FROM
 	template_version_terraform_values
 WHERE
@@ -11717,6 +11721,7 @@ func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, temp
 		&i.UpdatedAt,
 		&i.CachedPlan,
 		&i.CachedModuleFiles,
+		&i.ProvisionerdVersion,
 	)
 	return i, err
 }
@@ -11727,22 +11732,25 @@ INSERT INTO
 		template_version_id,
 		cached_plan,
 		cached_module_files,
-		updated_at
+		updated_at,
+	    provisionerd_version
 	)
 VALUES
 	(
 		(select id from template_versions where job_id = $1),
 		$2,
 		$3,
-		$4
+		$4,
+		$5
 	)
 `
 
 type InsertTemplateVersionTerraformValuesByJobIDParams struct {
-	JobID             uuid.UUID       `db:"job_id" json:"job_id"`
-	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
-	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
-	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	JobID               uuid.UUID       `db:"job_id" json:"job_id"`
+	CachedPlan          json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedModuleFiles   uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	ProvisionerdVersion string          `db:"provisionerd_version" json:"provisionerd_version"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error {
@@ -11751,6 +11759,7 @@ func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Con
 		arg.CachedPlan,
 		arg.CachedModuleFiles,
 		arg.UpdatedAt,
+		arg.ProvisionerdVersion,
 	)
 	return err
 }
