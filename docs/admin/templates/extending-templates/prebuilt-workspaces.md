@@ -75,7 +75,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
 
    Prebuilt workspaces that fail during provisioning are retried with a backoff to prevent transient failures.
 
-1. When a developer requests a new workspace, the claiming process occurs:
+1. When a developer creates a new workspace, the claiming process occurs:
 
    1. Developer selects a template and preset that has prebuilt workspaces configured.
    1. If an eligible prebuilt workspace exists, ownership transfers from the `prebuilds` user to the requesting user.
@@ -84,7 +84,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
       datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
 
-   The developer doesn't see the claiming process — the workspace will just be ready faster than usual.
+   The claiming process is transparent to the developer — the workspace will just be ready faster than usual.
 
 You can view available prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
