@@ -865,13 +865,6 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	start := time.Now()
-	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
-	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
-	return jobs, err
-}
-
 func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetInboxNotificationByID(ctx, id)
@@ -1110,13 +1103,6 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
-func (m queryMetricsStore) GetPendingProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetPendingProvisionerJobs(ctx, updatedAt)
-	m.queryLatencies.WithLabelValues("GetPendingProvisionerJobs").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPrebuildMetrics(ctx)
@@ -1234,6 +1220,13 @@ func (m queryMetricsStore) GetProvisionerJobsCreatedAfter(ctx context.Context, c
 	jobs, err := m.s.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobsCreatedAfter").Observe(time.Since(start).Seconds())
 	return jobs, err
+}
+
+func (m queryMetricsStore) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobsToBeReaped(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobsToBeReaped").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {

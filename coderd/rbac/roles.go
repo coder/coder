@@ -273,6 +273,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+				ResourceProvisionerJobs.Type:  {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 			})...),
 		Org:  map[string][]Permission{},
 		User: []Permission{},

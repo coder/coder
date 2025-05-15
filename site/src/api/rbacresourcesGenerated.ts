@@ -131,6 +131,7 @@ export const RBACResourceActions: Partial<
 	},
 	provisioner_jobs: {
 		read: "read provisioner jobs",
+		update: "update provisioner jobs",
 	},
 	replicas: {
 		read: "read replicas",

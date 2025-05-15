@@ -7376,114 +7376,6 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 	return i, err
 }
 
-const getHungProvisionerJobs = `-- name: GetHungProvisionerJobs :many
-SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
-FROM
-	provisioner_jobs
-WHERE
-	updated_at < $1
-	AND started_at IS NOT NULL
-	AND completed_at IS NULL
-`
-
-func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getHungProvisionerJobs, updatedAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProvisionerJob
-	for rows.Next() {
-		var i ProvisionerJob
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.StartedAt,
-			&i.CanceledAt,
-			&i.CompletedAt,
-			&i.Error,
-			&i.OrganizationID,
-			&i.InitiatorID,
-			&i.Provisioner,
-			&i.StorageMethod,
-			&i.Type,
-			&i.Input,
-			&i.WorkerID,
-			&i.FileID,
-			&i.Tags,
-			&i.ErrorCode,
-			&i.TraceMetadata,
-			&i.JobStatus,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPendingProvisionerJobs = `-- name: GetPendingProvisionerJobs :many
-SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
-FROM
-	provisioner_jobs
-WHERE
-	updated_at < $1
-	AND started_at IS NULL
-	AND completed_at IS NULL
-`
-
-func (q *sqlQuerier) GetPendingProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingProvisionerJobs, updatedAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProvisionerJob
-	for rows.Next() {
-		var i ProvisionerJob
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.StartedAt,
-			&i.CanceledAt,
-			&i.CompletedAt,
-			&i.Error,
-			&i.OrganizationID,
-			&i.InitiatorID,
-			&i.Provisioner,
-			&i.StorageMethod,
-			&i.Type,
-			&i.Input,
-			&i.WorkerID,
-			&i.FileID,
-			&i.Tags,
-			&i.ErrorCode,
-			&i.TraceMetadata,
-			&i.JobStatus,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
@@ -7910,6 +7802,79 @@ SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error,
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+			&i.JobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+FROM
+	provisioner_jobs
+WHERE
+	(
+		-- If the job has not been started within $1, reap it.
+		updated_at < $1
+		AND started_at IS NULL
+		AND completed_at IS NULL
+	)
+	OR
+	(
+		-- If the job has been started but not completed within $2, reap it.
+		updated_at < $2
+		AND started_at IS NOT NULL
+		AND completed_at IS NULL
+	)
+ORDER BY random()
+LIMIT $3
+FOR UPDATE SKIP LOCKED
+`
+
+type GetProvisionerJobsToBeReapedParams struct {
+	PendingSince time.Time `db:"pending_since" json:"pending_since"`
+	HungSince    time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+}
+
+func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
 	if err != nil {
 		return nil, err
 	}

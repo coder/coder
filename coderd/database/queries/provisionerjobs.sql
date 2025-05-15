@@ -268,25 +268,28 @@ SET
 WHERE
 	id = $1;
 
--- name: GetHungProvisionerJobs :many
+-- name: GetProvisionerJobsToBeReaped :many
 SELECT
 	*
 FROM
 	provisioner_jobs
 WHERE
-	updated_at < $1
-	AND started_at IS NOT NULL
-	AND completed_at IS NULL;
-
--- name: GetPendingProvisionerJobs :many
-SELECT
-	*
-FROM
-	provisioner_jobs
-WHERE
-	updated_at < $1
-	AND started_at IS NULL
-	AND completed_at IS NULL;
+	(
+		-- If the job has not been started within $1, reap it.
+		updated_at < @pending_since
+		AND started_at IS NULL
+		AND completed_at IS NULL
+	)
+	OR
+	(
+		-- If the job has been started but not completed within $2, reap it.
+		updated_at < @hung_since
+		AND started_at IS NOT NULL
+		AND completed_at IS NULL
+	)
+ORDER BY random()
+LIMIT @max_jobs
+FOR UPDATE SKIP LOCKED;
 
 -- name: InsertProvisionerJobTimings :many
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)

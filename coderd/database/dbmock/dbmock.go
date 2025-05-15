@@ -1743,21 +1743,6 @@ func (mr *MockStoreMockRecorder) GetHealthSettings(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthSettings", reflect.TypeOf((*MockStore)(nil).GetHealthSettings), ctx)
 }
 
-// GetHungProvisionerJobs mocks base method.
-func (m *MockStore) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHungProvisionerJobs", ctx, updatedAt)
-	ret0, _ := ret[0].([]database.ProvisionerJob)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetHungProvisionerJobs indicates an expected call of GetHungProvisionerJobs.
-func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(ctx, updatedAt any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), ctx, updatedAt)
-}
-
 // GetInboxNotificationByID mocks base method.
 func (m *MockStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	m.ctrl.T.Helper()
@@ -2268,21 +2253,6 @@ func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
 }
 
-// GetPendingProvisionerJobs mocks base method.
-func (m *MockStore) GetPendingProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPendingProvisionerJobs", ctx, updatedAt)
-	ret0, _ := ret[0].([]database.ProvisionerJob)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetPendingProvisionerJobs indicates an expected call of GetPendingProvisionerJobs.
-func (mr *MockStoreMockRecorder) GetPendingProvisionerJobs(ctx, updatedAt any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetPendingProvisionerJobs), ctx, updatedAt)
-}
-
 // GetPrebuildMetrics mocks base method.
 func (m *MockStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
 	m.ctrl.T.Helper()
@@ -2536,6 +2506,21 @@ func (m *MockStore) GetProvisionerJobsCreatedAfter(ctx context.Context, createdA
 func (mr *MockStoreMockRecorder) GetProvisionerJobsCreatedAfter(ctx, createdAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsCreatedAfter), ctx, createdAt)
+}
+
+// GetProvisionerJobsToBeReaped mocks base method.
+func (m *MockStore) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobsToBeReaped", ctx, arg)
+	ret0, _ := ret[0].([]database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobsToBeReaped indicates an expected call of GetProvisionerJobsToBeReaped.
+func (mr *MockStoreMockRecorder) GetProvisionerJobsToBeReaped(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsToBeReaped", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsToBeReaped), ctx, arg)
 }
 
 // GetProvisionerKeyByHashedSecret mocks base method.

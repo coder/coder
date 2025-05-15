@@ -170,7 +170,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "provisionerd"},
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceFile.Type:            {policy.ActionRead},
 					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
@@ -1075,13 +1075,6 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
-func (q *querier) GetPendingProvisionerJobs(ctx context.Context, lastUpdatedSince time.Time) ([]database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
-	return q.db.GetPendingProvisionerJobs(ctx, lastUpdatedSince)
-}
-
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1919,13 +1912,6 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	return q.db.GetHealthSettings(ctx)
 }
 
-func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
-	return q.db.GetHungProvisionerJobs(ctx, hungSince)
-}
-
 func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
 }
@@ -2336,6 +2322,9 @@ func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, 
 }
 
 func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
 }
 
@@ -2344,6 +2333,13 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 		return nil, err
 	}
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
+	return q.db.GetProvisionerJobsToBeReaped(ctx, arg)
 }
 
 func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -3538,14 +3534,14 @@ func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertP
 }
 
 func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceProvisionerJobs); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
 		return nil, err
 	}
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
 func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceProvisionerJobs); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
 		return nil, err
 	}
 	return q.db.InsertProvisionerJobTimings(ctx, arg)

@@ -52,7 +52,7 @@ func reapParamsFromJob(job database.ProvisionerJob) (jobType, float64) {
 	threshold := jobreaper.HungJobDuration.Minutes()
 	if !job.StartedAt.Valid {
 		jobType = pendingJobType
-		threshold = jobreaper.PendingJobTimeElapsed.Minutes()
+		threshold = jobreaper.PendingJobDuration.Minutes()
 	}
 	return jobType, threshold
 }
