@@ -113,6 +113,13 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 					break
 				}
 			}
+			if api.devcontainerLogSourceIDs[devcontainer.WorkspaceFolder] == uuid.Nil {
+				api.logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer",
+					slog.F("devcontainer", devcontainer.Name),
+					slog.F("workspace_folder", devcontainer.WorkspaceFolder),
+					slog.F("config_path", devcontainer.ConfigPath),
+				)
+			}
 		}
 	}
 }
@@ -164,6 +171,8 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		configFileModifiedTimes: make(map[string]time.Time),
 		scriptLogger:            func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 	}
+	// The ctx and logger must be set before applying options to avoid
+	// nil pointer dereference.
 	for _, opt := range options {
 		opt(api)
 	}
