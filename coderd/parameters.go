@@ -248,6 +248,9 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 	}
 
 	return func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+		// Update the input values with the new values.
+		// The rest of the input is unchanged.
+		input.ParameterValues = values
 		return preview.Preview(ctx, input, templateFS)
 	}, closeFiles, true
 }
