@@ -2178,19 +2178,21 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 		o.ExperimentalDevcontainersEnabled = true
 	})
 
+	ctx := testutil.Context(t, testutil.WaitLong)
+
 	// We enabled autostart for the devcontainer, so ready is a good
 	// indication that the devcontainer is up and running. Importantly,
 	// this also means that the devcontainer startup is no longer
 	// producing logs that may interfere with the recreate logs.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(context.Context) bool {
 		states := client.GetLifecycleStates()
 		return slices.Contains(states, codersdk.WorkspaceAgentLifecycleReady)
-	}, testutil.WaitLong, testutil.IntervalMedium, "devcontainer not ready")
+	}, testutil.IntervalMedium, "devcontainer not ready")
 
 	t.Logf("Looking for container with label: devcontainer.local_folder=%s", workspaceFolder)
 
 	var container docker.APIContainers
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(context.Context) bool {
 		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
 		if err != nil {
 			t.Logf("Error listing containers: %v", err)
@@ -2205,7 +2207,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 			}
 		}
 		return false
-	}, testutil.WaitLong, testutil.IntervalMedium, "no container with workspace folder label found")
+	}, testutil.IntervalMedium, "no container with workspace folder label found")
 	defer func(container docker.APIContainers) {
 		// We can't rely on pool here because the container is not
 		// managed by it (it is managed by @devcontainer/cli).
@@ -2217,7 +2219,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 		assert.Error(t, err, "container should be removed by recreate")
 	}(container)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx = testutil.Context(t, testutil.WaitLong) // Reset context.
 
 	// Capture logs via ScriptLogger.
 	logsCh := make(chan *proto.BatchCreateLogsRequest, 1)
@@ -2253,7 +2255,7 @@ waitForOutcomeLoop:
 	t.Logf("Checking there's a new container with label: devcontainer.local_folder=%s", workspaceFolder)
 
 	// Make sure the container exists and isn't the same as the old one.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(context.Context) bool {
 		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
 		if err != nil {
 			t.Logf("Error listing containers: %v", err)
@@ -2272,7 +2274,7 @@ waitForOutcomeLoop:
 			}
 		}
 		return false
-	}, testutil.WaitLong, testutil.IntervalMedium, "new devcontainer not found")
+	}, testutil.IntervalMedium, "new devcontainer not found")
 	defer func(container docker.APIContainers) {
 		// We can't rely on pool here because the container is not
 		// managed by it (it is managed by @devcontainer/cli).
