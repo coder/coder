@@ -689,7 +689,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				t, &slogtest.Options{IgnoreErrors: true},
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry())
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
 
 			// Set up test environment with a template, version, and preset
 			ownerID := uuid.New()
