@@ -1,12 +1,9 @@
-import { useTheme } from "@emotion/react";
 import { Button } from "components/Button/Button";
 import type { FC, ReactNode } from "react";
-import { cn } from "utils/cn";
 
 type NumberedPageButtonProps = {
 	pageNumber: number;
 	totalPages: number;
-
 	onClick?: () => void;
 	highlighted?: boolean;
 	disabled?: boolean;
@@ -69,27 +66,10 @@ const BasePageButton: FC<BasePageButtonProps> = ({
 	highlighted = false,
 	disabled = false,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Button
-			variant="outline"
-			size="sm"
-			style={
-				highlighted ? {
-					borderColor: theme.roles.active.outline,
-					backgroundColor: theme.roles.active.background,
-					// Define CSS variables to use in hover styles
-					"--active-border-color": theme.roles.active.outline,
-					"--active-bg-color": theme.roles.active.background,
-				} : undefined
-			}
-			className={
-				highlighted ? cn(
-					// Override default hover styles for highlighted buttons
-					"hover:!border-[color:var(--active-border-color)] hover:!bg-[color:var(--active-bg-color)]"
-				) : undefined
-			}
+			variant={highlighted ? "default" : "outline"}
+			size="icon"
 			aria-label={ariaLabel}
 			name={name}
 			disabled={disabled}

@@ -62,16 +62,9 @@ function PaginationNavButtonCore({
 			 */}
 			<Button
 				variant="outline"
-				size="sm"
-				aria-disabled={disabled}
-				className={disabled ? "cursor-default" : undefined}
-				onClick={() => {
-					if (disabled) {
-						setShowDisabledMessage(true);
-					} else {
-						onClick();
-					}
-				}}
+				size="icon"
+				disabled={disabled}
+				onClick={onClick}
 				{...delegatedProps}
 			/>
 		</Tooltip>
