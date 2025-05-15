@@ -241,7 +241,7 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 		params = append(params, param)
 	}
 
-	api.handleParameterWebsocket(rw, r, func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	api.handleParameterWebsocket(rw, r, func(_ context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		for i := range params {
 			param := &params[i]
 			paramValue, ok := values[param.Name]
