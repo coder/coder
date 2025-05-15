@@ -44,10 +44,10 @@ across templates. Some of the modules we publish are,
    [`vscode-web`](https://registry.coder.com/modules/coder/vscode-web)
 2. [`git-clone`](https://registry.coder.com/modules/coder/git-clone)
 3. [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles)
-4. [`jetbrains-gateway`](https://registry.coder.com/modules/jetbrains/jetbrains-gateway)
-5. [`jfrog-oauth`](https://registry.coder.com/modules/jfrog/jfrog-oauth) and
-   [`jfrog-token`](https://registry.coder.com/modules/jfrog/jfrog-token)
-6. [`vault-github`](https://registry.coder.com/modules/hashicorp/vault-github)
+4. [`jetbrains-gateway`](https://registry.coder.com/modules/coder/jetbrains-gateway)
+5. [`jfrog-oauth`](https://registry.coder.com/modules/coder/jfrog-oauth) and
+   [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
+6. [`vault-github`](https://registry.coder.com/modules/coder/vault-github)
 
 For a full list of available modules please check
 [Coder module registry](https://registry.coder.com/modules).
