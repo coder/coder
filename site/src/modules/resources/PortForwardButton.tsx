@@ -2,7 +2,6 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import SensorsIcon from "@mui/icons-material/Sensors";
-import MUIButton from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import FormControl from "@mui/material/FormControl";
 import Link from "@mui/material/Link";
@@ -77,26 +76,24 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<MUIButton
+				<Button
 					disabled={!portsQuery.data}
-					size="small"
-					variant="text"
-					endIcon={<ChevronDownIcon className="size-4" />}
+					size="sm"
+					variant="subtle"
 					css={{ fontSize: 13, padding: "8px 12px" }}
-					startIcon={
-						portsQuery.data ? (
-							<div>
-								<span css={styles.portCount}>
-									{portsQuery.data.ports.length}
-								</span>
-							</div>
-						) : (
-							<CircularProgress size={10} />
-						)
-					}
 				>
+					{portsQuery.data ? (
+						<div>
+							<span css={styles.portCount}>
+								{portsQuery.data.ports.length}
+							</span>
+						</div>
+					) : (
+						<CircularProgress size={10} />
+					)}
 					Open ports
-				</MUIButton>
+					<ChevronDownIcon className="size-4" />
+				</Button>
 			</PopoverTrigger>
 			<PopoverContent horizontal="right" classes={{ paper }}>
 				<PortForwardPopoverView
@@ -297,10 +294,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									required
 									css={styles.newPortInput}
 								/>
-								<MUIButton
+								<Button
 									type="submit"
-									size="small"
-									variant="text"
+									size="sm"
+									variant="subtle"
 									css={{
 										paddingLeft: 12,
 										paddingRight: 12,
@@ -314,7 +311,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											color: theme.palette.text.primary,
 										}}
 									/>
-								</MUIButton>
+								</Button>
 							</form>
 						</Stack>
 					</Stack>
@@ -369,9 +366,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									alignItems="center"
 								>
 									{canSharePorts && (
-										<MUIButton
-											size="small"
-											variant="text"
+										<Button
+											size="sm"
+											variant="subtle"
 											onClick={async () => {
 												await upsertSharedPortMutation.mutateAsync({
 													agent_name: agent.name,
@@ -383,7 +380,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											}}
 										>
 											Share
-										</MUIButton>
+										</Button>
 									)}
 								</Stack>
 							</Stack>
@@ -483,9 +480,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												)}
 											</Select>
 										</FormControl>
-										<MUIButton
-											size="small"
-											variant="text"
+										<Button
+											size="sm"
+											variant="subtle"
 											css={styles.deleteButton}
 											onClick={async () => {
 												await deleteSharedPortMutation.mutateAsync({
@@ -502,7 +499,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 													color: theme.palette.text.primary,
 												}}
 											/>
-										</MUIButton>
+										</Button>
 									</Stack>
 								</Stack>
 							);

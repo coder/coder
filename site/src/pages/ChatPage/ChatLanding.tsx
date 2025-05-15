@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import SendIcon from "@mui/icons-material/Send";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
@@ -89,19 +89,19 @@ const ChatLanding: FC = () => {
 						sx={{ mb: 2 }}
 					>
 						<Button
-							variant="outlined"
+							variant="outline"
 							onClick={() => setInput("Help me work on issue #...")}
 						>
 							Work on Issue
 						</Button>
 						<Button
-							variant="outlined"
+							variant="outline"
 							onClick={() => setInput("Help me build a template for...")}
 						>
 							Build a Template
 						</Button>
 						<Button
-							variant="outlined"
+							variant="outline"
 							onClick={() => setInput("Help me start a new project using...")}
 						>
 							Start a Project

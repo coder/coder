@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
 	HelpTooltipLink,
@@ -34,12 +34,12 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 		<Popover>
 			<PopoverTrigger>
 				<Button
-					size="small"
-					variant="text"
-					endIcon={<ChevronDownIcon className="size-4" />}
+					size="sm"
+					variant="subtle"
 					css={{ fontSize: 13, padding: "8px 12px" }}
 				>
 					Connect via SSH
+					<ChevronDownIcon className="size-4 ml-2" />
 				</Button>
 			</PopoverTrigger>
 
@@ -96,12 +96,12 @@ export const AgentDevcontainerSSHButton: FC<
 		<Popover>
 			<PopoverTrigger>
 				<Button
-					size="small"
-					variant="text"
-					endIcon={<ChevronDownIcon className="size-4" />}
+					size="sm"
+					variant="subtle"
 					css={{ fontSize: 13, padding: "8px 12px" }}
 				>
 					Connect via SSH
+					<ChevronDownIcon className="size-4 ml-2" />
 				</Button>
 			</PopoverTrigger>
 

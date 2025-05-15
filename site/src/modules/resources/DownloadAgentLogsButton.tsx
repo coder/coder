@@ -1,5 +1,5 @@
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -35,10 +35,9 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 
 	return (
 		<Button
-			startIcon={<DownloadOutlined />}
 			disabled={!isConnected || isDownloading}
-			variant="text"
-			size="small"
+			variant="subtle"
+			size="sm"
 			onClick={async () => {
 				try {
 					setIsDownloading(true);
@@ -57,6 +56,7 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 				}
 			}}
 		>
+			<DownloadOutlined />
 			{isDownloading ? "Downloading..." : "Download logs"}
 		</Button>
 	);

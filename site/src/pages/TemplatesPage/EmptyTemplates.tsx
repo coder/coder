@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
@@ -79,12 +79,13 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 						</div>
 
 						<Button
-							size="small"
-							component={RouterLink}
-							to="/starter-templates"
+							size="sm"
+							asChild
 							css={{ borderRadius: 9999 }}
 						>
-							View all starter templates
+							<RouterLink to="/starter-templates">
+								View all starter templates
+							</RouterLink>
 						</Button>
 					</Stack>
 				}

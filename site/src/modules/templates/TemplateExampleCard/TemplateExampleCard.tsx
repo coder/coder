@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -54,15 +54,16 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				</span>
 			</div>
 
-			<div css={styles.useButtonContainer}>
-				<Button
-					component={RouterLink}
-					fullWidth
-					to={`/templates/new?exampleId=${example.id}`}
-				>
-					Use template
-				</Button>
-			</div>
+				<div css={styles.useButtonContainer}>
+					<Button
+						asChild
+						className="w-full"
+					>
+						<RouterLink to={`/templates/new?exampleId=${example.id}`}>
+							Use template
+						</RouterLink>
+					</Button>
+				</div>
 		</div>
 	);
 };
