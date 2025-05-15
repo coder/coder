@@ -240,11 +240,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								Use classic workspace creation form
 								<StackLabelHelperText>
 									<span>
-										If enabled, users will see the original workspace creation
-										experience without dynamic parameters or live form updates.
-										This is recommended if your provisioners haven&apos;t been
-										updated for dynamic parameters, or if you&apos;re
-										experiencing issues or incorrect behavior with the new form.{" "}
+										Show the original workspace creation form without dynamic parameters or live updates. 
+										Recommended if your provisioners aren't updated or the new form causes issues.
 										<strong>
 											Users can always manually switch experiences in the
 											workspace creation form.
