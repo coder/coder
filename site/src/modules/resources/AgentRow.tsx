@@ -10,6 +10,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { isAxiosError } from "axios";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
@@ -40,7 +41,6 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { isAxiosError } from "axios";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
