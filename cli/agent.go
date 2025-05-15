@@ -358,12 +358,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					SSHMaxTimeout:        sshMaxTimeout,
 					Subsystems:           subsystems,
 
-				PrometheusRegistry: prometheusRegistry,
-				BlockFileTransfer:  blockFileTransfer,
-				Execer:             execer,
+					PrometheusRegistry: prometheusRegistry,
+					BlockFileTransfer:  blockFileTransfer,
+					Execer:             execer,
 
-				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
-			})
+					ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
+				})
 
 				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
 				prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
