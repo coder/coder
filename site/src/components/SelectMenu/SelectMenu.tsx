@@ -1,4 +1,3 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import Button, { type ButtonProps } from "@mui/material/Button";
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
@@ -12,6 +11,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { CheckIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
@@ -145,10 +145,7 @@ export const SelectMenuItem: FC<MenuItemProps> = (props) => {
 		>
 			{props.children}
 			{props.selected && (
-				<CheckOutlined
-					// TODO: Don't set the menu icon font size on default theme
-					css={{ marginLeft: "auto", fontSize: "inherit !important" }}
-				/>
+				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
 			)}
 		</MenuItem>
 	);

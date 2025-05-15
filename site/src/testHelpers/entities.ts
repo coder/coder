@@ -753,6 +753,8 @@ You can add instructions here
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
 	{
 		...MockTemplateVersion,
+		id: "test-template-version-markdown",
+		name: "test-version-markdown",
 		message: `
 # Abiding Grace
 ## Enchantment
@@ -896,17 +898,10 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	id: "test-app",
 	slug: "test-app",
 	display_name: "Test App",
-	icon: "",
 	subdomain: false,
 	health: "disabled",
 	external: false,
-	url: "",
 	sharing_level: "owner",
-	healthcheck: {
-		url: "",
-		interval: 0,
-		threshold: 0,
-	},
 	hidden: false,
 	open_in: "slim-window",
 	statuses: [],
@@ -939,6 +934,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	created_at: "",
 	environment_variables: {},
 	id: "test-workspace-agent",
+	parent_id: null,
 	name: "a-workspace-agent",
 	operating_system: "linux",
 	resource_id: "",
@@ -959,6 +955,47 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	logs_overflowed: false,
 	log_sources: [MockWorkspaceAgentLogSource],
 	scripts: [MockWorkspaceAgentScript],
+	startup_script_behavior: "non-blocking",
+	subsystems: ["envbox", "exectrace"],
+	health: {
+		healthy: true,
+	},
+	display_apps: [
+		"ssh_helper",
+		"port_forwarding_helper",
+		"vscode",
+		"vscode_insiders",
+		"web_terminal",
+	],
+};
+
+export const MockWorkspaceChildAgent: TypesGen.WorkspaceAgent = {
+	apps: [],
+	architecture: "amd64",
+	created_at: "",
+	environment_variables: {},
+	id: "test-workspace-child-agent",
+	parent_id: "test-workspace-agent",
+	name: "a-workspace-child-agent",
+	operating_system: "linux",
+	resource_id: "",
+	status: "connected",
+	updated_at: "",
+	version: MockBuildInfo.version,
+	api_version: MockBuildInfo.agent_api_version,
+	latency: {
+		"Coder Embedded DERP": {
+			latency_ms: 32.55,
+			preferred: true,
+		},
+	},
+	connection_timeout_seconds: 120,
+	troubleshooting_url: "https://coder.com/troubleshoot",
+	lifecycle_state: "starting",
+	logs_length: 0,
+	logs_overflowed: false,
+	log_sources: [MockWorkspaceAgentLogSource],
+	scripts: [],
 	startup_script_behavior: "non-blocking",
 	subsystems: ["envbox", "exectrace"],
 	health: {

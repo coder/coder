@@ -4109,6 +4109,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Returns a list of templates for the specified organization.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
                     "application/json"
                 ],
@@ -4936,6 +4937,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
                     "application/json"
                 ],
@@ -8444,6 +8446,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/reinit": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent reinitialization",
+                "operationId": "get-workspace-agent-reinitialization",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ReinitializationEvent"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/rpc": {
             "get": {
                 "security": [
@@ -10488,6 +10515,26 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "agentsdk.ReinitializationEvent": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "$ref": "#/definitions/agentsdk.ReinitializationReason"
+                },
+                "workspaceID": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.ReinitializationReason": {
+            "type": "string",
+            "enum": [
+                "prebuild_claimed"
+            ],
+            "x-enum-varnames": [
+                "ReinitializeReasonPrebuildClaimed"
+            ]
         },
         "aisdk.Attachment": {
             "type": "object",
@@ -17021,6 +17068,14 @@ const docTemplate = `{
                 "operating_system": {
                     "type": "string"
                 },
+                "parent_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
                 "ready_at": {
                     "type": "string",
                     "format": "date-time"
@@ -19032,6 +19087,18 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
+        },
+        "uuid.NullUUID": {
+            "type": "object",
+            "properties": {
+                "uuid": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if UUID is not NULL",
+                    "type": "boolean"
+                }
+            }
         },
         "workspaceapps.AccessMethod": {
             "type": "string",

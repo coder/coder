@@ -5,18 +5,25 @@ import type {
 	ProvisionerLogLevel,
 	UsageAppName,
 	Workspace,
+	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "api/typesGenerated";
 import type { Dayjs } from "dayjs";
+import {
+	type WorkspacePermissions,
+	workspaceChecks,
+} from "modules/workspaces/permissions";
 import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
 	QueryClient,
 	QueryOptions,
 	UseMutationOptions,
+	UseQueryOptions,
 } from "react-query";
+import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
@@ -337,20 +344,14 @@ export const buildLogs = (workspace: Workspace) => {
 	};
 };
 
-export const agentLogsKey = (workspaceId: string, agentId: string) => [
-	"workspaces",
-	workspaceId,
-	"agents",
-	agentId,
-	"logs",
-];
+export const agentLogsKey = (agentId: string) => ["agents", agentId, "logs"];
 
-export const agentLogs = (workspaceId: string, agentId: string) => {
+export const agentLogs = (agentId: string) => {
 	return {
-		queryKey: agentLogsKey(workspaceId, agentId),
+		queryKey: agentLogsKey(agentId),
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
-	};
+	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
 };
 
 // workspace usage options
@@ -388,5 +389,16 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 		// ...disabledRefetchOptions,
 		refetchInterval: 60000,
 		refetchIntervalInBackground: true,
+	};
+};
+
+export const workspacePermissions = (workspace?: Workspace) => {
+	return {
+		...checkAuthorization<WorkspacePermissions>({
+			checks: workspace ? workspaceChecks(workspace) : {},
+		}),
+		queryKey: ["workspaces", workspace?.id, "permissions"],
+		enabled: !!workspace,
+		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

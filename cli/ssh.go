@@ -92,6 +92,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
+		Long:        "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),

@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
+
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -41,12 +43,13 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+
 	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/webpush"
 
@@ -84,7 +87,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -800,6 +802,11 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
+	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+		DB:       options.Database,
+		Optional: false,
+	})
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
@@ -1287,10 +1294,7 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
-					DB:       options.Database,
-					Optional: false,
-				}))
+				r.Use(workspaceAgentInfo)
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
@@ -1299,6 +1303,7 @@ func New(options *Options) *API {
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
+				r.Get("/reinit", api.workspaceAgentReinit)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1725,7 +1730,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 
 func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
-	clientSession, serverSession := drpc.MemTransportPipe()
+	clientSession, serverSession := drpcsdk.MemTransportPipe()
 	defer func() {
 		if err != nil {
 			_ = clientSession.Close()
@@ -1771,6 +1776,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
 		api.ctx, // use the same ctx as the API
+		daemon.APIVersion,
 		api.AccessURL,
 		daemon.ID,
 		defaultOrg.ID,
@@ -1793,6 +1799,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		&api.PrebuildsReconciler,
 	)
 	if err != nil {
 		return nil, err
@@ -1803,6 +1810,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
 				if xerrors.Is(err, io.EOF) {
 					return

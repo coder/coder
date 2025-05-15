@@ -1,13 +1,12 @@
 import type { Theme } from "@emotion/react";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
-import { PlayIcon, SquareIcon } from "lucide-react";
+import { HourglassIcon } from "lucide-react";
+import { CircleAlertIcon, PlayIcon, SquareIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 
@@ -226,7 +225,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "danger",
 				text: "Deleted",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "canceling":
 			return {
@@ -238,19 +237,19 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Canceled",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "failed":
 			return {
 				type: "error",
 				text: "Failed",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "pending":
 			return {
 				type: "active",
 				text: getPendingStatusLabel(provisionerJob),
-				icon: <QueuedIcon />,
+				icon: <HourglassIcon className="size-icon-sm" />,
 			} as const;
 	}
 };

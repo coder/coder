@@ -1,4 +1,3 @@
-import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";
@@ -12,6 +11,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { PlusIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
@@ -95,7 +95,7 @@ const GroupsPage: FC = () => {
 				{groupsEnabled && permissions.createGroup && (
 					<Button asChild>
 						<RouterLink to="create">
-							<GroupAdd />
+							<PlusIcon className="size-icon-sm" />
 							Create group
 						</RouterLink>
 					</Button>

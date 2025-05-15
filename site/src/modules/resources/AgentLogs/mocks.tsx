@@ -8,7 +8,7 @@ export const MockSources = [
 		id: "d9475581-8a42-4bce-b4d0-e4d2791d5c98",
 		created_at: "2024-03-14T11:31:03.443877Z",
 		display_name: "Startup Script",
-		icon: "/emojis/25b6.png",
+		icon: "/emojis/25b6-fe0f.png",
 	},
 	{
 		workspace_agent_id: "722654da-cd27-4edf-a525-54979c864344",

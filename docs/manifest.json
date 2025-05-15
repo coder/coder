@@ -193,7 +193,7 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Management",
@@ -502,6 +502,11 @@
 									"title": "Provider Authentication",
 									"description": "Authenticate with provider APIs to provision workspaces",
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
+								},
+								{
+									"title": "Configure a template for dev containers",
+									"description": "How to use configure your template for dev containers",
+									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
 									"title": "Process Logging",
@@ -1625,6 +1630,7 @@
 						},
 						{
 							"title": "users create",
+							"description": "Create a new user.",
 							"path": "reference/cli/users_create.md"
 						},
 						{
@@ -1639,6 +1645,7 @@
 						},
 						{
 							"title": "users list",
+							"description": "Prints the list of users.",
 							"path": "reference/cli/users_list.md"
 						},
 						{

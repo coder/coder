@@ -1,4 +1,3 @@
-import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
@@ -19,16 +18,12 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -47,11 +42,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronRightIcon } from "lucide-react";
+import { StarIcon } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	PlayIcon,
@@ -63,10 +57,13 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -83,14 +80,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { cn } from "utils/cn";
 import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
 	getDisplayWorkspaceTemplateName,
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-
-dayjs.extend(relativeTime);
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
@@ -183,7 +176,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					<TableHead className="w-2/6">Template</TableHead>
 					<TableHead className="w-2/6">Status</TableHead>
 					<TableHead className="w-0" />
-					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
@@ -239,7 +231,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										title={
 											<Stack direction="row" spacing={0.5} alignItems="center">
 												{workspace.name}
-												{workspace.favorite && <Star className="w-4 h-4" />}
+												{workspace.favorite && (
+													<StarIcon className="size-icon-xs" />
+												)}
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
@@ -301,11 +295,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								onActionSuccess={onActionSuccess}
 								onActionError={onActionError}
 							/>
-							<TableCell>
-								<div className="flex">
-									<ChevronRightIcon className="text-content-secondary size-icon-sm" />
-								</div>
-							</TableCell>
 						</WorkspacesRow>
 					);
 				})}
@@ -380,12 +369,12 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
 				</TableCell>
-				<TableCell className="w-0">
-					<Skeleton variant="rounded" width={40} height={40} />
-				</TableCell>
-				<TableCell>
-					<div className="flex">
-						<ChevronRightIcon className="text-content-disabled size-icon-sm" />
+				<TableCell className="w-0 ">
+					<div className="flex gap-1 justify-end">
+						<Skeleton variant="rounded" width={40} height={40} />
+						<Button size="icon-lg" variant="subtle" disabled>
+							<EllipsisVertical aria-hidden="true" />
+						</Button>
 					</div>
 				</TableCell>
 			</TableRowSkeleton>
@@ -401,30 +390,11 @@ type WorkspaceStatusCellProps = {
 	workspace: Workspace;
 };
 
-const variantByStatusType: Record<
-	DisplayWorkspaceStatusType,
-	StatusIndicatorProps["variant"]
-> = {
-	active: "pending",
-	inactive: "inactive",
-	success: "success",
-	error: "failed",
-	danger: "warning",
-	warning: "warning",
-};
-
 const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
-	const { text, type } = getDisplayWorkspaceStatus(
-		workspace.latest_build.status,
-		workspace.latest_build.job,
-	);
-
 	return (
 		<TableCell>
 			<div className="flex flex-col">
-				<StatusIndicator variant={variantByStatusType[type]}>
-					<StatusIndicatorDot />
-					{text}
+				<WorkspaceStatusIndicator workspace={workspace}>
 					{workspace.latest_build.status === "running" &&
 						!workspace.health.healthy && (
 							<InfoTooltip
@@ -436,7 +406,7 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 					{workspace.dormant_at && (
 						<WorkspaceDormantBadge workspace={workspace} />
 					)}
-				</StatusIndicator>
+				</WorkspaceStatusIndicator>
 				<span className="text-xs font-medium text-content-secondary ml-6">
 					{lastUsedMessage(workspace.last_used_at)}
 				</span>
@@ -535,7 +505,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	};
 
 	return (
-		<TableCell>
+		<TableCell
+			onClick={(e) => {
+				// Prevent the click in the actions to trigger the row click
+				e.stopPropagation();
+			}}
+		>
 			<div className="flex gap-1 justify-end">
 				{workspace.latest_build.status === "running" && (
 					<WorkspaceApps workspace={workspace} />
@@ -583,6 +558,11 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						<RefreshCcwIcon />
 					</PrimaryAction>
 				)}
+
+				<WorkspaceMoreActions
+					workspace={workspace}
+					disabled={!abilities.canAcceptJobs}
+				/>
 			</div>
 		</TableCell>
 	);
@@ -604,14 +584,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={(e) => {
-							e.stopPropagation();
-							onClick();
-						}}
-					>
+					<Button variant="outline" size="icon-lg" onClick={onClick}>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>
@@ -621,6 +594,9 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		</TooltipProvider>
 	);
 };
+
+// The total number of apps that can be displayed in the workspace row
+const WORKSPACE_APPS_SLOTS = 4;
 
 type WorkspaceAppsProps = {
 	workspace: Workspace;
@@ -647,11 +623,20 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		return null;
 	}
 
+	const builtinApps = new Set(agent.display_apps);
+	builtinApps.delete("port_forwarding_helper");
+	builtinApps.delete("ssh_helper");
+
+	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
+	const userApps = agent.apps
+		.filter((app) => app.health === "healthy" && !app.hidden)
+		.slice(0, remainingSlots);
+
 	const buttons: ReactNode[] = [];
 
-	if (agent.display_apps.includes("vscode")) {
+	if (builtinApps.has("vscode")) {
 		buttons.push(
-			<AppLink
+			<BaseIconLink
 				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
@@ -664,13 +649,13 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				})}
 			>
 				<VSCodeIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
-	if (agent.display_apps.includes("vscode_insiders")) {
+	if (builtinApps.has("vscode_insiders")) {
 		buttons.push(
-			<AppLink
+			<BaseIconLink
 				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
@@ -683,18 +668,29 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				})}
 			>
 				<VSCodeInsidersIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
 
-	if (agent.display_apps.includes("web_terminal")) {
+	for (const app of userApps) {
+		buttons.push(
+			<IconAppLink
+				key={app.id}
+				app={app}
+				workspace={workspace}
+				agent={agent}
+			/>,
+		);
+	}
+
+	if (builtinApps.has("web_terminal")) {
 		const href = getTerminalHref({
 			username: workspace.owner_name,
 			workspace: workspace.name,
 			agent: agent.name,
 		});
 		buttons.push(
-			<AppLink
+			<BaseIconLink
 				key="terminal"
 				href={href}
 				onClick={(e) => {
@@ -704,21 +700,47 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				label="Open Terminal"
 			>
 				<SquareTerminalIcon />
-			</AppLink>,
+			</BaseIconLink>,
 		);
 	}
+
+	buttons.push();
 
 	return buttons;
 };
 
-type AppLinkProps = PropsWithChildren<{
+type IconAppLinkProps = {
+	app: WorkspaceApp;
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+};
+
+const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+	const link = useAppLink(app, {
+		workspace,
+		agent,
+	});
+
+	return (
+		<BaseIconLink
+			key={app.id}
+			label={`Open ${link.label}`}
+			href={link.href}
+			onClick={link.onClick}
+		>
+			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+		</BaseIconLink>
+	);
+};
+
+type BaseIconLinkProps = PropsWithChildren<{
 	label: string;
 	href: string;
 	isLoading?: boolean;
 	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }>;
 
-const AppLink: FC<AppLinkProps> = ({
+const BaseIconLink: FC<BaseIconLinkProps> = ({
 	href,
 	isLoading,
 	label,

@@ -631,7 +631,7 @@ func (h *HeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 	if h.Transport == nil {
-		h.Transport = http.DefaultTransport
+		return http.DefaultTransport.RoundTrip(req)
 	}
 	return h.Transport.RoundTrip(req)
 }
