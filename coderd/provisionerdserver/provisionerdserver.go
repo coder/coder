@@ -1836,7 +1836,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 		}
 
-		if s.PrebuildsOrchestrator != nil {
+		if s.PrebuildsOrchestrator != nil && input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 			// Track resource replacements, if there are any.
 			orchestrator := s.PrebuildsOrchestrator.Load()
 			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
