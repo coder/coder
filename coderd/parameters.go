@@ -38,7 +38,6 @@ import (
 // @Router /users/{user}/templateversions/{templateversion}/parameters [get]
 func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user := httpmw.UserParam(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 
 	// Check that the job has completed successfully
