@@ -177,6 +177,7 @@ var (
 					// Unsure why provisionerd needs update and read personal
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspaceAgent.Type:   {policy.ActionCreate},
 					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 					rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
@@ -318,6 +319,24 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectDevContainerAgentAPI = rbac.Subject{
+		Type:         rbac.SubjectTypeDevContainerAgentAPI,
+		FriendlyName: "Dev Container Agent API",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "devcontaineragentapi"},
+				DisplayName: "Dev Container Agent API",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceWorkspaceAgent.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionDelete},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -346,6 +365,7 @@ var (
 					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceWorkspaceAgent.Type:         {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -433,6 +453,12 @@ func AsNotifier(ctx context.Context) context.Context {
 // updating resource monitors.
 func AsResourceMonitor(ctx context.Context) context.Context {
 	return As(ctx, subjectResourceMonitor)
+}
+
+// AsDevContainerAgentAPI returns a context with an actor that has permissions required for
+// handling the lifecycle of dev container agents.
+func AsDevContainerAgentAPI(ctx context.Context) context.Context {
+	return As(ctx, subjectDevContainerAgentAPI)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -1479,6 +1505,19 @@ func (q *querier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUI
 		return err
 	}
 	return q.db.DeleteWebpushSubscriptions(ctx, ids)
+}
+
+func (q *querier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionDelete, agent); err != nil {
+		return err
+	}
+
+	return q.db.DeleteWorkspaceAgentByID(ctx, id)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -3045,6 +3084,13 @@ func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Conte
 	return q.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 }
 
+func (q *querier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgent); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsWithParentID(ctx, parentID)
+}
+
 func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
 	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {
@@ -3700,9 +3746,10 @@ func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorksp
 }
 
 func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgent); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
+
 	return q.db.InsertWorkspaceAgent(ctx, arg)
 }
 
