@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import WarningRounded from "@mui/icons-material/WarningRounded";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
 	Template,
@@ -10,6 +9,7 @@ import type {
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
 import dayjs from "dayjs";
+import { TriangleAlertIcon } from "lucide-react";
 import { InfoIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
@@ -259,7 +259,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={warningNotifications}
 					severity="warning"
-					icon={<WarningRounded />}
+					icon={<TriangleAlertIcon className="size-icon-sm" />}
 				/>
 			)}
 		</div>

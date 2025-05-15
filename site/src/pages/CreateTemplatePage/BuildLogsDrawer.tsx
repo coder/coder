@@ -29,10 +29,6 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	...drawerProps
 }) => {
-	const matchingProvisioners = templateVersion?.matched_provisioners?.count;
-	const availableProvisioners =
-		templateVersion?.matched_provisioners?.available;
-
 	const logs = useWatchVersionLogs(templateVersion);
 	const logsContainer = useRef<HTMLDivElement>(null);
 
@@ -60,6 +56,10 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 		error instanceof JobError &&
 		error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES";
 
+	const matchingProvisioners = templateVersion?.matched_provisioners?.count;
+	const availableProvisioners =
+		templateVersion?.matched_provisioners?.available;
+
 	return (
 		<Drawer anchor="right" {...drawerProps}>
 			<div css={styles.root}>
@@ -85,7 +85,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							drawerProps.onClose();
 						}}
 					/>
-				) : logs ? (
+				) : availableProvisioners && availableProvisioners > 0 && logs ? (
 					<section ref={logsContainer} css={styles.logs}>
 						<WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
 					</section>

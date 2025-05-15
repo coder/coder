@@ -157,6 +157,10 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 			continue
 		}
 
+		if preset.Deleted {
+			continue
+		}
+
 		presetSnapshot, err := currentState.snapshot.FilterByPreset(preset.ID)
 		if err != nil {
 			mc.logger.Error(context.Background(), "failed to filter by preset", slog.Error(err))
