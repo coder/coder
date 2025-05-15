@@ -42,7 +42,7 @@ import * as Yup from "yup";
 export interface DynamicParameterProps {
 	parameter: PreviewParameter;
 	value?: string;
-	onChange: (value: string) => Promise<void>;
+	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
 	autofill: boolean;
@@ -203,7 +203,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 interface DebouncedParameterFieldProps {
 	parameter: PreviewParameter;
 	value?: string;
-	onChange: (value: string) => Promise<void>;
+	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
 }
@@ -239,12 +239,12 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 					className="max-w-2xl"
 					value={localValue}
 					onChange={(e) => {
-						setLocalValue(e.target.value);
-					}}
-					onInput={(e) => {
 						const target = e.currentTarget;
+						target.style.height = "auto";
 						target.style.maxHeight = "700px";
 						target.style.height = `${target.scrollHeight}px`;
+
+						setLocalValue(e.target.value);
 					}}
 					disabled={disabled}
 					placeholder={parameter.styling?.placeholder}
@@ -290,7 +290,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 interface ParameterFieldProps {
 	parameter: PreviewParameter;
 	value?: string;
-	onChange: (value: string) => Promise<void>;
+	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
 }

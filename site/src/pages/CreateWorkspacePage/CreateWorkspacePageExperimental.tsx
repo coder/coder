@@ -50,7 +50,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const [currentResponse, setCurrentResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const [wsResponseId, setWSResponseId] = useState<number>(-1);
+	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 	const initialParamsSentRef = useRef(false);
@@ -88,23 +88,17 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
-	const autofillParameters = useMemo(
-		() => getAutofillParameters(searchParams),
-		[searchParams],
-	);
+	const autofillParameters = getAutofillParameters(searchParams);
 
 	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		setWSResponseId((prevId) => {
 			const request: DynamicParametersRequest = {
-				id: prevId + 1,
+				id: wsResponseId.current + 1,
 				inputs: formValues,
 			};
 			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 				ws.current.send(JSON.stringify(request));
-				return prevId + 1;
+				wsResponseId.current = wsResponseId.current + 1;
 			}
-			return prevId;
-		});
 	}, []);
 
 	// On sends all initial parameter values to the websocket
@@ -140,7 +134,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const onMessage = useCallback(
 		(response: DynamicParametersResponse) => {
 			setCurrentResponse((prev) => {
-				if (prev?.id === response.id) {
+				if (prev && prev?.id >= response.id) {
 					return prev;
 				}
 

@@ -514,7 +514,6 @@ export const MultiSelectCombobox = forwardRef<
 							})}
 							{/* Avoid having the "Search" Icon */}
 							<CommandPrimitive.Input
-								id={inputProps?.id}
 								{...inputProps}
 								ref={inputRef}
 								value={inputValue}
