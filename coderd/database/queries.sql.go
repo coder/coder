@@ -11505,7 +11505,7 @@ func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx conte
 
 const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
 SELECT
-	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files
 FROM
 	template_version_terraform_values
 WHERE
@@ -11515,7 +11515,12 @@ WHERE
 func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateVersionTerraformValues, templateVersionID)
 	var i TemplateVersionTerraformValue
-	err := row.Scan(&i.TemplateVersionID, &i.UpdatedAt, &i.CachedPlan)
+	err := row.Scan(
+		&i.TemplateVersionID,
+		&i.UpdatedAt,
+		&i.CachedPlan,
+		&i.CachedModuleFiles,
+	)
 	return i, err
 }
 
