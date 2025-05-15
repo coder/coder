@@ -212,6 +212,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
+		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return agt

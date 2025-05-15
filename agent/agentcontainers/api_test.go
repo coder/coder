@@ -173,7 +173,7 @@ func TestAPI(t *testing.T) {
 			wantBody        string
 		}{
 			{
-				name:            "Missing ID",
+				name:            "Missing container ID",
 				containerID:     "",
 				lister:          &fakeLister{},
 				devcontainerCLI: &fakeDevcontainerCLI{},
@@ -260,7 +260,7 @@ func TestAPI(t *testing.T) {
 				r.Mount("/", api.Routes())
 
 				// Simulate HTTP request to the recreate endpoint.
-				req := httptest.NewRequest(http.MethodPost, "/"+tt.containerID+"/recreate", nil)
+				req := httptest.NewRequest(http.MethodPost, "/devcontainers/container/"+tt.containerID+"/recreate", nil)
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
 
@@ -563,8 +563,17 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
 
+				// Generate matching scripts for the known devcontainers
+				// (required to extract log source ID).
+				var scripts []codersdk.WorkspaceAgentScript
+				for i := range tt.knownDevcontainers {
+					scripts = append(scripts, codersdk.WorkspaceAgentScript{
+						ID:          tt.knownDevcontainers[i].ID,
+						LogSourceID: uuid.New(),
+					})
+				}
 				if len(tt.knownDevcontainers) > 0 {
-					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers))
+					apiOptions = append(apiOptions, agentcontainers.WithDevcontainers(tt.knownDevcontainers, scripts))
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)

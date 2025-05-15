@@ -4,7 +4,6 @@ import AppsIcon from "@mui/icons-material/Apps";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
-import OpenInNew from "@mui/icons-material/OpenInNew";
 import Warning from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
 import type {
@@ -13,6 +12,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
+import { ExternalLinkIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
 
@@ -186,13 +186,12 @@ export const WorkspaceAppStatus = ({
 										},
 									}}
 								>
-									<OpenInNew
-										sx={{
-											fontSize: 11,
+									<ExternalLinkIcon
+										className="size-icon-xs"
+										css={{
 											opacity: 0.7,
-											mt: -0.125,
 											flexShrink: 0,
-											mr: 0.5,
+											marginRight: 2,
 										}}
 									/>
 									<span

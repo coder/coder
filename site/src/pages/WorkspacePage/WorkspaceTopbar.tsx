@@ -1,6 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
@@ -17,6 +15,8 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { ChevronLeftIcon } from "lucide-react";
+import { CircleDollarSign } from "lucide-react";
 import { TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -108,7 +108,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		<Topbar css={{ gridArea: "topbar" }}>
 			<Tooltip title="Back to workspaces">
 				<TopbarIconButton component={RouterLink} to="/workspaces">
-					<ArrowBackOutlined />
+					<ChevronLeftIcon className="size-icon-sm" />
 				</TopbarIconButton>
 			</Tooltip>
 
@@ -163,7 +163,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					>
 						<TopbarData>
 							<TopbarIcon>
-								<QuotaIcon aria-label="Daily usage" />
+								<CircleDollarSign
+									className="size-icon-sm"
+									aria-label="Daily usage"
+								/>
 							</TopbarIcon>
 
 							<span>

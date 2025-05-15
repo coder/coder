@@ -294,10 +294,15 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:         []bool{false},
 		},
 		{
-			name:                      "delete prebuilds for deleted templates",
+			// Templates can be soft-deleted (`deleted=true`) or hard-deleted (row is removed).
+			// On the former there is *no* DB constraint to prevent soft deletion, so we have to ensure that if somehow
+			// the template was soft-deleted any running prebuilds will be removed.
+			// On the latter there is a DB constraint to prevent row deletion if any workspaces reference the deleting template.
+			name:                      "soft-deleted templates MAY have prebuilds",
 			prebuildLatestTransitions: []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			prebuildJobStatuses:       []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
 			templateVersionActive:     []bool{true, false},
+			shouldCreateNewPrebuild:   ptr.To(false),
 			shouldDeleteOldPrebuild:   ptr.To(true),
 			templateDeleted:           []bool{true},
 		},
@@ -1058,6 +1063,33 @@ func setupTestDBTemplate(
 		}))
 	}
 	return org, template
+}
+
+// nolint:revive // It's a control flag, but this is a test.
+func setupTestDBTemplateWithinOrg(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	templateDeleted bool,
+	templateName string,
+	org database.Organization,
+) database.Template {
+	t.Helper()
+
+	template := dbgen.Template(t, db, database.Template{
+		Name:           templateName,
+		CreatedBy:      userID,
+		OrganizationID: org.ID,
+		CreatedAt:      time.Now().Add(muchEarlier),
+	})
+	if templateDeleted {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+			ID:      template.ID,
+			Deleted: true,
+		}))
+	}
+	return template
 }
 
 const (

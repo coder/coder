@@ -504,6 +504,11 @@
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								},
 								{
+									"title": "Configure a template for dev containers",
+									"description": "How to use configure your template for dev containers",
+									"path": "./admin/templates/extending-templates/devcontainers.md"
+								},
+								{
 									"title": "Process Logging",
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
