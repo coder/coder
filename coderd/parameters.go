@@ -120,7 +120,7 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 
 	if tf.CachedModuleFiles.Valid {
 		moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
-		defer api.FileCache.Release(fileID)
+		defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Internal error fetching Terraform modules.",
