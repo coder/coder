@@ -164,6 +164,26 @@ func TestMetricsCollector(t *testing.T) {
 			templateDeleted: []bool{false},
 			eligible:        []bool{false},
 		},
+		{
+			name:            "deleted templates never desire prebuilds",
+			transitions:     allTransitions,
+			jobStatuses:     allJobStatuses,
+			initiatorIDs:    []uuid.UUID{agplprebuilds.SystemUserID},
+			ownerIDs:        []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
+			metrics:         nil,
+			templateDeleted: []bool{true},
+			eligible:        []bool{false},
+		},
+		{
+			name:            "running prebuilds for deleted templates are still counted, so that they can be deleted",
+			transitions:     []database.WorkspaceTransition{database.WorkspaceTransitionStart},
+			jobStatuses:     []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
+			initiatorIDs:    []uuid.UUID{agplprebuilds.SystemUserID},
+			ownerIDs:        []uuid.UUID{agplprebuilds.SystemUserID},
+			metrics:         nil,
+			templateDeleted: []bool{true},
+			eligible:        []bool{false},
+		},
 	}
 	for _, test := range tests {
 		test := test // capture for parallel
@@ -254,6 +274,12 @@ func TestMetricsCollector(t *testing.T) {
 												"template_name":     template.Name,
 												"preset_name":       preset.Name,
 												"organization_name": org.Name,
+											}
+
+											// If no expected metrics have been defined, ensure we don't find any metric series (i.e. metrics with given labels).
+											if test.metrics == nil {
+												series := findAllMetricSeries(metricsFamilies, labels)
+												require.Empty(t, series)
 											}
 
 											for _, check := range test.metrics {
@@ -429,4 +455,34 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 		}
 	}
 	return nil
+}
+
+// findAllMetricSeries finds all metrics with a given set of labels.
+func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labels map[string]string) map[string]*prometheus_client.Metric {
+	series := make(map[string]*prometheus_client.Metric)
+	for _, metricFamily := range metricsFamilies {
+		for _, metric := range metricFamily.GetMetric() {
+			labelPairs := metric.GetLabel()
+
+			if len(labelPairs) != len(labels) {
+				continue
+			}
+
+			// Convert label pairs to map for easier lookup
+			metricLabels := make(map[string]string, len(labelPairs))
+			for _, label := range labelPairs {
+				metricLabels[label.GetName()] = label.GetValue()
+			}
+
+			// Check if all requested labels match
+			for wantName, wantValue := range labels {
+				if metricLabels[wantName] != wantValue {
+					continue
+				}
+			}
+
+			series[metricFamily.GetName()] = metric
+		}
+	}
+	return series
 }
