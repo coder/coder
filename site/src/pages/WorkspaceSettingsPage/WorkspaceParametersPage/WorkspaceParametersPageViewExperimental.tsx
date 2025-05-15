@@ -98,7 +98,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs: { [k: string]: string } = {};
+		const formInputs: Record<string, string> = {};
 		formInputs[parameter.name] = value;
 		const parameters = form.values.rich_parameter_values ?? [];
 
