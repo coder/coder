@@ -336,7 +336,7 @@ func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.U
 		params = append(params, param)
 	}
 
-	return func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	return func(_ context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		for i := range params {
 			param := &params[i]
 			paramValue, ok := values[param.Name]
