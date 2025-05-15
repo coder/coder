@@ -25,7 +25,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 ## Prerequisites
 
 - [**Premium license**](../../licensing/index.md)
-- **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.0`.
+- **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.1`.
 - **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
 ## Enable prebuilt workspaces for template presets
