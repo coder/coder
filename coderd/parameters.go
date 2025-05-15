@@ -71,11 +71,23 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
+	// staticDiagnostics is a set of diagnostics to be applied to all rendered results.
 	staticDiagnostics := parameterProvisionerVersionDiagnostic(tf)
 
+	// render is the function that given a set of input values, will return the
+	// parameter state. There is 2 rendering functions.
+	//
+	// prepareStaticPreview uses the static set of parameters saved from the template
+	// import. These parameters are returned on every request, and have no dynamic
+	// functionality. This exists for backwards compatibility with older template versions
+	// which have not uploaded their plan & module files.
+	//
+	// prepareDynamicPreview uses the dynamic preview engine.
 	var render previewFunction
 	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
 	if err != nil || major < 1 || (major == 1 && minor < 5) {
+		// Versions < 1.5 do not upload the required files.
+		// Versions == "" are < 1.5, but we don't know the exact version.
 		staticRender, err := prepareStaticPreview(ctx, api.Database, templateVersion.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -113,7 +125,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	// Send an initial form state, computed without any user input.
 	result, diagnostics := render(ctx, map[string]string{})
 	response := codersdk.DynamicParametersResponse{
-		ID:          -1,
+		ID:          -1, // Always start with -1.
 		Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
 	}
 	if result != nil {
@@ -138,6 +150,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 				// The connection has been closed, so there is no one to write to
 				return
 			}
+
 			result, diagnostics := render(ctx, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
@@ -158,12 +171,16 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 type previewFunction func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
 func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db database.Store, fc *files.Cache, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion, user database.User) (render previewFunction, closer func(), success bool) {
+	// keep track of all files opened
 	openFiles := make([]uuid.UUID, 0)
 	closeFiles := func() {
 		for _, it := range openFiles {
 			fc.Release(it)
 		}
 	}
+
+	// This defer will close the files if the function exits early without success.
+	// Closing the files is important to avoid having a memory leak.
 	defer func() {
 		if !success {
 			closeFiles()
@@ -182,6 +199,8 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 		return nil, nil, false
 	}
 
+	// Add the file first. Calling `Release` if it fails is a no-op, so this is safe.
+	openFiles = append(openFiles, fileID)
 	templateFS, err := fc.Acquire(fileCtx, fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -190,7 +209,6 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 		})
 		return nil, nil, false
 	}
-	openFiles = append(openFiles, fileID)
 
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
@@ -198,6 +216,7 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 	plan := json.RawMessage("{}")
 	plan = tf.CachedPlan
 
+	openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
 	if tf.CachedModuleFiles.Valid {
 		moduleFilesFS, err := fc.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
 		if err != nil {
@@ -207,7 +226,6 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 			})
 			return nil, nil, false
 		}
-		openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
 
 		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
@@ -371,7 +389,10 @@ func getWorkspaceOwnerData(
 
 	var publicKey string
 	g.Go(func() error {
-		key, err := db.GetGitSSHKey(ctx, user.ID)
+		// The correct public key has to be sent. This will not be leaked
+		// unless the template leaks it.
+		// nolint:gocritic
+		key, err := db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			return err
 		}
@@ -381,7 +402,11 @@ func getWorkspaceOwnerData(
 
 	var groupNames []string
 	g.Go(func() error {
-		groups, err := db.GetGroups(ctx, database.GetGroupsParams{
+		// The groups need to be sent to preview. These groups are not exposed to the
+		// user, unless the template does it through the parameters. Regardless, we need
+		// the correct groups, and a user might not have read access.
+		// nolint:gocritic
+		groups, err := db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
 			OrganizationID: organizationID,
 			HasMemberID:    user.ID,
 		})

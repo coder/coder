@@ -16,7 +16,7 @@ import (
 
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
-func NewFromStore(store database.Store) Cache {
+func NewFromStore(store database.Store) *Cache {
 	fetcher := func(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		file, err := store.GetFileByID(ctx, fileID)
 		if err != nil {
@@ -27,7 +27,7 @@ func NewFromStore(store database.Store) Cache {
 		return archivefs.FromTarReader(content), nil
 	}
 
-	return Cache{
+	return &Cache{
 		lock:    sync.Mutex{},
 		data:    make(map[uuid.UUID]*cacheEntry),
 		fetcher: fetcher,

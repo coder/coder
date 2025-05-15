@@ -1,13 +1,19 @@
 package coderd_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -141,6 +147,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK_Modules", func(t *testing.T) {
+		t.Parallel()
+
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
@@ -172,6 +180,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 
 	// OldProvisioners use the static parameters in the dynamic param flow
 	t.Run("OldProvisioner", func(t *testing.T) {
+		t.Parallel()
+
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
 			provisionerDaemonVersion: "1.4",
 			mainTF:                   nil,
@@ -244,15 +254,42 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		}
 
 	})
+
+	t.Run("FileError", func(t *testing.T) {
+		// Verify files close even if the websocket terminates from an error
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			db:                       &dbRejectGitSSHKey{Store: db},
+			ps:                       ps,
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			expectWebsocketError:     true,
+		})
+		// This is checked in setupDynamicParamsTest. Just doing this in the
+		// test to make it obvious what this test is doing.
+		require.Zero(t, setup.api.FileCache.Count())
+	})
 }
 
 type setupDynamicParamsTestParams struct {
+	db                       database.Store
+	ps                       pubsub.Pubsub
 	provisionerDaemonVersion string
 	mainTF                   []byte
 	modulesArchive           []byte
 	plan                     []byte
 
-	static []*proto.RichParameter
+	static               []*proto.RichParameter
+	expectWebsocketError bool
 }
 
 type dynamicParamsTest struct {
@@ -265,6 +302,8 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	cfg := coderdtest.DeploymentValues(t)
 	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database:                 args.db,
+		Pubsub:                   args.ps,
 		IncludeProvisionerDaemon: true,
 		ProvisionerDaemonVersion: args.provisionerDaemonVersion,
 		DeploymentValues:         cfg,
@@ -292,10 +331,16 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
-	require.NoError(t, err)
+	if args.expectWebsocketError {
+		require.Errorf(t, err, "expected error forming websocket")
+	} else {
+		require.NoError(t, err)
+	}
 
 	t.Cleanup(func() {
-		_ = stream.Close(websocket.StatusGoingAway)
+		if stream != nil {
+			_ = stream.Close(websocket.StatusGoingAway)
+		}
 		// Cache should always have 0 files when the only stream is closed
 		require.Eventually(t, func() bool {
 			return api.FileCache.Count() == 0
@@ -307,4 +352,14 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 		stream: stream,
 		api:    api,
 	}
+}
+
+// dbRejectGitSSHKey is a cheeky way to force an error to occur in a place
+// that is generally impossible to force an error.
+type dbRejectGitSSHKey struct {
+	database.Store
+}
+
+func (d *dbRejectGitSSHKey) GetGitSSHKey(_ context.Context, _ uuid.UUID) (database.GitSSHKey, error) {
+	return database.GitSSHKey{}, xerrors.New("forcing a fake error")
 }
