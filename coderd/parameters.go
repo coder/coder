@@ -37,8 +37,7 @@ import (
 // @Success 101
 // @Router /users/{user}/templateversions/{templateversion}/parameters [get]
 func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
-	defer cancel()
+	ctx := r.Context()
 	user := httpmw.UserParam(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 
@@ -71,143 +70,45 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	// staticDiagnostics is a set of diagnostics to be applied to all rendered results.
-	staticDiagnostics := parameterProvisionerVersionDiagnostic(tf)
-
-	// render is the function that given a set of input values, will return the
-	// parameter state. There is 2 rendering functions.
-	//
-	// prepareStaticPreview uses the static set of parameters saved from the template
-	// import. These parameters are returned on every request, and have no dynamic
-	// functionality. This exists for backwards compatibility with older template versions
-	// which have not uploaded their plan & module files.
-	//
-	// prepareDynamicPreview uses the dynamic preview engine.
-	var render previewFunction
 	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
-	if err != nil || major < 1 || (major == 1 && minor < 5) {
-		// Versions < 1.5 do not upload the required files.
-		// Versions == "" are < 1.5, but we don't know the exact version.
-		staticRender, err := prepareStaticPreview(ctx, api.Database, templateVersion.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to setup static rendering",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		render = staticRender
+	// If the api version is not valid or less than 1.5, we need to use the static parameters
+	useStaticParams := err != nil || major < 1 || (major == 1 && minor < 5)
+	if useStaticParams {
+		api.handleStaticParameters(rw, r, templateVersion.ID)
 	} else {
-		// If the major version is 1.5+, we can use the dynamic preview
-		dynamicRender, closer, success := prepareDynamicPreview(ctx, rw, api.Database, api.FileCache, tf, templateVersion, user)
-		if !success {
-			return
-		}
-		defer closer()
-		render = dynamicRender
-	}
-
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusUpgradeRequired, codersdk.Response{
-			Message: "Failed to accept WebSocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	stream := wsjson.NewStream[codersdk.DynamicParametersRequest, codersdk.DynamicParametersResponse](
-		conn,
-		websocket.MessageText,
-		websocket.MessageText,
-		api.Logger,
-	)
-
-	// Send an initial form state, computed without any user input.
-	result, diagnostics := render(ctx, map[string]string{})
-	response := codersdk.DynamicParametersResponse{
-		ID:          -1, // Always start with -1.
-		Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
-	}
-	if result != nil {
-		response.Parameters = result.Parameters
-	}
-	err = stream.Send(response)
-	if err != nil {
-		stream.Drop()
-		return
-	}
-
-	// As the user types into the form, reprocess the state using their input,
-	// and respond with updates.
-	updates := stream.Chan()
-	for {
-		select {
-		case <-ctx.Done():
-			stream.Close(websocket.StatusGoingAway)
-			return
-		case update, ok := <-updates:
-			if !ok {
-				// The connection has been closed, so there is no one to write to
-				return
-			}
-
-			result, diagnostics := render(ctx, update.Inputs)
-			response := codersdk.DynamicParametersResponse{
-				ID:          update.ID,
-				Diagnostics: previewtypes.Diagnostics(diagnostics.Extend(staticDiagnostics)),
-			}
-			if result != nil {
-				response.Parameters = result.Parameters
-			}
-			err = stream.Send(response)
-			if err != nil {
-				stream.Drop()
-				return
-			}
-		}
+		api.handleDynamicParameters(rw, r, tf, templateVersion)
 	}
 }
 
 type previewFunction func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
-func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db database.Store, fc *files.Cache, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion, user database.User) (render previewFunction, closer func(), success bool) {
-	// keep track of all files opened
-	openFiles := make([]uuid.UUID, 0)
-	closeFiles := func() {
-		for _, it := range openFiles {
-			fc.Release(it)
-		}
-	}
-
-	// This defer will close the files if the function exits early without success.
-	// Closing the files is important to avoid having a memory leak.
-	defer func() {
-		if !success {
-			closeFiles()
-		}
-	}()
+func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
 
 	// nolint:gocritic // We need to fetch the templates files for the Terraform
 	// evaluator, and the user likely does not have permission.
 	fileCtx := dbauthz.AsProvisionerd(ctx)
-	fileID, err := db.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
+	fileID, err := api.Database.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error finding template version Terraform.",
 			Detail:  err.Error(),
 		})
-		return nil, nil, false
+		return
 	}
 
 	// Add the file first. Calling `Release` if it fails is a no-op, so this is safe.
-	openFiles = append(openFiles, fileID)
-	templateFS, err := fc.Acquire(fileCtx, fileID)
+	templateFS, err := api.FileCache.Acquire(fileCtx, fileID)
+	defer api.FileCache.Release(fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error fetching template version Terraform.",
 			Detail:  err.Error(),
 		})
-		return nil, nil, false
+		return
 	}
 
 	// Having the Terraform plan available for the evaluation engine is helpful
@@ -218,27 +119,27 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 		plan = tf.CachedPlan
 	}
 
-	openFiles = append(openFiles, tf.CachedModuleFiles.UUID)
 	if tf.CachedModuleFiles.Valid {
-		moduleFilesFS, err := fc.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
+		moduleFilesFS, err := api.FileCache.Acquire(fileCtx, tf.CachedModuleFiles.UUID)
+		defer api.FileCache.Release(fileID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Internal error fetching Terraform modules.",
 				Detail:  err.Error(),
 			})
-			return nil, nil, false
+			return
 		}
 
 		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
-	owner, err := getWorkspaceOwnerData(ctx, db, user, templateVersion.OrganizationID)
+	owner, err := getWorkspaceOwnerData(ctx, api.Database, user, templateVersion.OrganizationID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace owner.",
 			Detail:  err.Error(),
 		})
-		return nil, nil, false
+		return
 	}
 
 	input := preview.Input{
@@ -247,18 +148,23 @@ func prepareDynamicPreview(ctx context.Context, rw http.ResponseWriter, db datab
 		Owner:           owner,
 	}
 
-	return func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	api.handleParameterWebsocket(rw, r, func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		// Update the input values with the new values.
 		// The rest of the input is unchanged.
 		input.ParameterValues = values
 		return preview.Preview(ctx, input, templateFS)
-	}, closeFiles, true
+	})
 }
 
-func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.UUID) (previewFunction, error) {
-	dbTemplateVersionParameters, err := db.GetTemplateVersionParameters(ctx, version)
+func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, version uuid.UUID) {
+	ctx := r.Context()
+	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, version)
 	if err != nil {
-		return nil, xerrors.Errorf("error fetching template version parameters: %w", err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve template version parameters",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	params := make([]previewtypes.Parameter, 0, len(dbTemplateVersionParameters))
@@ -336,7 +242,7 @@ func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.U
 		params = append(params, param)
 	}
 
-	return func(_ context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	api.handleParameterWebsocket(rw, r, func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		for i := range params {
 			param := &params[i]
 			paramValue, ok := values[param.Name]
@@ -349,9 +255,80 @@ func prepareStaticPreview(ctx context.Context, db database.Store, version uuid.U
 		}
 
 		return &preview.Output{
-			Parameters: params,
-		}, nil
-	}, nil
+				Parameters: params,
+			}, hcl.Diagnostics{
+				{
+					Severity: hcl.DiagError,
+					Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
+					Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
+				},
+			}
+	})
+}
+
+func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, render previewFunction) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	defer cancel()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusUpgradeRequired, codersdk.Response{
+			Message: "Failed to accept WebSocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	stream := wsjson.NewStream[codersdk.DynamicParametersRequest, codersdk.DynamicParametersResponse](
+		conn,
+		websocket.MessageText,
+		websocket.MessageText,
+		api.Logger,
+	)
+
+	// Send an initial form state, computed without any user input.
+	result, diagnostics := render(ctx, map[string]string{})
+	response := codersdk.DynamicParametersResponse{
+		ID:          -1, // Always start with -1.
+		Diagnostics: previewtypes.Diagnostics(diagnostics),
+	}
+	if result != nil {
+		response.Parameters = result.Parameters
+	}
+	err = stream.Send(response)
+	if err != nil {
+		stream.Drop()
+		return
+	}
+
+	// As the user types into the form, reprocess the state using their input,
+	// and respond with updates.
+	updates := stream.Chan()
+	for {
+		select {
+		case <-ctx.Done():
+			stream.Close(websocket.StatusGoingAway)
+			return
+		case update, ok := <-updates:
+			if !ok {
+				// The connection has been closed, so there is no one to write to
+				return
+			}
+
+			result, diagnostics := render(ctx, update.Inputs)
+			response := codersdk.DynamicParametersResponse{
+				ID:          update.ID,
+				Diagnostics: previewtypes.Diagnostics(diagnostics),
+			}
+			if result != nil {
+				response.Parameters = result.Parameters
+			}
+			err = stream.Send(response)
+			if err != nil {
+				stream.Drop()
+				return
+			}
+		}
+	}
 }
 
 func getWorkspaceOwnerData(
@@ -440,32 +417,4 @@ func getWorkspaceOwnerData(
 		SSHPublicKey: publicKey,
 		Groups:       groupNames,
 	}, nil
-}
-
-// parameterProvisionerVersionDiagnostic checks the version of the provisioner
-// used to create the template version. If the version is less than 1.5, it
-// returns a warning diagnostic. Only versions 1.5+ return the module & plan data
-// required.
-func parameterProvisionerVersionDiagnostic(tf database.TemplateVersionTerraformValue) hcl.Diagnostics {
-	missingMetadata := hcl.Diagnostic{
-		Severity: hcl.DiagError,
-		Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
-		Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
-	}
-
-	if tf.ProvisionerdVersion == "" {
-		return hcl.Diagnostics{&missingMetadata}
-	}
-
-	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
-	if err != nil || tf.ProvisionerdVersion == "" {
-		return hcl.Diagnostics{&missingMetadata}
-	} else if major < 1 || (major == 1 && minor < 5) {
-		missingMetadata.Detail = "This template version does not support dynamic parameters. " +
-			"Some options may be missing or incorrect. " +
-			"Please contact an administrator to update the provisioner and re-import the template version."
-		return hcl.Diagnostics{&missingMetadata}
-	}
-
-	return nil
 }
