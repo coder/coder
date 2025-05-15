@@ -257,8 +257,9 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 				Parameters: params,
 			}, hcl.Diagnostics{
 				{
-					Severity: hcl.DiagError,
-					Summary:  "This template version is missing required metadata to support dynamic parameters. Go back to the classic creation flow.",
+					// Only a warning because the form does still work.
+					Severity: hcl.DiagWarning,
+					Summary:  "This template version is missing required metadata to support dynamic parameters.",
 					Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
 				},
 			}
