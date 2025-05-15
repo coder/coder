@@ -4018,8 +4018,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceAgentParams{
-			ID:   uuid.New(),
-			Name: "dev",
+			ID:          uuid.New(),
+			Name:        "dev",
+			APIKeyScope: database.AgentKeyScopeEnumAll,
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {

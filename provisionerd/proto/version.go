@@ -17,6 +17,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add new field named `prebuilt_workspace_build_stage` enum in the Metadata message.
 //   - Add new field named `running_agent_auth_tokens` to provisioner job metadata.
 //   - Add new field named `resource_replacements` in PlanComplete & CompletedJob.WorkspaceBuild.
+//   - Add new field named `api_key_scope` to WorkspaceAgent to support running without user data access.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 5
