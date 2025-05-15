@@ -75,6 +75,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	let callEventsDelay: number;
 
 	window.WebSocket = class WebSocket {
+		public readyState = 1;
+
 		addEventListener(type: string, callback: CallbackFn) {
 			listeners.set(type, callback);
 
@@ -92,6 +94,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 				}
 			}, 0);
 		}
+
+		removeEventListener(type: string, callback: CallbackFn) {}
 
 		close() {}
 	} as unknown as typeof window.WebSocket;
