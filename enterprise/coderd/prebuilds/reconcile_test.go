@@ -689,7 +689,13 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				t, &slogtest.Options{IgnoreErrors: true},
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+			fakeEnqueuer := newFakeEnqueuer()
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), fakeEnqueuer)
+
+			// Template admin to receive a notification.
+			templateAdmin := dbgen.User(t, db, database.User{
+				RBACRoles: []string{codersdk.RoleTemplateAdmin},
+			})
 
 			// Set up test environment with a template, version, and preset
 			ownerID := uuid.New()
@@ -731,13 +737,28 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)
 
-			if tc.isHardLimitHit {
-				// When hard limit is reached, no new workspace should be created
-				require.Equal(t, 1, len(workspaces))
-			} else {
+			if !tc.isHardLimitHit {
 				// When hard limit is not reached, a new workspace should be created
 				require.Equal(t, 2, len(workspaces))
+				return
 			}
+
+			// When hard limit is reached, no new workspace should be created
+			require.Equal(t, 1, len(workspaces))
+
+			// When hard limit is reached, a notification should be sent.
+			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
+				if !assert.Equal(t, notification.TemplateID, notifications.PrebuildFailureLimitReached, "unexpected template") {
+					return false
+				}
+
+				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+					return false
+				}
+
+				return true
+			})
+			require.Len(t, matching, 1)
 		})
 	}
 }
