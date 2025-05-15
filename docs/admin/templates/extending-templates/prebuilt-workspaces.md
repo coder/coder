@@ -169,6 +169,13 @@ For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/l
 has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
 since the AMI cannot be changed in-place._
 
+#### Updating claimed prebuilt workspaces' templates
+
+Once a prebuilt workspace has been claimed, and if its template uses `ignore_changes`, users may run into an issue where the agent
+does not reconnect after a template update. This shortcoming is described in [this issue](https://github.com/coder/coder/issues/17840)
+and will be addressed before the next release (v2.23). In the interim, a simple workaround is to restart the workspace
+when it is in this problematic state.
+
 ### Current limitations
 
 The prebuilt workspaces feature has these current limitations:
