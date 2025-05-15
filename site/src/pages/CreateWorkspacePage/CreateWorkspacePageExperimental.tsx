@@ -48,7 +48,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 
-	const [currentResponse, setCurrentResponse] =
+	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
@@ -131,22 +131,17 @@ const CreateWorkspacePageExperimental: FC = () => {
 		},
 	);
 
-	const onMessage = useCallback(
-		(response: DynamicParametersResponse) => {
-			setCurrentResponse((prev) => {
-				if (prev && prev?.id >= response.id) {
-					return prev;
-				}
+	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
+		if (latestResponse && latestResponse?.id >= response.id) {
+			return;
+		}
 
-				if (!initialParamsSentRef.current && response.parameters.length > 0) {
-					sendInitialParameters([...response.parameters]);
-				}
+		if (!initialParamsSentRef.current && response.parameters.length > 0) {
+			sendInitialParameters([...response.parameters]);
+		}
 
-				return response;
-			});
-		},
-		[sendInitialParameters],
-	);
+		setLatestResponse(response);
+	});
 
 	// Initialize the WebSocket connection when there is a valid template version ID
 	useEffect(() => {
@@ -269,18 +264,18 @@ const CreateWorkspacePageExperimental: FC = () => {
 	}, [automateWorkspaceCreation, autoCreateReady]);
 
 	const sortedParams = useMemo(() => {
-		if (!currentResponse?.parameters) {
+		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...currentResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [currentResponse?.parameters]);
+		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+	}, [latestResponse?.parameters]);
 
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle(title)}</title>
 			</Helmet>
-			{!currentResponse ||
+			{!latestResponse ||
 			!templateQuery.data ||
 			isLoadingFormData ||
 			isLoadingExternalAuth ||
@@ -290,7 +285,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 				<CreateWorkspacePageViewExperimental
 					mode={mode}
 					defaultName={defaultName}
-					diagnostics={currentResponse?.diagnostics ?? []}
+					diagnostics={latestResponse?.diagnostics ?? []}
 					disabledParams={disabledParams}
 					defaultOwner={defaultOwner}
 					owner={owner}
