@@ -3196,6 +3196,7 @@ export interface Workspace {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
 	readonly id: string;
+	readonly parent_id: string | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly first_connected_at?: string;

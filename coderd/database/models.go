@@ -3460,7 +3460,8 @@ type WorkspaceAgent struct {
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
-	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	DisplayOrder int32         `db:"display_order" json:"display_order"`
+	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 }
