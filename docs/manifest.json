@@ -505,8 +505,8 @@
 								},
 								{
 									"title": "Configure a template for dev containers",
-									"description": "How to use modules and configurations to configure your template for dev containers",
-									"path": "./admin/templates/extending-templates/provider-authentication.md"
+									"description": "How to use configure your template for dev containers",
+									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
 									"title": "Process Logging",
