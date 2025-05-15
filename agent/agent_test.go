@@ -2187,7 +2187,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 		return slices.Contains(states, codersdk.WorkspaceAgentLifecycleReady)
 	}, testutil.WaitLong, testutil.IntervalMedium, "devcontainer not ready")
 
-	t.Logf("Lookging for container with label: devcontainer.local_folder=%s", workspaceFolder)
+	t.Logf("Looking for container with label: devcontainer.local_folder=%s", workspaceFolder)
 
 	var container docker.APIContainers
 	require.Eventually(t, func() bool {
