@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
@@ -165,21 +166,11 @@ func TestMetricsCollector(t *testing.T) {
 			eligible:        []bool{false},
 		},
 		{
-			name:            "deleted templates never desire prebuilds",
+			name:            "deleted templates should not be included in exported metrics",
 			transitions:     allTransitions,
 			jobStatuses:     allJobStatuses,
 			initiatorIDs:    []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:        []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
-			metrics:         nil,
-			templateDeleted: []bool{true},
-			eligible:        []bool{false},
-		},
-		{
-			name:            "running prebuilds for deleted templates are still counted, so that they can be deleted",
-			transitions:     []database.WorkspaceTransition{database.WorkspaceTransitionStart},
-			jobStatuses:     []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs:    []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:        []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics:         nil,
 			templateDeleted: []bool{true},
 			eligible:        []bool{false},
@@ -308,6 +299,9 @@ func TestMetricsCollector(t *testing.T) {
 	}
 }
 
+// TestMetricsCollector_DuplicateTemplateNames validates a bug that we saw previously which caused duplicate metric series
+// registration when a template was deleted and a new one created with the same name (and preset name).
+// We are now excluding deleted templates from our metric collection.
 func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	t.Parallel()
 
@@ -352,30 +346,16 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}
-	for _, user := range []uuid.UUID{test.ownerID, test.initiatorID} {
-		if !slices.Contains(createdUsers, user) {
-			dbgen.User(t, db, database.User{
-				ID: user,
-			})
-			createdUsers = append(createdUsers, user)
-		}
-	}
-
 	collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
 	registry := prometheus.NewPedanticRegistry()
 	registry.Register(collector)
 
-	defaultOrgName := "default-org"
-	defaultTemplateName := "default-template"
-	defaultPresetName := "default-preset"
-	defaultOrg := dbgen.Organization(t, db, database.Organization{
-		Name: defaultOrgName,
-	})
-	setupTemplateWithDeps := func(templateDeleted bool) database.Template {
-		template := setupTestDBTemplateWithinOrg(t, db, test.ownerID, templateDeleted, defaultTemplateName, defaultOrg)
+	presetName := "default-preset"
+	defaultOrg := dbgen.Organization(t, db, database.Organization{})
+	setupTemplateWithDeps := func() database.Template {
+		template := setupTestDBTemplateWithinOrg(t, db, test.ownerID, false, "default-template", defaultOrg)
 		templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, defaultOrg.ID, test.ownerID, template.ID)
-		preset := setupTestDBPreset(t, db, templateVersionID, 1, defaultPresetName)
+		preset := setupTestDBPreset(t, db, templateVersionID, 1, "default-preset")
 		workspace, _ := setupTestDBWorkspace(
 			t, clock, db, pubsub,
 			test.transition, test.jobStatus, defaultOrg.ID, preset, template.ID, templateVersionID, test.initiatorID, test.ownerID,
@@ -383,50 +363,65 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		setupTestDBWorkspaceAgent(t, db, workspace.ID, test.eligible)
 		return template
 	}
-	// Simulates creating and then deleting a template.
-	setupTemplateWithDeps(true)
-	// Simulates creating a template with the same org, template name, and preset name.
-	newTemplate := setupTemplateWithDeps(false)
 
-	// Force an update to the metrics state to allow the collector to collect fresh metrics.
+	// When: starting with a regular template.
+	template := setupTemplateWithDeps()
+	labels := map[string]string{
+		"template_name":     template.Name,
+		"preset_name":       presetName,
+		"organization_name": defaultOrg.Name,
+	}
+
 	// nolint:gocritic // Authz context needed to retrieve state.
-	require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
+	ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
 
+	// Then: metrics collect successfully.
+	require.NoError(t, collector.UpdateState(ctx, testutil.WaitLong))
 	metricsFamilies, err := registry.Gather()
 	require.NoError(t, err)
+	require.NotEmpty(t, findAllMetricSeries(metricsFamilies, labels))
 
-	templateVersions, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
-		TemplateID: newTemplate.ID,
-	})
+	// When: the template is deleted.
+	require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+		ID:        template.ID,
+		Deleted:   true,
+		UpdatedAt: dbtime.Now(),
+	}))
+
+	// Then: metrics collect successfully but are empty because the template is deleted.
+	require.NoError(t, collector.UpdateState(ctx, testutil.WaitLong))
+	metricsFamilies, err = registry.Gather()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(templateVersions))
+	require.Empty(t, findAllMetricSeries(metricsFamilies, labels))
 
-	presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersions[0].ID)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(presets))
+	// When: a new template is created with the same name as the deleted template.
+	newTemplate := setupTemplateWithDeps()
 
-	for _, preset := range presets {
-		labels := map[string]string{
-			"template_name":     newTemplate.Name,
-			"preset_name":       preset.Name,
-			"organization_name": defaultOrg.Name,
-		}
+	// Ensure the database has both the new and old (delete) template.
+	{
+		deleted, err := db.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
+			OrganizationID: template.OrganizationID,
+			Deleted:        true,
+			Name:           template.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, template.ID, deleted.ID)
 
-		for _, check := range test.metrics {
-			metric := findMetric(metricsFamilies, check.name, labels)
-			if check.value == nil {
-				continue
-			}
-
-			require.NotNil(t, metric, "metric %s should exist", check.name)
-
-			if check.isCounter {
-				require.Equal(t, *check.value, metric.GetCounter().GetValue(), "counter %s value mismatch", check.name)
-			} else {
-				require.Equal(t, *check.value, metric.GetGauge().GetValue(), "gauge %s value mismatch", check.name)
-			}
-		}
+		current, err := db.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
+			// Use details from deleted template to ensure they're aligned.
+			OrganizationID: template.OrganizationID,
+			Deleted:        false,
+			Name:           template.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, newTemplate.ID, current.ID)
 	}
+
+	// Then: metrics collect successfully.
+	require.NoError(t, collector.UpdateState(ctx, testutil.WaitLong))
+	metricsFamilies, err = registry.Gather()
+	require.NoError(t, err)
+	require.NotEmpty(t, findAllMetricSeries(metricsFamilies, labels))
 }
 
 func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, labels map[string]string) *prometheus_client.Metric {
