@@ -2135,6 +2135,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
+	t.Parallel()
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")

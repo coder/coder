@@ -137,15 +137,15 @@ func WithWatcher(w watcher.Watcher) Option {
 // controlplane.
 type ScriptLogger interface {
 	Send(ctx context.Context, log ...agentsdk.Log) error
-	Flush(context.Context) error
+	Flush(ctx context.Context) error
 }
 
 // noopScriptLogger is a no-op implementation of the ScriptLogger
 // interface.
 type noopScriptLogger struct{}
 
-func (noopScriptLogger) Send(ctx context.Context, log ...agentsdk.Log) error { return nil }
-func (noopScriptLogger) Flush(ctx context.Context) error                     { return nil }
+func (noopScriptLogger) Send(context.Context, ...agentsdk.Log) error { return nil }
+func (noopScriptLogger) Flush(context.Context) error                 { return nil }
 
 // WithScriptLogger sets the script logger provider for devcontainer operations.
 func WithScriptLogger(scriptLogger func(logSourceID uuid.UUID) ScriptLogger) Option {
