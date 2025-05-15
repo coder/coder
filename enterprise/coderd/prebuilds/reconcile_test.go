@@ -294,10 +294,15 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:         []bool{false},
 		},
 		{
-			name:                      "delete prebuilds for deleted templates",
+			// Templates can be soft-deleted (`deleted=true`) or hard-deleted (row is removed).
+			// On the former there is *no* DB constraint to prevent soft deletion, so we have to ensure that if somehow
+			// the template was soft-deleted any running prebuilds will be removed.
+			// On the latter there is a DB constraint to prevent row deletion if any workspaces reference the deleting template.
+			name:                      "soft-deleted templates MAY have prebuilds",
 			prebuildLatestTransitions: []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			prebuildJobStatuses:       []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
 			templateVersionActive:     []bool{true, false},
+			shouldCreateNewPrebuild:   ptr.To(false),
 			shouldDeleteOldPrebuild:   ptr.To(true),
 			templateDeleted:           []bool{true},
 		},
