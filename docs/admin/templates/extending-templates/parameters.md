@@ -421,7 +421,7 @@ CODER_EXPERIMENTS=dynamic-parameters
 Once enabled, users can toggle between the experimental and classic interfaces during
 workspace creation.
 
-### Features and Capabilities
+## Features and Capabilities
 
 Dynamic Parameters introduces three primary enhancements to the standard parameter system:
 
@@ -447,9 +447,44 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Key-value pair inputs for complex data
   - Button parameters for toggling sections
 
-### Available Form Types
+## Available Form Types
 
-Dynamic Parameters supports a variety of form types to create rich, interactive user experiences:
+Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
+
+You can specify the form type using the `form_type` property.
+Different parameter types support different form types.
+
+The "Options" column in the table below indicates whether the form type requires options to be defined (Yes) or doesn't support/require them (No). When required, options are specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
+
+| Form Type      | Parameter Types                            | Options | Notes                                                                                                                           |
+|----------------|--------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters.<br>Default for boolean parameters.                                                   |
+| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list.<br>Default for `string` or `number` parameters with options. |
+| `input`        | `string`, `number`                         | No      | Standard single-line text input field.<br>Default for string/number parameters without options.                                 |
+| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                         |
+| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                              |
+| `password`     | `string`                                   | No      | Masked input field for sensitive information.                                                                                   |
+| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                   |
+| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                    |
+| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                               |
+| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                            |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                                 |
+
+### Form Type Examples
+
+<details><summary>**checkbox**: A single checkbox for boolean values</summary>
+
+```tf
+data "coder_parameter" "enable_gpu" {
+  name         = "enable_gpu"
+  display_name = "Enable GPU"
+  type         = "bool"
+  form_type    = "checkbox" # This is the default for boolean parameters
+  default      = false
+}
+```
+
+</details>
 
 <details><summary>**dropdown**: A searchable select menu for choosing a single option from a list</summary>
 
@@ -474,24 +509,29 @@ data "coder_parameter" "region" {
 
 </details>
 
-<details><summary>**radio**: Radio buttons for selecting a single option with high visibility</summary>
+<details><summary>**input**: A standard text input field</summary>
 
 ```tf
-data "coder_parameter" "environment" {
-  name         = "environment"
-  display_name = "Environment"
+data "coder_parameter" "custom_domain" {
+  name         = "custom_domain"
+  display_name = "Custom Domain"
   type         = "string"
-  form_type    = "radio"
-  default      = "dev"
+  form_type    = "input" # This is the default for string parameters without options
+  default      = ""
+}
+```
 
-  option {
-    name  = "Development"
-    value = "dev"
-  }
-  option {
-    name  = "Staging"
-    value = "staging"
-  }
+</details>
+
+<details><summary>**key-value**: Input for entering key-value pairs</summary>
+
+```tf
+data "coder_parameter" "environment_vars" {
+  name         = "environment_vars"
+  display_name = "Environment Variables"
+  type         = "string"
+  form_type    = "key-value"
+  default      = jsonencode({"NODE_ENV": "development"})
 }
 ```
 
@@ -524,29 +564,38 @@ data "coder_parameter" "tools" {
 
 </details>
 
-<details><summary>**checkbox**: A single checkbox for boolean values</summary>
+<details><summary>**password**: A text input that masks sensitive information</summary>
 
 ```tf
-data "coder_parameter" "enable_gpu" {
-  name         = "enable_gpu"
-  display_name = "Enable GPU"
-  type         = "bool"
-  form_type    = "checkbox" # This is the default for boolean parameters
-  default      = false
+data "coder_parameter" "api_key" {
+  name         = "api_key"
+  display_name = "API Key"
+  type         = "string"
+  form_type    = "password"
+  secret       = true
 }
 ```
 
 </details>
 
-<details><summary>**switch**: A toggle switch for boolean values</summary>
+<details><summary>**radio**: Radio buttons for selecting a single option with high visibility</summary>
 
 ```tf
-data "coder_parameter" "advanced_mode" {
-  name         = "advanced_mode"
-  display_name = "Advanced Mode"
-  type         = "bool"
-  form_type    = "switch"
-  default      = false
+data "coder_parameter" "environment" {
+  name         = "environment"
+  display_name = "Environment"
+  type         = "string"
+  form_type    = "radio"
+  default      = "dev"
+
+  option {
+    name  = "Development"
+    value = "dev"
+  }
+  option {
+    name  = "Staging"
+    value = "staging"
+  }
 }
 ```
 
@@ -570,15 +619,15 @@ data "coder_parameter" "cpu_cores" {
 
 </details>
 
-<details><summary>**input**: A standard text input field</summary>
+<details><summary>**switch**: A toggle switch for boolean values</summary>
 
 ```tf
-data "coder_parameter" "custom_domain" {
-  name         = "custom_domain"
-  display_name = "Custom Domain"
-  type         = "string"
-  form_type    = "input" # This is the default for string parameters without options
-  default      = ""
+data "coder_parameter" "advanced_mode" {
+  name         = "advanced_mode"
+  display_name = "Advanced Mode"
+  type         = "bool"
+  form_type    = "switch"
+  default      = false
 }
 ```
 
@@ -598,35 +647,7 @@ data "coder_parameter" "init_script" {
 
 </details>
 
-<details><summary>**password**: A text input that masks sensitive information</summary>
-
-```tf
-data "coder_parameter" "api_key" {
-  name         = "api_key"
-  display_name = "API Key"
-  type         = "string"
-  form_type    = "password"
-  secret       = true
-}
-```
-
-</details>
-
-<details><summary>**key-value**: Input for entering key-value pairs</summary>
-
-```tf
-data "coder_parameter" "environment_vars" {
-  name         = "environment_vars"
-  display_name = "Environment Variables"
-  type         = "string"
-  form_type    = "key-value"
-  default      = jsonencode({"NODE_ENV": "development"})
-}
-```
-
-</details>
-
-### Examples
+## Dynamic Parameter Use Case Examples
 
 <details><summary>Conditional Parameters: Region and Instance Types</summary>
 
@@ -902,7 +923,7 @@ data "coder_parameter" "cpu_count" {
 
 </details>
 
-### API Details
+## API Details
 
 Dynamic Parameters uses WebSocket communication to provide real-time updates.
 
