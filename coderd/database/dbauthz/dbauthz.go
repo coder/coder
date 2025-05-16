@@ -2316,9 +2316,15 @@ func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uui
 }
 
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return nil, err
-	// }
+	provisionerJobs, err := q.db.GetProvisionerJobsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, job := range provisionerJobs {
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(job.OrganizationID)); err != nil {
+			return nil, err
+		}
+	}
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
@@ -2326,7 +2332,6 @@ func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, 
 	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
 	// 	return nil, err
 	// }
-	// policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)
 	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 }
 
@@ -2338,9 +2343,9 @@ func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndP
 }
 
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return nil, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
