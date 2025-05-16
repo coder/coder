@@ -50,12 +50,7 @@ const renderWorkspacePage = async (
 	jest
 		.spyOn(API, "getDeploymentConfig")
 		.mockResolvedValueOnce(MockDeploymentConfig);
-	jest
-		.spyOn(apiModule, "watchWorkspaceAgentLogs")
-		.mockImplementation((_, options) => {
-			options.onDone?.();
-			return new WebSocket("");
-		});
+	jest.spyOn(apiModule, "watchWorkspaceAgentLogs");
 
 	renderWithAuth(<WorkspacePage />, {
 		...options,

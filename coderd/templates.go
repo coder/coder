@@ -728,6 +728,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Defaults to the existing.
+	classicTemplateFlow := template.UseClassicParameterFlow
+	if req.UseClassicParameterFlow != nil {
+		classicTemplateFlow = *req.UseClassicParameterFlow
+	}
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
@@ -747,6 +753,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
+			(classicTemplateFlow == template.UseClassicParameterFlow) &&
 			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
@@ -788,6 +795,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
+			UseClassicParameterFlow:      classicTemplateFlow,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1066,10 +1074,11 @@ func (api *API) convertTemplate(
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 		// These values depend on entitlements and come from the templateAccessControl
-		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
-		Deprecated:           templateAccessControl.IsDeprecated(),
-		DeprecationMessage:   templateAccessControl.Deprecated,
-		MaxPortShareLevel:    maxPortShareLevel,
+		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
+		Deprecated:              templateAccessControl.IsDeprecated(),
+		DeprecationMessage:      templateAccessControl.Deprecated,
+		MaxPortShareLevel:       maxPortShareLevel,
+		UseClassicParameterFlow: template.UseClassicParameterFlow,
 	}
 }
 

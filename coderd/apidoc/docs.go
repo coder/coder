@@ -15577,6 +15577,9 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_classic_parameter_flow": {
+                    "type": "boolean"
                 }
             }
         },

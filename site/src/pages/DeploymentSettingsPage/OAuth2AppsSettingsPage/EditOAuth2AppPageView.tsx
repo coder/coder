@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -24,6 +23,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { CopyIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
@@ -149,21 +149,20 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							<dt>Client ID</dt>
 							<dd>
 								<CopyableValue value={app.id}>
-									{app.id} <CopyIcon css={{ width: 16, height: 16 }} />
+									{app.id} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 							<dt>Authorization URL</dt>
 							<dd>
 								<CopyableValue value={app.endpoints.authorization}>
 									{app.endpoints.authorization}{" "}
-									<CopyIcon css={{ width: 16, height: 16 }} />
+									<CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 							<dt>Token URL</dt>
 							<dd>
 								<CopyableValue value={app.endpoints.token}>
-									{app.endpoints.token}{" "}
-									<CopyIcon css={{ width: 16, height: 16 }} />
+									{app.endpoints.token} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 						</dl>

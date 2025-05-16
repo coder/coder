@@ -20,7 +20,7 @@ const meta: Meta<typeof DownloadLogsDialog> = {
 				data: generateLogs(200),
 			},
 			{
-				key: agentLogsKey(MockWorkspace.id, MockWorkspaceAgent.id),
+				key: agentLogsKey(MockWorkspaceAgent.id),
 				data: generateLogs(400),
 			},
 		],
@@ -41,7 +41,7 @@ export const Loading: Story = {
 				data: undefined,
 			},
 			{
-				key: agentLogsKey(MockWorkspace.id, MockWorkspaceAgent.id),
+				key: agentLogsKey(MockWorkspaceAgent.id),
 				data: undefined,
 			},
 		],

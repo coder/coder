@@ -108,46 +108,8 @@ func New(opts *Options) *Handler {
 		panic(fmt.Sprintf("Failed to parse html files: %v", err))
 	}
 
-	binHashCache := newBinHashCache(opts.BinFS, opts.BinHashes)
-
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// Convert underscores in the filename to hyphens. We eventually want to
-		// change our hyphen-based filenames to underscores, but we need to
-		// support both for now.
-		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
-
-		// Set ETag header to the SHA1 hash of the file contents.
-		name := filePath(r.URL.Path)
-		if name == "" || name == "/" {
-			// Serve the directory listing. This intentionally allows directory listings to
-			// be served. This file system should not contain anything sensitive.
-			http.FileServer(opts.BinFS).ServeHTTP(rw, r)
-			return
-		}
-		if strings.Contains(name, "/") {
-			// We only serve files from the root of this directory, so avoid any
-			// shenanigans by blocking slashes in the URL path.
-			http.NotFound(rw, r)
-			return
-		}
-		hash, err := binHashCache.getHash(name)
-		if xerrors.Is(err, os.ErrNotExist) {
-			http.NotFound(rw, r)
-			return
-		}
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// ETag header needs to be quoted.
-		rw.Header().Set("ETag", fmt.Sprintf(`%q`, hash))
-
-		// http.FileServer will see the ETag header and automatically handle
-		// If-Match and If-None-Match headers on the request properly.
-		http.FileServer(opts.BinFS).ServeHTTP(rw, r)
-	})))
+	mux.Handle("/bin/", binHandler(opts.BinFS, newBinMetadataCache(opts.BinFS, opts.BinHashes)))
 	mux.Handle("/", http.FileServer(
 		http.FS(
 			// OnlyFiles is a wrapper around the file system that prevents directory
@@ -170,6 +132,60 @@ func New(opts *Options) *Handler {
 	}
 
 	return handler
+}
+
+func binHandler(binFS http.FileSystem, binMetadataCache *binMetadataCache) http.Handler {
+	return http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Convert underscores in the filename to hyphens. We eventually want to
+		// change our hyphen-based filenames to underscores, but we need to
+		// support both for now.
+		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
+
+		// Set ETag header to the SHA1 hash of the file contents.
+		name := filePath(r.URL.Path)
+		if name == "" || name == "/" {
+			// Serve the directory listing. This intentionally allows directory listings to
+			// be served. This file system should not contain anything sensitive.
+			http.FileServer(binFS).ServeHTTP(rw, r)
+			return
+		}
+		if strings.Contains(name, "/") {
+			// We only serve files from the root of this directory, so avoid any
+			// shenanigans by blocking slashes in the URL path.
+			http.NotFound(rw, r)
+			return
+		}
+
+		metadata, err := binMetadataCache.getMetadata(name)
+		if xerrors.Is(err, os.ErrNotExist) {
+			http.NotFound(rw, r)
+			return
+		}
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// http.FileServer will not set Content-Length when performing chunked
+		// transport encoding, which is used for large files like our binaries
+		// so stream compression can be used.
+		//
+		// Clients like IDE extensions and the desktop apps can compare the
+		// value of this header with the amount of bytes written to disk after
+		// decompression to show progress. Without this, they cannot show
+		// progress without disabling compression.
+		//
+		// There isn't really a spec for a length header for the "inner" content
+		// size, but some nginx modules use this header.
+		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", metadata.sizeBytes))
+
+		// Get and set ETag header. Must be quoted.
+		rw.Header().Set("ETag", fmt.Sprintf(`%q`, metadata.sha1Hash))
+
+		// http.FileServer will see the ETag header and automatically handle
+		// If-Match and If-None-Match headers on the request properly.
+		http.FileServer(binFS).ServeHTTP(rw, r)
+	}))
 }
 
 type Handler struct {
@@ -217,7 +233,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.handler.ServeHTTP(rw, r)
 		return
 	// If requesting assets, serve straight up with caching.
-	case reqFile == "assets" || strings.HasPrefix(reqFile, "assets/"):
+	case reqFile == "assets" || strings.HasPrefix(reqFile, "assets/") || strings.HasPrefix(reqFile, "icon/"):
 		// It could make sense to cache 404s, but the problem is that during an
 		// upgrade a load balancer may route partially to the old server, and that
 		// would make new asset paths get cached as 404s and not load even once the
@@ -952,68 +968,95 @@ func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPa
 	}
 }
 
-type binHashCache struct {
-	binFS http.FileSystem
-
-	hashes map[string]string
-	mut    sync.RWMutex
-	sf     singleflight.Group
-	sem    chan struct{}
+type binMetadata struct {
+	sizeBytes int64 // -1 if not known yet
+	// SHA1 was chosen because it's fast to compute and reasonable for
+	// determining if a file has changed. The ETag is not used a security
+	// measure.
+	sha1Hash string // always set if in the cache
 }
 
-func newBinHashCache(binFS http.FileSystem, binHashes map[string]string) *binHashCache {
-	b := &binHashCache{
-		binFS:  binFS,
-		hashes: make(map[string]string, len(binHashes)),
-		mut:    sync.RWMutex{},
-		sf:     singleflight.Group{},
-		sem:    make(chan struct{}, 4),
+type binMetadataCache struct {
+	binFS          http.FileSystem
+	originalHashes map[string]string
+
+	metadata map[string]binMetadata
+	mut      sync.RWMutex
+	sf       singleflight.Group
+	sem      chan struct{}
+}
+
+func newBinMetadataCache(binFS http.FileSystem, binSha1Hashes map[string]string) *binMetadataCache {
+	b := &binMetadataCache{
+		binFS:          binFS,
+		originalHashes: make(map[string]string, len(binSha1Hashes)),
+
+		metadata: make(map[string]binMetadata, len(binSha1Hashes)),
+		mut:      sync.RWMutex{},
+		sf:       singleflight.Group{},
+		sem:      make(chan struct{}, 4),
 	}
-	// Make a copy since we're gonna be mutating it.
-	for k, v := range binHashes {
-		b.hashes[k] = v
+
+	// Previously we copied binSha1Hashes to the cache immediately. Since we now
+	// read other information like size from the file, we can't do that. Instead
+	// we copy the hashes to a different map that will be used to populate the
+	// cache on the first request.
+	for k, v := range binSha1Hashes {
+		b.originalHashes[k] = v
 	}
 
 	return b
 }
 
-func (b *binHashCache) getHash(name string) (string, error) {
+func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
 	b.mut.RLock()
-	hash, ok := b.hashes[name]
+	metadata, ok := b.metadata[name]
 	b.mut.RUnlock()
 	if ok {
-		return hash, nil
+		return metadata, nil
 	}
 
 	// Avoid DOS by using a pool, and only doing work once per file.
-	v, err, _ := b.sf.Do(name, func() (interface{}, error) {
+	v, err, _ := b.sf.Do(name, func() (any, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
 
 		f, err := b.binFS.Open(name)
 		if err != nil {
-			return "", err
+			return binMetadata{}, err
 		}
 		defer f.Close()
 
-		h := sha1.New() //#nosec // Not used for cryptography.
-		_, err = io.Copy(h, f)
+		var metadata binMetadata
+
+		stat, err := f.Stat()
 		if err != nil {
-			return "", err
+			return binMetadata{}, err
+		}
+		metadata.sizeBytes = stat.Size()
+
+		if hash, ok := b.originalHashes[name]; ok {
+			metadata.sha1Hash = hash
+		} else {
+			h := sha1.New() //#nosec // Not used for cryptography.
+			_, err := io.Copy(h, f)
+			if err != nil {
+				return binMetadata{}, err
+			}
+			metadata.sha1Hash = hex.EncodeToString(h.Sum(nil))
 		}
 
-		hash := hex.EncodeToString(h.Sum(nil))
 		b.mut.Lock()
-		b.hashes[name] = hash
+		b.metadata[name] = metadata
 		b.mut.Unlock()
-		return hash, nil
+		return metadata, nil
 	})
 	if err != nil {
-		return "", err
+		return binMetadata{}, err
 	}
 
 	//nolint:forcetypeassert
-	return strings.ToLower(v.(string)), nil
+	return v.(binMetadata), nil
 }
 
 func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {

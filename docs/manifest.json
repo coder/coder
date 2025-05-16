@@ -193,7 +193,7 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Management",
@@ -502,6 +502,11 @@
 									"title": "Provider Authentication",
 									"description": "Authenticate with provider APIs to provision workspaces",
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
+								},
+								{
+									"title": "Configure a template for dev containers",
+									"description": "How to use configure your template for dev containers",
+									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
 									"title": "Process Logging",
@@ -1455,7 +1460,7 @@
 						},
 						{
 							"title": "ssh",
-							"description": "Start a shell into a workspace",
+							"description": "Start a shell into a workspace or run a command",
 							"path": "reference/cli/ssh.md"
 						},
 						{

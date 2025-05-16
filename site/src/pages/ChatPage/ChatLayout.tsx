@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/Add";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
@@ -13,6 +12,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useAgenticChat } from "contexts/useAgenticChat";
+import { PlusIcon } from "lucide-react";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -169,7 +169,7 @@ export const ChatLayout: FC = () => {
 					<Button
 						variant="outlined"
 						size="small"
-						startIcon={<AddIcon fontSize="small" />}
+						startIcon={<PlusIcon className="size-icon-sm" />}
 						onClick={handleNewChat}
 						disabled={createChatMutation.isLoading}
 						css={{

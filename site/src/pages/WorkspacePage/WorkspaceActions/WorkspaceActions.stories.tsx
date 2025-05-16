@@ -222,7 +222,7 @@ export const OpenDownloadLogs: Story = {
 				data: generateLogs(200),
 			},
 			{
-				key: agentLogsKey(Mocks.MockWorkspace.id, Mocks.MockWorkspaceAgent.id),
+				key: agentLogsKey(Mocks.MockWorkspaceAgent.id),
 				data: generateLogs(400),
 			},
 		],

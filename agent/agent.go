@@ -89,7 +89,6 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
-	SubAgent                     bool
 
 	ExperimentalDevcontainersEnabled bool
 	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
@@ -191,8 +190,6 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		subAgent: options.SubAgent,
-
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
 		containerAPIOptions:              options.ContainerAPIOptions,
 	}
@@ -274,8 +271,6 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
-
-	subAgent bool
 
 	experimentalDevcontainersEnabled bool
 	containerAPIOptions              []agentcontainers.Option

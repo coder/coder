@@ -128,6 +128,45 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 	})
 }
 
+// TestDevcontainerCLI_WithOutput tests that WithOutput captures CLI
+// logs to provided writers.
+func TestDevcontainerCLI_WithOutput(t *testing.T) {
+	t.Parallel()
+
+	// Prepare test executable and logger.
+	testExePath, err := os.Executable()
+	require.NoError(t, err, "get test executable path")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// Buffers to capture stdout and stderr.
+	outBuf := &bytes.Buffer{}
+	errBuf := &bytes.Buffer{}
+
+	// Simulate CLI execution with a standard up.log file.
+	wantArgs := "up --log-format json --workspace-folder /test/workspace"
+	testExecer := &testDevcontainerExecer{
+		testExePath: testExePath,
+		wantArgs:    wantArgs,
+		wantError:   false,
+		logFile:     filepath.Join("testdata", "devcontainercli", "parse", "up.log"),
+	}
+	dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+
+	// Call Up with WithOutput to capture CLI logs.
+	containerID, err := dccli.Up(ctx, "/test/workspace", "", agentcontainers.WithOutput(outBuf, errBuf))
+	require.NoError(t, err, "Up should succeed")
+	require.NotEmpty(t, containerID, "expected non-empty container ID")
+
+	// Read expected log content.
+	expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.log"))
+	require.NoError(t, err, "reading expected log file")
+
+	// Verify stdout buffer contains the CLI logs and stderr is empty.
+	assert.Equal(t, string(expLog), outBuf.String(), "stdout buffer should match CLI logs")
+	assert.Empty(t, errBuf.String(), "stderr buffer should be empty on success")
+}
+
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.
 type testDevcontainerExecer struct {
 	testExePath string

@@ -9347,10 +9347,11 @@ func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Cont
 
 	// Insert the new row
 	row := database.TemplateVersionTerraformValue{
-		TemplateVersionID: templateVersion.ID,
-		CachedPlan:        arg.CachedPlan,
-		CachedModuleFiles: arg.CachedModuleFiles,
-		UpdatedAt:         arg.UpdatedAt,
+		TemplateVersionID:   templateVersion.ID,
+		UpdatedAt:           arg.UpdatedAt,
+		CachedPlan:          arg.CachedPlan,
+		CachedModuleFiles:   arg.CachedModuleFiles,
+		ProvisionerdVersion: arg.ProvisionerdVersion,
 	}
 	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
 	return nil
@@ -9623,6 +9624,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 		DisplayApps:              arg.DisplayApps,
 		DisplayOrder:             arg.DisplayOrder,
+		APIKeyScope:              arg.APIKeyScope,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -11095,6 +11097,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.GroupACL = arg.GroupACL
 		tpl.AllowUserCancelWorkspaceJobs = arg.AllowUserCancelWorkspaceJobs
 		tpl.MaxPortSharingLevel = arg.MaxPortSharingLevel
+		tpl.UseClassicParameterFlow = arg.UseClassicParameterFlow
 		q.templates[idx] = tpl
 		return nil
 	}

@@ -1,4 +1,3 @@
-import Star from "@mui/icons-material/Star";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
@@ -45,6 +44,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { StarIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
@@ -231,7 +231,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										title={
 											<Stack direction="row" spacing={0.5} alignItems="center">
 												{workspace.name}
-												{workspace.favorite && <Star className="w-4 h-4" />}
+												{workspace.favorite && (
+													<StarIcon className="size-icon-xs" />
+												)}
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
@@ -626,7 +628,9 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	builtinApps.delete("ssh_helper");
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
-	const userApps = agent.apps.slice(0, remainingSlots);
+	const userApps = agent.apps
+		.filter((app) => app.health === "healthy" && !app.hidden)
+		.slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
 

@@ -95,6 +95,7 @@ type Options struct {
 }
 
 type server struct {
+	apiVersion string
 	// lifecycleCtx must be tied to the API server's lifecycle
 	// as when the API server shuts down, we want to cancel any
 	// long-running operations.
@@ -153,7 +154,9 @@ func (t Tags) Valid() error {
 	return nil
 }
 
-func NewServer(lifecycleCtx context.Context,
+func NewServer(
+	lifecycleCtx context.Context,
+	apiVersion string,
 	accessURL *url.URL,
 	id uuid.UUID,
 	organizationID uuid.UUID,
@@ -214,6 +217,7 @@ func NewServer(lifecycleCtx context.Context,
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
+		apiVersion:                  apiVersion,
 		AccessURL:                   accessURL,
 		ID:                          id,
 		OrganizationID:              organizationID,
@@ -1536,10 +1540,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 
 			err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-				JobID:             jobID,
-				UpdatedAt:         now,
-				CachedPlan:        plan,
-				CachedModuleFiles: fileID,
+				JobID:               jobID,
+				UpdatedAt:           now,
+				CachedPlan:          plan,
+				CachedModuleFiles:   fileID,
+				ProvisionerdVersion: s.apiVersion,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert template version terraform data: %w", err)
@@ -1831,7 +1836,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 		}
 
-		if s.PrebuildsOrchestrator != nil {
+		if s.PrebuildsOrchestrator != nil && input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 			// Track resource replacements, if there are any.
 			orchestrator := s.PrebuildsOrchestrator.Load()
 			if resourceReplacements := completed.GetWorkspaceBuild().GetResourceReplacements(); orchestrator != nil && len(resourceReplacements) > 0 {
@@ -2135,6 +2140,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		apiKeyScope := database.AgentKeyScopeEnumAll
+		if prAgent.ApiKeyScope == string(database.AgentKeyScopeEnumNoUserData) {
+			apiKeyScope = database.AgentKeyScopeEnumNoUserData
+		}
+
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
@@ -2157,6 +2167,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			ResourceMetadata:         pqtype.NullRawMessage{},
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
 			DisplayOrder: int32(prAgent.Order),
+			APIKeyScope:  apiKeyScope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

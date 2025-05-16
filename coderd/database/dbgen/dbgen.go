@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -211,6 +212,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
+		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return agt
@@ -996,18 +998,32 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 	return version
 }
 
-func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.InsertTemplateVersionTerraformValuesByJobIDParams) {
+func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.TemplateVersionTerraformValue) database.TemplateVersionTerraformValue {
 	t.Helper()
 
+	jobID := uuid.New()
+	if orig.TemplateVersionID != uuid.Nil {
+		v, err := db.GetTemplateVersionByID(genCtx, orig.TemplateVersionID)
+		if err == nil {
+			jobID = v.JobID
+		}
+	}
+
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:             takeFirst(orig.JobID, uuid.New()),
-		CachedPlan:        takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		CachedModuleFiles: orig.CachedModuleFiles,
-		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		JobID:               jobID,
+		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles:   orig.CachedModuleFiles,
+		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ProvisionerdVersion: takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
 	}
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
 	require.NoError(t, err, "insert template version parameter")
+
+	v, err := db.GetTemplateVersionTerraformValues(genCtx, orig.TemplateVersionID)
+	require.NoError(t, err, "get template version values")
+
+	return v
 }
 
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {

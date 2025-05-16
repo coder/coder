@@ -802,6 +802,11 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
+	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+		DB:       options.Database,
+		Optional: false,
+	})
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
@@ -1289,10 +1294,7 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
-					DB:       options.Database,
-					Optional: false,
-				}))
+				r.Use(workspaceAgentInfo)
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
@@ -1595,7 +1597,7 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore  *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer          atomic.Pointer[portsharing.PortSharer]
-	FileCache           files.Cache
+	FileCache           *files.Cache
 	PrebuildsClaimer    atomic.Pointer[prebuilds.Claimer]
 	PrebuildsReconciler atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 
@@ -1720,13 +1722,30 @@ func compressHandler(h http.Handler) http.Handler {
 	return cmp.Handler(h)
 }
 
+type MemoryProvisionerDaemonOption func(*memoryProvisionerDaemonOptions)
+
+func MemoryProvisionerWithVersionOverride(version string) MemoryProvisionerDaemonOption {
+	return func(opts *memoryProvisionerDaemonOptions) {
+		opts.versionOverride = version
+	}
+}
+
+type memoryProvisionerDaemonOptions struct {
+	versionOverride string
+}
+
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
 	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
 
-func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client proto.DRPCProvisionerDaemonClient, err error) {
+	options := &memoryProvisionerDaemonOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := drpcsdk.MemTransportPipe()
 	defer func() {
@@ -1753,6 +1772,12 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
 
+	apiVersion := proto.CurrentVersion.String()
+	if options.versionOverride != "" && flag.Lookup("test.v") != nil {
+		// This should only be usable for unit testing. To fake a different provisioner version
+		apiVersion = options.versionOverride
+	}
+
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
 		Name:           name,
@@ -1762,7 +1787,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		Tags:           provisionersdk.MutateTags(uuid.Nil, provisionerTags),
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
-		APIVersion:     proto.CurrentVersion.String(),
+		APIVersion:     apiVersion,
 		KeyID:          keyID,
 	})
 	if err != nil {
@@ -1774,6 +1799,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
 		api.ctx, // use the same ctx as the API
+		daemon.APIVersion,
 		api.AccessURL,
 		daemon.ID,
 		defaultOrg.ID,

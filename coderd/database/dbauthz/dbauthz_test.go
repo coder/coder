@@ -1214,8 +1214,8 @@ func (s *MethodTestSuite) TestTemplate() {
 			JobID:          job.ID,
 			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
 		})
-		dbgen.TemplateVersionTerraformValues(s.T(), db, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-			JobID: job.ID,
+		dbgen.TemplateVersionTerraformValues(s.T(), db, database.TemplateVersionTerraformValue{
+			TemplateVersionID: tv.ID,
 		})
 		check.Args(tv.ID).Asserts(t, policy.ActionRead)
 	}))
@@ -4018,8 +4018,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceAgentParams{
-			ID:   uuid.New(),
-			Name: "dev",
+			ID:          uuid.New(),
+			Name:        "dev",
+			APIKeyScope: database.AgentKeyScopeEnumAll,
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
