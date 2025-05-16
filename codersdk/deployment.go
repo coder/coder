@@ -2426,7 +2426,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Flag:        "postgres-max-conns",
 			Env:         "CODER_PG_MAX_CONNS",
 			Default:     strconv.Itoa(DefaultMaxConns),
-			Value:       &c.PostgresMaxConns,
+			Value:       serpent.Validate(&c.PostgresMaxConns, ensureNonNegative),
 			YAML:        "pgMaxConns",
 		},
 		{
@@ -2435,7 +2435,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Flag:        "postgres-idle-conns",
 			Env:         "CODER_PG_IDLE_CONNS",
 			Default:     strconv.Itoa(DefaultIdleConns),
-			Value:       &c.PostgresIdleConns,
+			Value:       serpent.Validate(&c.PostgresIdleConns, ensureNonNegative),
 			YAML:        "pgIdleConns",
 		},
 		{
@@ -3109,6 +3109,18 @@ Write out the current server config as YAML to stdout.`,
 	}
 
 	return opts
+}
+
+func ensureNonNegative(value *serpent.Int64) error {
+	if value == nil {
+		return nil
+	}
+
+	if *value < 0 {
+		return xerrors.Errorf("value cannot be negative: %v", *value)
+	}
+
+	return nil
 }
 
 type AIProviderConfig struct {
