@@ -10873,7 +10873,7 @@ func (q *FakeQuerier) UpdatePrebuildStatus(ctx context.Context, arg database.Upd
 		return err
 	}
 
-	panic("not implemented")
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

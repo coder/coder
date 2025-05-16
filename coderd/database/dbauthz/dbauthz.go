@@ -4179,7 +4179,21 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 }
 
 func (q *querier) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
-	panic("not implemented")
+	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
+	if err != nil {
+		return err
+	}
+
+	object := rbac.ResourceTemplate.
+		WithID(preset.TemplateID.UUID).
+		InOrg(preset.OrganizationID)
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, object)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdatePrebuildStatus(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
