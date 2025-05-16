@@ -733,6 +733,11 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			// The outcome depends on whether the hard limit has been reached
 			require.NoError(t, controller.ReconcileAll(ctx))
 
+			// These two additional calls to ReconcileAll should not trigger any notifications.
+			// A notification is only sent once.
+			require.NoError(t, controller.ReconcileAll(ctx))
+			require.NoError(t, controller.ReconcileAll(ctx))
+
 			// Verify the final state after reconciliation
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)

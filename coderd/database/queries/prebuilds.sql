@@ -33,6 +33,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.prebuild_status,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
 FROM templates t

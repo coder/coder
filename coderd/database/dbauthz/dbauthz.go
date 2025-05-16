@@ -4178,6 +4178,10 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
 }
 
+func (q *querier) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+	panic("not implemented")
+}
+
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
 		return err

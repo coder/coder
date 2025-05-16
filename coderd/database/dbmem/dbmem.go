@@ -10867,6 +10867,15 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {

@@ -6507,6 +6507,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.prebuild_status,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
 FROM templates t
@@ -6518,17 +6519,18 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID          uuid.UUID     `db:"template_id" json:"template_id"`
-	TemplateName        string        `db:"template_name" json:"template_name"`
-	OrganizationName    string        `db:"organization_name" json:"organization_name"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName string        `db:"template_version_name" json:"template_version_name"`
-	UsingActiveVersion  bool          `db:"using_active_version" json:"using_active_version"`
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	Name                string        `db:"name" json:"name"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	Deleted             bool          `db:"deleted" json:"deleted"`
-	Deprecated          bool          `db:"deprecated" json:"deprecated"`
+	TemplateID          uuid.UUID          `db:"template_id" json:"template_id"`
+	TemplateName        string             `db:"template_name" json:"template_name"`
+	OrganizationName    string             `db:"organization_name" json:"organization_name"`
+	TemplateVersionID   uuid.UUID          `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName string             `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion  bool               `db:"using_active_version" json:"using_active_version"`
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	Name                string             `db:"name" json:"name"`
+	DesiredInstances    sql.NullInt32      `db:"desired_instances" json:"desired_instances"`
+	PrebuildStatus      NullPrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	Deleted             bool               `db:"deleted" json:"deleted"`
+	Deprecated          bool               `db:"deprecated" json:"deprecated"`
 }
 
 // GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
@@ -6553,6 +6555,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.ID,
 			&i.Name,
 			&i.DesiredInstances,
+			&i.PrebuildStatus,
 			&i.Deleted,
 			&i.Deprecated,
 		); err != nil {
@@ -6837,6 +6840,22 @@ func (q *sqlQuerier) InsertPresetParameters(ctx context.Context, arg InsertPrese
 		return nil, err
 	}
 	return items, nil
+}
+
+const updatePrebuildStatus = `-- name: UpdatePrebuildStatus :exec
+UPDATE template_version_presets
+SET prebuild_status = $1
+WHERE id = $2
+`
+
+type UpdatePrebuildStatusParams struct {
+	Status   NullPrebuildStatus `db:"status" json:"status"`
+	PresetID uuid.UUID          `db:"preset_id" json:"preset_id"`
+}
+
+func (q *sqlQuerier) UpdatePrebuildStatus(ctx context.Context, arg UpdatePrebuildStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updatePrebuildStatus, arg.Status, arg.PresetID)
+	return err
 }
 
 const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec

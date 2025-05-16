@@ -2685,6 +2685,13 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
+func (m queryMetricsStore) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+	start := time.Now()
+	r0 := m.s.UpdatePrebuildStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePrebuildStatus").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
