@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
@@ -9,11 +10,13 @@ import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
+	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -29,13 +32,13 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
-const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
-export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-import { API } from "api/api";
 import {
 	type CreateWorkspacePermissions,
 	createWorkspaceChecks,
 } from "./permissions";
+
+const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePageExperimental: FC = () => {
@@ -45,11 +48,12 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 
-	const [currentResponse, setCurrentResponse] =
+	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const [wsResponseId, setWSResponseId] = useState<number>(-1);
+	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const initialParamsSentRef = useRef(false);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -84,14 +88,60 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
-	const onMessage = useCallback((response: DynamicParametersResponse) => {
-		setCurrentResponse((prev) => {
-			if (prev?.id === response.id) {
-				return prev;
-			}
-			return response;
-		});
+	const autofillParameters = getAutofillParameters(searchParams);
+
+	const sendMessage = useCallback((formValues: Record<string, string>) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
 	}, []);
+
+	// On sends all initial parameter values to the websocket
+	// (including defaults and autofilled from the url)
+	// This ensures the backend has the complete initial state of the form,
+	// which is vital for correctly rendering dynamic UI elements where parameter visibility
+	// or options might depend on the initial values of other parameters.
+	const sendInitialParameters = useEffectEvent(
+		(parameters: PreviewParameter[]) => {
+			if (initialParamsSentRef.current) return;
+			if (parameters.length === 0) return;
+
+			const initialFormValues = getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			);
+			if (initialFormValues.length === 0) return;
+
+			const initialParamsToSend: Record<string, string> = {};
+			for (const param of initialFormValues) {
+				if (param.name && param.value) {
+					initialParamsToSend[param.name] = param.value;
+				}
+			}
+
+			if (Object.keys(initialParamsToSend).length === 0) return;
+
+			sendMessage(initialParamsToSend);
+			initialParamsSentRef.current = true;
+		},
+	);
+
+	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
+		if (latestResponse && latestResponse?.id >= response.id) {
+			return;
+		}
+
+		if (!initialParamsSentRef.current && response.parameters.length > 0) {
+			sendInitialParameters([...response.parameters]);
+		}
+
+		setLatestResponse(response);
+	});
 
 	// Initialize the WebSocket connection when there is a valid template version ID
 	useEffect(() => {
@@ -127,20 +177,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 		};
 	}, [owner.id, realizedVersionId, onMessage]);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		setWSResponseId((prevId) => {
-			const request: DynamicParametersRequest = {
-				id: prevId + 1,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				return prevId + 1;
-			}
-			return prevId;
-		});
-	}, []);
-
 	const organizationId = templateQuery.data?.organization_id;
 
 	const {
@@ -166,9 +202,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 		},
 		[navigate],
 	);
-
-	// Auto fill parameters
-	const autofillParameters = getAutofillParameters(searchParams);
 
 	const autoCreationStartedRef = useRef(false);
 	const automateWorkspaceCreation = useEffectEvent(async () => {
@@ -231,18 +264,18 @@ const CreateWorkspacePageExperimental: FC = () => {
 	}, [automateWorkspaceCreation, autoCreateReady]);
 
 	const sortedParams = useMemo(() => {
-		if (!currentResponse?.parameters) {
+		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...currentResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [currentResponse?.parameters]);
+		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+	}, [latestResponse?.parameters]);
 
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle(title)}</title>
 			</Helmet>
-			{!currentResponse ||
+			{!latestResponse ||
 			!templateQuery.data ||
 			isLoadingFormData ||
 			isLoadingExternalAuth ||
@@ -252,7 +285,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 				<CreateWorkspacePageViewExperimental
 					mode={mode}
 					defaultName={defaultName}
-					diagnostics={currentResponse?.diagnostics ?? []}
+					diagnostics={latestResponse?.diagnostics ?? []}
 					disabledParams={disabledParams}
 					defaultOwner={defaultOwner}
 					owner={owner}

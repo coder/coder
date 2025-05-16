@@ -19,7 +19,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
 import {
 	DynamicParameter,
@@ -141,6 +140,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 			},
 		});
 
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+
 	useEffect(() => {
 		if (error) {
 			window.scrollTo(0, 0);
@@ -218,7 +221,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs: { [k: string]: string } = {};
+		const formInputs: Record<string, string> = {};
 		formInputs[parameter.name] = value;
 		const parameters = form.values.rich_parameter_values ?? [];
 
@@ -234,37 +237,17 @@ export const CreateWorkspacePageViewExperimental: FC<
 		sendMessage(formInputs);
 	};
 
-	const { debounced: handleChangeDebounced } = useDebouncedFunction(
-		async (
-			parameter: PreviewParameter,
-			parameterField: string,
-			value: string,
-		) => {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		},
-		500,
-	);
-
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
 		value: string,
 	) => {
-		if (parameter.form_type === "input" || parameter.form_type === "textarea") {
-			handleChangeDebounced(parameter, parameterField, value);
-		} else {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		}
+		await form.setFieldValue(parameterField, {
+			name: parameter.name,
+			value,
+		});
+		form.setFieldTouched(parameter.name, true);
+		sendDynamicParamsRequest(parameter, value);
 	};
 
 	return (
@@ -509,6 +492,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 										return null;
 									}
 
+									const formValue =
+										form.values?.rich_parameter_values?.[index]?.value || "";
+
 									return (
 										<DynamicParameter
 											key={parameter.name}
@@ -518,6 +504,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
+											autofill={autofillByName[parameter.name] !== undefined}
+											value={formValue}
 										/>
 									);
 								})}
