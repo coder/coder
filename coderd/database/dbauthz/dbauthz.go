@@ -2233,6 +2233,15 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, ar
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, args)
 }
 
+func (q *querier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	// GetPresetsAtFailureLimit returns a list of template version presets that have reached the hard failure limit.
+	// Request the same authorization permissions as GetPresetsBackoff, since the methods are similar.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsAtFailureLimit(ctx, hardLimit)
+}
+
 func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
 	// GetPresetsBackoff returns a list of template version presets along with metadata such as the number of failed prebuilds.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
@@ -4167,6 +4176,24 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
+}
+
+func (q *querier) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
+	if err != nil {
+		return err
+	}
+
+	object := rbac.ResourceTemplate.
+		WithID(preset.TemplateID.UUID).
+		InOrg(preset.OrganizationID)
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, object)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdatePrebuildStatus(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

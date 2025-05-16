@@ -14,6 +14,7 @@ type GlobalSnapshot struct {
 	RunningPrebuilds    []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress []database.CountInProgressPrebuildsRow
 	Backoffs            []database.GetPresetsBackoffRow
+	HardLimitedPresets  []database.GetPresetsAtFailureLimitRow
 }
 
 func NewGlobalSnapshot(
@@ -21,12 +22,14 @@ func NewGlobalSnapshot(
 	runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
+	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 ) GlobalSnapshot {
 	return GlobalSnapshot{
 		Presets:             presets,
 		RunningPrebuilds:    runningPrebuilds,
 		PrebuildsInProgress: prebuildsInProgress,
 		Backoffs:            backoffs,
+		HardLimitedPresets:  hardLimitedPresets,
 	}
 }
 
@@ -57,10 +60,15 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		backoffPtr = &backoff
 	}
 
+	_, isHardLimited := slice.Find(s.HardLimitedPresets, func(row database.GetPresetsAtFailureLimitRow) bool {
+		return row.PresetID == preset.ID
+	})
+
 	return &PresetSnapshot{
-		Preset:     preset,
-		Running:    running,
-		InProgress: inProgress,
-		Backoff:    backoffPtr,
+		Preset:        preset,
+		Running:       running,
+		InProgress:    inProgress,
+		Backoff:       backoffPtr,
+		IsHardLimited: isHardLimited,
 	}, nil
 }

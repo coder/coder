@@ -1145,6 +1145,13 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetsAtFailureLimit(ctx, hardLimit)
+	m.queryLatencies.WithLabelValues("GetPresetsAtFailureLimit").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetsBackoff(ctx, lookback)
@@ -2675,6 +2682,13 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	start := time.Now()
 	r0 := m.s.UpdateOrganizationDeletedByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOrganizationDeletedByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+	start := time.Now()
+	r0 := m.s.UpdatePrebuildStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePrebuildStatus").Observe(time.Since(start).Seconds())
 	return r0
 }
 

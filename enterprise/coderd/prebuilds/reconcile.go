@@ -313,6 +313,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 		if len(presetsWithPrebuilds) == 0 {
 			return nil
 		}
+
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -328,7 +329,18 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
 
-		state = prebuilds.NewGlobalSnapshot(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, c.cfg.FailureHardLimit.Value())
+		if err != nil {
+			return xerrors.Errorf("failed to get hard limited presets: %w", err)
+		}
+
+		state = prebuilds.NewGlobalSnapshot(
+			presetsWithPrebuilds,
+			allRunningPrebuilds,
+			allPrebuildsInProgress,
+			presetsBackoff,
+			hardLimitedPresets,
+		)
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
@@ -348,6 +360,37 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_id", ps.Preset.ID),
 		slog.F("preset_name", ps.Preset.Name),
 	)
+
+	// If the preset was previously hard-limited, log it and exit early.
+	if ps.Preset.PrebuildStatus.PrebuildStatus == database.PrebuildStatusHardLimited {
+		logger.Warn(ctx, "skipping hard limited preset", slog.F("preset_id", ps.Preset.ID), slog.F("name", ps.Preset.Name))
+		return nil
+	}
+
+	// If the preset reached the hard failure limit for the first time during this iteration:
+	// - Mark it as hard-limited in the database
+	// - Send notifications to template admins
+	if ps.IsHardLimited {
+		logger.Warn(ctx, "skipping hard limited preset", slog.F("preset_id", ps.Preset.ID), slog.F("name", ps.Preset.Name))
+
+		err := c.store.UpdatePrebuildStatus(ctx, database.UpdatePrebuildStatusParams{
+			Status: database.NullPrebuildStatus{
+				PrebuildStatus: database.PrebuildStatusHardLimited,
+				Valid:          true,
+			},
+			PresetID: ps.Preset.ID,
+		})
+		if err != nil {
+			return err
+		}
+
+		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 
 	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
@@ -440,6 +483,52 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	default:
 		return xerrors.Errorf("unknown action type: %v", actions.ActionType)
 	}
+}
+
+func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
+	// TODO: rename ctx?
+	// nolint:gocritic // Necessary to query all the required data.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	// TODO(yevhenii): move into separate function
+	// Send notification to template admins.
+	if c.notifEnq == nil {
+		c.logger.Warn(ctx, "notification enqueuer not set, cannot send resource replacement notification(s)")
+		return nil
+	}
+
+	// TODO(yevhenii): remove owner from the list
+	templateAdmins, err := c.store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin, codersdk.RoleOwner},
+	})
+	if err != nil {
+		return xerrors.Errorf("fetch template admins: %w", err)
+	}
+
+	for _, templateAdmin := range templateAdmins {
+		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.PrebuildFailureLimitReached,
+			map[string]string{
+				"org":              ps.Preset.OrganizationName,
+				"template":         ps.Preset.TemplateName,
+				"template_version": ps.Preset.TemplateVersionName,
+				"preset":           ps.Preset.Name,
+			},
+			map[string]any{},
+			"prebuilds_reconciler",
+			// Associate this notification with all the related entities.
+			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID,
+		); err != nil {
+			c.logger.Error(ctx,
+				"failed to send notification",
+				slog.Error(err),
+				slog.F("template_admin_id", templateAdmin.ID.String()),
+			)
+
+			continue
+		}
+	}
+
+	return nil
 }
 
 func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) (*prebuilds.ReconciliationActions, error) {

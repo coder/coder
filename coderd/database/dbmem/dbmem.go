@@ -4368,6 +4368,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
 	return nil, ErrUnimplemented
 }
@@ -10863,6 +10867,15 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
