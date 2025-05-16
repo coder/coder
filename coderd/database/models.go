@@ -2628,6 +2628,23 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+type Chat struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Title     string    `db:"title" json:"title"`
+}
+
+type ChatMessage struct {
+	ID        int64           `db:"id" json:"id"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Model     string          `db:"model" json:"model"`
+	Provider  string          `db:"provider" json:"provider"`
+	Content   json.RawMessage `db:"content" json:"content"`
+}
+
 type CryptoKey struct {
 	Feature     CryptoKeyFeature `db:"feature" json:"feature"`
 	Sequence    int32            `db:"sequence" json:"sequence"`
@@ -3265,6 +3282,9 @@ type TemplateVersionTerraformValue struct {
 	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
 	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
+	// What version of the provisioning engine was used to generate the cached plan and module files.
+	ProvisionerdVersion string `db:"provisionerd_version" json:"provisionerd_version"`
 }
 
 type TemplateVersionVariable struct {
@@ -3442,7 +3462,8 @@ type WorkspaceAgent struct {
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
-	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	DisplayOrder int32         `db:"display_order" json:"display_order"`
+	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 }

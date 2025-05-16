@@ -487,9 +487,14 @@ BEGIN
     );
 
     member_count := (
-        SELECT count(*) as count FROM organization_members
+        SELECT
+            count(*) AS count
+        FROM
+            organization_members
+        LEFT JOIN users ON users.id = organization_members.user_id
         WHERE
             organization_members.organization_id = OLD.id
+            AND users.deleted = FALSE
     );
 
     provisioner_keys_count := (
@@ -753,6 +758,32 @@ CREATE TABLE audit_logs (
     additional_fields jsonb NOT NULL,
     request_id uuid NOT NULL,
     resource_icon text NOT NULL
+);
+
+CREATE TABLE chat_messages (
+    id bigint NOT NULL,
+    chat_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    model text NOT NULL,
+    provider text NOT NULL,
+    content jsonb NOT NULL
+);
+
+CREATE SEQUENCE chat_messages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_messages_id_seq OWNED BY chat_messages.id;
+
+CREATE TABLE chats (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    owner_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    title text NOT NULL
 );
 
 CREATE TABLE crypto_keys (
@@ -1414,8 +1445,12 @@ CREATE TABLE template_version_presets (
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    cached_plan jsonb NOT NULL
+    cached_plan jsonb NOT NULL,
+    cached_module_files uuid,
+    provisionerd_version text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN template_version_terraform_values.provisionerd_version IS 'What version of the provisioning engine was used to generate the cached plan and module files.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -1806,6 +1841,7 @@ CREATE TABLE workspace_agents (
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     api_version text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
+    parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
@@ -2211,6 +2247,8 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -2231,6 +2269,12 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
@@ -2715,6 +2759,12 @@ CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EA
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
@@ -2827,6 +2877,9 @@ ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_cached_module_files_fkey FOREIGN KEY (cached_module_files) REFERENCES files(id);
+
+ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_variables
@@ -2897,6 +2950,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
