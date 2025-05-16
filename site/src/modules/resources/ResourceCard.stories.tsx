@@ -79,6 +79,7 @@ function getAgentRow(agent: WorkspaceAgent): JSX.Element {
 				proxy: getPreferredProxy([], undefined),
 				proxies: [],
 				isLoading: false,
+				latenciesLoaded: true,
 				isFetched: true,
 				setProxy: () => {
 					return;
