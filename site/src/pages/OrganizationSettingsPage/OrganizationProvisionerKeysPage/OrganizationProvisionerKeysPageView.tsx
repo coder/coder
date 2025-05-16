@@ -1,5 +1,6 @@
 import {
 	type ProvisionerKeyDaemons,
+	ProvisionerKeyIDBuiltin,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
 } from "api/typesGenerated";
@@ -77,9 +78,8 @@ export const OrganizationProvisionerKeysPageView: FC<
 							) : (
 								provisionerKeyDaemons
 									.filter((pkd) => {
-										console.debug(pkd);
 										return (
-											// pkd.key.id !== ProvisionerKeyIDBuiltIn &&
+											pkd.key.id !== ProvisionerKeyIDBuiltin &&
 											pkd.key.id !== ProvisionerKeyIDUserAuth &&
 											pkd.key.id !== ProvisionerKeyIDPSK
 										);
