@@ -1,0 +1,26 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Prebuild Failure Limit Reached",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {
+      "org": "cern",
+      "preset": "particle-accelerator",
+      "template": "docker",
+      "template_version": "angry_torvalds"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "There is a problem creating prebuilt workspaces for the preset",
+  "title_markdown": "There is a problem creating prebuilt workspaces for the preset",
+  "body": "The number of failed prebuilds has reached the hard limit for template **docker** and preset **particle-accelerator**",
+  "body_markdown": "\n\t\t\tThe number of failed prebuilds has reached the hard limit for template **docker** and preset **particle-accelerator**\n\t\t"
+}
