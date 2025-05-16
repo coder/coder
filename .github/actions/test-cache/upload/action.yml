@@ -13,7 +13,8 @@ runs:
   using: "composite"
   steps:
     - name: Upload test cache
-      if: ${{ github.ref == 'refs/heads/main' }}
+      # FOR TESTING PURPOSES THIS WILL UPLOAD THE CACHE ON THE PR TOO
+      # TODO: MUST BE REVERTED BEFORE MERGING
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ inputs.cache-path }}
