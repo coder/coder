@@ -10,12 +10,13 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
-	"github.com/coder/serpent"
 
 	"golang.org/x/xerrors"
 )
@@ -98,7 +99,7 @@ func (*RootCmd) dbcryptRotateCmd() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil)
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -163,7 +164,7 @@ func (*RootCmd) dbcryptDecryptCmd() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil)
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -219,7 +220,7 @@ Are you sure you want to continue?`
 				}
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil)
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}

@@ -356,6 +356,8 @@ type DeploymentValues struct {
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresMaxConns                serpent.Int64                        `json:"pg_max_conns,omitempty" typescript:",notnull"`
+	PostgresIdleConns               serpent.Int64                        `json:"pg_idle_conns,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2419,6 +2421,24 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "pgAuth",
 		},
 		{
+			Name:        "Postgres Max Connections",
+			Description: "The maximum number of connections to maintain in the connection pool. 0 is unlimited, but we advise against using this.",
+			Flag:        "postgres-max-conns",
+			Env:         "CODER_PG_MAX_CONNS",
+			Default:     strconv.Itoa(DefaultMaxConns),
+			Value:       serpent.Validate(&c.PostgresMaxConns, ensureNonNegative),
+			YAML:        "pgMaxConns",
+		},
+		{
+			Name:        "Postgres Idle Connections",
+			Description: "The number of idle connections to maintain in the connection pool. 0 is unlimited, but we advise against using this.",
+			Flag:        "postgres-idle-conns",
+			Env:         "CODER_PG_IDLE_CONNS",
+			Default:     strconv.Itoa(DefaultIdleConns),
+			Value:       serpent.Validate(&c.PostgresIdleConns, ensureNonNegative),
+			YAML:        "pgIdleConns",
+		},
+		{
 			Name:        "Secure Auth Cookie",
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
@@ -3089,6 +3109,18 @@ Write out the current server config as YAML to stdout.`,
 	}
 
 	return opts
+}
+
+func ensureNonNegative(value *serpent.Int64) error {
+	if value == nil {
+		return nil
+	}
+
+	if *value < 0 {
+		return xerrors.Errorf("value cannot be negative: %v", *value)
+	}
+
+	return nil
 }
 
 type AIProviderConfig struct {

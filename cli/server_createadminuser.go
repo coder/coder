@@ -11,6 +11,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -20,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
@@ -72,7 +73,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL, nil)
+			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}

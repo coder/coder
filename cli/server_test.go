@@ -40,6 +40,7 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -2150,7 +2151,7 @@ func TestConnectToPostgres(t *testing.T) {
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
+		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
@@ -2169,7 +2170,7 @@ func TestConnectToPostgres(t *testing.T) {
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 		require.NoError(t, err)
 		defer okDB.Close()
 
@@ -2177,7 +2178,7 @@ func TestConnectToPostgres(t *testing.T) {
 		_, err = okDB.Exec(`UPDATE schema_migrations SET version = version + 1`)
 		require.NoError(t, err)
 
-		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "database needs migration")
 
