@@ -679,6 +679,26 @@ func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) 
 	return resp, nil
 }
 
+// ConvertUserLoginType will send a request to convert the user from password
+// based authentication to oauth based. The response has the oauth state code
+// to use in the oauth flow.
+func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/convert-login", user), req)
+	if err != nil {
+		return OAuthConversionResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return OAuthConversionResponse{}, ReadBodyAsError(res)
+	}
+	var resp OAuthConversionResponse
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return OAuthConversionResponse{}, err
+	}
+	return resp, nil
+}
+
 // Logout calls the /logout API
 // Call `ClearSessionToken()` to clear the session token of the client.
 func (c *Client) Logout(ctx context.Context) error {
