@@ -1,4 +1,4 @@
-import { apiKey } from "api/queries/users";
+eimport { apiKey } from "api/queries/users";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -50,7 +50,13 @@ export const useAppLink = (
 			// an error message will be displayed.
 			const openAppExternallyFailedTimeout = 500;
 			const openAppExternallyFailed = setTimeout(() => {
-				displayError(`${label} must be installed first.`);
+			        const jetBrainsApps = ["GoLand", "IntelliJ IDEA", "PyCharm", "WebStorm", "CLion"];
+					if (jetBrainsApps.includes(label)) {
+						displayError(`To open ${label}, JetBrains Toolbox must be installed along with the IDE.`);
+					} else {
+						displayError(`${label} must be installed first.`);
+					}
+
 			}, openAppExternallyFailedTimeout);
 			window.addEventListener("blur", () => {
 				clearTimeout(openAppExternallyFailed);
