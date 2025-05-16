@@ -998,11 +998,19 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 	return version
 }
 
-func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.InsertTemplateVersionTerraformValuesByJobIDParams) {
+func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.TemplateVersionTerraformValue) database.TemplateVersionTerraformValue {
 	t.Helper()
 
+	jobID := uuid.New()
+	if orig.TemplateVersionID != uuid.Nil {
+		v, err := db.GetTemplateVersionByID(genCtx, orig.TemplateVersionID)
+		if err == nil {
+			jobID = v.JobID
+		}
+	}
+
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:               takeFirst(orig.JobID, uuid.New()),
+		JobID:               jobID,
 		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
 		CachedModuleFiles:   orig.CachedModuleFiles,
 		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -1011,6 +1019,11 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
 	require.NoError(t, err, "insert template version parameter")
+
+	v, err := db.GetTemplateVersionTerraformValues(genCtx, orig.TemplateVersionID)
+	require.NoError(t, err, "get template version values")
+
+	return v
 }
 
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
