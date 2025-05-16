@@ -1917,6 +1917,7 @@ export interface ProvisionerJob {
 	readonly error_code?: JobErrorCode;
 	readonly status: ProvisionerJobStatus;
 	readonly worker_id?: string;
+	readonly worker_name?: string;
 	readonly file_id: string;
 	readonly tags: Record<string, string>;
 	readonly queue_position: number;

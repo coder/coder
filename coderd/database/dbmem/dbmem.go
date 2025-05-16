@@ -1267,6 +1267,14 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueu
 	// Step 6: Compute the final results with minimal checks
 	var results []database.GetProvisionerJobsByIDsWithQueuePositionRow
 	for _, job := range filteredJobs {
+		workerName := ""
+		// Add daemon name to provisioner job
+		for _, daemon := range q.provisionerDaemons {
+			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+				workerName = daemon.Name
+			}
+		}
+
 		// If the job has a computed rank, use it
 		if rank, found := jobQueueStats[job.ID]; found {
 			results = append(results, rank)
@@ -1278,6 +1286,7 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueu
 				ProvisionerJob: job,
 				QueuePosition:  0,
 				QueueSize:      0,
+				WorkerName:     workerName,
 			})
 		}
 	}
@@ -4846,6 +4855,13 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			})
 			for _, worker := range availableWorkers {
 				row.AvailableWorkers = append(row.AvailableWorkers, worker.ID)
+			}
+		}
+
+		// Add daemon name to provisioner job
+		for _, daemon := range q.provisionerDaemons {
+			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+				row.WorkerName = daemon.Name
 			}
 		}
 		rows = append(rows, row)

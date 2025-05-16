@@ -102,6 +102,48 @@ func TestTemplateVersion(t *testing.T) {
 			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 	})
+
+	// Ensures that the template version response includes worker_id and worker_name
+	// when the associated provisioner job is in a succeeded state
+	t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err := provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Get template version
+		templateVersion, err := client.TemplateVersion(ctx, version.ID)
+		require.NoError(t, err)
+
+		// Get provisioner daemon responsible for executing the provisioner job
+		provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(provisionerDaemons))
+		require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+
+		require.Equal(t, user.OrganizationID, templateVersion.OrganizationID)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(templateVersion.Job.Status))
+
+		// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+		require.Equal(t, provisionerDaemons[0].ID, *templateVersion.Job.WorkerID)
+		require.Equal(t, provisionerDaemonName, templateVersion.Job.WorkerName)
+	})
 }
 
 func TestPostTemplateVersionsByOrganization(t *testing.T) {
@@ -923,6 +965,51 @@ func TestTemplateVersionsByTemplate(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, versions, 1)
 	})
+
+	// Ensures that the template versions response includes worker_id and worker_name
+	// when the associated provisioner job is in a succeeded state
+	t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err := provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+			TemplateID: template.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, versions, 1)
+
+		// Get provisioner daemon responsible for executing the provisioner jobs
+		provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(provisionerDaemons))
+		require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+
+		require.Equal(t, user.OrganizationID, versions[0].OrganizationID)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(versions[0].Job.Status))
+
+		// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+		require.Equal(t, provisionerDaemons[0].ID, *versions[0].Job.WorkerID)
+		require.Equal(t, provisionerDaemonName, versions[0].Job.WorkerName)
+	})
 }
 
 func TestTemplateVersionByName(t *testing.T) {
@@ -962,6 +1049,49 @@ func TestTemplateVersionByName(t *testing.T) {
 			assert.Zero(t, tv.MatchedProvisioners.Count)
 			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
+	})
+
+	// Ensures that the template version response includes worker_id and worker_name
+	// when the associated provisioner job is in a succeeded state
+	t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err := provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Get template version by name
+		templateVersion, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
+		require.NoError(t, err)
+
+		// Get provisioner daemon responsible for executing the provisioner jobs
+		provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(provisionerDaemons))
+		require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+
+		require.Equal(t, user.OrganizationID, templateVersion.OrganizationID)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(templateVersion.Job.Status))
+
+		// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+		require.Equal(t, provisionerDaemons[0].ID, *templateVersion.Job.WorkerID)
+		require.Equal(t, provisionerDaemonName, templateVersion.Job.WorkerName)
 	})
 }
 
@@ -1371,6 +1501,58 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, 0, matched.Available)
 		require.Zero(t, matched.MostRecentlySeen.Time)
 	})
+
+	// Ensures that the template version dry run response includes worker_id and worker_name
+	// when the associated provisioner job is in a succeeded state
+	t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create template version dry-run
+		job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
+		require.NoError(t, err)
+
+		// Wait for the job to complete
+		require.Eventually(t, func() bool {
+			job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
+			return assert.NoError(t, err) && job.Status == codersdk.ProvisionerJobSucceeded
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err = provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		// Get the latest template version dry run
+		job, err = client.TemplateVersionDryRun(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+
+		// Get provisioner daemon responsible for executing the provisioner jobs
+		provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(provisionerDaemons))
+		require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+
+		require.Equal(t, user.OrganizationID, job.OrganizationID)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(job.Status))
+
+		// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+		require.Equal(t, provisionerDaemons[0].ID, *job.WorkerID)
+		require.Equal(t, provisionerDaemonName, job.WorkerName)
+	})
 }
 
 // TestPaginatedTemplateVersions creates a list of template versions and paginate.
@@ -1519,6 +1701,49 @@ func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, template.Name, version.Name)
 		require.NoError(t, err)
 	})
+
+	// Ensures that the template version response includes worker_id and worker_name
+	// when the associated provisioner job is in a succeeded state
+	t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err := provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Get template version
+		templateVersion, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, template.Name, version.Name)
+		require.NoError(t, err)
+
+		// Get provisioner daemon responsible for executing the provisioner jobs
+		provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(provisionerDaemons))
+		require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+
+		require.Equal(t, user.OrganizationID, templateVersion.OrganizationID)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(templateVersion.Job.Status))
+
+		// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+		require.Equal(t, provisionerDaemons[0].ID, *templateVersion.Job.WorkerID)
+		require.Equal(t, provisionerDaemonName, templateVersion.Job.WorkerName)
+	})
 }
 
 func TestPreviousTemplateVersion(t *testing.T) {
@@ -1574,6 +1799,59 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion2.Name)
 		require.NoError(t, err)
 		require.Equal(t, templateBVersion1.ID, result.ID)
+	})
+
+	// Ensures that the previous template version response includes worker_id and worker_name
+	// when the associated provisioner job is in a succeeded state
+	t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create two templates to be sure it is not returning a previous version
+		// from another template
+		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateAVersion1.ID)
+		// Create two versions for the template B so we can try to get the previous
+		// version of version 2
+		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion1.ID)
+		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion2.ID)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err := provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		templateVersion, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion2.Name)
+		require.NoError(t, err)
+		require.Equal(t, templateBVersion1.ID, templateVersion.ID)
+
+		// Get provisioner daemon responsible for executing the provisioner jobs
+		provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(provisionerDaemons))
+		require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+
+		require.Equal(t, user.OrganizationID, templateVersion.OrganizationID)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(templateVersion.Job.Status))
+
+		// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+		require.Equal(t, provisionerDaemons[0].ID, *templateVersion.Job.WorkerID)
+		require.Equal(t, provisionerDaemonName, templateVersion.Job.WorkerName)
 	})
 }
 

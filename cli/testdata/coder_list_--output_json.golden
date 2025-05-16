@@ -37,6 +37,7 @@
         "completed_at": "====[timestamp]=====",
         "status": "succeeded",
         "worker_id": "====[workspace build worker ID]=====",
+        "worker_name": "test-daemon",
         "file_id": "=====[workspace build file ID]======",
         "tags": {
           "owner": "",

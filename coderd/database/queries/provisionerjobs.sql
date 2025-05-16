@@ -100,12 +100,15 @@ SELECT
 	fj.created_at,
 	sqlc.embed(pj),
 	fj.queue_position,
-	fj.queue_size
+	fj.queue_size,
+	COALESCE(pd.name, '') AS worker_name
 FROM
 	final_jobs fj
 		INNER JOIN provisioner_jobs pj
 				ON fj.id = pj.id -- Ensure we retrieve full details from `provisioner_jobs`.
                                  -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
+		LEFT JOIN provisioner_daemons pd -- Join to get the daemon name corresponding to the job's worker_id
+		  ON pj.worker_id = pd.id
 ORDER BY
 	fj.created_at;
 
@@ -160,7 +163,9 @@ SELECT
 	COALESCE(t.display_name, '') AS template_display_name,
 	COALESCE(t.icon, '') AS template_icon,
 	w.id AS workspace_id,
-	COALESCE(w.name, '') AS workspace_name
+	COALESCE(w.name, '') AS workspace_name,
+	-- Include the name of the provisioner_daemon associated to the job
+	COALESCE(pd.name, '') AS worker_name
 FROM
 	provisioner_jobs pj
 LEFT JOIN
@@ -185,6 +190,9 @@ LEFT JOIN
 		t.id = tv.template_id
 		AND t.organization_id = pj.organization_id
 	)
+LEFT JOIN
+	-- Join to get the daemon name corresponding to the job's worker_id
+	provisioner_daemons pd ON pd.id = pj.worker_id
 WHERE
 	pj.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
@@ -200,7 +208,8 @@ GROUP BY
 	t.display_name,
 	t.icon,
 	w.id,
-	w.name
+	w.name,
+	pd.name
 ORDER BY
 	pj.created_at DESC
 LIMIT
