@@ -77,4 +77,4 @@ See the [Envbuilder Terraform Provider Examples](https://github.com/coder/terraf
 
 ## code-server
 
-`code-server` is installed via the [`code-server`](https://registry.coder.com/modules/code-server) registry module. Please check [Coder Registry](https://registry.coder.com) for a list of all modules and templates.
+`code-server` is installed via the [`code-server`](https://registry.coder.com/modules/coder/code-server) registry module. Please check [Coder Registry](https://registry.coder.com) for a list of all modules and templates.
