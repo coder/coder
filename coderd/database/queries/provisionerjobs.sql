@@ -41,6 +41,18 @@ FROM
 WHERE
 	id = $1;
 
+-- name: GetProvisionerJobByIDForUpdate :one
+-- Gets a single provisioner job by ID for update.
+-- This is used to securely reap jobs that have been hung/pending for a long time.
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+SKIP LOCKED;
+
 -- name: GetProvisionerJobsByIDs :many
 SELECT
 	*
@@ -288,8 +300,7 @@ WHERE
 		AND completed_at IS NULL
 	)
 ORDER BY random()
-LIMIT @max_jobs
-FOR UPDATE SKIP LOCKED;
+LIMIT @max_jobs;
 
 -- name: InsertProvisionerJobTimings :many
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)

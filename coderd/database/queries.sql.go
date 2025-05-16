@@ -7412,6 +7412,46 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 	return i, err
 }
 
+const getProvisionerJobByIDForUpdate = `-- name: GetProvisionerJobByIDForUpdate :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+SKIP LOCKED
+`
+
+// Gets a single provisioner job by ID for update.
+// This is used to securely reap jobs that have been hung/pending for a long time.
+func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDForUpdate, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+	)
+	return i, err
+}
+
 const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
 SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
 WHERE job_id = $1
@@ -7864,7 +7904,6 @@ WHERE
 	)
 ORDER BY random()
 LIMIT $3
-FOR UPDATE SKIP LOCKED
 `
 
 type GetProvisionerJobsToBeReapedParams struct {

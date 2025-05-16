@@ -239,18 +239,12 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 	var lowestLogID int64
 
 	err := db.InTx(func(db database.Store) error {
-		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("reaper:%s", jobToReap.ID)))
-		if err != nil {
-			return xerrors.Errorf("acquire lock: %w", err)
-		}
-		if !locked {
-			// This error is ignored.
-			return acquireLockError{}
-		}
-
 		// Refetch the job while we hold the lock.
-		job, err := db.GetProvisionerJobByID(ctx, jobToReap.ID)
+		job, err := db.GetProvisionerJobByIDForUpdate(ctx, jobToReap.ID)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return acquireLockError{}
+			}
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 

@@ -4444,6 +4444,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			VapidPrivateKey: "test",
 		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
