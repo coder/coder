@@ -143,26 +143,22 @@ func publishInTransaction(m dsl.Matcher) {
 
 	// Match direct calls to the Publish method of a pubsub instance inside InTx
 	m.Match(`
-		$db.InTx(func($tx $dbType) $retType {
+		$x.InTx(func($y) error {
 			$*_
-			$ps.Publish($*args)
+			$_ = $ps.Publish($evt, $msg)
 			$*_
-		}, $*txopts)
+		}, $*_)
+	`,
+		// Without catching error return
+		`
+		$x.InTx(func($y) error {
+			$*_
+			$ps.Publish($evt, $msg)
+			$*_
+		}, $*_)
 	`).
-		Where(m["ps"].Type.Implements("pubsub.Pubsub") ||
-			m["ps"].Text.Matches(`\w+\.pubsub`) ||
-			m["ps"].Text.Matches(`pubsub\.\w+`)).
-		Report("Avoid calling Publish inside database transactions as this may lead to connection deadlocks. Move the Publish call outside the transaction.")
-
-	// Also catch publish calls on nested fields like c.pubsub.Publish()
-	m.Match(`
-		$db.InTx(func($tx $dbType) $retType {
-			$*_
-			$ps.$field.Publish($*args)
-			$*_
-		}, $*txopts)
-	`).
-		Where(m["field"].Text == "pubsub").
+		Where(m["ps"].Type.Is("pubsub.Pubsub")).
+		At(m["ps"]).
 		Report("Avoid calling Publish inside database transactions as this may lead to connection deadlocks. Move the Publish call outside the transaction.")
 }
 
