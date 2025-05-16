@@ -660,6 +660,9 @@ func TestAPI(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, response.Devcontainers, 1)
 		assert.False(t, response.Devcontainers[0].Dirty,
+			"devcontainer should not be marked as dirty initially")
+		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
+		assert.False(t, response.Devcontainers[0].Container.DevcontainerDirty,
 			"container should not be marked as dirty initially")
 
 		// Verify the watcher is watching the config file.
@@ -689,6 +692,9 @@ func TestAPI(t *testing.T) {
 		require.Len(t, response.Devcontainers, 1)
 		assert.True(t, response.Devcontainers[0].Dirty,
 			"container should be marked as dirty after config file was modified")
+		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
+		assert.True(t, response.Devcontainers[0].Container.DevcontainerDirty,
+			"container should be marked as dirty after config file was modified")
 
 		mClock.Advance(time.Minute).MustWait(ctx)
 
@@ -707,7 +713,10 @@ func TestAPI(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, response.Devcontainers, 1)
 		assert.False(t, response.Devcontainers[0].Dirty,
-			"dirty flag should be cleared after container recreation")
+			"dirty flag should be cleared on the devcontainer after container recreation")
+		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
+		assert.False(t, response.Devcontainers[0].Container.DevcontainerDirty,
+			"dirty flag should be cleared on the container after container recreation")
 	})
 }
 

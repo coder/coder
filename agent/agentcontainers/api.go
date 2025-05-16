@@ -336,12 +336,27 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 	}
 
 	// Check if the container is running and update the known devcontainers.
-	for _, container := range updated.Containers {
+	for i := range updated.Containers {
+		container := &updated.Containers[i]
 		workspaceFolder := container.Labels[DevcontainerLocalFolderLabel]
 		configFile := container.Labels[DevcontainerConfigFileLabel]
 
 		if workspaceFolder == "" {
 			continue
+		}
+
+		container.DevcontainerDirty = dirtyStates[workspaceFolder]
+		if container.DevcontainerDirty {
+			lastModified, hasModTime := api.configFileModifiedTimes[configFile]
+			if hasModTime && container.CreatedAt.After(lastModified) {
+				api.logger.Info(ctx, "new container created after config modification, not marking as dirty",
+					slog.F("container", container.ID),
+					slog.F("created_at", container.CreatedAt),
+					slog.F("config_modified_at", lastModified),
+					slog.F("file", configFile),
+				)
+				container.DevcontainerDirty = false
+			}
 		}
 
 		// Check if this is already in our known list.
@@ -356,7 +371,7 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 				}
 			}
 			api.knownDevcontainers[knownIndex].Running = container.Running
-			api.knownDevcontainers[knownIndex].Container = &container
+			api.knownDevcontainers[knownIndex].Container = container
 
 			// Check if this container was created after the config
 			// file was modified.
@@ -395,28 +410,14 @@ func (api *API) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListC
 			}
 		}
 
-		dirty := dirtyStates[workspaceFolder]
-		if dirty {
-			lastModified, hasModTime := api.configFileModifiedTimes[configFile]
-			if hasModTime && container.CreatedAt.After(lastModified) {
-				api.logger.Info(ctx, "new container created after config modification, not marking as dirty",
-					slog.F("container", container.ID),
-					slog.F("created_at", container.CreatedAt),
-					slog.F("config_modified_at", lastModified),
-					slog.F("file", configFile),
-				)
-				dirty = false
-			}
-		}
-
 		api.knownDevcontainers = append(api.knownDevcontainers, codersdk.WorkspaceAgentDevcontainer{
 			ID:              uuid.New(),
 			Name:            name,
 			WorkspaceFolder: workspaceFolder,
 			ConfigPath:      configFile,
 			Running:         container.Running,
-			Dirty:           dirty,
-			Container:       &container,
+			Dirty:           container.DevcontainerDirty,
+			Container:       container,
 		})
 	}
 
@@ -510,6 +511,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 						slog.F("name", api.knownDevcontainers[i].Name),
 					)
 					api.knownDevcontainers[i].Dirty = false
+					api.knownDevcontainers[i].Container = nil
 				}
 				return
 			}
@@ -579,6 +581,9 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 					slog.F("modified_at", modifiedAt),
 				)
 				api.knownDevcontainers[i].Dirty = true
+				if api.knownDevcontainers[i].Container != nil {
+					api.knownDevcontainers[i].Container.DevcontainerDirty = true
+				}
 			}
 		}
 	})
