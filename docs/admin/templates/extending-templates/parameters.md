@@ -711,23 +711,20 @@ data "coder_parameter" "show_advanced" {
   description  = "Enable to show advanced configuration options"
   type         = "bool"
   default      = false
+  order        = 0
 }
 
 data "coder_parameter" "advanced_setting" {
+  # This parameter is only visible when show_advanced is true
+  count = data.coder_parameter.show_advanced.value ? 1 : 0
   name         = "advanced_setting"
   display_name = "Advanced Setting"
   description  = "An advanced configuration option"
   type         = "string"
   default      = "default_value"
   mutable      = true
-
-  # This parameter is only visible when show_advanced is true
-  condition {
-    field = data.coder_parameter.show_advanced.name
-    value = "true"
-  }
+  order        = 1
 }
-```
 
 </details>
 
