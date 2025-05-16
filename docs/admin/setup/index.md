@@ -140,7 +140,7 @@ To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
 (e.g. `http_proxy`) are also respected in this case.
 
-## External Authentication
+## Continue your setup with external authentication
 
 Coder supports external authentication via OAuth2.0. This allows enabling
 integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
