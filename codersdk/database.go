@@ -6,6 +6,8 @@ const DatabaseNotReachable = "database not reachable"
 
 var ErrDatabaseNotReachable = xerrors.New(DatabaseNotReachable)
 
+// @typescript-ignore DefaultMaxConns
+// @typescript-ignore DefaultIdleConns
 const (
 	DefaultMaxConns = 10
 	// DefaultIdleConns is set to 3 idle connections because lower values end up

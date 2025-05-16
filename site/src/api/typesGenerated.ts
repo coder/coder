@@ -646,12 +646,6 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
-// From codersdk/database.go
-export const DefaultIdleConns = 3;
-
-// From codersdk/database.go
-export const DefaultMaxConns = 10;
-
 // From codersdk/notifications.go
 export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
