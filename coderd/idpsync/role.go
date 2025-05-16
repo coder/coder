@@ -62,6 +62,11 @@ func (s AGPLIDPSync) RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db d
 		}
 		return &RoleSyncSettings{}, nil
 	}
+
+	if settings.Mapping == nil {
+		// No nil maps
+		settings.Mapping = make(map[string][]string)
+	}
 	return settings, nil
 }
 

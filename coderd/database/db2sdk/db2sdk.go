@@ -341,7 +341,7 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 }
 
 func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[string]string, error) {
-	var envs map[string]string
+	envs := make(map[string]string, 0)
 	if workspaceAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(workspaceAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
@@ -407,8 +407,8 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
 	}
 	node := coordinator.Node(dbAgent.ID)
+	workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 	if node != nil {
-		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 		for rawRegion, latency := range node.DERPLatency {
 			regionParts := strings.SplitN(rawRegion, "-", 2)
 			regionID, err := strconv.Atoi(regionParts[0])

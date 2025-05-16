@@ -1684,7 +1684,8 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		}
 
 		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
-			URL: redirectURL.String(),
+			URL:        redirectURL.String(),
+			TokenExtra: map[string]interface{}{},
 		})
 		return
 	}
@@ -1703,7 +1704,8 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		// was no error. If it is invalid because of an error, then we should recheck.
 		previousToken = &refreshedLink
 		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
-			URL: redirectURL.String(),
+			URL:        redirectURL.String(),
+			TokenExtra: map[string]interface{}{},
 		})
 		return
 	}
@@ -1939,6 +1941,9 @@ func fillCoderDesktopTelemetry(r *http.Request, event *telemetry.UserTailnetConn
 // which uses `Username` and `Password`.
 func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
+	// Prevent nil map
+	resp.TokenExtra = make(map[string]interface{})
+
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
 		// https://stackoverflow.com/questions/25409700/using-gitlab-token-to-clone-without-authentication

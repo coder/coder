@@ -24,8 +24,9 @@ func TestGitAskpass(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
-				Username: "something",
-				Password: "bananas",
+				Username:   "something",
+				Password:   "bananas",
+				TokenExtra: map[string]interface{}{},
 			})
 		}))
 		t.Cleanup(srv.Close)
@@ -67,7 +68,8 @@ func TestGitAskpass(t *testing.T) {
 		t.Parallel()
 		resp := atomic.Pointer[agentsdk.ExternalAuthResponse]{}
 		resp.Store(&agentsdk.ExternalAuthResponse{
-			URL: "https://something.org",
+			URL:        "https://something.org",
+			TokenExtra: map[string]interface{}{},
 		})
 		poll := make(chan struct{}, 10)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,8 +99,9 @@ func TestGitAskpass(t *testing.T) {
 		<-poll
 		stderr.ExpectMatch("Open the following URL to authenticate")
 		resp.Store(&agentsdk.ExternalAuthResponse{
-			Username: "username",
-			Password: "password",
+			Username:   "username",
+			Password:   "password",
+			TokenExtra: map[string]interface{}{},
 		})
 		stdout.ExpectMatch("username")
 	})

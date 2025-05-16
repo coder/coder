@@ -2067,6 +2067,8 @@ func TestSSH_Container(t *testing.T) {
 				{
 					ID:           uuid.NewString(),
 					FriendlyName: "something_completely_different",
+					Labels:       map[string]string{},
+					Volumes:      map[string]string{},
 				},
 			},
 			Warnings: nil,
