@@ -10,6 +10,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { isAxiosError } from "axios";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
@@ -30,7 +31,6 @@ import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
-import { useAgentLogs } from "./AgentLogs/useAgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -40,6 +40,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { useAgentLogs } from "./useAgentLogs";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -88,12 +89,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs({
-		workspaceId: workspace.id,
-		agentId: agent.id,
-		agentLifeCycleState: agent.lifecycle_state,
-		enabled: showLogs,
-	});
+	const agentLogs = useAgentLogs(agent, showLogs);
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
 	const startupLogs = useMemo(() => {
@@ -160,7 +156,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 		select: (res) => res.containers.filter((c) => c.status === "running"),
 		// TODO: Implement a websocket connection to get updates on containers
 		// without having to poll.
-		refetchInterval: 10_000,
+		refetchInterval: (_, query) => {
+			const { error } = query.state;
+			return isAxiosError(error) && error.response?.status === 403
+				? false
+				: 10_000;
+		},
 	});
 
 	return (

@@ -74,6 +74,64 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 	}
 }
 
+type AgentKeyScopeEnum string
+
+const (
+	AgentKeyScopeEnumAll        AgentKeyScopeEnum = "all"
+	AgentKeyScopeEnumNoUserData AgentKeyScopeEnum = "no_user_data"
+)
+
+func (e *AgentKeyScopeEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AgentKeyScopeEnum(s)
+	case string:
+		*e = AgentKeyScopeEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AgentKeyScopeEnum: %T", src)
+	}
+	return nil
+}
+
+type NullAgentKeyScopeEnum struct {
+	AgentKeyScopeEnum AgentKeyScopeEnum `json:"agent_key_scope_enum"`
+	Valid             bool              `json:"valid"` // Valid is true if AgentKeyScopeEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAgentKeyScopeEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.AgentKeyScopeEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AgentKeyScopeEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAgentKeyScopeEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AgentKeyScopeEnum), nil
+}
+
+func (e AgentKeyScopeEnum) Valid() bool {
+	switch e {
+	case AgentKeyScopeEnumAll,
+		AgentKeyScopeEnumNoUserData:
+		return true
+	}
+	return false
+}
+
+func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
+	return []AgentKeyScopeEnum{
+		AgentKeyScopeEnumAll,
+		AgentKeyScopeEnumNoUserData,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -3056,6 +3114,7 @@ type Template struct {
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
@@ -3101,6 +3160,8 @@ type TemplateTable struct {
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
+	UseClassicParameterFlow bool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -3406,6 +3467,8 @@ type WorkspaceAgent struct {
 	// Specifies the order in which to display agents in user interfaces.
 	DisplayOrder int32         `db:"display_order" json:"display_order"`
 	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
+	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
+	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 }
 
 // Workspace agent devcontainer configuration

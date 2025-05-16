@@ -22,7 +22,8 @@ const (
 
 const devcontainerUpScriptTemplate = `
 if ! which devcontainer > /dev/null 2>&1; then
-  echo "ERROR: Unable to start devcontainer, @devcontainers/cli is not installed."
+  echo "ERROR: Unable to start devcontainer, @devcontainers/cli is not installed or not found in \$PATH." 1>&2
+  echo "Please install @devcontainers/cli by running \"npm install -g @devcontainers/cli\" or by using the \"devcontainers-cli\" Coder module." 1>&2
   exit 1
 fi
 devcontainer up %s
@@ -65,7 +66,9 @@ func devcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script co
 		args = append(args, fmt.Sprintf("--config %q", dc.ConfigPath))
 	}
 	cmd := fmt.Sprintf(devcontainerUpScriptTemplate, strings.Join(args, " "))
-	script.Script = cmd
+	// Force the script to run in /bin/sh, since some shells (e.g. fish)
+	// don't support the script.
+	script.Script = fmt.Sprintf("/bin/sh -c '%s'", cmd)
 	// Disable RunOnStart, scripts have this set so that when devcontainers
 	// have not been enabled, a warning will be surfaced in the agent logs.
 	script.RunOnStart = false

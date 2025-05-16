@@ -550,31 +550,31 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 			{diagnostics.map((diagnostic, index) => (
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs flex flex-col rounded-md border px-4 pb-3 border-solid
+					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
                         ${
 													diagnostic.severity === "error"
-														? " text-content-destructive border-border-destructive"
-														: " text-content-warning border-border-warning"
+														? "text-content-primary border-border-destructive bg-content-destructive/15"
+														: "text-content-primary border-border-warning bg-content-warning/15"
 												}`}
 				>
-					<div className="flex items-center m-0">
+					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (
 							<CircleAlert
-								className="me-2 -mt-0.5 inline-flex opacity-80"
-								size={16}
+								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
 								aria-hidden="true"
 							/>
 						)}
 						{diagnostic.severity === "warning" && (
 							<TriangleAlert
-								className="me-2 -mt-0.5 inline-flex opacity-80"
-								size={16}
+								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
 								aria-hidden="true"
 							/>
 						)}
-						<p className="font-medium">{diagnostic.summary}</p>
+						<div className="flex flex-col gap-3">
+							<p className="m-0">{diagnostic.summary}</p>
+							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
+						</div>
 					</div>
-					{diagnostic.detail && <p className="m-0 pb-0">{diagnostic.detail}</p>}
 				</div>
 			))}
 		</div>

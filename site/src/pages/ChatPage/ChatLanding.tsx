@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import SendIcon from "@mui/icons-material/Send";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
@@ -9,6 +8,7 @@ import { createChat } from "api/queries/chats";
 import type { Chat } from "api/typesGenerated";
 import { Margins } from "components/Margins/Margins";
 import { useAuthenticated } from "hooks";
+import { SendIcon } from "lucide-react";
 import { type FC, type FormEvent, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";

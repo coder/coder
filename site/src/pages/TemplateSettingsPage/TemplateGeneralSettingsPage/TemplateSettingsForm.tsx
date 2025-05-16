@@ -47,6 +47,7 @@ export const validationSchema = Yup.object({
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
+	use_classic_parameter_flow: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
 });
@@ -89,6 +90,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			deprecation_message: template.deprecation_message,
 			disable_everyone_group_access: false,
 			max_port_share_level: template.max_port_share_level,
+			use_classic_parameter_flow: template.use_classic_parameter_flow,
 		},
 		validationSchema,
 		onSubmit,
@@ -218,6 +220,34 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 											<span>Premium license required to be enabled.</span>
 										</Stack>
 									)}
+								</StackLabelHelperText>
+							</StackLabel>
+						}
+					/>
+					<FormControlLabel
+						control={
+							<Checkbox
+								size="small"
+								id="use_classic_parameter_flow"
+								name="use_classic_parameter_flow"
+								checked={form.values.use_classic_parameter_flow}
+								onChange={form.handleChange}
+								disabled={false}
+							/>
+						}
+						label={
+							<StackLabel>
+								Use classic workspace creation form
+								<StackLabelHelperText>
+									<span>
+										Show the original workspace creation form without dynamic
+										parameters or live updates. Recommended if your provisioners
+										aren't updated or the new form causes issues.
+										<strong>
+											Users can always manually switch experiences in the
+											workspace creation form.
+										</strong>
+									</span>
 								</StackLabelHelperText>
 							</StackLabel>
 						}

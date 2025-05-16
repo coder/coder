@@ -802,6 +802,11 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
+	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+		DB:       options.Database,
+		Optional: false,
+	})
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
@@ -1289,10 +1294,7 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
-					DB:       options.Database,
-					Optional: false,
-				}))
+				r.Use(workspaceAgentInfo)
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)

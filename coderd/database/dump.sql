@@ -5,6 +5,11 @@ CREATE TYPE agent_id_name_pair AS (
 	name text
 );
 
+CREATE TYPE agent_key_scope_enum AS ENUM (
+    'all',
+    'no_user_data'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'all',
     'application_connect'
@@ -1555,7 +1560,8 @@ CREATE TABLE templates (
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
-    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
+    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1575,6 +1581,8 @@ COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks b
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
 
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
+
+COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -1605,6 +1613,7 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
+    templates.use_classic_parameter_flow,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(organizations.name, ''::text) AS organization_name,
@@ -1837,6 +1846,7 @@ CREATE TABLE workspace_agents (
     api_version text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     parent_id uuid,
+    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1862,6 +1872,8 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
