@@ -62,16 +62,18 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 			{isOpen && (
 				<TableRow>
 					<TableCell colSpan={999} className="p-4 border-t-0">
-						<dl>
-							<dt>Provisioners:</dt>
-							{provisioners.length === 0 ? (
-								<dd className="text-muted-foreground">
-									No provisioners found for this key
-								</dd>
-							) : (
-								provisioners.map((provisioner) => (
+						{provisioners.length === 0 ? (
+							<span className="text-muted-foreground">
+								No provisioners found for this key.
+							</span>
+						) : (
+							<dl>
+								<dt>Provisioners:</dt>
+								{provisioners.map((provisioner) => (
 									<dd key={provisioner.id}>
-										{provisioner.name} ({provisioner.id}){" "}
+										<span className="font-mono text-content-primary">
+											{provisioner.name} ({provisioner.id}){" "}
+										</span>
 										<CopyButton
 											text={provisioner.id}
 											label="Copy provisioner ID"
@@ -84,9 +86,9 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 											</RouterLink>
 										</Button>
 									</dd>
-								))
-							)}
-						</dl>
+								))}
+							</dl>
+						)}
 					</TableCell>
 				</TableRow>
 			)}
