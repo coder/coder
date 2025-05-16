@@ -97,15 +97,8 @@ const RequestOTP: FC<RequestOTPProps> = ({
 									<Spinner loading={isRequesting} />
 									Reset password
 								</Button>
-								<Button
-									asChild
-									size="lg"
-									variant="outline"
-									className="w-full"
-								>
-									<RouterLink to="/login">
-										Cancel
-									</RouterLink>
+								<Button asChild size="lg" variant="outline" className="w-full">
+									<RouterLink to="/login">Cancel</RouterLink>
 								</Button>
 							</Stack>
 						</Stack>
@@ -152,9 +145,7 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 				</p>
 
 				<Button asChild variant="default">
-					<RouterLink to="/login">
-						Back to login
-					</RouterLink>
+					<RouterLink to="/login">Back to login</RouterLink>
 				</Button>
 			</div>
 		</div>

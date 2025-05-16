@@ -1,11 +1,11 @@
 import { useTheme } from "@emotion/react";
-import { Button } from "components/Button/Button";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { createChat } from "api/queries/chats";
 import type { Chat } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { Margins } from "components/Margins/Margins";
 import { useAuthenticated } from "hooks";
 import { SendIcon } from "lucide-react";

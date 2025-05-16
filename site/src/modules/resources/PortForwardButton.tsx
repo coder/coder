@@ -2,7 +2,6 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import SensorsIcon from "@mui/icons-material/Sensors";
-import CircularProgress from "@mui/material/CircularProgress";
 import FormControl from "@mui/material/FormControl";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -76,21 +75,10 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<Button
-					disabled={!portsQuery.data}
-					size="sm"
-					variant="subtle"
-					css={{ fontSize: 13, padding: "8px 12px" }}
-				>
-					{portsQuery.data ? (
-						<div>
-							<span css={styles.portCount}>
-								{portsQuery.data.ports.length}
-							</span>
-						</div>
-					) : (
-						<CircularProgress size={10} />
-					)}
+				<Button disabled={!portsQuery.data} size="sm" variant="subtle">
+					<Spinner loading={!portsQuery.data}>
+						<span css={styles.portCount}>{portsQuery.data?.ports.length}</span>
+					</Spinner>
 					Open ports
 					<ChevronDownIcon className="size-4" />
 				</Button>

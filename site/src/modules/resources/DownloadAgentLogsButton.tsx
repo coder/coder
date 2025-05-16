@@ -1,7 +1,7 @@
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import { Button } from "components/Button/Button";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
 import { type FC, useState } from "react";
