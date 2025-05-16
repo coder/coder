@@ -450,10 +450,10 @@ func mockTelemetryServer(ctx context.Context, t *testing.T) (*url.URL, chan *tel
 		dd := &telemetry.Deployment{}
 		err := json.NewDecoder(r.Body).Decode(dd)
 		require.NoError(t, err)
-		select {
-		case <-ctx.Done():
-			t.Fatal("timed out sending deployment")
-		case deployment <- dd:
+		ok := testutil.AssertSend(ctx, t, deployment, dd)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		// Ensure the header is sent only after deployment is sent
 		w.WriteHeader(http.StatusAccepted)
@@ -463,10 +463,10 @@ func mockTelemetryServer(ctx context.Context, t *testing.T) (*url.URL, chan *tel
 		ss := &telemetry.Snapshot{}
 		err := json.NewDecoder(r.Body).Decode(ss)
 		require.NoError(t, err)
-		select {
-		case <-ctx.Done():
-			t.Fatal("timed out sending snapshot")
-		case snapshot <- ss:
+		ok := testutil.AssertSend(ctx, t, snapshot, ss)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		// Ensure the header is sent only after snapshot is sent
 		w.WriteHeader(http.StatusAccepted)
@@ -487,7 +487,7 @@ func collectSnapshot(
 ) (*telemetry.Deployment, *telemetry.Snapshot) {
 	t.Helper()
 
-	serverURL, deploymentChan, snapshotChan := mockTelemetryServer(ctx, t)
+	serverURL, deployment, snapshot := mockTelemetryServer(ctx, t)
 
 	options := telemetry.Options{
 		Database:     db,
@@ -503,19 +503,5 @@ func collectSnapshot(
 	require.NoError(t, err)
 	t.Cleanup(reporter.Close)
 
-	var deployment *telemetry.Deployment
-	var snapshot *telemetry.Snapshot
-
-	select {
-	case <-ctx.Done():
-		t.Fatal("timed out collecting deployment")
-	case deployment = <-deploymentChan:
-	}
-	select {
-	case <-ctx.Done():
-		t.Fatal("timed out collecting snapshot")
-	case snapshot = <-snapshotChan:
-	}
-
-	return deployment, snapshot
+	return testutil.RequireReceive(ctx, t, deployment), testutil.RequireReceive(ctx, t, snapshot)
 }
