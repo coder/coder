@@ -1,4 +1,5 @@
 import EditIcon from "@mui/icons-material/EditOutlined";
+import DownloadIcon from "@mui/icons-material/Download";
 import Button from "@mui/material/Button";
 import { workspaces } from "api/queries/workspaces";
 import type {
@@ -102,6 +103,16 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 						<CopyIcon className="size-icon-sm" />
 						Duplicate&hellip;
 					</DropdownMenuItem>
+
+					<DropdownMenuItem
+						onClick={() => {
+							window.location.href = `/api/v2/templates/${templateId}/export`;
+						}}
+					>
+						<DownloadIcon className="size-icon-sm" />
+						Export template
+					</DropdownMenuItem>
+
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						className="text-content-destructive focus:text-content-destructive"
