@@ -130,7 +130,9 @@ export const RBACResourceActions: Partial<
 		update: "update a provisioner daemon",
 	},
 	provisioner_jobs: {
+		create: "create provisioner jobs",
 		read: "read provisioner jobs",
+		update: "update provisioner jobs",
 	},
 	replicas: {
 		read: "read replicas",

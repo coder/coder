@@ -65,7 +65,7 @@ const (
 	SubjectTypeUser                         SubjectType = "user"
 	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
 	SubjectTypeAutostart                    SubjectType = "autostart"
-	SubjectTypeHangDetector                 SubjectType = "hang_detector"
+	SubjectTypeJobReaper                    SubjectType = "job_reaper"
 	SubjectTypeResourceMonitor              SubjectType = "resource_monitor"
 	SubjectTypeCryptoKeyRotator             SubjectType = "crypto_key_rotator"
 	SubjectTypeCryptoKeyReader              SubjectType = "crypto_key_reader"
