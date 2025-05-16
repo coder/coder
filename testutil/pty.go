@@ -83,6 +83,8 @@ func (tr *TerminalReader) ReadUntil(ctx context.Context, matcher func(line strin
 			if err != nil {
 				return err
 			}
+		case <-tr.t.Context().Done():
+			return tr.t.Context().Err()
 		case <-ctx.Done():
 			return ctx.Err()
 		}

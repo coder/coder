@@ -41,6 +41,9 @@ func Eventually(ctx context.Context, t testing.TB, condition func(ctx context.Co
 	defer ticker.Stop()
 	for tick := ticker.C; ; {
 		select {
+		case <-t.Context().Done():
+			assert.NoError(t, t.Context().Err(), msg)
+			return false
 		case <-ctx.Done():
 			assert.NoError(t, ctx.Err(), msg)
 			return false
