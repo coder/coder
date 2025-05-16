@@ -8,7 +8,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
+import MUITooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import {
 	deleteWorkspacePortShare,
@@ -32,13 +32,24 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
 import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { ChevronDownIcon, ExternalLinkIcon, X as XIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	ExternalLinkIcon,
+	ShareIcon,
+	X as XIcon,
+} from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
@@ -188,14 +199,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		canSharePorts && template.max_port_share_level === "public";
 
 	const disabledPublicMenuItem = (
-		<Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
+		<MUITooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
 			{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
 			<div>
 				<MenuItem value="public" disabled>
 					Public
 				</MenuItem>
 			</div>
-		</Tooltip>
+		</MUITooltip>
 	);
 
 	return (
@@ -282,24 +293,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									required
 									css={styles.newPortInput}
 								/>
-								<Button
-									type="submit"
-									size="sm"
-									variant="subtle"
-									css={{
-										paddingLeft: 12,
-										paddingRight: 12,
-										minWidth: 0,
-									}}
-								>
-									<ExternalLinkIcon
-										className="size-icon-xs"
-										css={{
-											flexShrink: 0,
-											color: theme.palette.text.primary,
-										}}
-									/>
-								</Button>
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button type="submit" size="icon" variant="subtle">
+												<ExternalLinkIcon />
+												<span className="sr-only">Connect to port</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Connect to port</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
 							</form>
 						</Stack>
 					</Stack>
@@ -354,21 +358,29 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									alignItems="center"
 								>
 									{canSharePorts && (
-										<Button
-											size="sm"
-											variant="subtle"
-											onClick={async () => {
-												await upsertSharedPortMutation.mutateAsync({
-													agent_name: agent.name,
-													port: port.port,
-													protocol: listeningPortProtocol,
-													share_level: "authenticated",
-												});
-												await sharedPortsQuery.refetch();
-											}}
-										>
-											Share
-										</Button>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														onClick={async () => {
+															await upsertSharedPortMutation.mutateAsync({
+																agent_name: agent.name,
+																port: port.port,
+																protocol: listeningPortProtocol,
+																share_level: "authenticated",
+															});
+															await sharedPortsQuery.refetch();
+														}}
+													>
+														<ShareIcon />
+														<span className="sr-only">Share</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent>Share this port</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									)}
 								</Stack>
 							</Stack>
@@ -471,7 +483,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										<Button
 											size="sm"
 											variant="subtle"
-											css={styles.deleteButton}
 											onClick={async () => {
 												await deleteSharedPortMutation.mutateAsync({
 													agent_name: agent.name,
@@ -600,11 +611,6 @@ const styles = {
 		"&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
 			border: 0,
 		},
-	}),
-
-	deleteButton: () => ({
-		minWidth: 30,
-		padding: 0,
 	}),
 
 	newPortForm: (theme) => ({
