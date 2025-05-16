@@ -63,11 +63,11 @@ OPTIONS:
 
       --postgres-idle-conns int, $CODER_PG_IDLE_CONNS (default: 3)
           The number of idle connections to maintain in the connection pool. 0
-          is unlimited.
+          is unlimited, but we advise against using this.
 
       --postgres-max-conns int, $CODER_PG_MAX_CONNS (default: 10)
           The maximum number of connections to maintain in the connection pool.
-          0 is unlimited.
+          0 is unlimited, but we advise against using this.
 
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are

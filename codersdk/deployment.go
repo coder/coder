@@ -2422,7 +2422,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Postgres Max Connections",
-			Description: "The maximum number of connections to maintain in the connection pool. 0 is unlimited.",
+			Description: "The maximum number of connections to maintain in the connection pool. 0 is unlimited, but we advise against using this.",
 			Flag:        "postgres-max-conns",
 			Env:         "CODER_PG_MAX_CONNS",
 			Default:     strconv.Itoa(DefaultMaxConns),
@@ -2431,7 +2431,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Postgres Idle Connections",
-			Description: "The number of idle connections to maintain in the connection pool. 0 is unlimited.",
+			Description: "The number of idle connections to maintain in the connection pool. 0 is unlimited, but we advise against using this.",
 			Flag:        "postgres-idle-conns",
 			Env:         "CODER_PG_IDLE_CONNS",
 			Default:     strconv.Itoa(DefaultIdleConns),

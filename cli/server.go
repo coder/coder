@@ -2392,6 +2392,13 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	sqlDB.SetMaxOpenConns(maxConns)
 	sqlDB.SetMaxIdleConns(idleConns)
 
+	if maxConns == 0 {
+		logger.Warn(ctx, "unlimited max postgres connections configured, this is discouraged")
+	}
+	if idleConns == 0 {
+		logger.Warn(ctx, "unlimited idle postgres connections configured, this is discouraged")
+	}
+
 	return sqlDB, nil
 }
 

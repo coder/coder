@@ -991,7 +991,7 @@ Type of auth to use when connecting to postgres. For AWS RDS, using IAM authenti
 | YAML        | <code>pgMaxConns</code>          |
 | Default     | <code>10</code>                  |
 
-The maximum number of connections to maintain in the connection pool. 0 is unlimited.
+The maximum number of connections to maintain in the connection pool. 0 is unlimited, but we advise against using this.
 
 ### --postgres-idle-conns
 
@@ -1002,7 +1002,7 @@ The maximum number of connections to maintain in the connection pool. 0 is unlim
 | YAML        | <code>pgIdleConns</code>          |
 | Default     | <code>3</code>                    |
 
-The number of idle connections to maintain in the connection pool. 0 is unlimited.
+The number of idle connections to maintain in the connection pool. 0 is unlimited, but we advise against using this.
 
 ### --secure-auth-cookie
 
