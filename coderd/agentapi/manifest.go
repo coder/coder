@@ -120,6 +120,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
 	}
 
+	var parentID []byte
+	if workspaceAgent.ParentID.Valid {
+		parentID = workspaceAgent.ParentID.UUID[:]
+	}
+
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
 		AgentName:                workspaceAgent.Name,
@@ -133,6 +138,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		MotdPath:                 workspaceAgent.MOTDFile,
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
+		ParentId:                 parentID,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
 		Scripts:       dbAgentScriptsToProto(scripts),
