@@ -472,7 +472,7 @@ The "Options" column in the table below indicates whether the form type requires
 
 ### Form Type Examples
 
-<details><summary>**checkbox**: A single checkbox for boolean values</summary>
+<details><summary>checkbox: A single checkbox for boolean values</summary>
 
 ```tf
 data "coder_parameter" "enable_gpu" {
@@ -486,7 +486,7 @@ data "coder_parameter" "enable_gpu" {
 
 </details>
 
-<details><summary>**dropdown**: A searchable select menu for choosing a single option from a list</summary>
+<details><summary>dropdown: A searchable select menu for choosing a single option from a list</summary>
 
 ```tf
 data "coder_parameter" "region" {
@@ -509,7 +509,7 @@ data "coder_parameter" "region" {
 
 </details>
 
-<details><summary>**input**: A standard text input field</summary>
+<details><summary>input: A standard text input field</summary>
 
 ```tf
 data "coder_parameter" "custom_domain" {
@@ -523,7 +523,7 @@ data "coder_parameter" "custom_domain" {
 
 </details>
 
-<details><summary>**key-value**: Input for entering key-value pairs</summary>
+<details><summary>key-value: Input for entering key-value pairs</summary>
 
 ```tf
 data "coder_parameter" "environment_vars" {
@@ -537,7 +537,7 @@ data "coder_parameter" "environment_vars" {
 
 </details>
 
-<details><summary>**multi-select**: Checkboxes for selecting multiple options from a list</summary>
+<details><summary>multi-select: Checkboxes for selecting multiple options from a list</summary>
 
 ```tf
 data "coder_parameter" "tools" {
@@ -564,7 +564,7 @@ data "coder_parameter" "tools" {
 
 </details>
 
-<details><summary>**password**: A text input that masks sensitive information</summary>
+<details><summary>password: A text input that masks sensitive information</summary>
 
 ```tf
 data "coder_parameter" "api_key" {
@@ -578,7 +578,7 @@ data "coder_parameter" "api_key" {
 
 </details>
 
-<details><summary>**radio**: Radio buttons for selecting a single option with high visibility</summary>
+<details><summary>radio: Radio buttons for selecting a single option with high visibility</summary>
 
 ```tf
 data "coder_parameter" "environment" {
@@ -601,7 +601,7 @@ data "coder_parameter" "environment" {
 
 </details>
 
-<details><summary>**slider**: A slider for selecting numeric values within a range</summary>
+<details><summary>slider: A slider for selecting numeric values within a range</summary>
 
 ```tf
 data "coder_parameter" "cpu_cores" {
@@ -619,7 +619,7 @@ data "coder_parameter" "cpu_cores" {
 
 </details>
 
-<details><summary>**switch**: A toggle switch for boolean values</summary>
+<details><summary>switch: A toggle switch for boolean values</summary>
 
 ```tf
 data "coder_parameter" "advanced_mode" {
@@ -633,7 +633,7 @@ data "coder_parameter" "advanced_mode" {
 
 </details>
 
-<details><summary>**textarea**: A multi-line text input field for longer content</summary>
+<details><summary>textarea: A multi-line text input field for longer content</summary>
 
 ```tf
 data "coder_parameter" "init_script" {
