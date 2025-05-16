@@ -1460,7 +1460,7 @@
 						},
 						{
 							"title": "ssh",
-							"description": "Start a shell into a workspace",
+							"description": "Start a shell into a workspace or run a command",
 							"path": "reference/cli/ssh.md"
 						},
 						{
