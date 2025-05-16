@@ -71,7 +71,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 
 	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
 	// If the api version is not valid or less than 1.5, we need to use the static parameters
-	useStaticParams := err != nil || major < 1 || (major == 1 && minor < 5)
+	useStaticParams := err != nil || major < 1 || (major == 1 && minor < 6)
 	if useStaticParams {
 		api.handleStaticParameters(rw, r, templateVersion.ID)
 	} else {
