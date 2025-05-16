@@ -151,7 +151,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		preview := testutil.RequireReceive(ctx, t, previews)
 		diagCount := len(preview.Diagnostics)
 		require.Equal(t, 1, diagCount)
-		require.Contains(t, preview.Diagnostics[0].Summary, "classic creation flow")
+		require.Contains(t, preview.Diagnostics[0].Summary, "required metadata to support dynamic parameters")
 		require.Len(t, preview.Parameters, 1)
 		require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
 		require.True(t, preview.Parameters[0].Value.Valid())
@@ -173,7 +173,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			preview := testutil.RequireReceive(ctx, t, previews)
 			diagCount := len(preview.Diagnostics)
 			require.Equal(t, 1, diagCount)
-			require.Contains(t, preview.Diagnostics[0].Summary, "classic creation flow")
+			require.Contains(t, preview.Diagnostics[0].Summary, "required metadata to support dynamic parameters")
 
 			require.Len(t, preview.Parameters, 1)
 			if exp == "Invalid" { // Try an invalid option
