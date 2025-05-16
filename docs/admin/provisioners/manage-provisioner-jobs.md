@@ -50,7 +50,7 @@ Each provisioner job has a lifecycle state:
 
 The following diagram shows how a provisioner job transitions between lifecycle states:
 
-![Provisioner jobs state transitions](../../images/admin/provisioners/provisioner-jobs-status-flow.svg)
+![Provisioner jobs state transitions](../../images/admin/provisioners/provisioner-jobs-status-flow.png)
 
 ## When to cancel provisioner jobs
 
