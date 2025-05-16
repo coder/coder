@@ -60,7 +60,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 							<TableHead>Name</TableHead>
 							<TableHead>ID</TableHead>
 							<TableHead>Tags</TableHead>
-							<TableHead>#</TableHead>
+							<TableHead>Provisioners</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -85,13 +85,12 @@ export const OrganizationProvisionerKeysPageView: FC<
 										);
 									})
 									.map((pkd) => (
-										<span key={pkd.key.id}>
-											<ProvisionerKeyRow
-												provisionerKey={pkd.key}
-												provisioners={pkd.daemons}
-												defaultIsOpen={false}
-											/>
-										</span>
+										<ProvisionerKeyRow
+											key={pkd.key.id}
+											provisionerKey={pkd.key}
+											provisioners={pkd.daemons}
+											defaultIsOpen={false}
+										/>
 									))
 							)
 						) : error ? (

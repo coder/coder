@@ -56,7 +56,7 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 						</span>
 					))}
 				</TableCell>
-				<TableCell className="text-right">{provisioners.length}</TableCell>
+				<TableCell>{provisioners.length}</TableCell>
 			</TableRow>
 
 			{isOpen && (
