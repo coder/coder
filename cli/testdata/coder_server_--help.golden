@@ -62,10 +62,12 @@ OPTIONS:
           URL must be URL-encoded.
 
       --postgres-idle-conns int, $CODER_PG_IDLE_CONNS (default: 3)
-          The number of idle connections to maintain in the connection pool.
+          The number of idle connections to maintain in the connection pool. 0
+          is unlimited.
 
       --postgres-max-conns int, $CODER_PG_MAX_CONNS (default: 10)
           The maximum number of connections to maintain in the connection pool.
+          0 is unlimited.
 
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
