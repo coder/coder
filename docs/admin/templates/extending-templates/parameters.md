@@ -456,19 +456,19 @@ Different parameter types support different form types.
 
 The "Options" column in the table below indicates whether the form type requires options to be defined (Yes) or doesn't support/require them (No). When required, options are specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
-| Form Type      | Parameter Types                            | Options | Notes                                                                                                                           |
-|----------------|--------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters.<br>Default for boolean parameters.                                                    |
-| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list.<br>Default for `string` or `number` parameters with options. |
-| `input`        | `string`, `number`                         | No      | Standard single-line text input field.<br>Default for string/number parameters without options.                                 |
-| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                         |
-| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                              |
-| `password`     | `string`                                   | No      | Masked input field for sensitive information.                                                                                   |
-| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                   |
-| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                    |
-| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                               |
-| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                            |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                                 |
+| Form Type      | Parameter Types                            | Options | Notes                                                                                                                           | Example |
+|----------------|--------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------| |
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters.<br>Default for boolean parameters.                                                    | |
+| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list.<br>Default for `string` or `number` parameters with options. | |
+| `input`        | `string`, `number`                         | No      | Standard single-line text input field.<br>Default for string/number parameters without options.                                 | |
+| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                         | |
+| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                              | |
+| `password`     | `string`                                   | No      | Masked input field for sensitive information.                                                                                   | |
+| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                   | |
+| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                    | |
+| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                               | |
+| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                            | |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                                 | |
 
 ### Form Type Examples
 
