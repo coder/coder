@@ -5,6 +5,7 @@ import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { CopyButton } from "components/CopyButton/CopyButton";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -346,50 +347,57 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	templateDisplayName,
 }) => {
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				<span css={styles.breadcrumbSegment}>
-					<TopbarAvatar src={templateIconUrl} fallback={templateDisplayName} />
-					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
-						{workspaceName}
-					</span>
-				</span>
-			</PopoverTrigger>
-
-			<HelpTooltipContent
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				transformOrigin={{ vertical: "top", horizontal: "center" }}
-			>
-				<AvatarData
-					title={
-						<Link
-							component={RouterLink}
-							to={rootTemplateUrl}
-							css={{ color: "inherit" }}
-						>
-							{templateDisplayName}
-						</Link>
-					}
-					subtitle={
-						<Link
-							component={RouterLink}
-							to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-							css={{ color: "inherit" }}
-						>
-							Version: {latestBuildVersionName}
-						</Link>
-					}
-					avatar={
-						<Avatar
-							variant="icon"
+		<div className="flex items-center">
+			<Popover mode="hover">
+				<PopoverTrigger>
+					<span css={styles.breadcrumbSegment}>
+						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
 						/>
-					}
-					imgFallbackText={templateDisplayName}
-				/>
-			</HelpTooltipContent>
-		</Popover>
+
+						<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+							{workspaceName}
+						</span>
+					</span>
+				</PopoverTrigger>
+
+				<HelpTooltipContent
+					anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+					transformOrigin={{ vertical: "top", horizontal: "center" }}
+				>
+					<AvatarData
+						title={
+							<Link
+								component={RouterLink}
+								to={rootTemplateUrl}
+								css={{ color: "inherit" }}
+							>
+								{templateDisplayName}
+							</Link>
+						}
+						subtitle={
+							<Link
+								component={RouterLink}
+								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
+								css={{ color: "inherit" }}
+							>
+								Version: {latestBuildVersionName}
+							</Link>
+						}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={templateIconUrl}
+								fallback={templateDisplayName}
+							/>
+						}
+						imgFallbackText={templateDisplayName}
+					/>
+				</HelpTooltipContent>
+			</Popover>
+			<CopyButton text={workspaceName} label="Copy workspace name" />
+		</div>
 	);
 };
 

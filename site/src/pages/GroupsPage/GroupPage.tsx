@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import PersonAdd from "@mui/icons-material/PersonAdd";
 import MuiButton from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";
 import {
@@ -49,6 +48,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { UserPlusIcon } from "lucide-react";
 import { SettingsIcon } from "lucide-react";
 import { EllipsisVertical, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -281,7 +281,7 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({
 
 				<Button disabled={!selectedUser || isLoading} type="submit">
 					<Spinner loading={isLoading}>
-						<PersonAdd />
+						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
 					Add user
 				</Button>

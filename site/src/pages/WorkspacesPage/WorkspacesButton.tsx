@@ -85,7 +85,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 					}}
 				>
 					{templatesFetchStatus === "loading" ? (
-						<Loader size={14} />
+						<Loader size="sm" />
 					) : (
 						<>
 							{processed.map((template) => (

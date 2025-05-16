@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
@@ -7,7 +6,7 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { X as XIcon } from "lucide-react";
+import { TriangleAlertIcon, XIcon } from "lucide-react";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
@@ -66,7 +65,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 				<header css={styles.header}>
 					<h3 css={styles.title}>Creating template...</h3>
 					<IconButton size="small" onClick={drawerProps.onClose}>
-						<XIcon css={styles.closeIcon} />
+						<XIcon className="size-icon-sm" />
 						<span style={visuallyHidden}>Close build logs</span>
 					</IconButton>
 				</header>
@@ -113,7 +112,7 @@ const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
 	return (
 		<div css={bannerStyles.root}>
 			<div css={bannerStyles.content}>
-				<WarningOutlined css={bannerStyles.icon} />
+				<TriangleAlertIcon className="size-icon-lg" css={bannerStyles.icon} />
 				<h4 css={bannerStyles.title}>Missing variables</h4>
 				<p css={bannerStyles.description}>
 					During the build process, we identified some missing variables. Rest
@@ -152,9 +151,6 @@ const styles = {
 		fontWeight: 500,
 		fontSize: 16,
 	},
-	closeIcon: {
-		fontSize: 20,
-	},
 	logs: (theme) => ({
 		flex: 1,
 		overflow: "auto",
@@ -177,7 +173,6 @@ const bannerStyles = {
 		maxWidth: 360,
 	},
 	icon: (theme) => ({
-		fontSize: 32,
 		color: theme.roles.warning.fill.outline,
 	}),
 	title: {

@@ -336,7 +336,7 @@ jobs:
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
         if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@79dacfe70c47ad6d6c0dd7f45412368802641439
+        uses: coder/setup-ramdisk-action@81c5c441bda00c6c3d6bcee2e5a33ed4aadbbcc1
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

@@ -20,7 +20,7 @@ export const LanguageModelSelector: FC = () => {
 	} = useQuery(deploymentLanguageModels());
 
 	if (isLoading) {
-		return <Loader size={14} />;
+		return <Loader size="sm" />;
 	}
 
 	if (error || !languageModelConfig) {

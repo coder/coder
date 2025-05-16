@@ -379,8 +379,8 @@ export interface PlanComplete {
   modules: Module[];
   presets: Preset[];
   plan: Uint8Array;
-  moduleFiles: Uint8Array;
   resourceReplacements: ResourceReplacement[];
+  moduleFiles: Uint8Array;
 }
 
 /**
@@ -1191,11 +1191,11 @@ export const PlanComplete = {
     if (message.plan.length !== 0) {
       writer.uint32(74).bytes(message.plan);
     }
-    if (message.moduleFiles.length !== 0) {
-      writer.uint32(82).bytes(message.moduleFiles);
-    }
     for (const v of message.resourceReplacements) {
-      ResourceReplacement.encode(v!, writer.uint32(90).fork()).ldelim();
+      ResourceReplacement.encode(v!, writer.uint32(82).fork()).ldelim();
+    }
+    if (message.moduleFiles.length !== 0) {
+      writer.uint32(90).bytes(message.moduleFiles);
     }
     return writer;
   },

@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Skeleton from "@mui/material/Skeleton";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -23,7 +22,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
-import { PlusIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -158,7 +157,7 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 
 			<TableCell>
 				<div css={styles.arrowCell}>
-					<KeyboardArrowRight css={styles.arrowRight} />
+					<ChevronRightIcon className="size-icon-sm" />
 				</div>
 			</TableCell>
 		</TableRow>
