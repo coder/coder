@@ -18,9 +18,10 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add new field named `running_agent_auth_tokens` to provisioner job metadata
 //   - Add new field named `resource_replacements` in PlanComplete & CompletedJob.WorkspaceBuild.
 //   - Add new field named `api_key_scope` to WorkspaceAgent to support running without user data access.
+//   - Add `plan` field to `CompletedJob.TemplateImport`.
 //
 // API v1.6:
-//   - Add `plan` and `module_files` fields to `CompletedJob.TemplateImport`.
+//   - Add `module_files` field to `CompletedJob.TemplateImport`.
 //   - Add previous parameter values to 'WorkspaceBuild' jobs. Provisioner passes
 //     the previous values for the `terraform apply` to enforce monotonicity
 //     in the terraform provider.
