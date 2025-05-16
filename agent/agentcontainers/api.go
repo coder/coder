@@ -511,7 +511,13 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 						slog.F("name", api.knownDevcontainers[i].Name),
 					)
 					api.knownDevcontainers[i].Dirty = false
+					// TODO(mafredri): This should be handled by a service that
+					// updates the devcontainer state periodically and on-demand.
 					api.knownDevcontainers[i].Container = nil
+					// Set the modified time to the zero value to indicate that
+					// the containers list must be refreshed. This will see to
+					// it that the new container is re-assigned.
+					api.mtime = time.Time{}
 				}
 				return
 			}
