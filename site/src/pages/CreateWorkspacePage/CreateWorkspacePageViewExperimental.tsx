@@ -113,6 +113,23 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
 
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+
+	// only touched fields are sent to the websocket
+	// In the case of autofill parameters, we need to mark the parameter as touched
+	// so that it is sent to the websocket
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
+
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -123,6 +140,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					autofillParameters,
 				),
 			},
+			initialTouched,
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
 				rich_parameter_values:
@@ -139,10 +157,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 				onSubmit(request, owner);
 			},
 		});
-
-	const autofillByName = Object.fromEntries(
-		autofillParameters.map((param) => [param.name, param]),
-	);
 
 	useEffect(() => {
 		if (error) {
@@ -249,6 +263,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.setFieldTouched(parameter.name, true);
 		sendDynamicParamsRequest(parameter, value);
 	};
+
+	useSyncFormParameters({
+		parameters,
+		formValues: form.values.rich_parameter_values,
+		setFieldValue: form.setFieldValue,
+	});
 
 	return (
 		<>
@@ -568,3 +588,68 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 		</div>
 	);
 };
+
+/**
+ * Custom hook to synchronize parameters with form values.
+ */
+function useSyncFormParameters({
+	parameters,
+	formValues,
+	setFieldValue,
+}: {
+	parameters: readonly PreviewParameter[] | undefined;
+	formValues: readonly TypesGen.WorkspaceBuildParameter[] | undefined;
+	setFieldValue: (
+		field: string,
+		value: TypesGen.WorkspaceBuildParameter[],
+	) => void;
+}) {
+	const parametersRef = useRef<readonly PreviewParameter[] | undefined>(
+		parameters,
+	);
+
+	useEffect(() => {
+		const shouldSync = () => {
+			if (!parameters) return false;
+			if (!formValues) return true;
+
+			if (parametersRef.current?.length !== parameters.length) return true;
+
+			const currentParamNames = new Set((formValues || []).map((p) => p.name));
+			const newParamNames = new Set(parameters.map((p) => p.name));
+
+			const hasNewParams = parameters.some(
+				(p) => !currentParamNames.has(p.name),
+			);
+			const hasRemovedParams = (formValues || []).some(
+				(p) => !newParamNames.has(p.name),
+			);
+
+			return hasNewParams || hasRemovedParams;
+		};
+
+		if (!shouldSync()) return;
+		if (!parameters) return;
+
+		const currentFormParameters = formValues || [];
+
+		const newParameterValues = parameters.map((parameter) => {
+			const existingParam = currentFormParameters.find(
+				(p) => p.name === parameter.name,
+			);
+
+			if (existingParam) {
+				return existingParam;
+			}
+
+			return {
+				name: parameter.name,
+				value: parameter.value.valid ? parameter.value.value : "",
+			};
+		});
+
+		setFieldValue("rich_parameter_values", newParameterValues);
+
+		parametersRef.current = parameters;
+	}, [parameters, formValues, setFieldValue]);
+}
