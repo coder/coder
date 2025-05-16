@@ -1,23 +1,32 @@
 import type { ProvisionerDaemon, ProvisionerKey } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CopyButton } from "components/CopyButton/CopyButton";
-import { TableCell, TableRow } from "components/Table/Table";
+import {
+	Table,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTags";
+import { LastConnectionHead } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/LastConnectionHead";
+import { ProvisionerRow } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerRow";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 
 type ProvisionerKeyRowProps = {
 	readonly provisionerKey: ProvisionerKey;
 	readonly provisioners: readonly ProvisionerDaemon[];
+	readonly buildVersion: string | undefined;
 	defaultIsOpen: boolean;
 };
 
 export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 	provisionerKey,
 	provisioners,
+	buildVersion,
 	defaultIsOpen = false,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
@@ -61,33 +70,38 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 
 			{isOpen && (
 				<TableRow>
-					<TableCell colSpan={999} className="p-4 border-t-0">
+					<TableCell colSpan={999} className="p-0">
 						{provisioners.length === 0 ? (
-							<span className="text-muted-foreground">
-								No provisioners found for this key.
-							</span>
+							<TableRow>
+								<TableCell colSpan={999} className="p-4 border-t-0">
+									<span className="text-muted-foreground">
+										No provisioners found for this key.
+									</span>
+								</TableCell>
+							</TableRow>
 						) : (
-							<dl>
-								<dt>Provisioners:</dt>
-								{provisioners.map((provisioner) => (
-									<dd key={provisioner.id}>
-										<span className="font-mono text-content-primary">
-											{provisioner.name} ({provisioner.id}){" "}
-										</span>
-										<CopyButton
-											text={provisioner.id}
-											label="Copy provisioner ID"
-										/>
-										<Button size="xs" variant="outline" asChild>
-											<RouterLink
-												to={`../provisioners?${new URLSearchParams({ ids: provisioner.id })}`}
-											>
-												View provisioner
-											</RouterLink>
-										</Button>
-									</dd>
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>Name</TableHead>
+										<TableHead>Key</TableHead>
+										<TableHead>Version</TableHead>
+										<TableHead>Status</TableHead>
+										<TableHead>Tags</TableHead>
+										<TableHead>
+											<LastConnectionHead />
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								{provisioners.map((p) => (
+									<ProvisionerRow
+										key={p.id}
+										buildVersion={buildVersion}
+										provisioner={p}
+										defaultIsOpen={false}
+									/>
 								))}
-							</dl>
+							</Table>
 						)}
 					</TableCell>
 				</TableRow>

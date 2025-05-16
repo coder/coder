@@ -87,6 +87,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 									.map((pkd) => (
 										<ProvisionerKeyRow
 											key={pkd.key.id}
+											buildVersion={buildVersion}
 											provisionerKey={pkd.key}
 											provisioners={pkd.daemons}
 											defaultIsOpen={false}
