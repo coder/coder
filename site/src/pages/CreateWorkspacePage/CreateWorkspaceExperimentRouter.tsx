@@ -30,11 +30,26 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 						templateQuery.data.id,
 						"optOut",
 					],
-					queryFn: () => ({
-						templateId: templateQuery.data.id,
-						optedOut:
-							localStorage.getItem(optOutKey(templateQuery.data.id)) === "true",
-					}),
+					queryFn: () => {
+						const templateId = templateQuery.data.id;
+						const localStorageKey = optOutKey(templateId);
+						const storedOptOutString = localStorage.getItem(localStorageKey);
+
+						let optOutResult: boolean;
+
+						if (storedOptOutString !== null) {
+							optOutResult = storedOptOutString === "true";
+						} else {
+							optOutResult = Boolean(
+								templateQuery.data.use_classic_parameter_flow,
+							);
+						}
+
+						return {
+							templateId: templateId,
+							optedOut: optOutResult,
+						};
+					},
 				}
 			: { enabled: false },
 	);
