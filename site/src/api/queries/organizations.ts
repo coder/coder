@@ -187,7 +187,7 @@ const getProvisionerDaemonGroupsKey = (organization: string) => [
 	"provisionerDaemons",
 ];
 
-const provisionerDaemonGroups = (organization: string) => {
+export const provisionerDaemonGroups = (organization: string) => {
 	return {
 		queryKey: getProvisionerDaemonGroupsKey(organization),
 		queryFn: () => API.getProvisionerDaemonGroupsByOrganization(organization),
