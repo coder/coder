@@ -1,10 +1,13 @@
 package coderd
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"time"
@@ -32,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
+	"compress/gzip"
 )
 
 // Returns a single template.
@@ -1099,4 +1103,110 @@ func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.G
 		return nil, xerrors.Errorf("get template admins: %w", err)
 	}
 	return append(owners, templateAdmins...), nil
+}
+
+// @Summary Export template by ID
+// @ID export-template-by-id
+// @Security CoderSessionToken
+// @Produce application/x-gzip
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {file} binary "Template archive"
+// @Router /templates/{template}/export [get]
+func (api *API) exportTemplate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	template := httpmw.TemplateParam(r)
+
+	// Get the latest version of the template
+	version, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
+		TemplateID: template.ID,
+		Name:       template.ActiveVersionID.String(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Create a buffer to store our archive
+	var buf bytes.Buffer
+
+	// Create gzip writer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+
+	// Add template files to archive
+	files := []struct {
+		Name    string
+		Content string
+	}{
+		{
+			Name:    "main.tf",
+			Content: version.Provisioner,
+		},
+		{
+			Name:    "README.md",
+			Content: template.Description,
+		},
+	}
+
+	for _, file := range files {
+		hdr := &tar.Header{
+			Name:    file.Name,
+			Mode:    0644,
+			Size:    int64(len(file.Content)),
+			ModTime: time.Now(),
+			Format:  tar.FormatPAX,
+		}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to write tar header.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		if _, err := tw.Write([]byte(file.Content)); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to write file content.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	// Close tar writer
+	if err := tw.Close(); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to close tar writer.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Close gzip writer
+	if err := gw.Close(); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to close gzip writer.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Set response headers
+	rw.Header().Set("Content-Type", "application/x-gzip")
+	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.tar.gz", template.Name))
+	rw.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
+
+	// Write the archive to the response
+	if _, err := io.Copy(rw, &buf); err != nil {
+		api.Logger.Error(ctx, "failed to write template archive to response",
+			slog.Error(err),
+			slog.F("template_id", template.ID),
+		)
+		return
+	}
 }
