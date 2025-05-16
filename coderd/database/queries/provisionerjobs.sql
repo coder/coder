@@ -100,15 +100,12 @@ SELECT
 	fj.created_at,
 	sqlc.embed(pj),
 	fj.queue_position,
-	fj.queue_size,
-	COALESCE(pd.name, '') AS worker_name
+	fj.queue_size
 FROM
 	final_jobs fj
 		INNER JOIN provisioner_jobs pj
 				ON fj.id = pj.id -- Ensure we retrieve full details from `provisioner_jobs`.
                                  -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
-		LEFT JOIN provisioner_daemons pd -- Join to get the daemon name corresponding to the job's worker_id
-		  ON pj.worker_id = pd.id
 ORDER BY
 	fj.created_at;
 

@@ -354,7 +354,6 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	provisionerJob := pj.ProvisionerJob
 	job := codersdk.ProvisionerJob{
 		ID:             provisionerJob.ID,
-		WorkerName:     pj.WorkerName,
 		OrganizationID: provisionerJob.OrganizationID,
 		CreatedAt:      provisionerJob.CreatedAt,
 		Type:           codersdk.ProvisionerJobType(provisionerJob.Type),
@@ -393,10 +392,10 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) codersdk.ProvisionerJob {
 	job := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
 		ProvisionerJob: pj.ProvisionerJob,
-		WorkerName:     pj.WorkerName,
 		QueuePosition:  pj.QueuePosition,
 		QueueSize:      pj.QueueSize,
 	})
+	job.WorkerName = pj.WorkerName
 	job.AvailableWorkers = pj.AvailableWorkers
 	job.Metadata = codersdk.ProvisionerJobMetadata{
 		TemplateVersionName: pj.TemplateVersionName,

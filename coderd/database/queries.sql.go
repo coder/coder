@@ -7614,15 +7614,12 @@ SELECT
 	fj.created_at,
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
 	fj.queue_position,
-	fj.queue_size,
-	COALESCE(pd.name, '') AS worker_name
+	fj.queue_size
 FROM
 	final_jobs fj
 		INNER JOIN provisioner_jobs pj
 				ON fj.id = pj.id -- Ensure we retrieve full details from ` + "`" + `provisioner_jobs` + "`" + `.
                                  -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
-		LEFT JOIN provisioner_daemons pd -- Join to get the daemon name corresponding to the job's worker_id
-		  ON pj.worker_id = pd.id
 ORDER BY
 	fj.created_at
 `
@@ -7633,7 +7630,6 @@ type GetProvisionerJobsByIDsWithQueuePositionRow struct {
 	ProvisionerJob ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
 	QueuePosition  int64          `db:"queue_position" json:"queue_position"`
 	QueueSize      int64          `db:"queue_size" json:"queue_size"`
-	WorkerName     string         `db:"worker_name" json:"worker_name"`
 }
 
 func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
@@ -7669,7 +7665,6 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.JobStatus,
 			&i.QueuePosition,
 			&i.QueueSize,
-			&i.WorkerName,
 		); err != nil {
 			return nil, err
 		}
