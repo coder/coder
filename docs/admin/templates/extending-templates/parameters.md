@@ -252,7 +252,7 @@ data "coder_parameter" "force_rebuild" {
 
 ## Validating parameters
 
-Coder supports rich parameters with multiple validation modes: min, max,
+Coder supports parameters with multiple validation modes: min, max,
 monotonic numbers, and regular expressions.
 
 ### Number
@@ -400,9 +400,10 @@ This feature allows template authors to create more interactive and responsive w
 
 ### Enable Dynamic Parameters
 
+To use Dynamic Parameters, enable the experiment flag or set the environment variable. Note that as of v.22.0, Dynamic parameters are an _unsafe_ experiment and will not be enabled by using the experiment wildcard.
+
 <div class="tabs">
 
-To use Dynamic Parameters, enable the experiment flag or set the environment variable:
 
 #### Flag
 
@@ -418,8 +419,22 @@ CODER_EXPERIMENTS=dynamic-parameters
 
 </div>
 
+Dynamic Parameters also require version >=2.4.0 of the coder provider. Inject the following at the top of your template after enabling the experiment:
+
+```terraform
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+      version = ">=2.4.0"
+    }
+  }
+}
+```
+
+
 Once enabled, users can toggle between the experimental and classic interfaces during
-workspace creation.
+workspace creation using an escape hatch in the workspace creation form.
 
 ## Features and Capabilities
 
@@ -432,12 +447,12 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Modify validation rules conditionally
   - Create branching paths in workspace creation forms
 
-- **Dynamic Data Fetching**
+- **Reference User Properties**
 
-  - Fetch data at workspace creation time
-  - Access Coder user attributes (groups, username, auth)
-  - Selectively expose options based on user properties
-  - Connect to external resources
+  - Read user data at build time from [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
+  - Conditionally hide parameters based on user's role
+	- Change parameter options based on user groups
+	- Reference user name in parameters
 
 - **Rich Parameter Entry**
 
