@@ -69,6 +69,15 @@ func WithClock(clock quartz.Clock) Option {
 	}
 }
 
+// WithCacheDuration sets the cache duration for the API.
+// This is used to control how often the API refreshes the list of
+// containers. The default is 10 seconds.
+func WithCacheDuration(d time.Duration) Option {
+	return func(api *API) {
+		api.cacheDuration = d
+	}
+}
+
 // WithExecer sets the agentexec.Execer implementation to use.
 func WithExecer(execer agentexec.Execer) Option {
 	return func(api *API) {
