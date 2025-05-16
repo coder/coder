@@ -64,11 +64,15 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 
 		const toggleOptedOut = () => {
 			const key = optOutKey(optOutQuery.data.templateId);
-			const current = localStorage.getItem(key) === "true";
+			const storedValue = localStorage.getItem(key);
+
+			const current = storedValue
+				? storedValue === "true"
+				: Boolean(templateQuery.data?.use_classic_parameter_flow);
+
 			localStorage.setItem(key, (!current).toString());
 			optOutQuery.refetch();
 		};
-
 		return (
 			<ExperimentalFormContext.Provider value={{ toggleOptedOut }}>
 				{optOutQuery.data.optedOut ? (
