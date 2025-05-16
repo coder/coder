@@ -48,6 +48,10 @@ Each provisioner job has a lifecycle state:
 | **Failed**    | Provisioner encountered an error while executing the job.      |
 | **Canceled**  | Job was manually terminated by an admin.                       |
 
+The following diagram shows how a provisioner job transitions between lifecycle states:
+
+![Provisioner jobs state transitions](../../images/admin/provisioners/provisioner-jobs-status-flow.png)
+
 ## When to cancel provisioner jobs
 
 A job might need to be cancelled when:
