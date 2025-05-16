@@ -14582,6 +14582,9 @@ const docTemplate = `{
                 "worker_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "worker_name": {
+                    "type": "string"
                 }
             }
         },

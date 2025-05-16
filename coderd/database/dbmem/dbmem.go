@@ -4848,6 +4848,13 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 				row.AvailableWorkers = append(row.AvailableWorkers, worker.ID)
 			}
 		}
+
+		// Add daemon name to provisioner job
+		for _, daemon := range q.provisionerDaemons {
+			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+				row.WorkerName = daemon.Name
+			}
+		}
 		rows = append(rows, row)
 	}
 

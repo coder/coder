@@ -124,7 +124,8 @@ of the template will be used.
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -405,7 +406,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -712,7 +714,8 @@ of the template will be used.
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -996,7 +999,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
             "property2": "string"
           },
           "type": "template_version_import",
-          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+          "worker_name": "string"
         },
         "matched_provisioners": {
           "available": 0,
@@ -1261,7 +1265,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1658,7 +1663,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,

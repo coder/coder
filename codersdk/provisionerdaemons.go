@@ -178,6 +178,7 @@ type ProvisionerJob struct {
 	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES" table:"error code"`
 	Status           ProvisionerJobStatus   `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
 	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id"`
+	WorkerName       string                 `json:"worker_name,omitempty" table:"worker name"`
 	FileID           uuid.UUID              `json:"file_id" format:"uuid" table:"file id"`
 	Tags             map[string]string      `json:"tags" table:"tags"`
 	QueuePosition    int                    `json:"queue_position" table:"queue position"`
