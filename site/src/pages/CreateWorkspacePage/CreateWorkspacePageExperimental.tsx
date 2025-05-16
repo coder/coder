@@ -91,14 +91,14 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const autofillParameters = getAutofillParameters(searchParams);
 
 	const sendMessage = useCallback((formValues: Record<string, string>) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
 	}, []);
 
 	// On sends all initial parameter values to the websocket
