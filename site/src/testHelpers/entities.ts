@@ -4384,4 +4384,5 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	volumes: {
 		"/mnt/volume1": "/volume1",
 	},
+	devcontainer_dirty: false,
 };
