@@ -3892,7 +3892,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetProvisionerJobsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
+		check.Args(time.Now()).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionRead */ )
 	}))
 	s.Run("GetTemplateVersionsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -3978,7 +3978,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).
+			Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionRead */ ).
 			Returns(slice.New(a, b))
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
@@ -4022,26 +4022,26 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			OrganizationID:  j.OrganizationID,
 			Types:           []database.ProvisionerType{j.Provisioner},
 			ProvisionerTags: must(json.Marshal(j.Tags)),
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: j.ID,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteWithStartedAtByID", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 			ID: j.ID,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("UpdateProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.UpdateProvisionerJobByIDParams{
 			ID:        j.ID,
 			UpdatedAt: time.Now(),
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4051,19 +4051,19 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			Input:         json.RawMessage("{}"),
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionCreate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionCreate */ )
 	}))
 	s.Run("InsertProvisionerJobLogs", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.InsertProvisionerJobLogsParams{
 			JobID: j.ID,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("InsertProvisionerJobTimings", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.InsertProvisionerJobTimingsParams{
 			JobID: j.ID,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4279,7 +4279,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args([]uuid.UUID{uuid.New()}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetProvisionerJobsByIDsWithQueuePosition", s.Subtest(func(db database.Store, check *expects) {
-		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
+		check.Args([]uuid.UUID{}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionRead */ )
 	}))
 	s.Run("GetReplicaByID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)

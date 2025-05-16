@@ -1088,9 +1088,9 @@ func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.
 }
 
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return database.ProvisionerJob{}, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return database.ProvisionerJob{}, err
+	// }
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
@@ -2309,30 +2309,31 @@ func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uui
 }
 
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return nil, err
+	// }
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return nil, err
+	// }
+	// policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)
 	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 }
 
 func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return nil, err
+	// }
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
 }
 
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return nil, err
+	// }
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
@@ -3528,23 +3529,27 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 }
 
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceProvisionerJobs); err != nil {
-		return database.ProvisionerJob{}, err
-	}
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Currently ProvisionerJobs are not associated with a user, so we can't
+	// check for a user's permissions. We'd need to check for the associated workspace
+	// and verify ownership through that.
+	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return database.ProvisionerJob{}, err
+	// }
 	return q.db.InsertProvisionerJob(ctx, arg)
 }
 
 func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return nil, err
+	// }
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
 func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return nil, err
+	// }
 	return q.db.InsertProvisionerJobTimings(ctx, arg)
 }
 
@@ -4168,16 +4173,16 @@ func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg dat
 }
 
 func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return err
+	// }
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return err
+	// }
 
 	job, err := q.db.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {
@@ -4246,16 +4251,16 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 }
 
 func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return err
+	// }
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-		return err
-	}
+	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+	// 	return err
+	// }
 	return q.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
 }
 
