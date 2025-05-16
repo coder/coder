@@ -9,10 +9,11 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/database/awsiamrds"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
@@ -46,7 +47,7 @@ func (*RootCmd) resetPassword() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := ConnectToPostgres(inv.Context(), logger, sqlDriver, postgresURL, nil)
+			sqlDB, err := ConnectToPostgres(inv.Context(), logger, sqlDriver, postgresURL, nil, codersdk.DefaultMaxConns, codersdk.DefaultIdleConns)
 			if err != nil {
 				return xerrors.Errorf("dial postgres: %w", err)
 			}

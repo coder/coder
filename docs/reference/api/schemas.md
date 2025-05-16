@@ -2577,6 +2577,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "pg_auth": "string",
     "pg_connection_url": "string",
+    "pg_idle_conns": 0,
+    "pg_max_conns": 0,
     "pprof": {
       "address": {
         "host": "string",
@@ -3075,6 +3077,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "pg_auth": "string",
   "pg_connection_url": "string",
+  "pg_idle_conns": 0,
+  "pg_max_conns": 0,
   "pprof": {
     "address": {
       "host": "string",
@@ -3248,6 +3252,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
 | `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
+| `pg_idle_conns`                      | integer                                                                                              | false    |              |                                                                    |
+| `pg_max_conns`                       | integer                                                                                              | false    |              |                                                                    |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
 | `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                             | false    |              |                                                                    |

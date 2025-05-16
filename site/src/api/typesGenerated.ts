@@ -646,6 +646,12 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/database.go
+export const DefaultIdleConns = 3;
+
+// From codersdk/database.go
+export const DefaultMaxConns = 10;
+
 // From codersdk/notifications.go
 export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
@@ -692,6 +698,8 @@ export interface DeploymentValues {
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
+	readonly pg_max_conns?: number;
+	readonly pg_idle_conns?: number;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;
 	readonly telemetry?: TelemetryConfig;

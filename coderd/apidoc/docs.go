@@ -12432,6 +12432,12 @@ const docTemplate = `{
                 "pg_connection_url": {
                     "type": "string"
                 },
+                "pg_idle_conns": {
+                    "type": "integer"
+                },
+                "pg_max_conns": {
+                    "type": "integer"
+                },
                 "pprof": {
                     "$ref": "#/definitions/codersdk.PprofConfig"
                 },

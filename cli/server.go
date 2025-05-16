@@ -749,7 +749,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
+					int(vals.PostgresMaxConns.Value()), int(vals.PostgresIdleConns.Value()))
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -2306,7 +2307,7 @@ func IsLocalhost(host string) bool {
 // future or past migration version.
 //
 // If no error is returned, the database is fully migrated and up to date.
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error, maxConns, idleConns int) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	var err error
@@ -2388,19 +2389,8 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// cannot accept new connections, so we try to limit that here.
 	// Requests will wait for a new connection instead of a hard error
 	// if a limit is set.
-	sqlDB.SetMaxOpenConns(10)
-	// Allow a max of 3 idle connections at a time. Lower values end up
-	// creating a lot of connection churn. Since each connection uses about
-	// 10MB of memory, we're allocating 30MB to Postgres connections per
-	// replica, but is better than causing Postgres to spawn a thread 15-20
-	// times/sec. PGBouncer's transaction pooling is not the greatest so
-	// it's not optimal for us to deploy.
-	//
-	// This was set to 10 before we started doing HA deployments, but 3 was
-	// later determined to be a better middle ground as to not use up all
-	// of PGs default connection limit while simultaneously avoiding a lot
-	// of connection churn.
-	sqlDB.SetMaxIdleConns(3)
+	sqlDB.SetMaxOpenConns(maxConns)
+	sqlDB.SetMaxIdleConns(idleConns)
 
 	return sqlDB, nil
 }
@@ -2863,7 +2853,7 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 	return inv.SignalNotifyContext(ctx, sig...)
 }
 
-func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string, maxConns, idleConns int) (*sql.DB, string, error) {
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
@@ -2876,7 +2866,7 @@ func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresUR
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrations.Up)
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrations.Up, maxConns, idleConns)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}
