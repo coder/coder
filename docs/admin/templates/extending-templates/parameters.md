@@ -920,14 +920,3 @@ data "coder_parameter" "cpu_count" {
 
 </details>
 
-## API Details
-
-Dynamic Parameters uses WebSocket communication to provide real-time updates.
-
-The WebSocket endpoint is:
-
-```api
-GET /users/{user}/templateversions/{templateversion}/parameters
-```
-
-The WebSocket connection sends parameter changes as they occur and receives updated parameter state and validation errors in response.
