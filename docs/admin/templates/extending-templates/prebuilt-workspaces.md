@@ -91,9 +91,9 @@ You can view available prebuilt workspaces in the **Workspaces** view in the Cod
 ![A prebuilt workspace in the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
 _Note the search term `owner:prebuilds`._
 
-Prebuilt workspaces may be operated on like any other workspace. However, if a prebuilt workspace is stopped, the
-reconciliation loop will not destroy it. The intention behind this design is to give operators the ability to park
-problematic prebuilt workspaces in a stopped state for further investigation.
+Prebuilt workspaces can be maintained and updated in the same way as any other workspace.
+However, if a Prebuilt workspace is stopped, the reconciliation loop will not destroy it.
+This gives template admins the ability to park problematic prebuilt workspaces in a stopped state for further investigation.
 
 ### Template updates and the prebuilt workspace lifecycle
 
@@ -173,7 +173,7 @@ For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/l
 has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
 since the AMI cannot be changed in-place._
 
-#### Updating claimed prebuilt workspaces' templates
+#### Updating claimed prebuilt workspace templates
 
 Once a prebuilt workspace has been claimed, and if its template uses `ignore_changes`, users may run into an issue where the agent
 does not reconnect after a template update. This shortcoming is described in [this issue](https://github.com/coder/coder/issues/17840)
