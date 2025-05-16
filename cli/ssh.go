@@ -92,7 +92,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace> [command]",
 		Short:       "Start a shell into a workspace or run a command",
-		Long:        "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.",
+		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +
+			FormatExamples(
+				Example{
+					Description: "Use `--` to separate and pass flags directly to the command executed via SSH.",
+					Command:     "coder ssh <workspace> -- ls -la",
+				},
+			),
 		Middleware: serpent.Chain(
 			// Require at least one arg for the workspace name
 			func(next serpent.HandlerFunc) serpent.HandlerFunc {
