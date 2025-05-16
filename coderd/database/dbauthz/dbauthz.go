@@ -1088,9 +1088,9 @@ func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.
 }
 
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return database.ProvisionerJob{}, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return database.ProvisionerJob{}, err
+	}
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
@@ -3559,9 +3559,9 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return nil, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
 	return q.db.InsertProvisionerJobTimings(ctx, arg)
 }
 
@@ -4185,9 +4185,9 @@ func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg dat
 }
 
 func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
 }
 
@@ -4263,16 +4263,16 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 }
 
 func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
 }
 
