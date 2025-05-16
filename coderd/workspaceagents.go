@@ -897,7 +897,6 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 // @Summary Recreate devcontainer for workspace agent
 // @ID recreate-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param container path string true "Container ID or name"
