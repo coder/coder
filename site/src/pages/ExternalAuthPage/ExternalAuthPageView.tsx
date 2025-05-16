@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
@@ -9,6 +8,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
+import { ExternalLinkIcon } from "lucide-react";
 import { RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
@@ -120,7 +120,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							rel="noreferrer"
 							css={styles.link}
 						>
-							<OpenInNewIcon fontSize="small" />
+							<ExternalLinkIcon className="size-icon-xs" />
 							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
 							the {externalAuth.display_name} App
 						</Link>
