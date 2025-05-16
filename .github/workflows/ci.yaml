@@ -224,7 +224,7 @@ jobs:
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    if: always()
+    if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
