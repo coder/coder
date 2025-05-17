@@ -136,7 +136,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 			return;
 		}
 
-		if (!initialParamsSentRef.current && response.parameters.length > 0) {
+		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
 			sendInitialParameters([...response.parameters]);
 		}
 
