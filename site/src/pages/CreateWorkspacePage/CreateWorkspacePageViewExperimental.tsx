@@ -117,9 +117,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 		autofillParameters.map((param) => [param.name, param]),
 	);
 
-	// only touched fields are sent to the websocket
-	// In the case of autofill parameters, we need to mark the parameter as touched
-	// so that it is sent to the websocket
+	// Only touched fields are sent to the websocket
+	// Autofilled parameters are marked as touched since they have been modified
 	const initialTouched = parameters.reduce(
 		(touched, parameter) => {
 			if (autofillByName[parameter.name] !== undefined) {
@@ -130,6 +129,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 		{} as Record<string, boolean>,
 	);
 
+	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
+	// 1. The form parameter values are initialized from the websocket response when the form is mounted
+	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
+	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -266,7 +270,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	useSyncFormParameters({
 		parameters,
-		formValues: form.values.rich_parameter_values,
+		formValues: form.values.rich_parameter_values ?? [],
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -589,67 +593,51 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 	);
 };
 
-/**
- * Custom hook to synchronize parameters with form values.
- */
-function useSyncFormParameters({
-	parameters,
-	formValues,
-	setFieldValue,
-}: {
-	parameters: readonly PreviewParameter[] | undefined;
-	formValues: readonly TypesGen.WorkspaceBuildParameter[] | undefined;
+type UseSyncFormParametersProps = {
+	parameters: readonly PreviewParameter[];
+	formValues: readonly TypesGen.WorkspaceBuildParameter[];
 	setFieldValue: (
 		field: string,
 		value: TypesGen.WorkspaceBuildParameter[],
 	) => void;
-}) {
-	const parametersRef = useRef<readonly PreviewParameter[] | undefined>(
-		parameters,
-	);
+};
+
+export function useSyncFormParameters({
+	parameters,
+	formValues,
+	setFieldValue,
+}: UseSyncFormParametersProps) {
+	// Form values only needs to be updated when parameters change
+	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
+	const formValuesRef = useRef(formValues);
 
 	useEffect(() => {
-		const shouldSync = () => {
-			if (!parameters) return false;
-			if (!formValues) return true;
+		formValuesRef.current = formValues;
+	}, [formValues]);
 
-			if (parametersRef.current?.length !== parameters.length) return true;
-
-			const currentParamNames = new Set((formValues || []).map((p) => p.name));
-			const newParamNames = new Set(parameters.map((p) => p.name));
-
-			const hasNewParams = parameters.some(
-				(p) => !currentParamNames.has(p.name),
-			);
-			const hasRemovedParams = (formValues || []).some(
-				(p) => !newParamNames.has(p.name),
-			);
-
-			return hasNewParams || hasRemovedParams;
-		};
-
-		if (!shouldSync()) return;
+	useEffect(() => {
 		if (!parameters) return;
+		const currentFormValues = formValuesRef.current;
 
-		const currentFormParameters = formValues || [];
-
-		const newParameterValues = parameters.map((parameter) => {
-			const existingParam = currentFormParameters.find(
-				(p) => p.name === parameter.name,
-			);
-
-			if (existingParam) {
-				return existingParam;
-			}
-
+		const newParameterValues = parameters.map((param) => {
 			return {
-				name: parameter.name,
-				value: parameter.value.valid ? parameter.value.value : "",
+				name: param.name,
+				value: param.value.valid ? param.value.value : "",
 			};
 		});
 
-		setFieldValue("rich_parameter_values", newParameterValues);
+		const isChanged =
+			currentFormValues.length !== newParameterValues.length ||
+			newParameterValues.some(
+				(p) =>
+					!currentFormValues.find(
+						(formValue) =>
+							formValue.name === p.name && formValue.value === p.value,
+					),
+			);
 
-		parametersRef.current = parameters;
-	}, [parameters, formValues, setFieldValue]);
+		if (isChanged) {
+			setFieldValue("rich_parameter_values", newParameterValues);
+		}
+	}, [parameters, setFieldValue]);
 }
