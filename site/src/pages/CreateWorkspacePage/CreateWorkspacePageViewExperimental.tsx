@@ -519,9 +519,13 @@ export const CreateWorkspacePageViewExperimental: FC<
 							disabled={
 								creatingWorkspace ||
 								!hasAllRequiredExternalAuth ||
-								diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+								diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								) ||
 								parameters.some((parameter) =>
-									parameter.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+									parameter.diagnostics.some(
+										(diagnostic) => diagnostic.severity === "error",
+									),
 								)
 							}
 						>
