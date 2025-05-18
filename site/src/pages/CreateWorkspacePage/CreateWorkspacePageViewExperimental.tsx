@@ -602,7 +602,7 @@ type UseSyncFormParametersProps = {
 	) => void;
 };
 
-export function useSyncFormParameters({
+function useSyncFormParameters({
 	parameters,
 	formValues,
 	setFieldValue,
