@@ -516,7 +516,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 					<div className="flex flex-row justify-end">
 						<Button
 							type="submit"
-							disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
+							disabled={
+								creatingWorkspace ||
+								!hasAllRequiredExternalAuth ||
+								diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+								parameters.some((parameter) =>
+									parameter.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+								)
+							}
 						>
 							<Spinner loading={creatingWorkspace} />
 							Create workspace
