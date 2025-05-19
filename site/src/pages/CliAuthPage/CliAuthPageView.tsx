@@ -22,7 +22,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 
 			<p className="m-0 text-center text-sm text-content-secondary leading-normal">
 				Copy the session token below and{" "}
-				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+				<strong className="block">paste it in your terminal.</strong>
 			</p>
 
 			<div className="flex flex-col items-center gap-1 w-full mt-4">
