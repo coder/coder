@@ -12,8 +12,8 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The number of failed prebuilds has reached the hard limit for template **do=
-cker** and preset **particle-accelerator**
+The number of failed prebuilds has reached the hard limit for template dock=
+er and preset particle-accelerator.
 
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -46,9 +46,9 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <pre><code>		The number of failed prebuilds has reached the hard li=
-mit for template **docker** and preset **particle-accelerator**
-</code></pre>
+        <p>The number of failed prebuilds has reached the hard limit for te=
+mplate <strong>docker</strong> and preset <strong>particle-accelerator</str=
+ong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
