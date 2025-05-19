@@ -17006,6 +17006,9 @@ const docTemplate = `{
                 "template_require_active_version": {
                     "type": "boolean"
                 },
+                "template_use_classic_parameter_flow": {
+                    "type": "boolean"
+                },
                 "ttl_ms": {
                     "type": "integer"
                 },
