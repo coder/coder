@@ -8621,6 +8621,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "devcontainer_dirty": true,
   "id": "string",
   "image": "string",
   "labels": {
@@ -8647,19 +8648,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
-|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
-| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
-| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
-| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
-| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
-| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
-| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
-| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
-| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
-| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
-| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| Name                 | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                               |
+|----------------------|---------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`         | string                                                                                | false    |              | Created at is the time the container was created.                                                                                                                         |
+| `devcontainer_dirty` | boolean                                                                               | false    |              | Devcontainer dirty is true if the devcontainer configuration has changed since the container was created. This is used to determine if the container needs to be rebuilt. |
+| `id`                 | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                                                             |
+| `image`              | string                                                                                | false    |              | Image is the name of the container image.                                                                                                                                 |
+| `labels`             | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                                                   |
+| » `[any property]`   | string                                                                                | false    |              |                                                                                                                                                                           |
+| `name`               | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                                                         |
+| `ports`              | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                                                            |
+| `running`            | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                                                    |
+| `status`             | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string.                                |
+| `volumes`            | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                                                |
+| » `[any property]`   | string                                                                                | false    |              |                                                                                                                                                                           |
 
 ## codersdk.WorkspaceAgentContainerPort
 
@@ -8726,6 +8728,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
+      "devcontainer_dirty": true,
       "id": "string",
       "image": "string",
       "labels": {

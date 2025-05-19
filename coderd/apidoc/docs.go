@@ -8606,6 +8606,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Recreate devcontainer for workspace agent",
+                "operationId": "recreate-devcontainer-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Container ID or name",
+                        "name": "container",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "security": [
@@ -17133,6 +17169,10 @@ const docTemplate = `{
                     "description": "CreatedAt is the time the container was created.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "devcontainer_dirty": {
+                    "description": "DevcontainerDirty is true if the devcontainer configuration has changed\nsince the container was created. This is used to determine if the\ncontainer needs to be rebuilt.",
+                    "type": "boolean"
                 },
                 "id": {
                     "description": "ID is the unique identifier of the container.",

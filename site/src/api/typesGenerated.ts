@@ -3309,6 +3309,7 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+	readonly devcontainer_dirty: boolean;
 }
 
 // From codersdk/workspaceagents.go

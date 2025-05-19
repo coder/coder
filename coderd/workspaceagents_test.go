@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -36,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
+	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1341,6 +1343,115 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 					if diff := cmp.Diff(expected, res); diff != "" {
 						t.Fatalf("unexpected response (-want +got):\n%s", diff)
 					}
+				}
+			})
+		}
+	})
+}
+
+func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Mock", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			workspaceFolder = t.TempDir()
+			configFile      = filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
+			dcLabels        = map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+				agentcontainers.DevcontainerConfigFileLabel:  configFile,
+			}
+			devContainer = codersdk.WorkspaceAgentContainer{
+				ID:                uuid.NewString(),
+				CreatedAt:         dbtime.Now(),
+				FriendlyName:      testutil.GetRandomName(t),
+				Image:             "busybox:latest",
+				Labels:            dcLabels,
+				Running:           true,
+				Status:            "running",
+				DevcontainerDirty: true,
+			}
+			plainContainer = codersdk.WorkspaceAgentContainer{
+				ID:           uuid.NewString(),
+				CreatedAt:    dbtime.Now(),
+				FriendlyName: testutil.GetRandomName(t),
+				Image:        "busybox:latest",
+				Labels:       map[string]string{},
+				Running:      true,
+				Status:       "running",
+			}
+		)
+
+		for _, tc := range []struct {
+			name      string
+			setupMock func(*acmock.MockLister, *acmock.MockDevcontainerCLI) (status int)
+		}{
+			{
+				name: "Recreate",
+				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
+					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
+					}, nil).Times(1)
+					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
+					return 0
+				},
+			},
+			{
+				name: "Container does not exist",
+				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
+					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).Times(1)
+					return http.StatusNotFound
+				},
+			},
+			{
+				name: "Not a devcontainer",
+				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
+					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{plainContainer},
+					}, nil).Times(1)
+					return http.StatusNotFound
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				mcl := acmock.NewMockLister(ctrl)
+				mdccli := acmock.NewMockDevcontainerCLI(ctrl)
+				wantStatus := tc.setupMock(mcl, mdccli)
+				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+				user := coderdtest.CreateFirstUser(t, client)
+				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: user.OrganizationID,
+					OwnerID:        user.UserID,
+				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+					return agents
+				}).Do()
+				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.ExperimentalDevcontainersEnabled = true
+					o.ContainerAPIOptions = append(
+						o.ContainerAPIOptions,
+						agentcontainers.WithLister(mcl),
+						agentcontainers.WithDevcontainerCLI(mdccli),
+						agentcontainers.WithWatcher(watcher.NewNoop()),
+					)
+				})
+				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+				require.Len(t, resources, 1, "expected one resource")
+				require.Len(t, resources[0].Agents, 1, "expected one agent")
+				agentID := resources[0].Agents[0].ID
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, devContainer.ID)
+				if wantStatus > 0 {
+					cerr, ok := codersdk.AsError(err)
+					require.True(t, ok, "expected error to be a coder error")
+					assert.Equal(t, wantStatus, cerr.StatusCode())
+				} else {
+					require.NoError(t, err, "failed to recreate devcontainer")
 				}
 			})
 		}

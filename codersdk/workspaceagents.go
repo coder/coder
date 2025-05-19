@@ -439,6 +439,10 @@ type WorkspaceAgentContainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
+	// DevcontainerDirty is true if the devcontainer configuration has changed
+	// since the container was created. This is used to determine if the
+	// container needs to be rebuilt.
+	DevcontainerDirty bool `json:"devcontainer_dirty"`
 }
 
 func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
@@ -500,6 +504,19 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 	var cr WorkspaceAgentListContainersResponse
 
 	return cr, json.NewDecoder(res.Body).Decode(&cr)
+}
+
+// WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
