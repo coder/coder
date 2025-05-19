@@ -96,7 +96,7 @@ require (
 	github.com/chromedp/chromedp v0.13.3
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/flog v1.1.0
-	github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b
+	github.com/coder/guts v1.5.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.1.3
 	github.com/coder/retry v1.5.1
@@ -204,7 +204,7 @@ require (
 	golang.org/x/sys v0.33.0
 	golang.org/x/term v0.32.0
 	golang.org/x/text v0.25.0 // indirect
-	golang.org/x/tools v0.32.0
+	golang.org/x/tools v0.33.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.231.0
 	google.golang.org/grpc v1.72.0
