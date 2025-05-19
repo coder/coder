@@ -9,7 +9,16 @@
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",
-    "actions": [],
+    "actions": [
+      {
+        "label": "View failed workspaces",
+        "url": "http://test.com/workspaces?filter=owner:prebuilds+status:failed+template:docker\u0026page=1"
+      },
+      {
+        "label": "View template version",
+        "url": "http://test.com/templates/cern/docker/versions/angry_torvalds"
+      }
+    ],
     "labels": {
       "org": "cern",
       "preset": "particle-accelerator",

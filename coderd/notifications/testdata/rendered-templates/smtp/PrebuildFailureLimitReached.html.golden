@@ -16,6 +16,12 @@ The number of failed prebuilds has reached the hard limit for template dock=
 er and preset particle-accelerator.
 
 
+View failed workspaces: http://test.com/workspaces?filter=3Downer:prebuilds=
++status:failed+template:docker&page=3D1
+
+View template version: http://test.com/templates/cern/docker/versions/angry=
+_torvalds
+
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
@@ -51,6 +57,20 @@ mplate <strong>docker</strong> and preset <strong>particle-accelerator</str=
 ong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
+       =20
+        <a href=3D"http://test.com/workspaces?filter=3Downer:prebuilds+stat=
+us:failed+template:docker&page=3D1" style=3D"display: inline-block; padding=
+: 13px 24px; background-color: #020617; color: #f8fafc; text-decoration: no=
+ne; border-radius: 8px; margin: 0 4px;">
+          View failed workspaces
+        </a>
+       =20
+        <a href=3D"http://test.com/templates/cern/docker/versions/angry_tor=
+valds" style=3D"display: inline-block; padding: 13px 24px; background-color=
+: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; margi=
+n: 0 4px;">
+          View template version
+        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=
