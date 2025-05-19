@@ -135,7 +135,7 @@ func databaseImport(m dsl.Matcher) {
 }
 
 // publishInTransaction detects calls to Publish inside database transactions
-// which can lead to connection deadlocks or other unexpected behavior.
+// which can lead to connection starvation.
 //
 //nolint:unused,deadcode,varnamelen
 func publishInTransaction(m dsl.Matcher) {
@@ -159,7 +159,7 @@ func publishInTransaction(m dsl.Matcher) {
 	`).
 		Where(m["ps"].Type.Is("pubsub.Pubsub")).
 		At(m["ps"]).
-		Report("Avoid calling Publish inside database transactions as this may lead to connection deadlocks. Move the Publish call outside the transaction.")
+		Report("Avoid calling pubsub.Publish() inside database transactions as this may lead to connection deadlocks. Move the Publish() call outside the transaction.")
 }
 
 // doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
