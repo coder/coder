@@ -6503,6 +6503,7 @@ const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuild
 SELECT
 		t.id                        AS template_id,
 		t.name                      AS template_name,
+		o.id                        AS organization_id,
 		o.name                      AS organization_name,
 		tv.id                       AS template_version_id,
 		tv.name                     AS template_version_name,
@@ -6525,6 +6526,7 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 type GetTemplatePresetsWithPrebuildsRow struct {
 	TemplateID          uuid.UUID          `db:"template_id" json:"template_id"`
 	TemplateName        string             `db:"template_name" json:"template_name"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
 	OrganizationName    string             `db:"organization_name" json:"organization_name"`
 	TemplateVersionID   uuid.UUID          `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName string             `db:"template_version_name" json:"template_version_name"`
@@ -6552,6 +6554,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		if err := rows.Scan(
 			&i.TemplateID,
 			&i.TemplateName,
+			&i.OrganizationID,
 			&i.OrganizationName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,

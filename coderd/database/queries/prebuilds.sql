@@ -27,6 +27,7 @@ RETURNING w.id, w.name;
 SELECT
 		t.id                        AS template_id,
 		t.name                      AS template_name,
+		o.id                        AS organization_id,
 		o.name                      AS organization_name,
 		tv.id                       AS template_version_id,
 		tv.name                     AS template_version_name,

@@ -514,7 +514,7 @@ func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context,
 			map[string]any{},
 			"prebuilds_reconciler",
 			// Associate this notification with all the related entities.
-			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID,
+			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID, ps.Preset.OrganizationID,
 		); err != nil {
 			c.logger.Error(ctx,
 				"failed to send notification",
