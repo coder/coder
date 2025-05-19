@@ -149,6 +149,14 @@ func publishInTransaction(m dsl.Matcher) {
 			$*_
 		}, $*_)
 	`,
+	// Alternative with short variable declaration
+	`
+		$x.InTx(func($y) error {
+			$*_
+			$_ := $ps.Publish($evt, $msg)
+			$*_
+		}, $*_)
+	`,
 		// Without catching error return
 		`
 		$x.InTx(func($y) error {
