@@ -5518,7 +5518,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 
@@ -5545,6 +5546,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]`  | string                                                             | false    |              |             |
 | `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)         | false    |              |             |
 | `worker_id`         | string                                                             | false    |              |             |
+| `worker_name`       | string                                                             | false    |              |             |
 
 #### Enumerated Values
 
@@ -7101,7 +7103,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -8241,7 +8244,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -9205,7 +9209,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -9928,7 +9933,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "property2": "string"
           },
           "type": "template_version_import",
-          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+          "worker_name": "string"
         },
         "matched_provisioners": {
           "available": 0,
