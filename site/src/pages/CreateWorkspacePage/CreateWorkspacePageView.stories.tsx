@@ -77,6 +77,7 @@ export const Parameters: Story = {
 				description: "",
 				description_plaintext: "",
 				type: "string",
+				form_type:"",
 				mutable: false,
 				default_value: "",
 				icon: "/emojis/1f30e.png",

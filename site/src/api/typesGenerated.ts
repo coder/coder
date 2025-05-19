@@ -2776,6 +2776,7 @@ export interface TemplateVersionParameter {
 	readonly description: string;
 	readonly description_plaintext: string;
 	readonly type: string;
+	readonly form_type: string;
 	readonly mutable: boolean;
 	readonly default_value: string;
 	readonly icon: string;

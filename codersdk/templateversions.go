@@ -61,6 +61,7 @@ type TemplateVersionParameter struct {
 	Description          string                           `json:"description"`
 	DescriptionPlaintext string                           `json:"description_plaintext"`
 	Type                 string                           `json:"type" enums:"string,number,bool,list(string)"`
+	FormType             string                           `json:"form_type"`
 	Mutable              bool                             `json:"mutable"`
 	DefaultValue         string                           `json:"default_value"`
 	Icon                 string                           `json:"icon"`

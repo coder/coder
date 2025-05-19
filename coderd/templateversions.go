@@ -1895,6 +1895,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
+		FormType:             param.FormType,
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
 		Icon:                 param.Icon,

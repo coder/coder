@@ -3527,6 +3527,12 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 		secondParameterDescription         = "_This_ is second *parameter*"
 		secondParameterValue               = "2"
 		secondParameterValidationMonotonic = codersdk.MonotonicOrderIncreasing
+
+		thirdParameterName     = "third_parameter"
+		thirdParameterType     = "list(string)"
+		thirdParameterFormType = "multi-select"
+		thirdParameterDefault  = `["red"]`
+		thirdParameterOption   = "red"
 	)
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -3552,6 +3558,18 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								ValidationMax:       ptr.Ref(int32(3)),
 								ValidationMonotonic: string(secondParameterValidationMonotonic),
 							},
+							{
+								Name:         thirdParameterName,
+								Type:         thirdParameterType,
+								DefaultValue: thirdParameterDefault,
+								Options: []*proto.RichParameterOption{
+									{
+										Name:  thirdParameterOption,
+										Value: thirdParameterOption,
+									},
+								},
+								FormType: thirdParameterFormType,
+							},
 						},
 					},
 				},
@@ -3575,12 +3593,13 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
 	require.NoError(t, err)
-	require.Len(t, templateRichParameters, 2)
+	require.Len(t, templateRichParameters, 3)
 	require.Equal(t, firstParameterName, templateRichParameters[0].Name)
 	require.Equal(t, firstParameterType, templateRichParameters[0].Type)
 	require.Equal(t, firstParameterDescription, templateRichParameters[0].Description)
 	require.Equal(t, firstParameterDescriptionPlaintext, templateRichParameters[0].DescriptionPlaintext)
 	require.Equal(t, codersdk.ValidationMonotonicOrder(""), templateRichParameters[0].ValidationMonotonic) // no validation for string
+
 	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
 	require.Equal(t, secondParameterDisplayName, templateRichParameters[1].DisplayName)
 	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
@@ -3588,9 +3607,22 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
 	require.Equal(t, secondParameterValidationMonotonic, templateRichParameters[1].ValidationMonotonic)
 
+	third := templateRichParameters[2]
+	require.Equal(t, thirdParameterName, third.Name)
+	require.Equal(t, thirdParameterType, third.Type)
+	require.Equal(t, thirdParameterFormType, third.FormType)
+	require.Equal(t, thirdParameterDefault, third.DefaultValue)
+	require.Equal(t, thirdParameterOption, third.Options[0].Name)
+	require.Equal(t, thirdParameterOption, third.Options[0].Value)
+
+	//require.Equal(t, secondParameterDescription,third.)
+	//require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
+	//require.Equal(t, secondParameterValidationMonotonic, templateRichParameters[1].ValidationMonotonic)
+
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterValue},
 		{Name: secondParameterName, Value: secondParameterValue},
+		{Name: thirdParameterName, Value: thirdParameterDefault},
 	}
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
