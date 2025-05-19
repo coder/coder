@@ -26,17 +26,24 @@ import type { FC } from "react";
 import { docs } from "utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
+// If the user using provisioner keys for external provisioners you're unlikely to
+// want to keep the built-in provisioners.
+const HIDDEN_PROVISIONER_KEYS = [
+	ProvisionerKeyIDBuiltIn,
+	ProvisionerKeyIDUserAuth,
+	ProvisionerKeyIDPSK,
+];
+
 interface OrganizationProvisionerKeysPageViewProps {
 	showPaywall: boolean | undefined;
 	provisionerKeyDaemons: ProvisionerKeyDaemons[] | undefined;
-	buildVersion: string | undefined;
 	error: unknown;
 	onRetry: () => void;
 }
 
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
-> = ({ showPaywall, provisionerKeyDaemons, buildVersion, error, onRetry }) => {
+> = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
 	return (
 		<section>
 			<SettingsHeader>
@@ -57,11 +64,10 @@ export const OrganizationProvisionerKeysPageView: FC<
 				<Table className="mt-6">
 					<TableHeader>
 						<TableRow>
-							<TableHead>Created</TableHead>
 							<TableHead>Name</TableHead>
-							<TableHead>ID</TableHead>
 							<TableHead>Tags</TableHead>
 							<TableHead>Provisioners</TableHead>
+							<TableHead>Created</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -77,17 +83,12 @@ export const OrganizationProvisionerKeysPageView: FC<
 								</TableRow>
 							) : (
 								provisionerKeyDaemons
-									.filter((pkd) => {
-										return (
-											pkd.key.id !== ProvisionerKeyIDBuiltIn &&
-											pkd.key.id !== ProvisionerKeyIDUserAuth &&
-											pkd.key.id !== ProvisionerKeyIDPSK
-										);
-									})
+									.filter(
+										(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
+									)
 									.map((pkd) => (
 										<ProvisionerKeyRow
 											key={pkd.key.id}
-											buildVersion={buildVersion}
 											provisionerKey={pkd.key}
 											provisioners={pkd.daemons}
 											defaultIsOpen={false}

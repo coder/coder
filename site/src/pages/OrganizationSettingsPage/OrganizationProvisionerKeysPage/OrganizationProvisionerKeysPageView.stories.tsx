@@ -79,7 +79,6 @@ type Story = StoryObj<typeof OrganizationProvisionerKeysPageView>;
 
 export const Default: Story = {
 	args: {
-		buildVersion: MockBuildInfo.version,
 		error: undefined,
 		provisionerKeyDaemons: mockProvisionerKeyDaemons,
 		onRetry: () => {},

@@ -18,10 +18,10 @@ const OrganizationProvisionerKeysPage: FC = () => {
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const { entitlements } = useDashboard();
-	const { metadata } = useEmbeddedMetadata();
-	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const provisionerKeyDaemonsQuery = useQuery({
 		...provisionerDaemonGroups(organizationName),
+		select: (data) =>
+			[...data].sort((a, b) => b.daemons.length - a.daemons.length),
 	});
 
 	if (!organization) {
@@ -53,7 +53,6 @@ const OrganizationProvisionerKeysPage: FC = () => {
 			{helmet}
 			<OrganizationProvisionerKeysPageView
 				showPaywall={!entitlements.features.multiple_organizations.enabled}
-				buildVersion={buildInfoQuery.data?.version}
 				provisionerKeyDaemons={provisionerKeyDaemonsQuery.data}
 				error={provisionerKeyDaemonsQuery.error}
 				onRetry={provisionerKeyDaemonsQuery.refetch}
