@@ -489,7 +489,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -586,7 +587,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -707,7 +709,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -1264,7 +1267,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1334,6 +1338,7 @@ Status Code **200**
 | `»»» [any property]`        | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» type`                   | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
 | `»» worker_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» worker_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
 | `» matched_provisioners`    | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
 | `»» available`              | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
 | `»» count`                  | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
@@ -1541,7 +1546,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1611,6 +1617,7 @@ Status Code **200**
 | `»»» [any property]`        | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» type`                   | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
 | `»» worker_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» worker_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
 | `» matched_provisioners`    | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
 | `»» available`              | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
 | `»» count`                  | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
@@ -1708,7 +1715,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -1814,7 +1822,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -2010,7 +2019,8 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 
@@ -2082,7 +2092,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 

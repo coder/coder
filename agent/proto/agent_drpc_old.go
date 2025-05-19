@@ -50,3 +50,8 @@ type DRPCAgentClient24 interface {
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }
+
+// DRPCAgentClient25 is the Agent API at v2.5.
+type DRPCAgentClient25 interface {
+	DRPCAgentClient24
+}

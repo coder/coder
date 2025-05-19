@@ -593,30 +593,42 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 
+	if b.dynamicParametersEnabled {
+		// Dynamic parameters skip all parameter validation.
+		// Pass the user's input as is.
+		// TODO: The previous behavior was only to pass param values
+		//  for parameters that exist. Since dynamic params can have
+		//  conditional parameter existence, the static frame of reference
+		//  is not sufficient. So assume the user is correct, or pull in the
+		//  dynamic param code to find the actual parameters.
+		for _, value := range b.richParameterValues {
+			names = append(names, value.Name)
+			values = append(values, value.Value)
+		}
+		b.parameterNames = &names
+		b.parameterValues = &values
+		return names, values, nil
+	}
+
 	resolver := codersdk.ParameterResolver{
 		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
 	}
+
 	for _, templateVersionParameter := range templateVersionParameters {
 		tvp, err := db2sdk.TemplateVersionParameter(templateVersionParameter)
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
 
-		var value string
-		if !b.dynamicParametersEnabled {
-			var err error
-			value, err = resolver.ValidateResolve(
-				tvp,
-				b.findNewBuildParameterValue(templateVersionParameter.Name),
-			)
-			if err != nil {
-				// At this point, we've queried all the data we need from the database,
-				// so the only errors are problems with the request (missing data, failed
-				// validation, immutable parameters, etc.)
-				return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
-			}
-		} else {
-			value = resolver.Resolve(tvp, b.findNewBuildParameterValue(templateVersionParameter.Name))
+		value, err := resolver.ValidateResolve(
+			tvp,
+			b.findNewBuildParameterValue(templateVersionParameter.Name),
+		)
+		if err != nil {
+			// At this point, we've queried all the data we need from the database,
+			// so the only errors are problems with the request (missing data, failed
+			// validation, immutable parameters, etc.)
+			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
 		}
 
 		names = append(names, templateVersionParameter.Name)

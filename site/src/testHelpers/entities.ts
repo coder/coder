@@ -561,7 +561,7 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
-const MockProvisionerKey: TypesGen.ProvisionerKey = {
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	id: "test-provisioner-key",
 	organization: MockOrganization.id,
 	created_at: "2022-05-17T17:39:01.382927298Z",

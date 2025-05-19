@@ -7730,7 +7730,9 @@ SELECT
 	COALESCE(t.display_name, '') AS template_display_name,
 	COALESCE(t.icon, '') AS template_icon,
 	w.id AS workspace_id,
-	COALESCE(w.name, '') AS workspace_name
+	COALESCE(w.name, '') AS workspace_name,
+	-- Include the name of the provisioner_daemon associated to the job
+	COALESCE(pd.name, '') AS worker_name
 FROM
 	provisioner_jobs pj
 LEFT JOIN
@@ -7755,6 +7757,9 @@ LEFT JOIN
 		t.id = tv.template_id
 		AND t.organization_id = pj.organization_id
 	)
+LEFT JOIN
+	-- Join to get the daemon name corresponding to the job's worker_id
+	provisioner_daemons pd ON pd.id = pj.worker_id
 WHERE
 	pj.organization_id = $1::uuid
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
@@ -7770,7 +7775,8 @@ GROUP BY
 	t.display_name,
 	t.icon,
 	w.id,
-	w.name
+	w.name,
+	pd.name
 ORDER BY
 	pj.created_at DESC
 LIMIT
@@ -7797,6 +7803,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
 	TemplateIcon        string         `db:"template_icon" json:"template_icon"`
 	WorkspaceID         uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
+	WorkerName          string         `db:"worker_name" json:"worker_name"`
 }
 
 func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
@@ -7844,6 +7851,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 			&i.TemplateIcon,
 			&i.WorkspaceID,
 			&i.WorkspaceName,
+			&i.WorkerName,
 		); err != nil {
 			return nil, err
 		}

@@ -9,7 +9,7 @@ export const ProvisionerTags: FC<HTMLProps<HTMLDivElement>> = ({
 	return (
 		<div
 			{...props}
-			className={cn(["flex items-center gap-1 flex-wrap", className])}
+			className={cn(["flex items-center gap-1 flex-wrap py-0.5", className])}
 		/>
 	);
 };
