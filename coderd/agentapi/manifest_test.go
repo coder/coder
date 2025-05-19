@@ -432,10 +432,6 @@ func TestGetManifest(t *testing.T) {
 			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
 		}
 
-		// Log got and expected with spew.
-		// t.Log("got:\n" + spew.Sdump(got))
-		// t.Log("expected:\n" + spew.Sdump(expected))
-
 		require.Equal(t, expected, got)
 	})
 
