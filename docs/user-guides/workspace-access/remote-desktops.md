@@ -47,6 +47,39 @@ Or use your favorite RDP client to connect to `localhost:3399`.
 
 The default username is `Administrator` and password is `coderRDP!`.
 
+### (Beta) Coder Desktop URI Handling
+
+[Coder Desktop](../desktop) can directly launch an RDP session without setting up port-forwarding using a URI handler.
+The URI format is:
+
+```text
+coder://<your Coder server name>/v0/open/ws/<workspace name>/agent/<agent name>/rdp?username=<username>&password=<password>
+```
+
+For example:
+
+```text
+coder://coder.example.com/v0/open/ws/myworkspace/agent/main/rdp?username=Administrator&password=coderRDP!
+```
+
+You can insert a link like this into the workspace dashboard page as a button using a `coder_app` resource in your
+template.
+
+```tf
+locals {
+  server_name = regex("https?:\\/\\/([^\\/]+)", data.coder_workspace.me.access_url)[0]
+}
+
+resource "coder_app" "rdp-coder-desktop" {
+  agent_id     = resource.coder_agent.main.id
+  slug         = "rdp-desktop"
+  display_name = "RDP with Coder Desktop"
+  url          = "coder://${local.server_name}/v0/open/ws/${data.coder_workspace.me.name}/agent/main/rdp?username=Administrator&password=coderRDP!"
+  icon         = "/icon/desktop.svg"
+  external     = true
+}
+```
+
 ## RDP Web
 
 Our [WebRDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
