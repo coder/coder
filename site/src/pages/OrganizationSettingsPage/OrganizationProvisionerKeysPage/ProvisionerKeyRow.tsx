@@ -103,7 +103,7 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 											<RouterLink
 												to={`../provisioners?${new URLSearchParams({ ids: provisioner.id })}`}
 											>
-												{provisionerKey.name}
+												{provisioner.name}
 											</RouterLink>
 										</Badge>
 									))}
