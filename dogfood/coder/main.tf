@@ -378,8 +378,8 @@ resource "coder_agent" "dev" {
     #
     # WARNING! This will remove:
     # - all containers
-    # - all networks not used by at least one container
-    # - all images without at least one container associated to them
+    # - all networks
+    # - all images
     # - all build cache
     docker ps -q | xargs docker stop
     docker system prune -a
