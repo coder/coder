@@ -593,9 +593,10 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 
+	// Dynamic parameters skip all parameter validation.
+	// Deleting a workspace also should skip parameter validation.
+	// Pass the user's input as is.
 	if b.dynamicParametersEnabled {
-		// Dynamic parameters skip all parameter validation.
-		// Pass the user's input as is.
 		// TODO: The previous behavior was only to pass param values
 		//  for parameters that exist. Since dynamic params can have
 		//  conditional parameter existence, the static frame of reference

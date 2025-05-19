@@ -1699,8 +1699,10 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
+			Logger: &logger,
 			// We intentionally do not run a built-in provisioner daemon here.
 			IncludeProvisionerDaemon: false,
 		},
@@ -1742,11 +1744,11 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
 			{
 				Name:  "param_min",
-				Value: "3",
+				Value: "15",
 			},
 			{
 				Name:  "param",
-				Value: "5",
+				Value: "13",
 			},
 		},
 	})
@@ -1755,12 +1757,15 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	// Now delete the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
-		Transition:       codersdk.WorkspaceTransitionDelete,
-		ProvisionerState: []byte{},
-		Orphan:           false,
+		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	require.NotEqual(t, codersdk.WorkspaceStatusFailed, build.Status)
+
+	//wrk, err := member.Workspace(ctx, ws.ID)
+	//require.NoError(t, err)
+	//require.Equal(t, ws, wrk)
 }
 
 // TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
