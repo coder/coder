@@ -12,11 +12,13 @@ import type { FC } from "react";
 type CopyButtonProps = ButtonProps & {
 	text: string;
 	label: string;
+	outerCopiedSuccess?: boolean;
 };
 
 export const CopyButton: FC<CopyButtonProps> = ({
 	text,
 	label,
+	outerCopiedSuccess,
 	...buttonProps
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard({
@@ -30,10 +32,17 @@ export const CopyButton: FC<CopyButtonProps> = ({
 					<Button
 						size="icon"
 						variant="subtle"
-						onClick={copyToClipboard}
+						onClick={(e) => {
+							e.stopPropagation();
+							copyToClipboard();
+						}}
 						{...buttonProps}
 					>
-						{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+						{outerCopiedSuccess || showCopiedSuccess ? (
+							<CheckIcon />
+						) : (
+							<CopyIcon />
+						)}
 						<span className="sr-only">{label}</span>
 					</Button>
 				</TooltipTrigger>

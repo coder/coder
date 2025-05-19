@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { useClipboard } from "hooks";
 import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
@@ -20,8 +21,17 @@ export const CodeExample: FC<CodeExampleProps> = ({
 	// the secure option, not remember to opt in
 	secret = true,
 }) => {
+	const { showCopiedSuccess, copyToClipboard } = useClipboard({
+		textToCopy: code,
+	});
+
 	return (
-		<div css={styles.container} className={className}>
+		// biome-ignore lint/a11y/useKeyWithClickEvents: The on click here is to make it easier/more clear for mouse users to copy the code. The button within the code is still focusable via keyboard for the same functionality.
+		<div
+			css={styles.container}
+			className={className}
+			onClick={copyToClipboard}
+		>
 			<code css={[styles.code, secret && styles.secret]}>
 				{secret ? (
 					<>
@@ -43,7 +53,11 @@ export const CodeExample: FC<CodeExampleProps> = ({
 				)}
 			</code>
 
-			<CopyButton text={code} label="Copy code" />
+			<CopyButton
+				text={code}
+				label="Copy code"
+				outerCopiedSuccess={showCopiedSuccess}
+			/>
 		</div>
 	);
 };
