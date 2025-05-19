@@ -1,3 +1,4 @@
+import type * as TypesGen from "api/typesGenerated";
 import type {
 	PreviewParameter,
 	Workspace,
@@ -7,14 +8,13 @@ import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
-
+import { useEffect, useRef } from "react";
 export type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
 	parameters: PreviewParameter[];
@@ -60,37 +60,17 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		workspace.template_require_active_version &&
 		!canChangeVersions;
 
-	const { debounced: handleChangeDebounced } = useDebouncedFunction(
-		async (
-			parameter: PreviewParameter,
-			parameterField: string,
-			value: string,
-		) => {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		},
-		500,
-	);
-
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
 		value: string,
 	) => {
-		if (parameter.form_type === "input" || parameter.form_type === "textarea") {
-			handleChangeDebounced(parameter, parameterField, value);
-		} else {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		}
+		await form.setFieldValue(parameterField, {
+			name: parameter.name,
+			value,
+		});
+		form.setFieldTouched(parameter.name, true);
+		sendDynamicParamsRequest(parameter, value);
 	};
 
 	// Send the changed parameter and all touched parameters to the websocket
@@ -113,6 +93,12 @@ export const WorkspaceParametersPageViewExperimental: FC<
 
 		sendMessage(formInputs);
 	};
+
+	useSyncFormParameters({
+		parameters,
+		formValues: form.values.rich_parameter_values ?? [],
+		setFieldValue: form.setFieldValue,
+	});
 
 	return (
 		<>
@@ -171,6 +157,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 									onChange={(value) =>
 										handleChange(parameter, parameterField, value)
 									}
+									autofill={false}
 									disabled={isDisabled}
 								/>
 							);
@@ -201,6 +188,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 										onChange={(value) =>
 											handleChange(parameter, parameterField, value)
 										}
+										autofill={false}
 										disabled={isDisabled}
 									/>
 								);
@@ -225,3 +213,52 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		</>
 	);
 };
+
+type UseSyncFormParametersProps = {
+	parameters: readonly PreviewParameter[];
+	formValues: readonly TypesGen.WorkspaceBuildParameter[];
+	setFieldValue: (
+		field: string,
+		value: TypesGen.WorkspaceBuildParameter[],
+	) => void;
+};
+
+function useSyncFormParameters({
+	parameters,
+	formValues,
+	setFieldValue,
+}: UseSyncFormParametersProps) {
+	// Form values only needs to be updated when parameters change
+	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
+	const formValuesRef = useRef(formValues);
+
+	useEffect(() => {
+		formValuesRef.current = formValues;
+	}, [formValues]);
+
+	useEffect(() => {
+		if (!parameters) return;
+		const currentFormValues = formValuesRef.current;
+
+		const newParameterValues = parameters.map((param) => {
+			return {
+				name: param.name,
+				value: param.value.valid ? param.value.value : "",
+			};
+		});
+
+		const isChanged =
+			currentFormValues.length !== newParameterValues.length ||
+			newParameterValues.some(
+				(p) =>
+					!currentFormValues.find(
+						(formValue) =>
+							formValue.name === p.name && formValue.value === p.value,
+					),
+			);
+
+		if (isChanged) {
+			setFieldValue("rich_parameter_values", newParameterValues);
+		}
+	}, [parameters, setFieldValue]);
+}

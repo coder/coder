@@ -23,12 +23,28 @@ const WorkspaceParametersExperimentRouter: FC = () => {
 						workspace.template_id,
 						"optOut",
 					],
-					queryFn: () => ({
-						templateId: workspace.template_id,
-						workspaceId: workspace.id,
-						optedOut:
-							localStorage.getItem(optOutKey(workspace.template_id)) === "true",
-					}),
+					queryFn: () => {
+						const templateId = workspace.template_id;
+						const workspaceId = workspace.id;
+						const localStorageKey = optOutKey(templateId);
+						const storedOptOutString = localStorage.getItem(localStorageKey);
+
+						let optOutResult: boolean;
+
+						if (storedOptOutString !== null) {
+							optOutResult = storedOptOutString === "true";
+						} else {
+							optOutResult = Boolean(
+								workspace.template_use_classic_parameter_flow,
+							);
+						}
+
+						return {
+							templateId,
+							workspaceId,
+							optedOut: optOutResult,
+						};
+					},
 				}
 			: { enabled: false },
 	);
@@ -43,7 +59,12 @@ const WorkspaceParametersExperimentRouter: FC = () => {
 
 		const toggleOptedOut = () => {
 			const key = optOutKey(optOutQuery.data.templateId);
-			const current = localStorage.getItem(key) === "true";
+			const storedValue = localStorage.getItem(key);
+
+			const current = storedValue
+				? storedValue === "true"
+				: Boolean(workspace.template_use_classic_parameter_flow);
+
 			localStorage.setItem(key, (!current).toString());
 			optOutQuery.refetch();
 		};

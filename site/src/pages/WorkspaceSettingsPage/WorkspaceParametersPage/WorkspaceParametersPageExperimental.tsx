@@ -12,6 +12,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import type { FC } from "react";
 import {
 	useCallback,
@@ -39,20 +40,30 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const experimentalFormContext = useContext(ExperimentalFormContext);
 
-	const [currentResponse, setCurrentResponse] =
+	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const [wsResponseId, setWSResponseId] = useState<number>(-1);
+	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const onMessage = useCallback((response: DynamicParametersResponse) => {
-		setCurrentResponse((prev) => {
-			if (prev?.id === response.id) {
-				return prev;
-			}
-			return response;
-		});
+	const sendMessage = useCallback((formValues: Record<string, string>) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
 	}, []);
+
+	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
+		if (latestResponse && latestResponse?.id >= response.id) {
+			return;
+		}
+
+		setLatestResponse(response);
+	});
 
 	useEffect(() => {
 		if (!workspace.latest_build.template_version_id) return;
@@ -63,7 +74,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			{
 				onMessage,
 				onError: (error) => {
-					setWsError(error);
+					if (ws.current === socket) {
+						setWsError(error);
+					}
 				},
 				onClose: () => {
 					if (ws.current === socket) {
@@ -89,20 +102,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		onMessage,
 	]);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		setWSResponseId((prevId) => {
-			const request: DynamicParametersRequest = {
-				id: prevId + 1,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				return prevId + 1;
-			}
-			return prevId;
-		});
-	}, []);
-
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
 			API.postWorkspaceBuild(workspace.id, {
@@ -125,12 +124,12 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const handleSubmit = (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => {
-		if (!currentResponse || !currentResponse.parameters) {
+		if (!latestResponse || !latestResponse.parameters) {
 			return;
 		}
 
 		// Only submit mutable parameters
-		const onlyMutableValues = currentResponse.parameters
+		const onlyMutableValues = latestResponse.parameters
 			.filter((p) => p.mutable)
 			.map((p) => {
 				const value = values.rich_parameter_values.find(
@@ -146,16 +145,16 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	};
 
 	const sortedParams = useMemo(() => {
-		if (!currentResponse?.parameters) {
+		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...currentResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [currentResponse?.parameters]);
+		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+	}, [latestResponse?.parameters]);
 
 	const error = wsError || updateParameters.error;
 
 	if (
-		!currentResponse ||
+		!latestResponse ||
 		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
 	) {
 		return <Loader />;
@@ -190,7 +189,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					workspace={workspace}
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
-					diagnostics={currentResponse.diagnostics}
+					diagnostics={latestResponse.diagnostics}
 					isSubmitting={updateParameters.isLoading}
 					onSubmit={handleSubmit}
 					onCancel={() =>
