@@ -2650,8 +2650,8 @@ func TestReinit(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	pubsubSpy := pubsubReinitSpy{
-		Pubsub:     ps,
-		subscribed: make(chan string),
+		Pubsub:           ps,
+		triedToSubscribe: make(chan string),
 	}
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database: db,
@@ -2664,9 +2664,9 @@ func TestReinit(t *testing.T) {
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
 
-	pubsubSpy.Mutex.Lock()
+	pubsubSpy.Lock()
 	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
-	pubsubSpy.Mutex.Unlock()
+	pubsubSpy.Unlock()
 
 	agentCtx := testutil.Context(t, testutil.WaitShort)
 	agentClient := agentsdk.New(client.URL)
@@ -2681,7 +2681,7 @@ func TestReinit(t *testing.T) {
 
 	// We need to subscribe before we publish, lest we miss the event
 	ctx := testutil.Context(t, testutil.WaitShort)
-	testutil.TryReceive(ctx, t, pubsubSpy.subscribed) // Wait for the appropriate subscription
+	testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
 
 	// Now that we're subscribed, publish the event
 	err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
@@ -2699,15 +2699,16 @@ func TestReinit(t *testing.T) {
 type pubsubReinitSpy struct {
 	pubsub.Pubsub
 	sync.Mutex
-	subscribed    chan string
-	expectedEvent string
+	triedToSubscribe chan string
+	expectedEvent    string
 }
 
 func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	cancel, err = p.Pubsub.Subscribe(event, listener)
 	p.Lock()
 	if p.expectedEvent != "" && event == p.expectedEvent {
-		close(p.subscribed)
+		close(p.triedToSubscribe)
 	}
 	p.Unlock()
-	return p.Pubsub.Subscribe(event, listener)
+	return cancel, err
 }
