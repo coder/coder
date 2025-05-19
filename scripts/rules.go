@@ -143,7 +143,7 @@ func publishInTransaction(m dsl.Matcher) {
 
 	// Match direct calls to the Publish method of a pubsub instance inside InTx
 	m.Match(`
-		$x.InTx(func($y) error {
+		$_.InTx(func($x) error {
 			$*_
 			$_ = $ps.Publish($evt, $msg)
 			$*_
@@ -151,7 +151,7 @@ func publishInTransaction(m dsl.Matcher) {
 	`,
 		// Alternative with short variable declaration
 		`
-		$x.InTx(func($y) error {
+		$_.InTx(func($x) error {
 			$*_
 			$_ := $ps.Publish($evt, $msg)
 			$*_
@@ -159,7 +159,7 @@ func publishInTransaction(m dsl.Matcher) {
 	`,
 		// Without catching error return
 		`
-		$x.InTx(func($y) error {
+		$_.InTx(func($x) error {
 			$*_
 			$ps.Publish($evt, $msg)
 			$*_
