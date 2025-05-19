@@ -120,14 +120,16 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 								<>
 									<dt>Completed by provisioner:</dt>
 									<dd className="flex items-center gap-2">
-										<span>{job.worker_id}</span>
-										<Button size="xs" variant="outline" asChild>
-											<RouterLink
-												to={`../provisioners?${new URLSearchParams({ ids: job.worker_id })}`}
-											>
-												View provisioner
-											</RouterLink>
-										</Button>
+										<span>{job.worker_name || "[removed]"}</span>
+										{job.worker_name && (
+											<Button size="xs" variant="outline" asChild>
+												<RouterLink
+													to={`../provisioners?${new URLSearchParams({ ids: job.worker_id })}`}
+												>
+													View provisioner
+												</RouterLink>
+											</Button>
+										)}
 									</dd>
 								</>
 							)}

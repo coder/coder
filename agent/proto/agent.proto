@@ -90,6 +90,7 @@ message Manifest {
 	string motd_path = 6;
 	bool disable_direct_connections = 7;
 	bool derp_force_websockets = 8;
+	optional bytes parent_id = 18;
 
 	coder.tailnet.v2.DERPMap derp_map = 9;
 	repeated WorkspaceAgentScript scripts = 10;

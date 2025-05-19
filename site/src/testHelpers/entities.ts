@@ -824,6 +824,7 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
+	use_classic_parameter_flow: false,
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -4383,4 +4384,5 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	volumes: {
 		"/mnt/volume1": "/volume1",
 	},
+	devcontainer_dirty: false,
 };
