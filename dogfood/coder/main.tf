@@ -382,7 +382,7 @@ resource "coder_agent" "dev" {
     # - all images
     # - all build cache
     docker ps -q | xargs docker stop
-    docker system prune -a
+    docker system prune -a -f
 
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
