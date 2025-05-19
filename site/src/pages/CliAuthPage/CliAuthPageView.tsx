@@ -19,28 +19,34 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 	}
 
 	return (
-		<SignInLayout>
-			<Welcome className="pb-3">Session token</Welcome>
+		<div className="flex justify-between h-dvh flex-col items-center py-6">
+				<div />
+			<div className="flex items-center justify-center flex-col">
+				<Welcome className="pb-3">Session token</Welcome>
 
-			<p css={styles.instructions}>
-				Copy the session token below and
-				{/*
-				 * This looks silly, but it's a case where you want to hide the space
-				 * visually because it messes up the centering, but you want the space
-				 * to still be available to screen readers
-				 */}
-				<span css={{ ...visuallyHidden }}>{VISUALLY_HIDDEN_SPACE}</span>
-				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
-			</p>
+				<p css={styles.instructions}>
+					Copy the session token below and
+					{/*
+					 * This looks silly, but it's a case where you want to hide the space
+					 * visually because it messes up the centering, but you want the space
+					 * to still be available to screen readers
+					 */}
+					<span css={{ ...visuallyHidden }}>{VISUALLY_HIDDEN_SPACE}</span>
+					<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+				</p>
 
-			<CodeExample code={sessionToken} secret />
+				<CodeExample code={sessionToken} secret />
 
-			<div css={{ paddingTop: 16 }}>
-				<RouterLink to="/workspaces" css={styles.backLink}>
-					Go to workspaces
-				</RouterLink>
+				<div css={{ paddingTop: 16 }}>
+					<RouterLink to="/workspaces" css={styles.backLink}>
+						Go to workspaces
+					</RouterLink>
+				</div>
 			</div>
-		</SignInLayout>
+			<div className="text-xs text-content-secondary">
+				{"\u00a9"} {new Date().getFullYear()} Coder Technologies, Inc.
+			</div>
+		</div>
 	);
 };
 
