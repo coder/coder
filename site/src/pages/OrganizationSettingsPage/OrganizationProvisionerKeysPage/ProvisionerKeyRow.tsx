@@ -70,7 +70,11 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 
 			{isOpen && (
 				<TableRow>
-					<TableCell colSpan={999} className="p-0">
+					<TableCell
+						colSpan={999}
+						className="p-0 border-l-4 border-accent bg-muted/50"
+						style={{ paddingLeft: "1.5rem" }}
+					>
 						{provisioners.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={999} className="p-4 border-t-0">
