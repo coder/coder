@@ -2325,7 +2325,7 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 			return nil, err
 		}
 	}
-	return q.db.GetProvisionerJobsByIDs(ctx, ids)
+	return provisionerJobs, nil
 }
 
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
