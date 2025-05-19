@@ -467,7 +467,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					<Slider
 						id={id}
 						className="mt-2"
-						value={[Number.isNaN(Number(value)) ? 0 : Number(value)]}
+						value={[Number.isFinite(Number(value)) ? Number(value) : 0]}
 						onValueChange={([value]) => {
 							onChange(value.toString());
 						}}

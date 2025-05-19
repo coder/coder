@@ -215,11 +215,18 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		const currentValues = form.values.rich_parameter_values ?? [];
 
-		const updates = selectedPreset.Parameters.map((presetParameter) => {
+		const updates: Array<{
+			field: string;
+			fieldValue: TypesGen.WorkspaceBuildParameter;
+			parameter: PreviewParameter;
+			presetValue: string;
+		}> = [];
+
+		for (const presetParameter of selectedPreset.Parameters) {
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
 			);
-			if (parameterIndex === -1) return null;
+			if (parameterIndex === -1) continue;
 
 			const parameterField = `rich_parameter_values.${parameterIndex}`;
 			const parameter = parameters[parameterIndex];
@@ -228,7 +235,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 			)?.value;
 
 			if (currentValue !== presetParameter.Value) {
-				return {
+				updates.push({
 					field: parameterField,
 					fieldValue: {
 						name: presetParameter.Name,
@@ -236,12 +243,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 					},
 					parameter,
 					presetValue: presetParameter.Value,
-				};
+				});
 			}
-			return null;
-		}).filter(
-			(update): update is NonNullable<typeof update> => update !== null,
-		);
+		}
 
 		if (updates.length > 0) {
 			for (const update of updates) {
