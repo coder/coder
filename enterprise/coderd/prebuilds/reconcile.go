@@ -486,11 +486,9 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 }
 
 func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
-	// TODO: rename ctx?
 	// nolint:gocritic // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	// TODO(yevhenii): move into separate function
 	// Send notification to template admins.
 	if c.notifEnq == nil {
 		c.logger.Warn(ctx, "notification enqueuer not set, cannot send resource replacement notification(s)")
