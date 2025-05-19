@@ -530,6 +530,9 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
+		// Include a valid oauth token for refreshing. If this token is invalid,
+		// it is difficult to tell an auth failure from a expired api key, or 
+		// an expired oauth key.
 		oauthToken := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
