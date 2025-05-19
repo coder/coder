@@ -398,12 +398,13 @@ Dynamic Parameters enhances Coder's existing parameter system with real-time val
 conditional parameter behavior, and richer input types.
 This feature allows template authors to create more interactive and responsive workspace creation experiences.
 
-### Enable Dynamic Parameters
+### Enable Dynamic Parameters (Early Access)
 
-To use Dynamic Parameters, enable the experiment flag or set the environment variable. Note that as of v.22.0, Dynamic parameters are an _unsafe_ experiment and will not be enabled by using the experiment wildcard.
+To use Dynamic Parameters, enable the experiment flag or set the environment variable.
+
+Note that as of v2.22.0, Dynamic parameters are an unsafe experiment and will not be enabled with the experiment wildcard.
 
 <div class="tabs">
-
 
 #### Flag
 
@@ -419,7 +420,9 @@ CODER_EXPERIMENTS=dynamic-parameters
 
 </div>
 
-Dynamic Parameters also require version >=2.4.0 of the coder provider. Inject the following at the top of your template after enabling the experiment:
+Dynamic Parameters also require version >=2.4.0 of the Coder provider.
+
+Enable the experiment, then include the following at the top of your template:
 
 ```terraform
 terraform {
@@ -431,7 +434,6 @@ terraform {
   }
 }
 ```
-
 
 Once enabled, users can toggle between the experimental and classic interfaces during
 workspace creation using an escape hatch in the workspace creation form.
@@ -451,8 +453,8 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
 
   - Read user data at build time from [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
   - Conditionally hide parameters based on user's role
-	- Change parameter options based on user groups
-	- Reference user name in parameters
+  - Change parameter options based on user groups
+  - Reference user name in parameters
 
 - **Additional Form Inputs**
 
@@ -471,23 +473,23 @@ Different parameter types support different form types.
 
 The "Options" column in the table below indicates whether the form type requires options to be defined (Yes) or doesn't support/require them (No). When required, options are specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
-| Form Type      | Parameter Types                            | Options | Notes                                                                                                                           | Example                                                                                                                                                                                                                                                                                    |
-|----------------|--------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters.<br>Default for boolean parameters.                                                    | <details><summary>checkbox</summary>  ``` tf data "coder_parameter" "enable_gpu" {   name         = "enable_gpu"   display_name = "Enable GPU"   type         = "bool"   form_type    = "checkbox" # This is the default for boolean parameters   default      = false } ```  </ details > |
-| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list.<br>Default for `string` or `number` parameters with options. | placeholder                                                                                                                                                                                                                                                                                |
-| `input`        | `string`, `number`                         | No      | Standard single-line text input field.<br>Default for string/number parameters without options.                                 | placeholder                                                                                                                                                                                                                                                                                |
-| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                         | placeholder                                                                                                                                                                                                                                                                                |
-| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                              | placeholder                                                                                                                                                                                                                                                                                |
-| `password`     | `string`                                   | No      | Masked input field for sensitive information.                                                                                   | placeholder                                                                                                                                                                                                                                                                                |
-| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                   | placeholder                                                                                                                                                                                                                                                                                |
-| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                    | placeholder                                                                                                                                                                                                                                                                                |
-| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                               | placeholder                                                                                                                                                                                                                                                                                |
-| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                            | placeholder                                                                                                                                                                                                                                                                                |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                                 | placeholder                                                                                                                                                                                                                                                                                |
+| Form Type      | Parameter Types                            | Options | Notes                                                                                                                        |
+|----------------|--------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------|
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
+| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list. Default for `string` or `number` parameters with options. |
+| `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
+| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                      |
+| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                           |
+| `password`     | `string`                                   | No      | Masked input field for sensitive information.                                                                                |
+| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                |
+| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
+| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                            |
+| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                         |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |                                                                                              |
 
 ### Form Type Examples
 
-<details><summary>checkbox: A single checkbox for boolean values</summary>
+<details><summary>`checkbox`: A single checkbox for boolean values</summary>
 
 ```tf
 data "coder_parameter" "enable_gpu" {
@@ -501,7 +503,7 @@ data "coder_parameter" "enable_gpu" {
 
 </details>
 
-<details><summary>dropdown: A searchable select menu for choosing a single option from a list</summary>
+<details><summary>`dropdown`: A searchable select menu for choosing a single option from a list</summary>
 
 ```tf
 data "coder_parameter" "region" {
@@ -524,7 +526,7 @@ data "coder_parameter" "region" {
 
 </details>
 
-<details><summary>input: A standard text input field</summary>
+<details><summary>`input`: A standard text input field</summary>
 
 ```tf
 data "coder_parameter" "custom_domain" {
@@ -538,7 +540,7 @@ data "coder_parameter" "custom_domain" {
 
 </details>
 
-<details><summary>key-value: Input for entering key-value pairs</summary>
+<details><summary>`key-value`: Input for entering key-value pairs</summary>
 
 ```tf
 data "coder_parameter" "environment_vars" {
@@ -552,7 +554,7 @@ data "coder_parameter" "environment_vars" {
 
 </details>
 
-<details><summary>multi-select: Checkboxes for selecting multiple options from a list</summary>
+<details><summary>`multi-select`: Checkboxes for selecting multiple options from a list</summary>
 
 ```tf
 data "coder_parameter" "tools" {
@@ -579,7 +581,7 @@ data "coder_parameter" "tools" {
 
 </details>
 
-<details><summary>password: A text input that masks sensitive information</summary>
+<details><summary>`password`: A text input that masks sensitive information</summary>
 
 ```tf
 data "coder_parameter" "api_key" {
@@ -593,7 +595,7 @@ data "coder_parameter" "api_key" {
 
 </details>
 
-<details><summary>radio: Radio buttons for selecting a single option with high visibility</summary>
+<details><summary>`radio`: Radio buttons for selecting a single option with high visibility</summary>
 
 ```tf
 data "coder_parameter" "environment" {
@@ -616,7 +618,7 @@ data "coder_parameter" "environment" {
 
 </details>
 
-<details><summary>slider: A slider for selecting numeric values within a range</summary>
+<details><summary>`slider`: A slider for selecting numeric values within a range</summary>
 
 ```tf
 data "coder_parameter" "cpu_cores" {
@@ -634,7 +636,7 @@ data "coder_parameter" "cpu_cores" {
 
 </details>
 
-<details><summary>switch: A toggle switch for boolean values</summary>
+<details><summary>`switch`: A toggle switch for boolean values</summary>
 
 ```tf
 data "coder_parameter" "advanced_mode" {
@@ -648,7 +650,7 @@ data "coder_parameter" "advanced_mode" {
 
 </details>
 
-<details><summary>textarea: A multi-line text input field for longer content</summary>
+<details><summary>`textarea`: A multi-line text input field for longer content</summary>
 
 ```tf
 data "coder_parameter" "init_script" {
@@ -934,4 +936,3 @@ data "coder_parameter" "cpu_count" {
 ```
 
 </details>
-
