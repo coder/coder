@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func TestWorkspace(t *testing.T) {
@@ -3632,6 +3633,72 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestWorkspaceWithMultiSelectFailure(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         "param",
+								Type:         provider.OptionTypeListString,
+								DefaultValue: `["red"]`,
+								Options: []*proto.RichParameterOption{
+									{
+										Name:  "red",
+										Value: "red",
+									},
+								},
+								FormType: string(provider.ParameterFormTypeMultiSelect),
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 1)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		// purple is not in the response set
+		{Name: "param", Value: `["red", "purple"]`},
+	}
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	req := codersdk.CreateWorkspaceRequest{
+		TemplateID:          template.ID,
+		Name:                coderdtest.RandomUsername(t),
+		AutostartSchedule:   ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:           ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutomaticUpdates:    codersdk.AutomaticUpdatesNever,
+		RichParameterValues: expectedBuildParameters,
+	}
+
+	_, err = client.CreateUserWorkspace(context.Background(), codersdk.Me, req)
+	require.Error(t, err)
+	var apiError *codersdk.Error
+	require.ErrorAs(t, err, &apiError)
+	require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
 }
 
 func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
