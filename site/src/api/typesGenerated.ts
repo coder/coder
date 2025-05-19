@@ -971,6 +971,7 @@ export interface FriendlyDiagnostic {
 	readonly severity: PreviewDiagnosticSeverityString;
 	readonly summary: string;
 	readonly detail: string;
+	readonly extra: PreviewDiagnosticExtra;
 }
 
 // From codersdk/apikey.go
@@ -1774,6 +1775,13 @@ export interface Preset {
 export interface PresetParameter {
 	readonly Name: string;
 	readonly Value: string;
+}
+
+// From types/diagnostics.go
+export interface PreviewDiagnosticExtra {
+	readonly code: string;
+	// empty interface{} type, falling back to unknown
+	readonly Wrapped: unknown;
 }
 
 // From types/diagnostics.go
@@ -2586,6 +2594,7 @@ export interface Template {
 	readonly time_til_dormant_autodelete_ms: number;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
+	readonly use_classic_parameter_flow: boolean;
 }
 
 // From codersdk/templates.go
@@ -2956,6 +2965,7 @@ export interface UpdateTemplateMeta {
 	readonly deprecation_message?: string;
 	readonly disable_everyone_group_access: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
+	readonly use_classic_parameter_flow?: boolean;
 }
 
 // From codersdk/users.go
@@ -3299,6 +3309,7 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+	readonly devcontainer_dirty: boolean;
 }
 
 // From codersdk/workspaceagents.go

@@ -1,4 +1,3 @@
-import PersonAdd from "@mui/icons-material/PersonAdd";
 import { getErrorMessage } from "api/errors";
 import type {
 	Group,
@@ -35,6 +34,7 @@ import {
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
+import { UserPlusIcon } from "lucide-react";
 import { EllipsisVertical, TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
@@ -243,7 +243,7 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 					variant="outline"
 				>
 					<Spinner loading={isLoading}>
-						<PersonAdd />
+						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
 					Add user
 				</Button>

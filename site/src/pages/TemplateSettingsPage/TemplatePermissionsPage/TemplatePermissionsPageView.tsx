@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import PersonAdd from "@mui/icons-material/PersonAdd";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectProps } from "@mui/material/Select";
 import Table from "@mui/material/Table";
@@ -31,6 +30,7 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { UserPlusIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
@@ -121,7 +121,7 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					type="submit"
 				>
 					<Spinner loading={isLoading}>
-						<PersonAdd />
+						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
 					Add member
 				</Button>

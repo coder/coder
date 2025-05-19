@@ -1,5 +1,4 @@
 import EditIcon from "@mui/icons-material/EditOutlined";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import Button from "@mui/material/Button";
 import { workspaces } from "api/queries/workspaces";
 import type {
@@ -27,6 +26,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { CopyIcon } from "lucide-react";
 import {
 	EllipsisVertical,
 	PlusIcon,
@@ -99,7 +99,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 							navigate(`/templates/new?fromTemplate=${templateId}`)
 						}
 					>
-						<CopyIcon />
+						<CopyIcon className="size-icon-sm" />
 						Duplicate&hellip;
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />

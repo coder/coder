@@ -5,6 +5,7 @@ import type {
 	ProvisionerLogLevel,
 	UsageAppName,
 	Workspace,
+	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 	WorkspacesRequest,
@@ -20,6 +21,7 @@ import type {
 	QueryClient,
 	QueryOptions,
 	UseMutationOptions,
+	UseQueryOptions,
 } from "react-query";
 import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
@@ -342,20 +344,14 @@ export const buildLogs = (workspace: Workspace) => {
 	};
 };
 
-export const agentLogsKey = (workspaceId: string, agentId: string) => [
-	"workspaces",
-	workspaceId,
-	"agents",
-	agentId,
-	"logs",
-];
+export const agentLogsKey = (agentId: string) => ["agents", agentId, "logs"];
 
-export const agentLogs = (workspaceId: string, agentId: string) => {
+export const agentLogs = (agentId: string) => {
 	return {
-		queryKey: agentLogsKey(workspaceId, agentId),
+		queryKey: agentLogsKey(agentId),
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
-	};
+	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
 };
 
 // workspace usage options
