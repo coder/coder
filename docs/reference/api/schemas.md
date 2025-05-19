@@ -7173,6 +7173,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "description_plaintext": "string",
   "display_name": "string",
   "ephemeral": true,
+  "form_type": "string",
   "icon": "string",
   "mutable": true,
   "name": "string",
@@ -7203,6 +7204,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `display_name`          | string                                                                                      | false    |              |             |
 | `ephemeral`             | boolean                                                                                     | false    |              |             |
+| `form_type`             | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |

@@ -3123,6 +3123,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
     "description_plaintext": "string",
     "display_name": "string",
     "ephemeral": true,
+    "form_type": "string",
     "icon": "string",
     "mutable": true,
     "name": "string",
@@ -3163,6 +3164,7 @@ Status Code **200**
 | `» description_plaintext` | string                                                                           | false    |              |             |
 | `» display_name`          | string                                                                           | false    |              |             |
 | `» ephemeral`             | boolean                                                                          | false    |              |             |
+| `» form_type`             | string                                                                           | false    |              |             |
 | `» icon`                  | string                                                                           | false    |              |             |
 | `» mutable`               | boolean                                                                          | false    |              |             |
 | `» name`                  | string                                                                           | false    |              |             |
