@@ -191,6 +191,11 @@ const OrganizationSettingsNavigation: FC<
 								Provisioners
 							</SettingsSidebarNavItem>
 							<SettingsSidebarNavItem
+								href={urlForSubpage(organization.name, "provisioner-keys")}
+							>
+								Provisioner Keys
+							</SettingsSidebarNavItem>
+							<SettingsSidebarNavItem
 								href={urlForSubpage(organization.name, "provisioner-jobs")}
 							>
 								Provisioner Jobs

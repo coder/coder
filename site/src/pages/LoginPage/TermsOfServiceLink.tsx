@@ -1,5 +1,5 @@
-import LaunchIcon from "@mui/icons-material/LaunchOutlined";
 import Link from "@mui/material/Link";
+import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface TermsOfServiceLinkProps {
@@ -21,7 +21,7 @@ export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({
 				rel="noreferrer"
 			>
 				Terms of Service&nbsp;
-				<LaunchIcon css={{ fontSize: 12 }} />
+				<SquareArrowOutUpRightIcon className="size-icon-xs" />
 			</Link>
 		</div>
 	);

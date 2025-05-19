@@ -4848,6 +4848,13 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 				row.AvailableWorkers = append(row.AvailableWorkers, worker.ID)
 			}
 		}
+
+		// Add daemon name to provisioner job
+		for _, daemon := range q.provisionerDaemons {
+			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+				row.WorkerName = daemon.Name
+			}
+		}
 		rows = append(rows, row)
 	}
 
@@ -11084,6 +11091,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.GroupACL = arg.GroupACL
 		tpl.AllowUserCancelWorkspaceJobs = arg.AllowUserCancelWorkspaceJobs
 		tpl.MaxPortSharingLevel = arg.MaxPortSharingLevel
+		tpl.UseClassicParameterFlow = arg.UseClassicParameterFlow
 		q.templates[idx] = tpl
 		return nil
 	}

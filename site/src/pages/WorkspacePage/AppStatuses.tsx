@@ -4,7 +4,6 @@ import AppsIcon from "@mui/icons-material/Apps";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
-import OpenInNew from "@mui/icons-material/OpenInNew";
 import Warning from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
@@ -16,6 +15,7 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { formatDistance, formatDistanceToNow } from "date-fns";
+import { ExternalLinkIcon } from "lucide-react";
 import { HourglassIcon } from "lucide-react";
 import { CircleHelpIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
@@ -304,7 +304,10 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 													},
 												}}
 											>
-												<OpenInNew sx={{ mr: 0.5 }} />
+												<ExternalLinkIcon
+													className="size-icon-xs"
+													style={{ marginRight: "4px" }}
+												/>
 												<div
 													css={{
 														bgcolor: "transparent",

@@ -115,6 +115,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deprecated":                        ActionTrack,
 		"max_port_sharing_level":            ActionTrack,
 		"activity_bump":                     ActionTrack,
+		"use_classic_parameter_flow":        ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

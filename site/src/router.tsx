@@ -313,6 +313,12 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
+const ProvisionerKeysPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerKeysPage/OrganizationProvisionerKeysPage"
+		),
+);
 const ProvisionerJobsPage = lazy(
 	() =>
 		import(
@@ -448,6 +454,10 @@ export const router = createBrowserRouter(
 							<Route
 								path="provisioner-jobs"
 								element={<ProvisionerJobsPage />}
+							/>
+							<Route
+								path="provisioner-keys"
+								element={<ProvisionerKeysPage />}
 							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />

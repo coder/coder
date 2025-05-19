@@ -89,15 +89,14 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
-	SubAgent                     bool
 
 	ExperimentalDevcontainersEnabled bool
 	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
 }
 
 type Client interface {
-	ConnectRPC24(ctx context.Context) (
-		proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
+	ConnectRPC25(ctx context.Context) (
+		proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
 	)
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
@@ -191,8 +190,6 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		subAgent: options.SubAgent,
-
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
 		containerAPIOptions:              options.ContainerAPIOptions,
 	}
@@ -274,8 +271,6 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
-
-	subAgent bool
 
 	experimentalDevcontainersEnabled bool
 	containerAPIOptions              []agentcontainers.Option
@@ -913,7 +908,7 @@ func (a *agent) run() (retErr error) {
 	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC24(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC25(a.hardCtx)
 	if err != nil {
 		return err
 	}
