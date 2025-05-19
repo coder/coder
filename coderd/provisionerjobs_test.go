@@ -189,7 +189,7 @@ func TestProvisionerJobs(t *testing.T) {
 
 	// Ensures that when a provisioner job is in the succeeded state,
 	// the API response includes both worker_id and worker_name fields
-	t.Run("AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+	t.Run("AssignedProvisionerJob", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
@@ -214,7 +214,7 @@ func TestProvisionerJobs(t *testing.T) {
 		err := provisionerDaemon.Close()
 		require.NoError(t, err)
 
-		t.Run("List_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Run("List_IncludesWorkerIDAndName", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
@@ -223,7 +223,9 @@ func TestProvisionerJobs(t *testing.T) {
 			provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
 			require.NoError(t, err)
 			require.Equal(t, 1, len(provisionerDaemons))
-			require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+			if assert.NotEmpty(t, provisionerDaemons) {
+				require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+			}
 
 			// Get provisioner jobs
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
@@ -235,12 +237,14 @@ func TestProvisionerJobs(t *testing.T) {
 				require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(job.Status))
 
 				// Guarantee that provisioner jobs contain the provisioner daemon ID and name
-				require.Equal(t, provisionerDaemons[0].ID, *job.WorkerID)
-				require.Equal(t, provisionerDaemonName, job.WorkerName)
+				if assert.NotEmpty(t, provisionerDaemons) {
+					require.Equal(t, &provisionerDaemons[0].ID, job.WorkerID)
+					require.Equal(t, provisionerDaemonName, job.WorkerName)
+				}
 			}
 		})
 
-		t.Run("Get_AssignedProvisionerJob_IncludesWorkerIDAndName", func(t *testing.T) {
+		t.Run("Get_IncludesWorkerIDAndName", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
@@ -249,7 +253,9 @@ func TestProvisionerJobs(t *testing.T) {
 			provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
 			require.NoError(t, err)
 			require.Equal(t, 1, len(provisionerDaemons))
-			require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+			if assert.NotEmpty(t, provisionerDaemons) {
+				require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+			}
 
 			// Get all provisioner jobs
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
@@ -273,8 +279,10 @@ func TestProvisionerJobs(t *testing.T) {
 			require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(workspaceProvisionerJob.Status))
 
 			// Guarantee that provisioner job contains the provisioner daemon ID and name
-			require.Equal(t, provisionerDaemons[0].ID, *workspaceProvisionerJob.WorkerID)
-			require.Equal(t, provisionerDaemonName, workspaceProvisionerJob.WorkerName)
+			if assert.NotEmpty(t, provisionerDaemons) {
+				require.Equal(t, &provisionerDaemons[0].ID, workspaceProvisionerJob.WorkerID)
+				require.Equal(t, provisionerDaemonName, workspaceProvisionerJob.WorkerName)
+			}
 		})
 	})
 }
