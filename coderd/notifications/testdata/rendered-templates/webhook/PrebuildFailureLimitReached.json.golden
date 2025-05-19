@@ -30,6 +30,6 @@
   },
   "title": "There is a problem creating prebuilt workspaces for the preset",
   "title_markdown": "There is a problem creating prebuilt workspaces for the preset",
-  "body": "The number of failed prebuilds has reached the hard limit for template docker and preset particle-accelerator.",
-  "body_markdown": "\nThe number of failed prebuilds has reached the hard limit for template **docker** and preset **particle-accelerator**.\n"
+  "body": "The number of failed prebuilds has reached the hard limit for template docker and preset particle-accelerator.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.",
+  "body_markdown": "\nThe number of failed prebuilds has reached the hard limit for template **docker** and preset **particle-accelerator**.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.\n"
 }

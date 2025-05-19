@@ -15,6 +15,9 @@ Hi Bobby,
 The number of failed prebuilds has reached the hard limit for template dock=
 er and preset particle-accelerator.
 
+To resume prebuilds, fix the underlying issue and upload a new template ver=
+sion.
+
 
 View failed workspaces: http://test.com/workspaces?filter=3Downer:prebuilds=
 +status:failed+template:docker
@@ -55,6 +58,9 @@ argin: 8px 0 32px; line-height: 1.5;">
         <p>The number of failed prebuilds has reached the hard limit for te=
 mplate <strong>docker</strong> and preset <strong>particle-accelerator</str=
 ong>.</p>
+
+<p>To resume prebuilds, fix the underlying issue and upload a new template =
+version.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
