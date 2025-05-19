@@ -344,6 +344,7 @@ func TestGetManifest(t *testing.T) {
 		expected := &agentproto.Manifest{
 			AgentId:                  agent.ID[:],
 			AgentName:                agent.Name,
+			ParentId:                 nil,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
 			WorkspaceName:            workspace.Name,
