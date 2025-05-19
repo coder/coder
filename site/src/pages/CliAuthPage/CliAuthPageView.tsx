@@ -18,8 +18,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 	}
 
 	return (
-		<div className="flex justify-between h-dvh flex-col items-center py-6">
-			<div />
+		<div className="relative flex justify-center h-dvh flex-col items-center py-6">
 			<div className="flex items-center justify-center flex-col">
 				<Welcome className="pb-3">Session token</Welcome>
 
@@ -42,7 +41,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 					</RouterLink>
 				</div>
 			</div>
-			<div className="text-xs text-content-secondary">
+			<div className="fixed bottom-6 text-xs text-content-secondary">
 				{"\u00a9"} {new Date().getFullYear()} Coder Technologies, Inc.
 			</div>
 		</div>
