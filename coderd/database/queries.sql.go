@@ -7912,6 +7912,7 @@ type GetProvisionerJobsToBeReapedParams struct {
 	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
 }
 
+// To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
 	if err != nil {
