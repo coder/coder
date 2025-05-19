@@ -373,6 +373,17 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
+    # Stop all running containers and prune the system to clean up
+    # /var/lib/docker to prevent errors during workspace destroy.
+    #
+    # WARNING! This will remove:
+    # - all containers
+    # - all networks
+    # - all images
+    # - all build cache
+    docker ps -q | xargs docker stop
+    docker system prune -a
+
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
   EOT
