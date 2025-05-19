@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"reflect"
 	"regexp"
 	"slices"
@@ -4883,11 +4884,14 @@ func (q *FakeQuerier) GetProvisionerJobsToBeReaped(_ context.Context, arg databa
 				provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 				hungJobs = append(hungJobs, provisionerJob)
 				if len(hungJobs) >= int(maxJobs) {
-					return hungJobs, nil
+					break
 				}
 			}
 		}
 	}
+	rand.Shuffle(len(hungJobs), func(i, j int) {
+		hungJobs[i], hungJobs[j] = hungJobs[j], hungJobs[i]
+	})
 	return hungJobs, nil
 }
 
@@ -10955,8 +10959,8 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteWithStartedAtByID(_ contex
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
-		job.JobStatus = provisionerJobStatus(job)
 		job.StartedAt = arg.StartedAt
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}

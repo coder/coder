@@ -27,36 +27,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// jobType represents the type of job being reaped
-type jobType string
-
-const (
-	hungJobType    jobType = "hung"
-	pendingJobType jobType = "pending"
-)
-
-// jobLogMessages returns the messages to be written to provisioner job logs when a job is reaped
-func jobLogMessages(jobType jobType, threshold float64) []string {
-	return []string{
-		"",
-		"====================",
-		fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and will be terminated.", jobType, threshold),
-		"====================",
-		"",
-	}
-}
-
-// reapParamsFromJob determines the type and threshold for a job being reaped
-func reapParamsFromJob(job database.ProvisionerJob) (jobType, float64) {
-	jobType := hungJobType
-	threshold := jobreaper.HungJobDuration.Minutes()
-	if !job.StartedAt.Valid {
-		jobType = pendingJobType
-		threshold = jobreaper.PendingJobDuration.Minutes()
-	}
-	return jobType, threshold
-}
-
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
@@ -972,8 +942,13 @@ func TestDetectorPushesLogs(t *testing.T) {
 				CreatedAfter: after,
 			})
 			require.NoError(t, err)
-			jobType, threshold := reapParamsFromJob(templateImportJob)
-			expectedLogs := jobLogMessages(jobType, threshold)
+			threshold := jobreaper.HungJobDuration
+			jobType := jobreaper.Hung
+			if templateImportJob.JobStatus == database.ProvisionerJobStatusPending {
+				threshold = jobreaper.PendingJobDuration
+				jobType = jobreaper.Pending
+			}
+			expectedLogs := jobreaper.JobLogMessages(jobType, threshold)
 			require.Len(t, logs, len(expectedLogs))
 			for i, log := range logs {
 				assert.Equal(t, database.LogLevelError, log.Level)

@@ -39,9 +39,9 @@ type ServeOptions struct {
 	//
 	// This is a no-op on Windows where the process can't be interrupted.
 	//
-	// Default value: 3 minutes (reaper.HungJobExitTimeout). This value should
+	// Default value: 3 minutes (jobreaper.HungJobExitTimeout). This value should
 	// be kept less than the value that Coder uses to mark hung jobs as failed,
-	// which is 5 minutes (see reaper package).
+	// which is 5 minutes (see jobreaper package).
 	ExitTimeout time.Duration
 }
 

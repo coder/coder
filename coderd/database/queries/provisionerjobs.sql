@@ -299,6 +299,7 @@ WHERE
 		AND started_at IS NOT NULL
 		AND completed_at IS NULL
 	)
+-- To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 ORDER BY random()
 LIMIT @max_jobs;
 

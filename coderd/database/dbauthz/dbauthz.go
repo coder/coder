@@ -3542,12 +3542,7 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
-	// Currently ProvisionerJobs are not associated with a user, so we can't
-	// check for a user's permissions. We'd need to check for the associated workspace
-	// and verify ownership through that.
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return database.ProvisionerJob{}, err
-	// }
+	// Details in https://github.com/coder/coder/issues/16160
 	return q.db.InsertProvisionerJob(ctx, arg)
 }
 
