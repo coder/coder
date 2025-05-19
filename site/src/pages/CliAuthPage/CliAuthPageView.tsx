@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Loader } from "components/Loader/Loader";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -20,7 +19,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 
 	return (
 		<div className="flex justify-between h-dvh flex-col items-center py-6">
-				<div />
+			<div />
 			<div className="flex items-center justify-center flex-col">
 				<Welcome className="pb-3">Session token</Welcome>
 

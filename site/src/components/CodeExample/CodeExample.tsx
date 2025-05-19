@@ -27,11 +27,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: The on click here is to make it easier/more clear for mouse users to copy the code. The button within the code is still focusable via keyboard for the same functionality.
-		<div
-			css={styles.container}
-			className={className}
-			onClick={copyToClipboard}
-		>
+		<div css={styles.container} className={className} onClick={copyToClipboard}>
 			<code css={[styles.code, secret && styles.secret]}>
 				{secret ? (
 					<>
