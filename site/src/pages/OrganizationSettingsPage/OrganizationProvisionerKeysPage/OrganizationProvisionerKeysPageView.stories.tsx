@@ -5,7 +5,11 @@ import {
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
 } from "api/typesGenerated";
-import { MockProvisioner, MockProvisionerKey } from "testHelpers/entities";
+import {
+	MockProvisioner,
+	MockProvisionerKey,
+	mockApiError,
+} from "testHelpers/entities";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 
 const mockProvisionerKeyDaemons: ProvisionerKeyDaemons[] = [
@@ -96,10 +100,13 @@ export const Empty: Story = {
 	},
 };
 
-export const ErrorLoadingProvisionerKeys: Story = {
+export const WithError: Story = {
 	...Default,
 	args: {
-		provisionerKeyDaemons: [],
-		error: "Failed to load provisioner keys",
+		provisionerKeyDaemons: undefined,
+		error: mockApiError({
+			message: "Error loading provisioner keys",
+			detail: "Something went wrong. This is an unhelpful error message.",
+		}),
 	},
 };
