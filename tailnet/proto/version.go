@@ -45,9 +45,13 @@ import (
 //     PushResourcesMonitoringUsage RPCs on the Agent API.
 //   - Added support for reporting connection events for auditing via the
 //     ReportConnection RPC on the Agent API.
+//
+// API v2.5:
+//   - Shipped in Coder v2.xx.x // TODO(DanielleMaywood): Update version
+//   - Added `ParentId` to the agent manifest.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
