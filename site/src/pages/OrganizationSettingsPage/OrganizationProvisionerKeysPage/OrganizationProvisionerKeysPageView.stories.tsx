@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
+	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
@@ -11,7 +12,7 @@ import {
 } from "testHelpers/entities";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 
-const mockProvisionerKeyDaemons = [
+const mockProvisionerKeyDaemons: ProvisionerKeyDaemons[] = [
 	{
 		key: {
 			...MockProvisionerKey,
@@ -59,6 +60,7 @@ const mockProvisionerKeyDaemons = [
 			id: ProvisionerKeyIDPSK,
 			name: "PSK",
 		},
+		daemons: [],
 	},
 ];
 
