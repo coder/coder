@@ -74,7 +74,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
-	cloud.google.com/go/compute/metadata v0.6.0
+	cloud.google.com/go/compute/metadata v0.7.0
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
