@@ -12,7 +12,7 @@
     "actions": [
       {
         "label": "View failed workspaces",
-        "url": "http://test.com/workspaces?filter=owner:prebuilds+status:failed+template:docker\u0026page=1"
+        "url": "http://test.com/workspaces?filter=owner:prebuilds+status:failed+template:docker"
       },
       {
         "label": "View template version",

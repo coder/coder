@@ -10,7 +10,7 @@ $$,
 		'[
 		{
 			"label": "View failed workspaces",
-			"url": "{{base_url}}/workspaces?filter=owner:prebuilds+status:failed+template:{{.Labels.template}}&page=1"
+			"url": "{{base_url}}/workspaces?filter=owner:prebuilds+status:failed+template:{{.Labels.template}}"
 		},
 		{
 			"label": "View template version",
