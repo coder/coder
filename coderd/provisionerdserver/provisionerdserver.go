@@ -1414,6 +1414,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
+				FormType:            richParameter.FormType,
 				Mutable:             richParameter.Mutable,
 				DefaultValue:        richParameter.DefaultValue,
 				Icon:                richParameter.Icon,

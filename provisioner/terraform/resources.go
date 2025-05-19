@@ -759,6 +759,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Name:         param.Name,
 			DisplayName:  param.DisplayName,
 			Description:  param.Description,
+			FormType:     string(param.FormType),
 			Type:         param.Type,
 			Mutable:      param.Mutable,
 			DefaultValue: defaultVal,
