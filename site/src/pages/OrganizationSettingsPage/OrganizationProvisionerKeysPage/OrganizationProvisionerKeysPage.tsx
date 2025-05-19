@@ -1,7 +1,5 @@
-import { buildInfo } from "api/queries/buildInfo";
 import { provisionerDaemonGroups } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
