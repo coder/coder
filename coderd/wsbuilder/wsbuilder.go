@@ -607,7 +607,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		}
 		b.parameterNames = &names
 		b.parameterValues = &values
-		return
+		return names, values, nil
 	}
 
 	resolver := codersdk.ParameterResolver{
