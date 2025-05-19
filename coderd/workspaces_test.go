@@ -3615,10 +3615,6 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.Equal(t, thirdParameterOption, third.Options[0].Name)
 	require.Equal(t, thirdParameterOption, third.Options[0].Value)
 
-	//require.Equal(t, secondParameterDescription,third.)
-	//require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
-	//require.Equal(t, secondParameterValidationMonotonic, templateRichParameters[1].ValidationMonotonic)
-
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterValue},
 		{Name: secondParameterName, Value: secondParameterValue},
