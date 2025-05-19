@@ -11021,6 +11021,7 @@ INSERT INTO
         name,
         description,
         type,
+        form_type,
         mutable,
         default_value,
         icon,
@@ -11053,7 +11054,8 @@ VALUES
         $14,
         $15,
         $16,
-        $17
+        $17,
+        $18
     ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type
 `
 
@@ -11062,6 +11064,7 @@ type InsertTemplateVersionParameterParams struct {
 	Name                string          `db:"name" json:"name"`
 	Description         string          `db:"description" json:"description"`
 	Type                string          `db:"type" json:"type"`
+	FormType            string          `db:"form_type" json:"form_type"`
 	Mutable             bool            `db:"mutable" json:"mutable"`
 	DefaultValue        string          `db:"default_value" json:"default_value"`
 	Icon                string          `db:"icon" json:"icon"`
@@ -11083,6 +11086,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Name,
 		arg.Description,
 		arg.Type,
+		arg.FormType,
 		arg.Mutable,
 		arg.DefaultValue,
 		arg.Icon,
