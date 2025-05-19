@@ -19,7 +19,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
 import {
 	DynamicParameter,
@@ -114,6 +113,27 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
 
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+
+	// Only touched fields are sent to the websocket
+	// Autofilled parameters are marked as touched since they have been modified
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
+
+	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
+	// 1. The form parameter values are initialized from the websocket response when the form is mounted
+	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
+	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -124,6 +144,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					autofillParameters,
 				),
 			},
+			initialTouched,
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
 				rich_parameter_values:
@@ -218,7 +239,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameter: PreviewParameter,
 		value: string,
 	) => {
-		const formInputs: { [k: string]: string } = {};
+		const formInputs: Record<string, string> = {};
 		formInputs[parameter.name] = value;
 		const parameters = form.values.rich_parameter_values ?? [];
 
@@ -234,38 +255,24 @@ export const CreateWorkspacePageViewExperimental: FC<
 		sendMessage(formInputs);
 	};
 
-	const { debounced: handleChangeDebounced } = useDebouncedFunction(
-		async (
-			parameter: PreviewParameter,
-			parameterField: string,
-			value: string,
-		) => {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		},
-		500,
-	);
-
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
 		value: string,
 	) => {
-		if (parameter.form_type === "input" || parameter.form_type === "textarea") {
-			handleChangeDebounced(parameter, parameterField, value);
-		} else {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		}
+		await form.setFieldValue(parameterField, {
+			name: parameter.name,
+			value,
+		});
+		form.setFieldTouched(parameter.name, true);
+		sendDynamicParamsRequest(parameter, value);
 	};
+
+	useSyncFormParameters({
+		parameters,
+		formValues: form.values.rich_parameter_values ?? [],
+		setFieldValue: form.setFieldValue,
+	});
 
 	return (
 		<>
@@ -509,6 +516,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 										return null;
 									}
 
+									const formValue =
+										form.values?.rich_parameter_values?.[index]?.value || "";
+
 									return (
 										<DynamicParameter
 											key={parameter.name}
@@ -518,6 +528,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
+											autofill={autofillByName[parameter.name] !== undefined}
+											value={formValue}
 										/>
 									);
 								})}
@@ -528,7 +540,18 @@ export const CreateWorkspacePageViewExperimental: FC<
 					<div className="flex flex-row justify-end">
 						<Button
 							type="submit"
-							disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
+							disabled={
+								creatingWorkspace ||
+								!hasAllRequiredExternalAuth ||
+								diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								) ||
+								parameters.some((parameter) =>
+									parameter.diagnostics.some(
+										(diagnostic) => diagnostic.severity === "error",
+									),
+								)
+							}
 						>
 							<Spinner loading={creatingWorkspace} />
 							Create workspace
@@ -580,3 +603,52 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 		</div>
 	);
 };
+
+type UseSyncFormParametersProps = {
+	parameters: readonly PreviewParameter[];
+	formValues: readonly TypesGen.WorkspaceBuildParameter[];
+	setFieldValue: (
+		field: string,
+		value: TypesGen.WorkspaceBuildParameter[],
+	) => void;
+};
+
+function useSyncFormParameters({
+	parameters,
+	formValues,
+	setFieldValue,
+}: UseSyncFormParametersProps) {
+	// Form values only needs to be updated when parameters change
+	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
+	const formValuesRef = useRef(formValues);
+
+	useEffect(() => {
+		formValuesRef.current = formValues;
+	}, [formValues]);
+
+	useEffect(() => {
+		if (!parameters) return;
+		const currentFormValues = formValuesRef.current;
+
+		const newParameterValues = parameters.map((param) => {
+			return {
+				name: param.name,
+				value: param.value.valid ? param.value.value : "",
+			};
+		});
+
+		const isChanged =
+			currentFormValues.length !== newParameterValues.length ||
+			newParameterValues.some(
+				(p) =>
+					!currentFormValues.find(
+						(formValue) =>
+							formValue.name === p.name && formValue.value === p.value,
+					),
+			);
+
+		if (isChanged) {
+			setFieldValue("rich_parameter_values", newParameterValues);
+		}
+	}, [parameters, setFieldValue]);
+}

@@ -971,6 +971,7 @@ export interface FriendlyDiagnostic {
 	readonly severity: PreviewDiagnosticSeverityString;
 	readonly summary: string;
 	readonly detail: string;
+	readonly extra: PreviewDiagnosticExtra;
 }
 
 // From codersdk/apikey.go
@@ -1777,6 +1778,13 @@ export interface PresetParameter {
 }
 
 // From types/diagnostics.go
+export interface PreviewDiagnosticExtra {
+	readonly code: string;
+	// empty interface{} type, falling back to unknown
+	readonly Wrapped: unknown;
+}
+
+// From types/diagnostics.go
 export type PreviewDiagnosticSeverityString = string;
 
 // From types/diagnostics.go
@@ -1917,6 +1925,7 @@ export interface ProvisionerJob {
 	readonly error_code?: JobErrorCode;
 	readonly status: ProvisionerJobStatus;
 	readonly worker_id?: string;
+	readonly worker_name?: string;
 	readonly file_id: string;
 	readonly tags: Record<string, string>;
 	readonly queue_position: number;
@@ -3301,6 +3310,7 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+	readonly devcontainer_dirty: boolean;
 }
 
 // From codersdk/workspaceagents.go

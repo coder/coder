@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import MuiButton from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
@@ -44,7 +43,7 @@ import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -163,19 +162,20 @@ const TemplateRow: FC<TemplateRowProps> = ({
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
 						?.createWorkspaceForUserID ? (
-					<MuiButton
-						size="small"
-						css={styles.actionButton}
-						className="actionButton"
-						startIcon={<ArrowForwardOutlined />}
+					<Button
+						asChild
+						variant="outline"
+						size="sm"
 						title={`Create a workspace using the ${template.display_name} template`}
 						onClick={(e) => {
 							e.stopPropagation();
-							navigate(`${templatePageLink}/workspace`);
 						}}
 					>
-						Create Workspace
-					</MuiButton>
+						<RouterLink to={`${templatePageLink}/workspace`}>
+							<ArrowForwardOutlined />
+							Create Workspace
+						</RouterLink>
+					</Button>
 				) : null}
 			</TableCell>
 		</TableRow>
@@ -204,18 +204,20 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
 
-	const createTemplateAction = (
-		<Button asChild size="lg">
-			<Link to="/starter-templates">
-				<PlusIcon />
-				New template
-			</Link>
-		</Button>
-	);
-
 	return (
 		<Margins>
-			<PageHeader actions={canCreateTemplates && createTemplateAction}>
+			<PageHeader
+				actions={
+					canCreateTemplates && (
+						<Button asChild size="lg">
+							<RouterLink to="/starter-templates">
+								<PlusIcon />
+								New template
+							</RouterLink>
+						</Button>
+					)
+				}
+			>
 				<PageHeaderTitle>
 					<Stack spacing={1} direction="row" alignItems="center">
 						Templates
