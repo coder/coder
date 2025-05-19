@@ -454,7 +454,7 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
 	- Change parameter options based on user groups
 	- Reference user name in parameters
 
-- **Rich Parameter Entry**
+- **Additional Form Inputs**
 
   - Searchable dropdown lists for easier selection
   - Multi-select options for choosing multiple items
@@ -462,7 +462,7 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Key-value pair inputs for complex data
   - Button parameters for toggling sections
 
-## Available Form Types
+## Available Form Input Types
 
 Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
 
