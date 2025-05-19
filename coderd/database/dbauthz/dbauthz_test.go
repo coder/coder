@@ -4942,6 +4942,10 @@ func (s *MethodTestSuite) TestPrebuilds() {
 				},
 				InvalidateAfterSecs: preset.InvalidateAfterSecs,
 				OrganizationID:      org.ID,
+				PrebuildStatus: database.NullPrebuildStatus{
+					PrebuildStatus: database.PrebuildStatusNormal,
+					Valid:          true,
+				},
 			})
 	}))
 	s.Run("UpdatePrebuildStatus", s.Subtest(func(db database.Store, check *expects) {
