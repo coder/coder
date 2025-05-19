@@ -495,9 +495,8 @@ func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context,
 		return nil
 	}
 
-	// TODO(yevhenii): remove owner from the list
 	templateAdmins, err := c.store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin, codersdk.RoleOwner},
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
 	})
 	if err != nil {
 		return xerrors.Errorf("fetch template admins: %w", err)
