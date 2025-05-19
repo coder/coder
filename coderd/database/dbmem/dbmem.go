@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand/v2" //nolint:staticcheck // used only in tests to randomize list order
+	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to reap
 	"reflect"
 	"regexp"
 	"slices"
