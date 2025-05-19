@@ -7,4 +7,13 @@ VALUES ('414d9331-c1fc-4761-b40c-d1f4702279eb',
 The number of failed prebuilds has reached the hard limit for template **{{ .Labels.template }}** and preset **{{ .Labels.preset }}**.
 $$,
 		'Template Events',
-		'[]'::jsonb);
+		'[
+		{
+			"label": "View failed workspaces",
+			"url": "{{base_url}}/workspaces?filter=owner:prebuilds+status:failed+template:{{.Labels.template}}&page=1"
+		},
+		{
+			"label": "View template version",
+			"url": "{{base_url}}/templates/{{.Labels.org}}/{{.Labels.template}}/versions/{{.Labels.template_version}}"
+		}
+	]'::jsonb);
