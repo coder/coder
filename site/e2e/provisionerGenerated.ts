@@ -96,6 +96,7 @@ export interface RichParameter {
   displayName: string;
   order: number;
   ephemeral: boolean;
+  formType: string;
 }
 
 /** RichParameterValue holds the key/value mapping of a parameter. */
@@ -527,6 +528,9 @@ export const RichParameter = {
     }
     if (message.ephemeral === true) {
       writer.uint32(136).bool(message.ephemeral);
+    }
+    if (message.formType !== "") {
+      writer.uint32(146).string(message.formType);
     }
     return writer;
   },
