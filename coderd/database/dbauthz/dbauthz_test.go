@@ -4970,8 +4970,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			PresetID: preset.ID,
 		}
 		check.Args(req).
-			Asserts(rbac.ResourceTemplate.WithID(template.ID).InOrg(org.ID), policy.ActionUpdate).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+			Asserts(rbac.ResourceTemplate.WithID(template.ID).InOrg(org.ID), policy.ActionUpdate)
 	}))
 }
 

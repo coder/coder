@@ -4303,6 +4303,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 				CreatedAt:           preset.CreatedAt,
 				DesiredInstances:    preset.DesiredInstances,
 				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				PrebuildStatus:      preset.PrebuildStatus,
 				TemplateID:          tv.TemplateID,
 				OrganizationID:      tv.OrganizationID,
 			}, nil
@@ -9041,6 +9042,10 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Int32: 0,
 			Valid: true,
 		},
+		PrebuildStatus: database.NullPrebuildStatus{
+			PrebuildStatus: database.PrebuildStatusNormal,
+			Valid:          true,
+		},
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -10875,7 +10880,17 @@ func (q *FakeQuerier) UpdatePrebuildStatus(ctx context.Context, arg database.Upd
 		return err
 	}
 
-	return ErrUnimplemented
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, preset := range q.presets {
+		if preset.ID == arg.PresetID {
+			preset.PrebuildStatus = arg.Status
+			return nil
+		}
+	}
+
+	return xerrors.Errorf("preset %v does not exist", arg.PresetID)
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
