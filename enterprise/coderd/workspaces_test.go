@@ -1659,6 +1659,110 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 	})
 }
 
+// TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
+// validation changes on apply, such that the original inputs are no longer
+// valid.
+//
+// The example presented is the original `min` is 10 at template import.
+// When the user submits their values, the `min` is 3.
+// But it is still saved as `10` in the db, so when the next build comes in,
+// the existing template values are invalid.
+// nolint:paralleltest // t.Setenv
+func TestWorkspaceTemplateParamsChange(t *testing.T) {
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
+
+		data "coder_parameter" "param_min" {
+			name = "param_min"
+			type = "number"
+			default = 10
+		}
+
+		data "coder_parameter" "param" {
+			name    = "param"
+			type    = "number"
+			default = 12
+			validation {
+				min = data.coder_parameter.param_min.value
+			}
+		}
+	`
+	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
+	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
+
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			// We intentionally do not run a built-in provisioner daemon here.
+			IncludeProvisionerDaemon: false,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
+
+	// This can take a while, so set a relatively long timeout.
+	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+
+	// Creating a template as a template admin must succeed
+	templateFiles := map[string]string{"main.tf": mainTfTemplate}
+	tarBytes := testutil.CreateTar(t, templateFiles)
+	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+	require.NoError(t, err, "failed to upload file")
+
+	tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:               testutil.GetRandomName(t),
+		FileID:             fi.ID,
+		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+		Provisioner:        codersdk.ProvisionerTypeTerraform,
+		UserVariableValues: []codersdk.VariableValue{},
+	})
+	require.NoError(t, err, "failed to create template version")
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+	// Creating a workspace as a non-privileged user must succeed
+	ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+		TemplateID: tpl.ID,
+		Name:       coderdtest.RandomUsername(t),
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  "param_min",
+				Value: "3",
+			},
+			{
+				Name:  "param",
+				Value: "5",
+			},
+		},
+	})
+	require.NoError(t, err, "failed to create workspace")
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+
+	// Now delete the workspace
+	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition:       codersdk.WorkspaceTransitionDelete,
+		ProvisionerState: []byte{},
+		Orphan:           false,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+}
+
 // TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
 // This is an end-to-end-style test, meaning that we actually run the
 // real Terraform provisioner and validate that the workspace is created
