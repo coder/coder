@@ -47,6 +47,7 @@ import (
 //     ReportConnection RPC on the Agent API.
 //
 // API v2.5:
+//   - Shipped in Coder v2.xx.x // TODO(DanielleMaywood): Update version
 //   - Added `ParentId` to the agent manifest.
 const (
 	CurrentMajor = 2
