@@ -1,7 +1,7 @@
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
-import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import { Button } from "components/Button/Button";
 import { CheckIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 
@@ -38,9 +38,10 @@ export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 				aria-haspopup="true"
 				aria-expanded={open ? "true" : undefined}
 				onClick={() => setOpen(true)}
-				endIcon={<ExpandMoreOutlined />}
+				variant="outline"
 			>
 				{insightsIntervals[value].label}
+				<ExpandMoreOutlined className="size-icon-xs ml-1" />
 			</Button>
 			<Menu
 				id="interval-menu"

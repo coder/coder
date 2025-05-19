@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
 import type { FC, HTMLAttributes } from "react";
@@ -55,12 +55,10 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 			</div>
 
 			<div css={styles.useButtonContainer}>
-				<Button
-					component={RouterLink}
-					fullWidth
-					to={`/templates/new?exampleId=${example.id}`}
-				>
-					Use template
+				<Button asChild className="w-full">
+					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
+						Use template
+					</RouterLink>
 				</Button>
 			</div>
 		</div>
