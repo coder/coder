@@ -121,7 +121,7 @@ type TruncateProvisionersProps = {
 	provisioners: readonly ProvisionerDaemon[];
 };
 
-export const TruncateProvisioners: FC<TruncateProvisionersProps> = ({
+const TruncateProvisioners: FC<TruncateProvisionersProps> = ({
 	provisioners,
 }) => {
 	const firstProvisioner = provisioners[0];
