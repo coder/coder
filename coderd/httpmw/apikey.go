@@ -232,13 +232,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return optionalWrite(http.StatusUnauthorized, resp)
 	}
 
-	var (
-		link database.UserLink
-		now  = dbtime.Now()
-		// Tracks if the API key has properties updated
-		changed = false
-	)
-
+	now := dbtime.Now()
 	if key.ExpiresAt.Before(now) {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
@@ -252,7 +246,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 		var err error
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
@@ -309,7 +303,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			if link.OAuthRefreshToken == "" {
 				return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: SignedOutErrorMessage,
-					Detail:  fmt.Sprintf("%s session expired at %q.", friendlyName, link.OAuthExpiry.String()),
+					Detail:  fmt.Sprintf("%s session expired at %q. Try signing in again.", friendlyName, link.OAuthExpiry.String()),
 				})
 			}
 			// We have a refresh token, so let's try it
@@ -350,6 +344,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			}
 		}
 	}
+
+	// Tracks if the API key has properties updated
+	changed := false
 
 	// Only update LastUsed once an hour to prevent database spam.
 	if now.Sub(key.LastUsed) > time.Hour {
