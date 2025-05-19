@@ -491,7 +491,7 @@ func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context,
 
 	// Send notification to template admins.
 	if c.notifEnq == nil {
-		c.logger.Warn(ctx, "notification enqueuer not set, cannot send resource replacement notification(s)")
+		c.logger.Warn(ctx, "notification enqueuer not set, cannot send prebuild is hard limited notification(s)")
 		return nil
 	}
 

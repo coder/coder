@@ -758,7 +758,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 
 			// When hard limit is reached, a notification should be sent.
 			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notification.TemplateID, notifications.PrebuildFailureLimitReached, "unexpected template") {
+				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
 					return false
 				}
 
