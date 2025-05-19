@@ -8416,6 +8416,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -8452,6 +8453,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
+| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -10088,6 +10090,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_require_active_version": true,
+      "template_use_classic_parameter_flow": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }
