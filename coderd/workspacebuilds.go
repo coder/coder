@@ -388,7 +388,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) &&
 			createBuild.EnableDynamicParameters != nil {
 			// Explicit opt-in
-			builder = builder.UsingDynamicParameters(*createBuild.EnableDynamicParameters)
+			builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(

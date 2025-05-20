@@ -196,7 +196,7 @@ func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	return b
 }
 
-func (b Builder) UsingDynamicParameters(using bool) Builder {
+func (b Builder) DynamicParameters(using bool) Builder {
 	// nolint: revive
 	b.dynamicParametersEnabled = ptr.Ref(using)
 	return b
