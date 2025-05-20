@@ -239,23 +239,22 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 		prevDebouncedValueRef.current = debouncedLocalValue;
 	}, [debouncedLocalValue, onChangeEvent]);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+	const resizeTextarea = useEffectEvent(() => {
+		if (textareaRef.current) {
+			const textarea = textareaRef.current;
+			textarea.style.height = "auto";
+			textarea.style.height = `${textarea.scrollHeight}px`;
+		}
+	});
+
+	useEffect(() => {
+		resizeTextarea();
+	}, [resizeTextarea]);
 
 	switch (parameter.form_type) {
 		case "textarea": {
-			const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-			const resizeTextarea = useEffectEvent(() => {
-				if (textareaRef.current) {
-					const textarea = textareaRef.current;
-					textarea.style.height = "auto";
-					textarea.style.height = `${textarea.scrollHeight}px`;
-				}
-			});
-
-			useEffect(() => {
-				resizeTextarea();
-			}, [resizeTextarea]);
-
 			return (
 				<Textarea
 					ref={textareaRef}
