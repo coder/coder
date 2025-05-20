@@ -290,6 +290,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
+
 							<WorkspaceActionsCell
 								workspace={workspace}
 								onActionSuccess={onActionSuccess}
@@ -395,14 +396,6 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 		<TableCell>
 			<div className="flex flex-col">
 				<WorkspaceStatusIndicator workspace={workspace}>
-					{workspace.latest_build.status === "running" &&
-						!workspace.health.healthy && (
-							<InfoTooltip
-								type="warning"
-								title="Workspace is unhealthy"
-								message="Your workspace is running but some agents are unhealthy."
-							/>
-						)}
 					{workspace.dormant_at && (
 						<WorkspaceDormantBadge workspace={workspace} />
 					)}
