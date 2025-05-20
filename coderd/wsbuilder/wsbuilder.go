@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -69,6 +70,7 @@ type Builder struct {
 	template                             *database.Template
 	templateVersion                      *database.TemplateVersion
 	templateVersionJob                   *database.ProvisionerJob
+	terraformValues                      *database.TemplateVersionTerraformValue
 	templateVersionParameters            *[]database.TemplateVersionParameter
 	templateVersionVariables             *[]database.TemplateVersionVariable
 	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
@@ -524,6 +526,22 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 		return uuid.Nil, xerrors.Errorf("get last build so we can get version: %w", err)
 	}
 	return bld.TemplateVersionID, nil
+}
+
+func (b *Builder) getTemplateTerraformValues() (*database.TemplateVersionTerraformValue, error) {
+	if b.terraformValues != nil {
+		return b.terraformValues, nil
+	}
+	v, err := b.getTemplateVersion()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version so we can get terraform values: %w", err)
+	}
+	vals, err := b.store.GetTemplateVersionTerraformValues(b.ctx, v.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template version terraform values %s: %w", v.JobID, err)
+	}
+	b.terraformValues = &vals
+	return b.terraformValues, err
 }
 
 func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
@@ -1007,6 +1025,15 @@ func (b *Builder) usingDynamicParameters() bool {
 		return false
 	}
 
+	vals, err := b.getTemplateTerraformValues()
+	if err != nil {
+		return false
+	}
+
+	if !ProvisionerVersionSupportsDynamicParameters(vals.ProvisionerdVersion) {
+		return false
+	}
+
 	if b.dynamicParametersEnabled != nil {
 		return *b.dynamicParametersEnabled
 	}
@@ -1016,4 +1043,11 @@ func (b *Builder) usingDynamicParameters() bool {
 		return false // Let another part of the code get this error
 	}
 	return !tpl.UseClassicParameterFlow
+}
+
+func ProvisionerVersionSupportsDynamicParameters(version string) bool {
+	major, minor, err := apiversion.Parse(version)
+	// If the api version is not valid or less than 1.6, we need to use the static parameters
+	useStaticParams := err != nil || major < 1 || (major == 1 && minor < 6)
+	return !useStaticParams
 }
