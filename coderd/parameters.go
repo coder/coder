@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -289,10 +290,10 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	result, diagnostics := render(ctx, map[string]string{})
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1, // Always start with -1.
-		Diagnostics: previewtypes.Diagnostics(diagnostics),
+		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 	}
 	if result != nil {
-		response.Parameters = result.Parameters
+		response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
 	}
 	err = stream.Send(response)
 	if err != nil {
@@ -317,10 +318,10 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 			result, diagnostics := render(ctx, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
-				Diagnostics: previewtypes.Diagnostics(diagnostics),
+				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 			}
 			if result != nil {
-				response.Parameters = result.Parameters
+				response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
 			}
 			err = stream.Send(response)
 			if err != nil {
