@@ -26,7 +26,7 @@ const (
 	ParameterFormTypeError       ParameterFormType = "error"
 )
 
-type OptionType = string
+type OptionType string
 
 const (
 	OptionTypeString     OptionType = "string"
