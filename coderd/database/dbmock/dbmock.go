@@ -3963,6 +3963,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceByOwnerIDAndName(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByOwnerIDAndName", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByOwnerIDAndName), ctx, arg)
 }
 
+// GetWorkspaceByResourceID mocks base method.
+func (m *MockStore) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceByResourceID", ctx, resourceID)
+	ret0, _ := ret[0].(database.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceByResourceID indicates an expected call of GetWorkspaceByResourceID.
+func (mr *MockStoreMockRecorder) GetWorkspaceByResourceID(ctx, resourceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByResourceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByResourceID), ctx, resourceID)
+}
+
 // GetWorkspaceByWorkspaceAppID mocks base method.
 func (m *MockStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	m.ctrl.T.Helper()

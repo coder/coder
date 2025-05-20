@@ -8053,6 +8053,33 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, resource := range q.workspaceResources {
+		if resource.ID != resourceID {
+			continue
+		}
+
+		for _, build := range q.workspaceBuilds {
+			if build.JobID != resource.JobID {
+				continue
+			}
+
+			for _, workspace := range q.workspaces {
+				if workspace.ID != build.WorkspaceID {
+					continue
+				}
+
+				return q.extendWorkspace(workspace), nil
+			}
+		}
+	}
+
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	if err := validateDatabaseType(workspaceAppID); err != nil {
 		return database.Workspace{}, err

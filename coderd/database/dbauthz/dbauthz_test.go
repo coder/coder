@@ -1928,6 +1928,22 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 		check.Args(ws.ID).Asserts(ws, policy.ActionRead)
 	}))
+	s.Run("GetWorkspaceByResourceID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:          j.ID,
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
+		check.Args(res.ID).Asserts(ws, policy.ActionRead)
+	}))
 	s.Run("GetWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
 		// No asserts here because SQLFilter.
 		check.Args(database.GetWorkspacesParams{}).Asserts()
@@ -4018,12 +4034,25 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns(slice.New(a, b))
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:          j.ID,
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
 		check.Args(database.InsertWorkspaceAgentParams{
 			ID:          uuid.New(),
+			ResourceID:  res.ID,
 			Name:        "dev",
 			APIKeyScope: database.AgentKeyScopeEnumAll,
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}).Asserts(ws, policy.ActionCreateAgent)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
