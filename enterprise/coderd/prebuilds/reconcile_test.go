@@ -688,7 +688,8 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			clock := quartz.NewMock(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
 			cfg := codersdk.PrebuildsConfig{
-				FailureHardLimit: serpent.Int64(tc.hardLimit),
+				FailureHardLimit:              serpent.Int64(tc.hardLimit),
+				ReconciliationBackoffInterval: 0,
 			}
 			logger := slogtest.Make(
 				t, &slogtest.Options{IgnoreErrors: true},
@@ -731,8 +732,9 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			workspaceCount := len(workspaces)
 			require.Equal(t, 1, workspaceCount)
 
-			// Advance clock to bypass backoff mechanisms
-			clock.Advance(time.Second).MustWait(ctx)
+			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
+			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
+			clock.Advance(time.Nanosecond).MustWait(ctx)
 
 			// Trigger reconciliation to attempt creating a new prebuild
 			// The outcome depends on whether the hard limit has been reached
