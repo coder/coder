@@ -384,21 +384,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Only defer to dynamic parameters if the experiment is enabled.
-		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			// Opting into dynamic parameters either occurs from an explicit opt in
-			// via the request, or the template is set to use dynamic parameters.
-			if createBuild.EnableDynamicParameters != nil { // On the request
-				if *createBuild.EnableDynamicParameters {
-					builder = builder.UsingDynamicParameters()
-				}
-			} else { // Defer to the template setting
-				tpl, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-				if err == nil { // A non-nil error will be caught in the builder
-					if !tpl.UseClassicParameterFlow {
-						builder = builder.UsingDynamicParameters()
-					}
-				}
-			}
+		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) &&
+			createBuild.EnableDynamicParameters != nil {
+			// Explicit opt-in
+			builder = builder.UsingDynamicParameters(*createBuild.EnableDynamicParameters)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(

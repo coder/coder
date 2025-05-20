@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -51,9 +52,11 @@ type Builder struct {
 	state            stateTarget
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
+	experiments      codersdk.Experiments
 
-	richParameterValues      []codersdk.WorkspaceBuildParameter
-	dynamicParametersEnabled bool
+	richParameterValues []codersdk.WorkspaceBuildParameter
+	// dynamicParametersEnabled is non-nil if set externally
+	dynamicParametersEnabled *bool
 	initiator                uuid.UUID
 	reason                   database.BuildReason
 	templateVersionPresetID  uuid.UUID
@@ -187,8 +190,9 @@ func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	return b
 }
 
-func (b Builder) UsingDynamicParameters() Builder {
-	b.dynamicParametersEnabled = true
+func (b Builder) UsingDynamicParameters(using bool) Builder {
+	// nolint: revive
+	b.dynamicParametersEnabled = ptr.Ref(using)
 	return b
 }
 
@@ -596,7 +600,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	// Dynamic parameters skip all parameter validation.
 	// Deleting a workspace also should skip parameter validation.
 	// Pass the user's input as is.
-	if b.dynamicParametersEnabled {
+	if b.dynamicParametersEnabled != nil && *b.dynamicParametersEnabled {
 		// TODO: The previous behavior was only to pass param values
 		//  for parameters that exist. Since dynamic params can have
 		//  conditional parameter existence, the static frame of reference
@@ -989,4 +993,17 @@ func (b *Builder) checkRunningBuild() error {
 		}
 	}
 	return nil
+}
+
+func (b *Builder) usingDynamicParameters() bool {
+
+	if b.dynamicParametersEnabled != nil {
+		return *b.dynamicParametersEnabled
+	}
+
+	tpl, err := b.getTemplate()
+	if err != nil {
+		return false // Let another part of the code get this error
+	}
+	return !tpl.UseClassicParameterFlow
 }

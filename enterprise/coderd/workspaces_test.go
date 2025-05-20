@@ -1660,14 +1660,11 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 }
 
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
-// validation changes on apply, such that the original inputs are no longer
-// valid.
+// validation changes on apply. The params used in create workspace are invalid
+// according to the static params on import.
 //
-// The example presented is the original `min` is 10 at template import.
-// When the user submits their values, the `min` is 3.
-// But it is still saved as `10` in the db, so when the next build comes in,
-// the existing template values are invalid.
-// nolint:paralleltest // t.Setenv
+// This is testing that dynamic params defers input validation to terraform.
+// It does not try to do this in coder/coder.
 func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	mainTfTemplate := `
 		terraform {
@@ -1699,7 +1696,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
 	dv.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
@@ -1747,28 +1744,27 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
 			{
 				Name:  "param_min",
-				Value: "15",
+				Value: "5",
 			},
 			{
 				Name:  "param",
-				Value: "13",
+				Value: "7",
 			},
 		},
+		EnableDynamicParameters: true,
 	})
 	require.NoError(t, err, "failed to create workspace")
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
-	// Now delete the workspace
+	// Now restart the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
-		Transition: codersdk.WorkspaceTransitionDelete,
+		Transition:              codersdk.WorkspaceTransitionDelete,
+		EnableDynamicParameters: ptr.Ref(true),
 	})
 	require.NoError(t, err)
 	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
-	require.NotEqual(t, codersdk.WorkspaceStatusFailed, build.Status)
-
-	//wrk, err := member.Workspace(ctx, ws.ID)
-	//require.NoError(t, err)
-	//require.Equal(t, ws, wrk)
+	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 }
 
 // TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
