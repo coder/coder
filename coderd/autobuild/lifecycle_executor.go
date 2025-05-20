@@ -349,13 +349,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						nextBuildReason = string(nextBuild.Reason)
 					}
 
+					templateVersionMessage := activeTemplateVersion.Message
+					if templateVersionMessage == "" {
+						templateVersionMessage = "None provided"
+					}
+
 					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
 							"name":                     ws.Name,
 							"initiator":                "autobuild",
 							"reason":                   nextBuildReason,
 							"template_version_name":    activeTemplateVersion.Name,
-							"template_version_message": activeTemplateVersion.Message,
+							"template_version_message": templateVersionMessage,
 						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
