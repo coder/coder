@@ -87,6 +87,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -95,7 +96,6 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -1127,11 +1127,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer)
 			autobuildExecutor.Run()
 
-			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
-			defer hangDetectorTicker.Stop()
-			hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
-			hangDetector.Start()
-			defer hangDetector.Close()
+			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
+			defer jobReaperTicker.Stop()
+			jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, logger, jobReaperTicker.C)
+			jobReaper.Start()
+			defer jobReaper.Close()
 
 			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut

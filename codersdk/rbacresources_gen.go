@@ -90,7 +90,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceOrganization:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganizationMember:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerDaemon:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceProvisionerJobs:               {ActionRead},
+	ResourceProvisionerJobs:               {ActionCreate, ActionRead, ActionUpdate},
 	ResourceReplicas:                      {ActionRead},
 	ResourceSystem:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTailnetCoordinator:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

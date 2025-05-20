@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	insecurerand "math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to reap
 	"reflect"
 	"regexp"
 	"slices"
@@ -3707,23 +3708,6 @@ func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
 	return string(q.healthSettings), nil
 }
 
-func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	hungJobs := []database.ProvisionerJob{}
-	for _, provisionerJob := range q.provisionerJobs {
-		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
-			// clone the Tags before appending, since maps are reference types and
-			// we don't want the caller to be able to mutate the map we have inside
-			// dbmem!
-			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
-			hungJobs = append(hungJobs, provisionerJob)
-		}
-	}
-	return hungJobs, nil
-}
-
 func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4642,6 +4626,13 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return q.getProvisionerJobByIDNoLock(ctx, id)
 }
 
+func (q *FakeQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
 func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4882,6 +4873,33 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 		}
 	}
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerJobsToBeReaped(_ context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	maxJobs := arg.MaxJobs
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if !provisionerJob.CompletedAt.Valid {
+			if (provisionerJob.StartedAt.Valid && provisionerJob.UpdatedAt.Before(arg.HungSince)) ||
+				(!provisionerJob.StartedAt.Valid && provisionerJob.UpdatedAt.Before(arg.PendingSince)) {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
+				hungJobs = append(hungJobs, provisionerJob)
+				if len(hungJobs) >= int(maxJobs) {
+					break
+				}
+			}
+		}
+	}
+	insecurerand.Shuffle(len(hungJobs), func(i, j int) {
+		hungJobs[i], hungJobs[j] = hungJobs[j], hungJobs[i]
+	})
+	return hungJobs, nil
 }
 
 func (q *FakeQuerier) GetProvisionerKeyByHashedSecret(_ context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -10951,6 +10969,30 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
+		job.JobStatus = provisionerJobStatus(job)
+		q.provisionerJobs[index] = job
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateProvisionerJobWithCompleteWithStartedAtByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, job := range q.provisionerJobs {
+		if arg.ID != job.ID {
+			continue
+		}
+		job.UpdatedAt = arg.UpdatedAt
+		job.CompletedAt = arg.CompletedAt
+		job.Error = arg.Error
+		job.ErrorCode = arg.ErrorCode
+		job.StartedAt = arg.StartedAt
 		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil

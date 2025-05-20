@@ -1,4 +1,4 @@
-package unhanger_test
+package jobreaper_test
 
 import (
 	"context"
@@ -20,9 +20,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -39,10 +39,10 @@ func TestDetectorNoJobs(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- time.Now()
 
@@ -62,7 +62,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	// Insert some jobs that are running and haven't been updated in a while,
@@ -89,7 +89,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 		})
 	}
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -109,7 +109,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -195,7 +195,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	t.Log("previous job ID: ", previousWorkspaceBuildJob.ID)
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -231,7 +231,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -318,7 +318,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	t.Log("previous job ID: ", previousWorkspaceBuildJob.ID)
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -354,7 +354,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -411,7 +411,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -439,6 +439,100 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	detector.Wait()
 }
 
+func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = testutil.Logger(t)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan jobreaper.Stats)
+	)
+
+	var (
+		now              = time.Now()
+		thirtyFiveMinAgo = now.Add(-time.Minute * 35)
+		org              = dbgen.Organization(t, db, database.Organization{})
+		user             = dbgen.User(t, db, database.User{})
+		file             = dbgen.File(t, db, database.File{})
+		template         = dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			CreatedBy: user.ID,
+		})
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
+
+		// First build.
+		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
+		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			CreatedAt: thirtyFiveMinAgo,
+			UpdatedAt: thirtyFiveMinAgo,
+			StartedAt: sql.NullTime{
+				Time:  time.Time{},
+				Valid: false,
+			},
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          []byte("{}"),
+		})
+		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			JobID:             currentWorkspaceBuildJob.ID,
+			// Should not be overridden.
+			ProvisionerState: expectedWorkspaceBuildState,
+		})
+	)
+
+	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector.Start()
+	tickCh <- now
+
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.TerminatedJobIDs, 1)
+	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+
+	// Check that the current provisioner job was updated.
+	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	require.NoError(t, err)
+	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
+	require.True(t, job.CompletedAt.Valid)
+	require.WithinDuration(t, now, job.CompletedAt.Time, 30*time.Second)
+	require.True(t, job.StartedAt.Valid)
+	require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
+	require.True(t, job.Error.Valid)
+	require.Contains(t, job.Error.String, "Build has been detected as pending")
+	require.False(t, job.ErrorCode.Valid)
+
+	// Check that the provisioner state was NOT updated.
+	build, err := db.GetWorkspaceBuildByID(ctx, currentWorkspaceBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
+
+	detector.Close()
+	detector.Wait()
+}
+
 func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Parallel()
 
@@ -447,7 +541,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -509,7 +603,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Log("template import job ID: ", templateImportJob.ID)
 	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -543,6 +637,113 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	detector.Wait()
 }
 
+func TestDetectorPendingOtherJobTypes(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = testutil.Logger(t)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan jobreaper.Stats)
+	)
+
+	var (
+		now              = time.Now()
+		thirtyFiveMinAgo = now.Add(-time.Minute * 35)
+		org              = dbgen.Organization(t, db, database.Organization{})
+		user             = dbgen.User(t, db, database.User{})
+		file             = dbgen.File(t, db, database.File{})
+
+		// Template import job.
+		templateImportJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			CreatedAt: thirtyFiveMinAgo,
+			UpdatedAt: thirtyFiveMinAgo,
+			StartedAt: sql.NullTime{
+				Time:  time.Time{},
+				Valid: false,
+			},
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte("{}"),
+		})
+		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			JobID:          templateImportJob.ID,
+			CreatedBy:      user.ID,
+		})
+	)
+
+	// Template dry-run job.
+	dryRunVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+		TemplateVersionID: dryRunVersion.ID,
+	})
+	require.NoError(t, err)
+	templateDryRunJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		CreatedAt: thirtyFiveMinAgo,
+		UpdatedAt: thirtyFiveMinAgo,
+		StartedAt: sql.NullTime{
+			Time:  time.Time{},
+			Valid: false,
+		},
+		OrganizationID: org.ID,
+		InitiatorID:    user.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		FileID:         file.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+		Input:          input,
+	})
+
+	t.Log("template import job ID: ", templateImportJob.ID)
+	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
+
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector.Start()
+	tickCh <- now
+
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.TerminatedJobIDs, 2)
+	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
+	require.Contains(t, stats.TerminatedJobIDs, templateDryRunJob.ID)
+
+	// Check that the template import job was updated.
+	job, err := db.GetProvisionerJobByID(ctx, templateImportJob.ID)
+	require.NoError(t, err)
+	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
+	require.True(t, job.CompletedAt.Valid)
+	require.WithinDuration(t, now, job.CompletedAt.Time, 30*time.Second)
+	require.True(t, job.StartedAt.Valid)
+	require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
+	require.True(t, job.Error.Valid)
+	require.Contains(t, job.Error.String, "Build has been detected as pending")
+	require.False(t, job.ErrorCode.Valid)
+
+	// Check that the template dry-run job was updated.
+	job, err = db.GetProvisionerJobByID(ctx, templateDryRunJob.ID)
+	require.NoError(t, err)
+	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
+	require.True(t, job.CompletedAt.Valid)
+	require.WithinDuration(t, now, job.CompletedAt.Time, 30*time.Second)
+	require.True(t, job.StartedAt.Valid)
+	require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
+	require.True(t, job.Error.Valid)
+	require.Contains(t, job.Error.String, "Build has been detected as pending")
+	require.False(t, job.ErrorCode.Valid)
+
+	detector.Close()
+	detector.Wait()
+}
+
 func TestDetectorHungCanceledJob(t *testing.T) {
 	t.Parallel()
 
@@ -551,7 +752,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 	)
 
 	var (
@@ -591,7 +792,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 
 	t.Log("template import job ID: ", templateImportJob.ID)
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
@@ -653,7 +854,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 				db, pubsub = dbtestutil.NewDB(t)
 				log        = testutil.Logger(t)
 				tickCh     = make(chan time.Time)
-				statsCh    = make(chan unhanger.Stats)
+				statsCh    = make(chan jobreaper.Stats)
 			)
 
 			var (
@@ -706,7 +907,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 				require.Len(t, logs, 10)
 			}
 
-			detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+			detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 			detector.Start()
 
 			// Create pubsub subscription to listen for new log events.
@@ -741,12 +942,19 @@ func TestDetectorPushesLogs(t *testing.T) {
 				CreatedAfter: after,
 			})
 			require.NoError(t, err)
-			require.Len(t, logs, len(unhanger.HungJobLogMessages))
+			threshold := jobreaper.HungJobDuration
+			jobType := jobreaper.Hung
+			if templateImportJob.JobStatus == database.ProvisionerJobStatusPending {
+				threshold = jobreaper.PendingJobDuration
+				jobType = jobreaper.Pending
+			}
+			expectedLogs := jobreaper.JobLogMessages(jobType, threshold)
+			require.Len(t, logs, len(expectedLogs))
 			for i, log := range logs {
 				assert.Equal(t, database.LogLevelError, log.Level)
 				assert.Equal(t, c.expectStage, log.Stage)
 				assert.Equal(t, database.LogSourceProvisionerDaemon, log.Source)
-				assert.Equal(t, unhanger.HungJobLogMessages[i], log.Output)
+				assert.Equal(t, expectedLogs[i], log.Output)
 			}
 
 			// Double check the full log count.
@@ -755,7 +963,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 				CreatedAfter: 0,
 			})
 			require.NoError(t, err)
-			require.Len(t, logs, c.preLogCount+len(unhanger.HungJobLogMessages))
+			require.Len(t, logs, c.preLogCount+len(expectedLogs))
 
 			detector.Close()
 			detector.Wait()
@@ -771,15 +979,15 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 		db, pubsub = dbtestutil.NewDB(t)
 		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
-		statsCh    = make(chan unhanger.Stats)
+		statsCh    = make(chan jobreaper.Stats)
 		org        = dbgen.Organization(t, db, database.Organization{})
 		user       = dbgen.User(t, db, database.User{})
 		file       = dbgen.File(t, db, database.File{})
 	)
 
-	// Create unhanger.MaxJobsPerRun + 1 hung jobs.
+	// Create MaxJobsPerRun + 1 hung jobs.
 	now := time.Now()
-	for i := 0; i < unhanger.MaxJobsPerRun+1; i++ {
+	for i := 0; i < jobreaper.MaxJobsPerRun+1; i++ {
 		pj := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
@@ -802,14 +1010,14 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 		})
 	}
 
-	detector := unhanger.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 	tickCh <- now
 
-	// Make sure that only unhanger.MaxJobsPerRun jobs are terminated.
+	// Make sure that only MaxJobsPerRun jobs are terminated.
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Len(t, stats.TerminatedJobIDs, unhanger.MaxJobsPerRun)
+	require.Len(t, stats.TerminatedJobIDs, jobreaper.MaxJobsPerRun)
 
 	// Run the detector again and make sure that only the remaining job is
 	// terminated.
@@ -823,7 +1031,7 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 }
 
 // wrapDBAuthz adds our Authorization/RBAC around the given database store, to
-// ensure the unhanger has the right permissions to do its work.
+// ensure the reaper has the right permissions to do its work.
 func wrapDBAuthz(db database.Store, logger slog.Logger) database.Store {
 	return dbauthz.New(
 		db,

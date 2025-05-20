@@ -694,9 +694,12 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		check.Args([]uuid.UUID{a.ID, b.ID}).Asserts().Returns(slice.New(a, b))
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		check.Args([]uuid.UUID{a.ID, b.ID}).
+			Asserts(rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead).
+			Returns(slice.New(a, b))
 	}))
 	s.Run("GetProvisionerLogsAfterID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -3923,9 +3926,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("GetProvisionerJobsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: add provisioner job resource type
 		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts( /*rbac.ResourceSystem, policy.ActionRead*/ )
+		check.Args(time.Now()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
 	}))
 	s.Run("GetTemplateVersionsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4008,11 +4010,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns([]database.WorkspaceAgent{agt})
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: add a ProvisionerJob resource type
-		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
 		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts( /*rbac.ResourceSystem, policy.ActionRead*/ ).
+			Asserts(rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead).
 			Returns(slice.New(a, b))
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
@@ -4048,7 +4050,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("AcquireProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			StartedAt: sql.NullTime{Valid: false},
 			UpdatedAt: time.Now(),
@@ -4058,47 +4059,48 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			OrganizationID:  j.OrganizationID,
 			Types:           []database.ProvisionerType{j.Provisioner},
 			ProvisionerTags: must(json.Marshal(j.Tags)),
-		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: j.ID,
-		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	}))
+	s.Run("UpdateProvisionerJobWithCompleteWithStartedAtByID", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
+			ID: j.ID,
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
 	s.Run("UpdateProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.UpdateProvisionerJobByIDParams{
 			ID:        j.ID,
 			UpdatedAt: time.Now(),
-		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		// TODO: we need to create a ProvisionerJob resource
 		check.Args(database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			Input:         json.RawMessage("{}"),
-		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionCreate */ )
 	}))
 	s.Run("InsertProvisionerJobLogs", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.InsertProvisionerJobLogsParams{
 			JobID: j.ID,
-		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("InsertProvisionerJobTimings", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.InsertProvisionerJobTimingsParams{
 			JobID: j.ID,
-		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4234,8 +4236,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetFileTemplates", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetHungProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(time.Time{}).Asserts()
+	s.Run("GetProvisionerJobsToBeReaped", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetProvisionerJobsToBeReapedParams{}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
 	}))
 	s.Run("UpsertOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -4478,6 +4480,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			VapidPublicKey:  "test",
 			VapidPrivateKey: "test",
 		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 }
 

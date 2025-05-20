@@ -1,11 +1,10 @@
-package unhanger
+package jobreaper
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
-	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
+	"fmt" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
 	"time"
 
 	"golang.org/x/xerrors"
@@ -21,9 +20,13 @@ import (
 )
 
 const (
-	// HungJobDuration is the duration of time since the last update to a job
-	// before it is considered hung.
+	// HungJobDuration is the duration of time since the last update
+	// to a RUNNING job before it is considered hung.
 	HungJobDuration = 5 * time.Minute
+
+	// PendingJobDuration is the duration of time since last update
+	// to a PENDING job before it is considered dead.
+	PendingJobDuration = 30 * time.Minute
 
 	// HungJobExitTimeout is the duration of time that provisioners should allow
 	// for a graceful exit upon cancellation due to failing to send an update to
@@ -38,15 +41,29 @@ const (
 	MaxJobsPerRun = 10
 )
 
-// HungJobLogMessages are written to provisioner job logs when a job is hung and
-// terminated.
-var HungJobLogMessages = []string{
-	"",
-	"====================",
-	"Coder: Build has been detected as hung for 5 minutes and will be terminated.",
-	"====================",
-	"",
+// jobLogMessages are written to provisioner job logs when a job is reaped
+func JobLogMessages(reapType ReapType, threshold time.Duration) []string {
+	return []string{
+		"",
+		"====================",
+		fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and will be terminated.", reapType, threshold.Minutes()),
+		"====================",
+		"",
+	}
 }
+
+type jobToReap struct {
+	ID        uuid.UUID
+	Threshold time.Duration
+	Type      ReapType
+}
+
+type ReapType string
+
+const (
+	Pending ReapType = "pending"
+	Hung    ReapType = "hung"
+)
 
 // acquireLockError is returned when the detector fails to acquire a lock and
 // cancels the current run.
@@ -93,10 +110,10 @@ type Stats struct {
 	Error error
 }
 
-// New returns a new hang detector.
+// New returns a new job reaper.
 func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
-	//nolint:gocritic // Hang detector has a limited set of permissions.
-	ctx, cancel := context.WithCancel(dbauthz.AsHangDetector(ctx))
+	//nolint:gocritic // Job reaper has a limited set of permissions.
+	ctx, cancel := context.WithCancel(dbauthz.AsJobReaper(ctx))
 	d := &Detector{
 		ctx:    ctx,
 		cancel: cancel,
@@ -172,34 +189,42 @@ func (d *Detector) run(t time.Time) Stats {
 		Error:            nil,
 	}
 
-	// Find all provisioner jobs that are currently running but have not
-	// received an update in the last 5 minutes.
-	jobs, err := d.db.GetHungProvisionerJobs(ctx, t.Add(-HungJobDuration))
+	// Find all provisioner jobs to be reaped
+	jobs, err := d.db.GetProvisionerJobsToBeReaped(ctx, database.GetProvisionerJobsToBeReapedParams{
+		PendingSince: t.Add(-PendingJobDuration),
+		HungSince:    t.Add(-HungJobDuration),
+		MaxJobs:      MaxJobsPerRun,
+	})
 	if err != nil {
-		stats.Error = xerrors.Errorf("get hung provisioner jobs: %w", err)
+		stats.Error = xerrors.Errorf("get provisioner jobs to be reaped: %w", err)
 		return stats
 	}
 
-	// Limit the number of jobs we'll unhang in a single run to avoid
-	// timing out.
-	if len(jobs) > MaxJobsPerRun {
-		// Pick a random subset of the jobs to unhang.
-		rand.Shuffle(len(jobs), func(i, j int) {
-			jobs[i], jobs[j] = jobs[j], jobs[i]
-		})
-		jobs = jobs[:MaxJobsPerRun]
+	jobsToReap := make([]*jobToReap, 0, len(jobs))
+
+	for _, job := range jobs {
+		j := &jobToReap{
+			ID: job.ID,
+		}
+		if job.JobStatus == database.ProvisionerJobStatusPending {
+			j.Threshold = PendingJobDuration
+			j.Type = Pending
+		} else {
+			j.Threshold = HungJobDuration
+			j.Type = Hung
+		}
+		jobsToReap = append(jobsToReap, j)
 	}
 
-	// Send a message into the build log for each hung job saying that it
-	// has been detected and will be terminated, then mark the job as
-	// failed.
-	for _, job := range jobs {
+	// Send a message into the build log for each hung or pending job saying that it
+	// has been detected and will be terminated, then mark the job as failed.
+	for _, job := range jobsToReap {
 		log := d.log.With(slog.F("job_id", job.ID))
 
-		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
+		err := reapJob(ctx, log, d.db, d.pubsub, job)
 		if err != nil {
 			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobIneligibleError{})) {
-				log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
+				log.Error(ctx, "error forcefully terminating provisioner job", slog.F("type", job.Type), slog.Error(err))
 			}
 			continue
 		}
@@ -210,47 +235,34 @@ func (d *Detector) run(t time.Time) Stats {
 	return stats
 }
 
-func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobID uuid.UUID) error {
+func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobToReap *jobToReap) error {
 	var lowestLogID int64
 
 	err := db.InTx(func(db database.Store) error {
-		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("hang-detector:%s", jobID)))
-		if err != nil {
-			return xerrors.Errorf("acquire lock: %w", err)
-		}
-		if !locked {
-			// This error is ignored.
-			return acquireLockError{}
-		}
-
 		// Refetch the job while we hold the lock.
-		job, err := db.GetProvisionerJobByID(ctx, jobID)
+		job, err := db.GetProvisionerJobByIDForUpdate(ctx, jobToReap.ID)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return acquireLockError{}
+			}
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		// Check if we should still unhang it.
-		if !job.StartedAt.Valid {
-			// This shouldn't be possible to hit because the query only selects
-			// started and not completed jobs, and a job can't be "un-started".
-			return jobIneligibleError{
-				Err: xerrors.New("job is not started"),
-			}
-		}
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
-		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {
+		if job.UpdatedAt.After(time.Now().Add(-jobToReap.Threshold)) {
 			return jobIneligibleError{
 				Err: xerrors.New("job has been updated recently"),
 			}
 		}
 
 		log.Warn(
-			ctx, "detected hung provisioner job, forcefully terminating",
-			"threshold", HungJobDuration,
+			ctx, "forcefully terminating provisioner job",
+			"type", jobToReap.Type,
+			"threshold", jobToReap.Threshold,
 		)
 
 		// First, get the latest logs from the build so we can make sure
@@ -260,7 +272,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			CreatedAfter: 0,
 		})
 		if err != nil {
-			return xerrors.Errorf("get logs for hung job: %w", err)
+			return xerrors.Errorf("get logs for %s job: %w", jobToReap.Type, err)
 		}
 		logStage := ""
 		if len(logs) != 0 {
@@ -280,7 +292,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			Output:    nil,
 		}
 		now := dbtime.Now()
-		for i, msg := range HungJobLogMessages {
+		for i, msg := range JobLogMessages(jobToReap.Type, jobToReap.Threshold) {
 			// Set the created at in a way that ensures each message has
 			// a unique timestamp so they will be sorted correctly.
 			insertParams.CreatedAt = append(insertParams.CreatedAt, now.Add(time.Millisecond*time.Duration(i)))
@@ -291,13 +303,22 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		newLogs, err := db.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
-			return xerrors.Errorf("insert logs for hung job: %w", err)
+			return xerrors.Errorf("insert logs for %s job: %w", job.JobStatus, err)
 		}
 		lowestLogID = newLogs[0].ID
 
 		// Mark the job as failed.
 		now = dbtime.Now()
-		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+
+		// If the job was never started (pending), set the StartedAt time to the current
+		// time so that the build duration is correct.
+		if job.JobStatus == database.ProvisionerJobStatusPending {
+			job.StartedAt = sql.NullTime{
+				Time:  now,
+				Valid: true,
+			}
+		}
+		err = db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 			ID:        job.ID,
 			UpdatedAt: now,
 			CompletedAt: sql.NullTime{
@@ -305,12 +326,13 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 				Valid: true,
 			},
 			Error: sql.NullString{
-				String: "Coder: Build has been detected as hung for 5 minutes and has been terminated by hang detector.",
+				String: fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and has been terminated by the reaper.", jobToReap.Type, jobToReap.Threshold.Minutes()),
 				Valid:  true,
 			},
 			ErrorCode: sql.NullString{
 				Valid: false,
 			},
+			StartedAt: job.StartedAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("mark job as failed: %w", err)
@@ -364,7 +386,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 	if err != nil {
 		return xerrors.Errorf("marshal log notification: %w", err)
 	}
-	err = pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobToReap.ID), data)
 	if err != nil {
 		return xerrors.Errorf("publish log notification: %w", err)
 	}

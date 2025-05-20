@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -75,7 +76,6 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -368,11 +368,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
-	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
-	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
-	hangDetector.Start()
-	t.Cleanup(hangDetector.Close)
+	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
+	defer jobReaperTicker.Stop()
+	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C)
+	jobReaper.Start()
+	t.Cleanup(jobReaper.Close)
 
 	if options.TelemetryReporter == nil {
 		options.TelemetryReporter = telemetry.NewNoop()

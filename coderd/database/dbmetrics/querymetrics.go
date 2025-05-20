@@ -865,13 +865,6 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	start := time.Now()
-	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
-	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
-	return jobs, err
-}
-
 func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetInboxNotificationByID(ctx, id)
@@ -1194,6 +1187,13 @@ func (m queryMetricsStore) GetProvisionerJobByID(ctx context.Context, id uuid.UU
 	return job, err
 }
 
+func (m queryMetricsStore) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobByIDForUpdate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobTimingsByJobID(ctx, jobID)
@@ -1227,6 +1227,13 @@ func (m queryMetricsStore) GetProvisionerJobsCreatedAfter(ctx context.Context, c
 	jobs, err := m.s.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobsCreatedAfter").Observe(time.Since(start).Seconds())
 	return jobs, err
+}
+
+func (m queryMetricsStore) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobsToBeReaped(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobsToBeReaped").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -2704,6 +2711,13 @@ func (m queryMetricsStore) UpdateProvisionerJobWithCompleteByID(ctx context.Cont
 	err := m.s.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateProvisionerJobWithCompleteByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerJobWithCompleteWithStartedAtByID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
