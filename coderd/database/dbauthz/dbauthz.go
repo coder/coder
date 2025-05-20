@@ -482,9 +482,9 @@ func As(ctx context.Context, actor rbac.Subject) context.Context {
 // running the insertFunc. The insertFunc is expected to return the object that
 // was inserted.
 func insert[
-	ObjectType any,
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType any,
+ArgumentType any,
+Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -495,9 +495,9 @@ func insert[
 }
 
 func insertWithAction[
-	ObjectType any,
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType any,
+ArgumentType any,
+Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -524,10 +524,10 @@ func insertWithAction[
 }
 
 func deleteQ[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Delete func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Delete func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -539,10 +539,10 @@ func deleteQ[
 }
 
 func updateWithReturn[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -553,10 +553,10 @@ func updateWithReturn[
 }
 
 func update[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -574,9 +574,9 @@ func update[
 // user cannot read the resource. This is because the resource details are
 // required to run a proper authorization check.
 func fetchWithAction[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -607,9 +607,9 @@ func fetchWithAction[
 }
 
 func fetch[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -622,10 +622,10 @@ func fetch[
 // from SQL 'exec' functions which only return an error.
 // See fetchAndQuery for more information.
 func fetchAndExec[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -648,10 +648,10 @@ func fetchAndExec[
 // **before** the query runs. The returns from the fetch are only used to
 // assert rbac. The final return of this function comes from the Query function.
 func fetchAndQuery[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -685,9 +685,9 @@ func fetchAndQuery[
 // fetchWithPostFilter is like fetch, but works with lists of objects.
 // SQL filters are much more optimal.
 func fetchWithPostFilter[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
 ](
 	authorizer rbac.Authorizer,
 	action policy.Action,
@@ -1072,24 +1072,6 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	}
 
 	return nil
-}
-
-func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
-	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
-	if err != nil {
-		return err
-	}
-
-	object := rbac.ResourceTemplate.
-		WithID(preset.TemplateID.UUID).
-		InOrg(preset.OrganizationID)
-
-	err = q.authorizeContext(ctx, policy.ActionUpdate, object)
-	if err != nil {
-		return err
-	}
-
-	return q.db.UpdatePresetPrebuildStatus(ctx, arg)
 }
 
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
@@ -4194,6 +4176,24 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
+}
+
+func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
+	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
+	if err != nil {
+		return err
+	}
+
+	object := rbac.ResourceTemplate.
+		WithID(preset.TemplateID.UUID).
+		InOrg(preset.OrganizationID)
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, object)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdatePresetPrebuildStatus(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

@@ -1386,25 +1386,6 @@ func isDeprecated(template database.Template) bool {
 	return template.Deprecated != ""
 }
 
-func (q *FakeQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, preset := range q.presets {
-		if preset.ID == arg.PresetID {
-			preset.PrebuildStatus = arg.Status
-			return nil
-		}
-	}
-
-	return xerrors.Errorf("preset %v does not exist", arg.PresetID)
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -10895,6 +10876,25 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, preset := range q.presets {
+		if preset.ID == arg.PresetID {
+			preset.PrebuildStatus = arg.Status
+			return nil
+		}
+	}
+
+	return xerrors.Errorf("preset %v does not exist", arg.PresetID)
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
