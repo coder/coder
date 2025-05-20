@@ -767,15 +767,15 @@ func Chats(chats []database.Chat) []codersdk.Chat {
 	return List(chats, Chat)
 }
 
-func PreviewParameter(param previewtypes.Parameter) codersdk.Parameter {
-	return codersdk.Parameter{
-		ParameterData: codersdk.ParameterData{
+func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
+	return codersdk.PreviewParameter{
+		PreviewParameterData: codersdk.PreviewParameterData{
 			Name:        param.Name,
 			DisplayName: param.DisplayName,
 			Description: param.Description,
 			Type:        codersdk.OptionType(param.Type),
 			FormType:    codersdk.ParameterFormType(param.FormType),
-			Styling: codersdk.ParameterStyling{
+			Styling: codersdk.PreviewParameterStyling{
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
@@ -820,12 +820,12 @@ func PreviewHCLString(h previewtypes.HCLString) codersdk.NullHCLString {
 	}
 }
 
-func PreviewParameterOption(o *previewtypes.ParameterOption) codersdk.ParameterOption {
+func PreviewParameterOption(o *previewtypes.ParameterOption) codersdk.PreviewParameterOption {
 	if o == nil {
 		// This should never be sent
-		return codersdk.ParameterOption{}
+		return codersdk.PreviewParameterOption{}
 	}
-	return codersdk.ParameterOption{
+	return codersdk.PreviewParameterOption{
 		Name:        o.Name,
 		Description: o.Description,
 		Value:       PreviewHCLString(o.Value),
@@ -833,12 +833,12 @@ func PreviewParameterOption(o *previewtypes.ParameterOption) codersdk.ParameterO
 	}
 }
 
-func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.ParameterValidation {
+func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.PreviewParameterValidation {
 	if v == nil {
 		// This should never be sent
-		return codersdk.ParameterValidation{}
+		return codersdk.PreviewParameterValidation{}
 	}
-	return codersdk.ParameterValidation{
+	return codersdk.PreviewParameterValidation{
 		Error:     v.Error,
 		Regex:     v.Regex,
 		Min:       v.Min,

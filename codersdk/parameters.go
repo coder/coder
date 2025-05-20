@@ -62,44 +62,44 @@ type NullHCLString struct {
 	Valid bool   `json:"valid"`
 }
 
-type Parameter struct {
-	ParameterData
+type PreviewParameter struct {
+	PreviewParameterData
 	Value       NullHCLString        `json:"value"`
 	Diagnostics []FriendlyDiagnostic `json:"diagnostics"`
 }
 
-type ParameterData struct {
-	Name         string                `json:"name"`
-	DisplayName  string                `json:"display_name"`
-	Description  string                `json:"description"`
-	Type         OptionType            `json:"type"`
-	FormType     ParameterFormType     `json:"form_type"`
-	Styling      ParameterStyling      `json:"styling"`
-	Mutable      bool                  `json:"mutable"`
-	DefaultValue NullHCLString         `json:"default_value"`
-	Icon         string                `json:"icon"`
-	Options      []ParameterOption     `json:"options"`
-	Validations  []ParameterValidation `json:"validations"`
-	Required     bool                  `json:"required"`
+type PreviewParameterData struct {
+	Name         string                       `json:"name"`
+	DisplayName  string                       `json:"display_name"`
+	Description  string                       `json:"description"`
+	Type         OptionType                   `json:"type"`
+	FormType     ParameterFormType            `json:"form_type"`
+	Styling      PreviewParameterStyling      `json:"styling"`
+	Mutable      bool                         `json:"mutable"`
+	DefaultValue NullHCLString                `json:"default_value"`
+	Icon         string                       `json:"icon"`
+	Options      []PreviewParameterOption     `json:"options"`
+	Validations  []PreviewParameterValidation `json:"validations"`
+	Required     bool                         `json:"required"`
 	// legacy_variable_name was removed (= 14)
 	Order     int64 `json:"order"`
 	Ephemeral bool  `json:"ephemeral"`
 }
 
-type ParameterStyling struct {
+type PreviewParameterStyling struct {
 	Placeholder *string `json:"placeholder,omitempty"`
 	Disabled    *bool   `json:"disabled,omitempty"`
 	Label       *string `json:"label,omitempty"`
 }
 
-type ParameterOption struct {
+type PreviewParameterOption struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
 	Value       NullHCLString `json:"value"`
 	Icon        string        `json:"icon"`
 }
 
-type ParameterValidation struct {
+type PreviewParameterValidation struct {
 	Error string `json:"validation_error"`
 
 	// All validation attributes are optional.
@@ -119,7 +119,7 @@ type DynamicParametersRequest struct {
 type DynamicParametersResponse struct {
 	ID          int                  `json:"id"`
 	Diagnostics []FriendlyDiagnostic `json:"diagnostics"`
-	Parameters  []Parameter          `json:"parameters"`
+	Parameters  []PreviewParameter   `json:"parameters"`
 	// TODO: Workspace tags
 }
 
