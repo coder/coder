@@ -158,6 +158,12 @@ func (b Builder) DeploymentValues(dv *codersdk.DeploymentValues) Builder {
 	return b
 }
 
+func (b Builder) Experiments(exp codersdk.Experiments) Builder {
+	// nolint: revive
+	b.experiments = exp
+	return b
+}
+
 func (b Builder) Initiator(u uuid.UUID) Builder {
 	// nolint: revive
 	b.initiator = u

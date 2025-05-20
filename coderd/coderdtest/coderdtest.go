@@ -354,6 +354,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	auditor.Store(&options.Auditor)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
@@ -365,6 +366,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		*options.Logger,
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
+		experiments,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
