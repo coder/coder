@@ -600,7 +600,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	// Dynamic parameters skip all parameter validation.
 	// Deleting a workspace also should skip parameter validation.
 	// Pass the user's input as is.
-	if b.dynamicParametersEnabled != nil && *b.dynamicParametersEnabled {
+	if b.usingDynamicParameters() {
 		// TODO: The previous behavior was only to pass param values
 		//  for parameters that exist. Since dynamic params can have
 		//  conditional parameter existence, the static frame of reference
@@ -996,6 +996,10 @@ func (b *Builder) checkRunningBuild() error {
 }
 
 func (b *Builder) usingDynamicParameters() bool {
+	if !b.experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+		// Experiment required
+		return false
+	}
 
 	if b.dynamicParametersEnabled != nil {
 		return *b.dynamicParametersEnabled
