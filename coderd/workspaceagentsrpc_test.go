@@ -47,23 +47,23 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-	tickCh := make(chan time.Time)
-	flushCh := make(chan int, 1)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		WorkspaceUsageTrackerFlush: flushCh,
-		WorkspaceUsageTrackerTick:  tickCh,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
-					for _, a := range agent {
-						a.ApiKeyScope = string(tc.apiKeyScope)
-					}
+			tickCh := make(chan time.Time)
+			flushCh := make(chan int, 1)
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				WorkspaceUsageTrackerFlush: flushCh,
+				WorkspaceUsageTrackerTick:  tickCh,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+				for _, a := range agent {
+					a.ApiKeyScope = string(tc.apiKeyScope)
+				}
 
-					return agent
-				},
+				return agent
+			},
 			).Do()
 
 			ac := agentsdk.New(client.URL)
