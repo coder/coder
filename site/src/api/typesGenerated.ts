@@ -349,7 +349,7 @@ export interface ConvertLoginRequest {
 // From codersdk/chat.go
 export interface CreateChatMessageRequest {
 	readonly model: string;
-	// embedded anonymous struct, please fix by naming it
+	// external type "github.com/kylecarbs/aisdk-go.Message", to include this type the package must be explicitly included in the parsing
 	readonly message: unknown;
 	readonly thinking: boolean;
 }
@@ -741,6 +741,19 @@ export interface DeploymentValues {
 	readonly address?: string;
 }
 
+// From codersdk/parameters.go
+export interface DiagnosticExtra {
+	readonly code: string;
+}
+
+// From codersdk/parameters.go
+export type DiagnosticSeverityString = "error" | "warning";
+
+export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
+	"error",
+	"warning",
+];
+
 // From codersdk/workspaceagents.go
 export type DisplayApp =
 	| "port_forwarding_helper"
@@ -757,16 +770,16 @@ export const DisplayApps: DisplayApp[] = [
 	"web_terminal",
 ];
 
-// From codersdk/templateversions.go
+// From codersdk/parameters.go
 export interface DynamicParametersRequest {
 	readonly id: number;
 	readonly inputs: Record<string, string>;
 }
 
-// From codersdk/templateversions.go
+// From codersdk/parameters.go
 export interface DynamicParametersResponse {
 	readonly id: number;
-	readonly diagnostics: PreviewDiagnostics;
+	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
 }
 
@@ -969,10 +982,10 @@ export const FormatZip = "zip";
 
 // From codersdk/parameters.go
 export interface FriendlyDiagnostic {
-	readonly severity: PreviewDiagnosticSeverityString;
+	readonly severity: DiagnosticSeverityString;
 	readonly summary: string;
 	readonly detail: string;
-	readonly extra: PreviewDiagnosticExtra;
+	readonly extra: DiagnosticExtra;
 }
 
 // From codersdk/apikey.go
@@ -1596,6 +1609,16 @@ export interface OIDCConfig {
 	readonly skip_issuer_checks: boolean;
 }
 
+// From codersdk/parameters.go
+export type OptionType = "bool" | "list(string)" | "number" | "string";
+
+export const OptionTypes: OptionType[] = [
+	"bool",
+	"list(string)",
+	"number",
+	"string",
+];
+
 // From codersdk/organizations.go
 export interface Organization extends MinimalOrganization {
 	readonly description: string;
@@ -1662,6 +1685,34 @@ export interface Pagination {
 	readonly limit?: number;
 	readonly offset?: number;
 }
+
+// From codersdk/parameters.go
+export type ParameterFormType =
+	| "checkbox"
+	| ""
+	| "dropdown"
+	| "error"
+	| "input"
+	| "multi-select"
+	| "radio"
+	| "slider"
+	| "switch"
+	| "tag-select"
+	| "textarea";
+
+export const ParameterFormTypes: ParameterFormType[] = [
+	"checkbox",
+	"",
+	"dropdown",
+	"error",
+	"input",
+	"multi-select",
+	"radio",
+	"slider",
+	"switch",
+	"tag-select",
+	"textarea",
+];
 
 // From codersdk/idpsync.go
 export interface PatchGroupIDPSyncConfigRequest {
@@ -1778,33 +1829,19 @@ export interface PresetParameter {
 	readonly Value: string;
 }
 
-// From types/diagnostics.go
-export interface PreviewDiagnosticExtra {
-	readonly code: string;
-	// empty interface{} type, falling back to unknown
-	readonly Wrapped: unknown;
-}
-
-// From types/diagnostics.go
-export type PreviewDiagnosticSeverityString = string;
-
-// From types/diagnostics.go
-export type PreviewDiagnostics = readonly FriendlyDiagnostic[];
-
-// From types/parameter.go
+// From codersdk/parameters.go
 export interface PreviewParameter extends PreviewParameterData {
 	readonly value: NullHCLString;
-	readonly diagnostics: PreviewDiagnostics;
+	readonly diagnostics: readonly FriendlyDiagnostic[];
 }
 
-// From types/parameter.go
+// From codersdk/parameters.go
 export interface PreviewParameterData {
 	readonly name: string;
 	readonly display_name: string;
 	readonly description: string;
-	readonly type: PreviewParameterType;
-	// this is likely an enum in an external package "github.com/coder/terraform-provider-coder/v2/provider.ParameterFormType"
-	readonly form_type: string;
+	readonly type: OptionType;
+	readonly form_type: ParameterFormType;
 	readonly styling: PreviewParameterStyling;
 	readonly mutable: boolean;
 	readonly default_value: NullHCLString;
@@ -1816,7 +1853,7 @@ export interface PreviewParameterData {
 	readonly ephemeral: boolean;
 }
 
-// From types/parameter.go
+// From codersdk/parameters.go
 export interface PreviewParameterOption {
 	readonly name: string;
 	readonly description: string;
@@ -1824,17 +1861,14 @@ export interface PreviewParameterOption {
 	readonly icon: string;
 }
 
-// From types/parameter.go
+// From codersdk/parameters.go
 export interface PreviewParameterStyling {
 	readonly placeholder?: string;
 	readonly disabled?: boolean;
 	readonly label?: string;
 }
 
-// From types/enum.go
-export type PreviewParameterType = string;
-
-// From types/parameter.go
+// From codersdk/parameters.go
 export interface PreviewParameterValidation {
 	readonly validation_error: string;
 	readonly validation_regex: string | null;

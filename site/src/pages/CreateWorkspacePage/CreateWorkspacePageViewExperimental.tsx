@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { PreviewDiagnostics, PreviewParameter } from "api/typesGenerated";
+import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -51,7 +51,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
-	diagnostics: PreviewDiagnostics;
+	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
