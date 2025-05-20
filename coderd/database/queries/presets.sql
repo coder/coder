@@ -25,7 +25,7 @@ SELECT
 	unnest(@values :: TEXT[])
 RETURNING *;
 
--- name: UpdatePrebuildStatus :exec
+-- name: UpdatePresetPrebuildStatus :exec
 UPDATE template_version_presets
 SET prebuild_status = @status
 WHERE id = @preset_id;

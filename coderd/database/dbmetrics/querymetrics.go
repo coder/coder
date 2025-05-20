@@ -2685,10 +2685,10 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
-func (m queryMetricsStore) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+func (m queryMetricsStore) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
 	start := time.Now()
-	r0 := m.s.UpdatePrebuildStatus(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdatePrebuildStatus").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdatePresetPrebuildStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePresetPrebuildStatus").Observe(time.Since(start).Seconds())
 	return r0
 }
 

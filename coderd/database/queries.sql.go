@@ -6849,19 +6849,19 @@ func (q *sqlQuerier) InsertPresetParameters(ctx context.Context, arg InsertPrese
 	return items, nil
 }
 
-const updatePrebuildStatus = `-- name: UpdatePrebuildStatus :exec
+const updatePresetPrebuildStatus = `-- name: UpdatePresetPrebuildStatus :exec
 UPDATE template_version_presets
 SET prebuild_status = $1
 WHERE id = $2
 `
 
-type UpdatePrebuildStatusParams struct {
+type UpdatePresetPrebuildStatusParams struct {
 	Status   PrebuildStatus `db:"status" json:"status"`
 	PresetID uuid.UUID      `db:"preset_id" json:"preset_id"`
 }
 
-func (q *sqlQuerier) UpdatePrebuildStatus(ctx context.Context, arg UpdatePrebuildStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updatePrebuildStatus, arg.Status, arg.PresetID)
+func (q *sqlQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg UpdatePresetPrebuildStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updatePresetPrebuildStatus, arg.Status, arg.PresetID)
 	return err
 }
 

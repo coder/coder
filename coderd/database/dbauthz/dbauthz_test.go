@@ -4945,7 +4945,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 				PrebuildStatus:      database.PrebuildStatusHealthy,
 			})
 	}))
-	s.Run("UpdatePrebuildStatus", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdatePresetPrebuildStatus", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		user := dbgen.User(s.T(), db, database.User{})
 		template := dbgen.Template(s.T(), db, database.Template{
@@ -4963,7 +4963,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
 			TemplateVersionID: templateVersion.ID,
 		})
-		req := database.UpdatePrebuildStatusParams{
+		req := database.UpdatePresetPrebuildStatusParams{
 			PresetID: preset.ID,
 			Status:   database.PrebuildStatusHealthy,
 		}

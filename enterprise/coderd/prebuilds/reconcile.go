@@ -373,7 +373,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	if ps.IsHardLimited {
 		logger.Warn(ctx, "skipping hard limited preset", slog.F("preset_id", ps.Preset.ID), slog.F("name", ps.Preset.Name))
 
-		err := c.store.UpdatePrebuildStatus(ctx, database.UpdatePrebuildStatusParams{
+		err := c.store.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
 			Status:   database.PrebuildStatusHardLimited,
 			PresetID: ps.Preset.ID,
 		})

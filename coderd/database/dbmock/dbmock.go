@@ -5691,18 +5691,18 @@ func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationDeletedByID), ctx, arg)
 }
 
-// UpdatePrebuildStatus mocks base method.
-func (m *MockStore) UpdatePrebuildStatus(ctx context.Context, arg database.UpdatePrebuildStatusParams) error {
+// UpdatePresetPrebuildStatus mocks base method.
+func (m *MockStore) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePrebuildStatus", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdatePresetPrebuildStatus", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdatePrebuildStatus indicates an expected call of UpdatePrebuildStatus.
-func (mr *MockStoreMockRecorder) UpdatePrebuildStatus(ctx, arg any) *gomock.Call {
+// UpdatePresetPrebuildStatus indicates an expected call of UpdatePresetPrebuildStatus.
+func (mr *MockStoreMockRecorder) UpdatePresetPrebuildStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePrebuildStatus", reflect.TypeOf((*MockStore)(nil).UpdatePrebuildStatus), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePresetPrebuildStatus", reflect.TypeOf((*MockStore)(nil).UpdatePresetPrebuildStatus), ctx, arg)
 }
 
 // UpdateProvisionerDaemonLastSeenAt mocks base method.
