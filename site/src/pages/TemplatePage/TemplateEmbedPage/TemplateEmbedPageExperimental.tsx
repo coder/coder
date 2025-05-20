@@ -133,7 +133,7 @@ interface TemplateEmbedPageViewExperimentalProps {
 	error?: unknown;
 }
 
-export const TemplateEmbedPageViewExperimental: FC<
+const TemplateEmbedPageViewExperimental: FC<
 	TemplateEmbedPageViewExperimentalProps
 > = ({ template, parameters, sendMessage, error }) => {
 	const experimentalFormContext = useContext(ExperimentalFormContext);
