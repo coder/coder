@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: There is a problem creating prebuilt workspaces for the preset
+Subject: There is a problem creating prebuilt workspaces
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,8 +12,8 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The number of failed prebuilds has reached the hard limit for template dock=
-er and preset particle-accelerator.
+The number of failed prebuild attempts has reached the hard limit for templ=
+ate docker and preset particle-accelerator.
 
 To resume prebuilds, fix the underlying issue and upload a new template ver=
 sion.
@@ -35,8 +35,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>There is a problem creating prebuilt workspaces for the preset</=
-title>
+    <title>There is a problem creating prebuilt workspaces</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -51,13 +50,13 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        There is a problem creating prebuilt workspaces for the preset
+        There is a problem creating prebuilt workspaces
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>The number of failed prebuilds has reached the hard limit for te=
-mplate <strong>docker</strong> and preset <strong>particle-accelerator</str=
-ong>.</p>
+        <p>The number of failed prebuild attempts has reached the hard limi=
+t for template <strong>docker</strong> and preset <strong>particle-accelera=
+tor</strong>.</p>
 
 <p>To resume prebuilds, fix the underlying issue and upload a new template =
 version.</p>

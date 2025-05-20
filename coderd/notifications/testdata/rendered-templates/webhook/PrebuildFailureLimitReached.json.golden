@@ -28,8 +28,8 @@
     "data": {},
     "targets": null
   },
-  "title": "There is a problem creating prebuilt workspaces for the preset",
-  "title_markdown": "There is a problem creating prebuilt workspaces for the preset",
-  "body": "The number of failed prebuilds has reached the hard limit for template docker and preset particle-accelerator.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.",
-  "body_markdown": "\nThe number of failed prebuilds has reached the hard limit for template **docker** and preset **particle-accelerator**.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.\n"
+  "title": "There is a problem creating prebuilt workspaces",
+  "title_markdown": "There is a problem creating prebuilt workspaces",
+  "body": "The number of failed prebuild attempts has reached the hard limit for template docker and preset particle-accelerator.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.",
+  "body_markdown": "\nThe number of failed prebuild attempts has reached the hard limit for template **docker** and preset **particle-accelerator**.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.\n"
 }
