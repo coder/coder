@@ -222,6 +222,15 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	const onChangeEvent = useEffectEvent(onChange);
 	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
 	const prevDebouncedValueRef = useRef<string | undefined>();
+	const prevValueRef = useRef(value);
+
+	// This is necessary in the case of fields being set by preset parameters
+	useEffect(() => {
+		if (value !== undefined && value !== prevValueRef.current) {
+			setLocalValue(value);
+			prevValueRef.current = value;
+		}
+	}, [value]);
 
 	useEffect(() => {
 		if (prevDebouncedValueRef.current !== undefined) {
@@ -458,7 +467,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					<Slider
 						id={id}
 						className="mt-2"
-						value={[Number(value)]}
+						value={[Number.isFinite(Number(value)) ? Number(value) : 0]}
 						onValueChange={([value]) => {
 							onChange(value.toString());
 						}}

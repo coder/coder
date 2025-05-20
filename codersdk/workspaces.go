@@ -41,6 +41,7 @@ type Workspace struct {
 	TemplateAllowUserCancelWorkspaceJobs bool                `json:"template_allow_user_cancel_workspace_jobs"`
 	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id" format:"uuid"`
 	TemplateRequireActiveVersion         bool                `json:"template_require_active_version"`
+	TemplateUseClassicParameterFlow      bool                `json:"template_use_classic_parameter_flow"`
 	LatestBuild                          WorkspaceBuild      `json:"latest_build"`
 	LatestAppStatus                      *WorkspaceAppStatus `json:"latest_app_status"`
 	Outdated                             bool                `json:"outdated"`

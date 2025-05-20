@@ -101,7 +101,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		}
 	}, []);
 
-	// On sends all initial parameter values to the websocket
+	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)
 	// This ensures the backend has the complete initial state of the form,
 	// which is vital for correctly rendering dynamic UI elements where parameter visibility
