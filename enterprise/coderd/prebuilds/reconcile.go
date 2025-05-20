@@ -378,12 +378,13 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 			PresetID: ps.Preset.ID,
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("can't update preset prebuild status: %w", err)
 		}
 
 		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
 		if err != nil {
-			return err
+			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
+			return nil
 		}
 
 		return nil
@@ -392,16 +393,13 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
-		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err), slog.F("preset_id", ps.Preset.ID))
+		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err))
 		return nil
 	}
 
 	// Nothing has to be done.
 	if !ps.Preset.UsingActiveVersion && actions.IsNoop() {
-		logger.Debug(ctx, "skipping reconciliation for preset - nothing has to be done",
-			slog.F("template_id", ps.Preset.TemplateID.String()), slog.F("template_name", ps.Preset.TemplateName),
-			slog.F("template_version_id", ps.Preset.TemplateVersionID.String()), slog.F("template_version_name", ps.Preset.TemplateVersionName),
-			slog.F("preset_id", ps.Preset.ID.String()), slog.F("preset_name", ps.Preset.Name))
+		logger.Debug(ctx, "skipping reconciliation for preset - nothing has to be done")
 		return nil
 	}
 
