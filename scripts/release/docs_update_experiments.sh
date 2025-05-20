@@ -64,9 +64,24 @@ sparse_clone_codersdk() {
 }
 
 parse_all_experiments() {
-	go doc -all -C "${dir}" ./codersdk ExperimentsAll |
+	# Try ExperimentsSafe first, then fall back to ExperimentsAll if needed
+	experiments_var="ExperimentsSafe"
+	experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
+	
+	if [[ -z "${experiments_output}" ]]; then
+		# Fall back to ExperimentsAll if ExperimentsSafe is not found
+		experiments_var="ExperimentsAll"
+		experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
+		
+		if [[ -z "${experiments_output}" ]]; then
+			log "Warning: Neither ExperimentsSafe nor ExperimentsAll found in ${dir}"
+			return
+		fi
+	fi
+	
+	echo "${experiments_output}" |
 		tr -d $'\n\t ' |
-		grep -E -o 'ExperimentsAll=Experiments\{[^}]*\}' |
+		grep -E -o "${experiments_var}=Experiments\{[^}]*\}" |
 		sed -e 's/.*{\(.*\)}.*/\1/' |
 		tr ',' '\n'
 }
@@ -128,7 +143,7 @@ for channel in mainline stable; do
 		maybe_desc=
 
 		if [[ ! -v all_experiments[$var] ]]; then
-			log "Skipping ${var}, not listed in ExperimentsAll"
+			log "Skipping ${var}, not listed in experiments list"
 			continue
 		fi
 
