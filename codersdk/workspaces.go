@@ -112,6 +112,7 @@ type CreateWorkspaceBuildRequest struct {
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	// EnableDynamicParameters skips some of the static parameter checking.
 	// It will default to whatever the template has marked as the default experience.
+	// Requires the "dynamic-experiment" to be used.
 	EnableDynamicParameters *bool `json:"enable_dynamic_parameters,omitempty"`
 }
 

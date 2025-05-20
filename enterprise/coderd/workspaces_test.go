@@ -1738,7 +1738,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
 
-	// Creating a workspace as a non-privileged user must succeed
+	// When: we create a workspace build using the above template but with
+	// parameter values that are different from those defined in the template.
+	// The new values are not valid according to the original plan, but are valid.
 	ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
 		TemplateID: tpl.ID,
 		Name:       coderdtest.RandomUsername(t),
@@ -1754,11 +1756,14 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		},
 		EnableDynamicParameters: true,
 	})
+
+	// Then: the build should succeed. The updated value of param_min should be
+	// used to validate param instead of the value defined in the temp
 	require.NoError(t, err, "failed to create workspace")
 	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
-	// Now restart the workspace
+	// Now delete the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})

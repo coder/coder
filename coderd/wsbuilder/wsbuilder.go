@@ -162,7 +162,9 @@ func (b Builder) DeploymentValues(dv *codersdk.DeploymentValues) Builder {
 
 func (b Builder) Experiments(exp codersdk.Experiments) Builder {
 	// nolint: revive
-	b.experiments = exp
+	cpy := make(codersdk.Experiments, len(exp))
+	copy(cpy, exp)
+	b.experiments = cpy
 	return b
 }
 
