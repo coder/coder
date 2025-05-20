@@ -24,6 +24,9 @@ const (
 
 	ActionReadPersonal   Action = "read_personal"
 	ActionUpdatePersonal Action = "update_personal"
+
+	ActionCreateAgent Action = "create_agent"
+	ActionDeleteAgent Action = "delete_agent"
 )
 
 type PermissionDefinition struct {
@@ -67,6 +70,9 @@ var workspaceActions = map[Action]ActionDefinition{
 	// Running a workspace
 	ActionSSH:                actDef("ssh into a given workspace"),
 	ActionApplicationConnect: actDef("connect to workspace apps via browser"),
+
+	ActionCreateAgent: actDef("create a new workspace agent"),
+	ActionDeleteAgent: actDef("delete an existing workspace agent"),
 }
 
 // RBACPermissions is indexed by the type

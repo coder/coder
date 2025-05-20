@@ -227,6 +227,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "CreateDeleteWorkspaceAgent",
+			Actions:  []policy.Action{policy.ActionCreateAgent, policy.ActionDeleteAgent},
+			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgMemberMeBanWorkspace},
+			},
+		},
+		{
 			Name:     "Templates",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceTemplate.WithID(templateID).InOrg(orgID),
@@ -462,7 +471,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceDormant",
-			Actions:  append(crud, policy.ActionWorkspaceStop),
+			Actions:  append(crud, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent),
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgMemberMe, orgAdmin, owner},
