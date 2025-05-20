@@ -857,6 +857,8 @@ func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
 		"4.0":  true,
 	} {
 		t.Run(v, func(t *testing.T) {
+			t.Parallel()
+
 			does := wsbuilder.ProvisionerVersionSupportsDynamicParameters(v)
 			require.Equal(t, dyn, does)
 		})
