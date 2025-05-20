@@ -2320,8 +2320,12 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 	if err != nil {
 		return nil, err
 	}
+	orgIDs := make(map[uuid.UUID]struct{})
 	for _, job := range provisionerJobs {
-		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(job.OrganizationID)); err != nil {
+		orgIDs[job.OrganizationID] = struct{}{}
+	}
+	for orgID := range orgIDs {
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(orgID)); err != nil {
 			return nil, err
 		}
 	}
@@ -2329,16 +2333,14 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 }
 
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return nil, err
-	// }
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 }
 
 func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return nil, err
-	// }
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
 }
 
@@ -3547,9 +3549,8 @@ func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertP
 }
 
 func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return nil, err
-	// }
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
@@ -4187,9 +4188,8 @@ func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.Upd
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
-	// 	return err
-	// }
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 
 	job, err := q.db.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {

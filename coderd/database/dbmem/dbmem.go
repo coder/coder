@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to reap
+	insecurerand "math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to reap
 	"reflect"
 	"regexp"
 	"slices"
@@ -4889,7 +4889,7 @@ func (q *FakeQuerier) GetProvisionerJobsToBeReaped(_ context.Context, arg databa
 			}
 		}
 	}
-	rand.Shuffle(len(hungJobs), func(i, j int) {
+	insecurerand.Shuffle(len(hungJobs), func(i, j int) {
 		hungJobs[i], hungJobs[j] = hungJobs[j], hungJobs[i]
 	})
 	return hungJobs, nil
