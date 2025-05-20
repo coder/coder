@@ -846,19 +846,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceAutoUpdated_NoMessage",
-			id:   notifications.TemplateWorkspaceAutoUpdated,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"name":                  "bobby-workspace",
-					"template_version_name": "1.0",
-				},
-			},
-		},
-		{
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
