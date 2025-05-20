@@ -67,18 +67,18 @@ parse_all_experiments() {
 	# Try ExperimentsSafe first, then fall back to ExperimentsAll if needed
 	experiments_var="ExperimentsSafe"
 	experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
-	
+
 	if [[ -z "${experiments_output}" ]]; then
 		# Fall back to ExperimentsAll if ExperimentsSafe is not found
 		experiments_var="ExperimentsAll"
 		experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
-		
+
 		if [[ -z "${experiments_output}" ]]; then
 			log "Warning: Neither ExperimentsSafe nor ExperimentsAll found in ${dir}"
 			return
 		fi
 	fi
-	
+
 	echo "${experiments_output}" |
 		tr -d $'\n\t ' |
 		grep -E -o "${experiments_var}=Experiments\{[^}]*\}" |
