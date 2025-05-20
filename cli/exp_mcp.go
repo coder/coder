@@ -255,7 +255,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			{
 				Name:        "app-status-slug",
 				Description: "The app status slug to use when running the Coder MCP server.",
-				Env:         "CODER_MCP_CLAUDE_APP_STATUS_SLUG",
+				Env:         "CODER_MCP_APP_STATUS_SLUG",
 				Flag:        "claude-app-status-slug",
 				Value:       serpent.StringOf(&appStatusSlug),
 			},
