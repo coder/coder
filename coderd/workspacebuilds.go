@@ -338,6 +338,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
+		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
 	var (
