@@ -4123,8 +4123,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
-		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		_ = tmpl1V1
+		createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4674,8 +4673,7 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		})
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
-		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		_ = tmpl1V1
+		createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 
 		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
 		require.NoError(t, err)
