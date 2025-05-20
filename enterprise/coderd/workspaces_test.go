@@ -1700,11 +1700,14 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,
 			// We intentionally do not run a built-in provisioner daemon here.
 			IncludeProvisionerDaemon: false,
+			DeploymentValues:         dv,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
