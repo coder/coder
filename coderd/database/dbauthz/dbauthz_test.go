@@ -4942,10 +4942,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 				},
 				InvalidateAfterSecs: preset.InvalidateAfterSecs,
 				OrganizationID:      org.ID,
-				PrebuildStatus: database.NullPrebuildStatus{
-					PrebuildStatus: database.PrebuildStatusNormal,
-					Valid:          true,
-				},
+				PrebuildStatus:      database.PrebuildStatusNormal,
 			})
 	}))
 	s.Run("UpdatePrebuildStatus", s.Subtest(func(db database.Store, check *expects) {
@@ -4968,6 +4965,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		})
 		req := database.UpdatePrebuildStatusParams{
 			PresetID: preset.ID,
+			Status:   database.PrebuildStatusNormal,
 		}
 		check.Args(req).
 			Asserts(rbac.ResourceTemplate.WithID(template.ID).InOrg(org.ID), policy.ActionUpdate)
