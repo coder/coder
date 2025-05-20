@@ -3309,13 +3309,13 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID          `db:"template_version_id" json:"template_version_id"`
-	Name                string             `db:"name" json:"name"`
-	CreatedAt           time.Time          `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32      `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32      `db:"invalidate_after_secs" json:"invalidate_after_secs"`
-	PrebuildStatus      NullPrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                string         `db:"name" json:"name"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 }
 
 type TemplateVersionPresetParameter struct {

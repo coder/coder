@@ -1446,7 +1446,7 @@ CREATE TABLE template_version_presets (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
-    prebuild_status prebuild_status DEFAULT 'normal'::prebuild_status
+    prebuild_status prebuild_status DEFAULT 'normal'::prebuild_status NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (

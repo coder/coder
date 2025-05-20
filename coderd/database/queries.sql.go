@@ -6524,19 +6524,19 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID          uuid.UUID          `db:"template_id" json:"template_id"`
-	TemplateName        string             `db:"template_name" json:"template_name"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	OrganizationName    string             `db:"organization_name" json:"organization_name"`
-	TemplateVersionID   uuid.UUID          `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName string             `db:"template_version_name" json:"template_version_name"`
-	UsingActiveVersion  bool               `db:"using_active_version" json:"using_active_version"`
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	Name                string             `db:"name" json:"name"`
-	DesiredInstances    sql.NullInt32      `db:"desired_instances" json:"desired_instances"`
-	PrebuildStatus      NullPrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
-	Deleted             bool               `db:"deleted" json:"deleted"`
-	Deprecated          bool               `db:"deprecated" json:"deprecated"`
+	TemplateID          uuid.UUID      `db:"template_id" json:"template_id"`
+	TemplateName        string         `db:"template_name" json:"template_name"`
+	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
+	OrganizationName    string         `db:"organization_name" json:"organization_name"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName string         `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion  bool           `db:"using_active_version" json:"using_active_version"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	Name                string         `db:"name" json:"name"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	Deleted             bool           `db:"deleted" json:"deleted"`
+	Deprecated          bool           `db:"deprecated" json:"deprecated"`
 }
 
 // GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
@@ -6587,15 +6587,15 @@ WHERE tvp.id = $1
 `
 
 type GetPresetByIDRow struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID          `db:"template_version_id" json:"template_version_id"`
-	Name                string             `db:"name" json:"name"`
-	CreatedAt           time.Time          `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32      `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32      `db:"invalidate_after_secs" json:"invalidate_after_secs"`
-	PrebuildStatus      NullPrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
-	TemplateID          uuid.NullUUID      `db:"template_id" json:"template_id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                string         `db:"name" json:"name"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error) {
@@ -6856,8 +6856,8 @@ WHERE id = $2
 `
 
 type UpdatePrebuildStatusParams struct {
-	Status   NullPrebuildStatus `db:"status" json:"status"`
-	PresetID uuid.UUID          `db:"preset_id" json:"preset_id"`
+	Status   PrebuildStatus `db:"status" json:"status"`
+	PresetID uuid.UUID      `db:"preset_id" json:"preset_id"`
 }
 
 func (q *sqlQuerier) UpdatePrebuildStatus(ctx context.Context, arg UpdatePrebuildStatusParams) error {

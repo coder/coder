@@ -9049,10 +9049,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Int32: 0,
 			Valid: true,
 		},
-		PrebuildStatus: database.NullPrebuildStatus{
-			PrebuildStatus: database.PrebuildStatusNormal,
-			Valid:          true,
-		},
+		PrebuildStatus: database.PrebuildStatusNormal,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
