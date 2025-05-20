@@ -1,9 +1,7 @@
 import type { Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
-import AppsIcon from "@mui/icons-material/Apps";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
 import Warning from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
 import type {
@@ -12,6 +10,8 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
+import { LayoutGridIcon } from "lucide-react";
+import { FileIcon } from "lucide-react";
 import { ExternalLinkIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
@@ -163,11 +163,11 @@ export const WorkspaceAppStatus = ({
 										...commonStyles,
 									}}
 								>
-									<InsertDriveFile
-										sx={{
-											fontSize: "11px",
+									<FileIcon
+										className="size-icon-xs"
+										css={{
 											opacity: 0.5,
-											mr: 0.25,
+											marginRight: "0.25rem",
 										}}
 									/>
 									<span>{formatURI(status.uri)}</span>
@@ -262,9 +262,9 @@ const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 					}}
 				/>
 			) : (
-				<AppsIcon
-					sx={{
-						fontSize: 14,
+				<LayoutGridIcon
+					className="size-icon-xs"
+					css={{
 						opacity: 0.7,
 					}}
 				/>

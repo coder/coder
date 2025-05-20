@@ -4,7 +4,6 @@ import ArticleIcon from "@mui/icons-material/Article";
 import BuildIcon from "@mui/icons-material/Build";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import CodeIcon from "@mui/icons-material/Code";
-import DeleteIcon from "@mui/icons-material/Delete";
 import ErrorIcon from "@mui/icons-material/Error";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import PersonIcon from "@mui/icons-material/Person";
@@ -13,6 +12,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { TrashIcon } from "lucide-react";
 import { InfoIcon } from "lucide-react";
 import type React from "react";
 import { type FC, memo, useMemo, useState } from "react";
@@ -533,7 +533,7 @@ const ChatToolInvocationResultPreview: FC<{
 						color: theme.palette.text.secondary,
 					}}
 				>
-					<DeleteIcon fontSize="small" />
+					<TrashIcon className="size-icon-xs" />
 					{toolInvocation.result}
 				</div>
 			);
