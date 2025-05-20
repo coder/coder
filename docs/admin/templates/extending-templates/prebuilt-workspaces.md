@@ -151,9 +151,8 @@ resource "docker_container" "workspace" {
 }
 ```
 
-Try to keep `ignore_changes` scoped to just the fields which were called out in the notification. Excessive use of
-`ignore_changes` can lead to undesirable outcomes in Terraform, like innocuous changes (which wouldn't cause replacements)
-to be ignored.
+Limit the scope of `ignore_changes` to include only the fields specified in the notification.
+If you include too many fields, Terraform might ignore changes that wouldn't otherwise cause drift.
 
 Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
 
