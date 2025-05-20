@@ -1346,7 +1346,7 @@ func AllPortShareProtocolValues() []PortShareProtocol {
 type PrebuildStatus string
 
 const (
-	PrebuildStatusNormal           PrebuildStatus = "normal"
+	PrebuildStatusHealthy          PrebuildStatus = "healthy"
 	PrebuildStatusHardLimited      PrebuildStatus = "hard_limited"
 	PrebuildStatusValidationFailed PrebuildStatus = "validation_failed"
 )
@@ -1388,7 +1388,7 @@ func (ns NullPrebuildStatus) Value() (driver.Value, error) {
 
 func (e PrebuildStatus) Valid() bool {
 	switch e {
-	case PrebuildStatusNormal,
+	case PrebuildStatusHealthy,
 		PrebuildStatusHardLimited,
 		PrebuildStatusValidationFailed:
 		return true
@@ -1398,7 +1398,7 @@ func (e PrebuildStatus) Valid() bool {
 
 func AllPrebuildStatusValues() []PrebuildStatus {
 	return []PrebuildStatus{
-		PrebuildStatusNormal,
+		PrebuildStatusHealthy,
 		PrebuildStatusHardLimited,
 		PrebuildStatusValidationFailed,
 	}

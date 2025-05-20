@@ -154,7 +154,7 @@ CREATE TYPE port_share_protocol AS ENUM (
 );
 
 CREATE TYPE prebuild_status AS ENUM (
-    'normal',
+    'healthy',
     'hard_limited',
     'validation_failed'
 );
@@ -1446,7 +1446,7 @@ CREATE TABLE template_version_presets (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
-    prebuild_status prebuild_status DEFAULT 'normal'::prebuild_status NOT NULL
+    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
