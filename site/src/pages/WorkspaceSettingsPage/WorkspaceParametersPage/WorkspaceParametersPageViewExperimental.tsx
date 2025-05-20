@@ -159,6 +159,9 @@ export const WorkspaceParametersPageViewExperimental: FC<
 									}
 									autofill={false}
 									disabled={isDisabled}
+									value={
+										form.values?.rich_parameter_values?.[index]?.value || ""
+									}
 								/>
 							);
 						})}
@@ -190,6 +193,9 @@ export const WorkspaceParametersPageViewExperimental: FC<
 										}
 										autofill={false}
 										disabled={isDisabled}
+										value={
+											form.values?.rich_parameter_values?.[index]?.value || ""
+										}
 									/>
 								);
 							})}
