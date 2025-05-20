@@ -395,6 +395,7 @@ func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrga
 		QueuePosition:  pj.QueuePosition,
 		QueueSize:      pj.QueueSize,
 	})
+	job.WorkerName = pj.WorkerName
 	job.AvailableWorkers = pj.AvailableWorkers
 	job.Metadata = codersdk.ProvisionerJobMetadata{
 		TemplateVersionName: pj.TemplateVersionName,

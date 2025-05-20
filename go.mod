@@ -74,7 +74,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
-	cloud.google.com/go/compute/metadata v0.6.0
+	cloud.google.com/go/compute/metadata v0.7.0
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
@@ -101,7 +101,7 @@ require (
 	github.com/coder/quartz v0.1.3
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.4.0
+	github.com/coder/terraform-provider-coder/v2 v2.4.1
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -140,13 +140,13 @@ require (
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/hc-install v0.9.2
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
-	github.com/hashicorp/terraform-json v0.24.0
+	github.com/hashicorp/terraform-json v0.25.0
 	github.com/hashicorp/yamux v0.1.2
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/justinas/nosurf v1.1.1
+	github.com/justinas/nosurf v1.2.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.18.0
@@ -485,10 +485,10 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
-	github.com/coder/preview v0.0.2-0.20250509141204-fc9484dbe506
+	github.com/coder/preview v0.0.2-0.20250516233606-a1da43489319
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
-	github.com/mark3labs/mcp-go v0.27.0
+	github.com/mark3labs/mcp-go v0.28.0
 	github.com/openai/openai-go v0.1.0-beta.10
 	google.golang.org/genai v0.7.0
 )

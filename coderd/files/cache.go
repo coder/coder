@@ -16,7 +16,7 @@ import (
 
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
-func NewFromStore(store database.Store) Cache {
+func NewFromStore(store database.Store) *Cache {
 	fetcher := func(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		file, err := store.GetFileByID(ctx, fileID)
 		if err != nil {
@@ -27,7 +27,7 @@ func NewFromStore(store database.Store) Cache {
 		return archivefs.FromTarReader(content), nil
 	}
 
-	return Cache{
+	return &Cache{
 		lock:    sync.Mutex{},
 		data:    make(map[uuid.UUID]*cacheEntry),
 		fetcher: fetcher,
@@ -63,7 +63,11 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 	// mutex has been released, or we would continue to hold the lock until the
 	// entire file has been fetched, which may be slow, and would prevent other
 	// files from being fetched in parallel.
-	return c.prepare(ctx, fileID).Load()
+	it, err := c.prepare(ctx, fileID).Load()
+	if err != nil {
+		c.Release(fileID)
+	}
+	return it, err
 }
 
 func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[fs.FS] {
@@ -107,4 +111,13 @@ func (c *Cache) Release(fileID uuid.UUID) {
 	}
 
 	delete(c.data, fileID)
+}
+
+// Count returns the number of files currently in the cache.
+// Mainly used for unit testing assertions.
+func (c *Cache) Count() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	return len(c.data)
 }

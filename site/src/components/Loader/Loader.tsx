@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { Spinner } from "components/deprecated/Spinner/Spinner";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC, HTMLAttributes } from "react";
 
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
 	fullscreen?: boolean;
-	size?: number;
+	size?: "sm" | "lg";
 	/**
 	 * A label for the loader. This is used for accessibility purposes.
 	 */
@@ -13,7 +13,7 @@ interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
 
 export const Loader: FC<LoaderProps> = ({
 	fullscreen,
-	size = 26,
+	size = "lg",
 	label = "Loading...",
 	...attrs
 }) => {
@@ -23,7 +23,7 @@ export const Loader: FC<LoaderProps> = ({
 			data-testid="loader"
 			{...attrs}
 		>
-			<Spinner aria-label={label} size={size} />
+			<Spinner aria-label={label} size={size} loading={true} />
 		</div>
 	);
 };

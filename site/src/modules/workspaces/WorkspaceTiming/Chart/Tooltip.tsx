@@ -1,9 +1,9 @@
 import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import MUITooltip, {
 	type TooltipProps as MUITooltipProps,
 } from "@mui/material/Tooltip";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC, HTMLProps } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 
@@ -36,7 +36,7 @@ export const TooltipShortDescription: FC<HTMLProps<HTMLSpanElement>> = (
 export const TooltipLink: FC<LinkProps> = (props) => {
 	return (
 		<Link {...props} css={styles.link}>
-			<OpenInNewOutlined />
+			<ExternalLinkIcon className="size-icon-xs" />
 			{props.children}
 		</Link>
 	);

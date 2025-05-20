@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
@@ -173,7 +173,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return err
 			}
 
-			terraformClient, terraformServer := drpc.MemTransportPipe()
+			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
 				_ = terraformClient.Close()

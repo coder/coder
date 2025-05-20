@@ -561,7 +561,7 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
-const MockProvisionerKey: TypesGen.ProvisionerKey = {
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	id: "test-provisioner-key",
 	organization: MockOrganization.id,
 	created_at: "2022-05-17T17:39:01.382927298Z",
@@ -753,6 +753,8 @@ You can add instructions here
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
 	{
 		...MockTemplateVersion,
+		id: "test-template-version-markdown",
+		name: "test-version-markdown",
 		message: `
 # Abiding Grace
 ## Enchantment
@@ -822,6 +824,7 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
+	use_classic_parameter_flow: false,
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -932,6 +935,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	created_at: "",
 	environment_variables: {},
 	id: "test-workspace-agent",
+	parent_id: null,
 	name: "a-workspace-agent",
 	operating_system: "linux",
 	resource_id: "",
@@ -952,6 +956,47 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	logs_overflowed: false,
 	log_sources: [MockWorkspaceAgentLogSource],
 	scripts: [MockWorkspaceAgentScript],
+	startup_script_behavior: "non-blocking",
+	subsystems: ["envbox", "exectrace"],
+	health: {
+		healthy: true,
+	},
+	display_apps: [
+		"ssh_helper",
+		"port_forwarding_helper",
+		"vscode",
+		"vscode_insiders",
+		"web_terminal",
+	],
+};
+
+export const MockWorkspaceChildAgent: TypesGen.WorkspaceAgent = {
+	apps: [],
+	architecture: "amd64",
+	created_at: "",
+	environment_variables: {},
+	id: "test-workspace-child-agent",
+	parent_id: "test-workspace-agent",
+	name: "a-workspace-child-agent",
+	operating_system: "linux",
+	resource_id: "",
+	status: "connected",
+	updated_at: "",
+	version: MockBuildInfo.version,
+	api_version: MockBuildInfo.agent_api_version,
+	latency: {
+		"Coder Embedded DERP": {
+			latency_ms: 32.55,
+			preferred: true,
+		},
+	},
+	connection_timeout_seconds: 120,
+	troubleshooting_url: "https://coder.com/troubleshoot",
+	lifecycle_state: "starting",
+	logs_length: 0,
+	logs_overflowed: false,
+	log_sources: [MockWorkspaceAgentLogSource],
+	scripts: [],
 	startup_script_behavior: "non-blocking",
 	subsystems: ["envbox", "exectrace"],
 	health: {
@@ -1365,6 +1410,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		MockTemplate.allow_user_cancel_workspace_jobs,
 	template_active_version_id: MockTemplate.active_version_id,
 	template_require_active_version: MockTemplate.require_active_version,
+	template_use_classic_parameter_flow: false,
 	outdated: false,
 	owner_id: MockUserOwner.id,
 	organization_id: MockOrganization.id,
@@ -4339,4 +4385,5 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	volumes: {
 		"/mnt/volume1": "/volume1",
 	},
+	devcontainer_dirty: false,
 };

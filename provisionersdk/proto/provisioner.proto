@@ -73,6 +73,11 @@ message PresetParameter {
     string value = 2;
 }
 
+message ResourceReplacement {
+    string resource = 1;
+    repeated string paths = 2;
+}
+
 // VariableValue holds the key/value mapping of a Terraform variable.
 message VariableValue {
     string name = 1;
@@ -147,6 +152,7 @@ message Agent {
 	int64 order = 23;
 	ResourcesMonitoring resources_monitoring = 24;
 	repeated Devcontainer devcontainers = 25;
+	string api_key_scope = 26;
 }
 
 enum AppSharingLevel {
@@ -258,6 +264,7 @@ message Module {
     string source = 1;
     string version = 2;
     string key = 3;
+    string dir = 4;
 }
 
 // WorkspaceTransition is the desired outcome of a build
@@ -270,6 +277,16 @@ enum WorkspaceTransition {
 message Role {
     string name = 1;
     string org_id = 2;
+}
+
+message RunningAgentAuthToken {
+    string agent_id = 1;
+    string token = 2;
+}
+enum PrebuiltWorkspaceBuildStage {
+	NONE = 0;   // Default value for builds unrelated to prebuilds.
+	CREATE = 1; // A prebuilt workspace is being provisioned.
+	CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
 // Metadata is information about a workspace used in the execution of a build
@@ -293,8 +310,8 @@ message Metadata {
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
     repeated Role workspace_owner_rbac_roles = 19;
-    bool is_prebuild = 20;
-    string running_workspace_agent_token = 21;
+    PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
+    repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -324,6 +341,7 @@ message PlanRequest {
     repeated RichParameterValue rich_parameter_values = 2;
     repeated VariableValue variable_values = 3;
     repeated ExternalAuthProvider external_auth_providers = 4;
+    repeated RichParameterValue previous_parameter_values = 5;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -336,6 +354,8 @@ message PlanComplete {
     repeated Module modules = 7;
     repeated Preset presets = 8;
     bytes plan = 9;
+    repeated ResourceReplacement resource_replacements = 10;
+    bytes module_files = 11;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

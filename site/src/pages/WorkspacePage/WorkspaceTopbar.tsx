@@ -1,12 +1,11 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { CopyButton } from "components/CopyButton/CopyButton";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -17,72 +16,55 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { ChevronLeftIcon } from "lucide-react";
+import { CircleDollarSign } from "lucide-react";
 import { TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { displayDormantDeletion } from "utils/dormant";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import type { WorkspacePermissions } from "./permissions";
-
-export type WorkspaceError =
-	| "getBuildsError"
-	| "buildError"
-	| "cancellationError";
-
-type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
 
 export interface WorkspaceProps {
-	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleStop: () => void;
-	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDelete: () => void;
-	handleUpdate: () => void;
-	handleCancel: () => void;
-	handleSettings: () => void;
-	handleChangeVersion: () => void;
-	handleDormantActivate: () => void;
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
-	canUpdateWorkspace: boolean;
-	canChangeVersions: boolean;
-	canDebugMode: boolean;
-	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	latestVersion?: TypesGen.TemplateVersion;
+	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+	handleStop: () => void;
+	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+	handleUpdate: () => void;
+	handleCancel: () => void;
+	handleDormantActivate: () => void;
+	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleToggleFavorite: () => void;
 }
 
 export const WorkspaceTopbar: FC<WorkspaceProps> = ({
-	handleStart,
-	handleStop,
-	handleRestart,
-	handleDelete,
-	handleUpdate,
-	handleCancel,
-	handleSettings,
-	handleChangeVersion,
-	handleDormantActivate,
-	handleToggleFavorite,
 	workspace,
-	isUpdating,
-	isRestarting,
-	canUpdateWorkspace,
-	canChangeVersions,
-	canDebugMode,
-	handleRetry,
-	handleDebug,
 	template,
 	latestVersion,
 	permissions,
+	isUpdating,
+	isRestarting,
+	handleStart,
+	handleStop,
+	handleRestart,
+	handleUpdate,
+	handleCancel,
+	handleDormantActivate,
+	handleToggleFavorite,
+	handleRetry,
+	handleDebug,
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
@@ -127,7 +109,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		<Topbar css={{ gridArea: "topbar" }}>
 			<Tooltip title="Back to workspaces">
 				<TopbarIconButton component={RouterLink} to="/workspaces">
-					<ArrowBackOutlined />
+					<ChevronLeftIcon className="size-icon-sm" />
 				</TopbarIconButton>
 			</Tooltip>
 
@@ -182,7 +164,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					>
 						<TopbarData>
 							<TopbarIcon>
-								<QuotaIcon aria-label="Daily usage" />
+								<CircleDollarSign
+									className="size-icon-sm"
+									aria-label="Daily usage"
+								/>
 							</TopbarIcon>
 
 							<span>
@@ -220,18 +205,13 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 			</div>
 
 			{!isImmutable && (
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 8,
-					}}
-				>
+				<div className="flex items-center gap-4">
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}
-						canUpdateSchedule={canUpdateWorkspace}
+						canUpdateSchedule={permissions.updateWorkspace}
 					/>
+
 					<WorkspaceNotifications
 						workspace={workspace}
 						template={template}
@@ -241,25 +221,23 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						onUpdateWorkspace={handleUpdate}
 						onActivateWorkspace={handleDormantActivate}
 					/>
-					<WorkspaceStatusBadge workspace={workspace} />
+
+					<WorkspaceStatusIndicator workspace={workspace} />
+
 					<WorkspaceActions
 						workspace={workspace}
+						permissions={permissions}
+						isUpdating={isUpdating}
+						isRestarting={isRestarting}
 						handleStart={handleStart}
 						handleStop={handleStop}
 						handleRestart={handleRestart}
-						handleDelete={handleDelete}
 						handleUpdate={handleUpdate}
 						handleCancel={handleCancel}
-						handleSettings={handleSettings}
 						handleRetry={handleRetry}
 						handleDebug={handleDebug}
-						handleChangeVersion={handleChangeVersion}
 						handleDormantActivate={handleDormantActivate}
 						handleToggleFavorite={handleToggleFavorite}
-						canDebug={canDebugMode}
-						canChangeVersions={canChangeVersions}
-						isUpdating={isUpdating}
-						isRestarting={isRestarting}
 					/>
 				</div>
 			)}
@@ -369,50 +347,57 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	templateDisplayName,
 }) => {
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				<span css={styles.breadcrumbSegment}>
-					<TopbarAvatar src={templateIconUrl} fallback={templateDisplayName} />
-					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
-						{workspaceName}
-					</span>
-				</span>
-			</PopoverTrigger>
-
-			<HelpTooltipContent
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				transformOrigin={{ vertical: "top", horizontal: "center" }}
-			>
-				<AvatarData
-					title={
-						<Link
-							component={RouterLink}
-							to={rootTemplateUrl}
-							css={{ color: "inherit" }}
-						>
-							{templateDisplayName}
-						</Link>
-					}
-					subtitle={
-						<Link
-							component={RouterLink}
-							to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-							css={{ color: "inherit" }}
-						>
-							Version: {latestBuildVersionName}
-						</Link>
-					}
-					avatar={
-						<Avatar
-							variant="icon"
+		<div className="flex items-center">
+			<Popover mode="hover">
+				<PopoverTrigger>
+					<span css={styles.breadcrumbSegment}>
+						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
 						/>
-					}
-					imgFallbackText={templateDisplayName}
-				/>
-			</HelpTooltipContent>
-		</Popover>
+
+						<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+							{workspaceName}
+						</span>
+					</span>
+				</PopoverTrigger>
+
+				<HelpTooltipContent
+					anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+					transformOrigin={{ vertical: "top", horizontal: "center" }}
+				>
+					<AvatarData
+						title={
+							<Link
+								component={RouterLink}
+								to={rootTemplateUrl}
+								css={{ color: "inherit" }}
+							>
+								{templateDisplayName}
+							</Link>
+						}
+						subtitle={
+							<Link
+								component={RouterLink}
+								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
+								css={{ color: "inherit" }}
+							>
+								Version: {latestBuildVersionName}
+							</Link>
+						}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={templateIconUrl}
+								fallback={templateDisplayName}
+							/>
+						}
+						imgFallbackText={templateDisplayName}
+					/>
+				</HelpTooltipContent>
+			</Popover>
+			<CopyButton text={workspaceName} label="Copy workspace name" />
+		</div>
 	);
 };
 

@@ -1,4 +1,3 @@
-import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import Button from "@mui/material/Button";
 import type { TemplateVersion } from "api/typesGenerated";
@@ -12,6 +11,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
+import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
@@ -52,7 +52,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 						{createWorkspaceUrl && (
 							<Button
 								variant="contained"
-								startIcon={<AddIcon />}
+								startIcon={<PlusIcon />}
 								component={RouterLink}
 								to={createWorkspaceUrl}
 							>

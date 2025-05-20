@@ -25,6 +25,8 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -33,7 +35,6 @@ import (
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
@@ -62,8 +63,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
-			ctx, cancel := context.WithCancel(inv.Context())
-			defer cancel()
+			ctx, cancel := context.WithCancelCause(inv.Context())
+			defer func() {
+				cancel(xerrors.New("agent exited"))
+			}()
 
 			var (
 				ignorePorts = map[int]string{}
@@ -280,7 +283,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			prometheusRegistry := prometheus.NewRegistry()
 			subsystemsRaw := inv.Environ.Get(agent.EnvAgentSubsystem)
 			subsystems := []codersdk.AgentSubsystem{}
 			for _, s := range strings.Split(subsystemsRaw, ",") {
@@ -324,45 +326,69 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
 			}
 
-			agnt := agent.New(agent.Options{
-				Client:        client,
-				Logger:        logger,
-				LogDir:        logDir,
-				ScriptDataDir: scriptDataDir,
-				// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
-				TailnetListenPort: uint16(tailnetListenPort),
-				ExchangeToken: func(ctx context.Context) (string, error) {
-					if exchangeToken == nil {
-						return client.SDK.SessionToken(), nil
-					}
-					resp, err := exchangeToken(ctx)
-					if err != nil {
-						return "", err
-					}
-					client.SetSessionToken(resp.SessionToken)
-					return resp.SessionToken, nil
-				},
-				EnvironmentVariables: environmentVariables,
-				IgnorePorts:          ignorePorts,
-				SSHMaxTimeout:        sshMaxTimeout,
-				Subsystems:           subsystems,
+			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
 
-				PrometheusRegistry: prometheusRegistry,
-				BlockFileTransfer:  blockFileTransfer,
-				Execer:             execer,
+			var (
+				lastErr  error
+				mustExit bool
+			)
+			for {
+				prometheusRegistry := prometheus.NewRegistry()
 
-				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
-			})
+				agnt := agent.New(agent.Options{
+					Client:        client,
+					Logger:        logger,
+					LogDir:        logDir,
+					ScriptDataDir: scriptDataDir,
+					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
+					TailnetListenPort: uint16(tailnetListenPort),
+					ExchangeToken: func(ctx context.Context) (string, error) {
+						if exchangeToken == nil {
+							return client.SDK.SessionToken(), nil
+						}
+						resp, err := exchangeToken(ctx)
+						if err != nil {
+							return "", err
+						}
+						client.SetSessionToken(resp.SessionToken)
+						return resp.SessionToken, nil
+					},
+					EnvironmentVariables: environmentVariables,
+					IgnorePorts:          ignorePorts,
+					SSHMaxTimeout:        sshMaxTimeout,
+					Subsystems:           subsystems,
 
-			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
-			prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
-			defer prometheusSrvClose()
+					PrometheusRegistry:               prometheusRegistry,
+					BlockFileTransfer:                blockFileTransfer,
+					Execer:                           execer,
+					ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
+				})
 
-			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
-			defer debugSrvClose()
+				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
+				prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
 
-			<-ctx.Done()
-			return agnt.Close()
+				debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+
+				select {
+				case <-ctx.Done():
+					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
+					mustExit = true
+				case event := <-reinitEvents:
+					logger.Info(ctx, "agent received instruction to reinitialize",
+						slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
+				}
+
+				lastErr = agnt.Close()
+				debugSrvClose()
+				prometheusSrvClose()
+
+				if mustExit {
+					break
+				}
+
+				logger.Info(ctx, "agent reinitializing")
+			}
+			return lastErr
 		},
 	}
 

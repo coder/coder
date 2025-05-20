@@ -95,8 +95,8 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC24(ctx context.Context) (
-		proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
+	ConnectRPC25(ctx context.Context) (
+		proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
 	)
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
@@ -363,9 +363,11 @@ func (a *agent) runLoop() {
 		if ctx.Err() != nil {
 			// Context canceled errors may come from websocket pings, so we
 			// don't want to use `errors.Is(err, context.Canceled)` here.
+			a.logger.Warn(ctx, "runLoop exited with error", slog.Error(ctx.Err()))
 			return
 		}
 		if a.isClosed() {
+			a.logger.Warn(ctx, "runLoop exited because agent is closed")
 			return
 		}
 		if errors.Is(err, io.EOF) {
@@ -906,7 +908,7 @@ func (a *agent) run() (retErr error) {
 	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC24(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC25(a.hardCtx)
 	if err != nil {
 		return err
 	}
@@ -1046,7 +1048,11 @@ func (a *agent) run() (retErr error) {
 		return a.statsReporter.reportLoop(ctx, aAPI)
 	})
 
-	return connMan.wait()
+	err = connMan.wait()
+	if err != nil {
+		a.logger.Info(context.Background(), "connection manager errored", slog.Error(err))
+	}
+	return err
 }
 
 // handleManifest returns a function that fetches and processes the manifest

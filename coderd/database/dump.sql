@@ -5,6 +5,11 @@ CREATE TYPE agent_id_name_pair AS (
 	name text
 );
 
+CREATE TYPE agent_key_scope_enum AS ENUM (
+    'all',
+    'no_user_data'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'all',
     'application_connect'
@@ -1440,8 +1445,12 @@ CREATE TABLE template_version_presets (
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    cached_plan jsonb NOT NULL
+    cached_plan jsonb NOT NULL,
+    cached_module_files uuid,
+    provisionerd_version text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN template_version_terraform_values.provisionerd_version IS 'What version of the provisioning engine was used to generate the cached plan and module files.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -1551,7 +1560,8 @@ CREATE TABLE templates (
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
-    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
+    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1571,6 +1581,8 @@ COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks b
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
 
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
+
+COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -1601,6 +1613,7 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
+    templates.use_classic_parameter_flow,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(organizations.name, ''::text) AS organization_name,
@@ -1832,6 +1845,8 @@ CREATE TABLE workspace_agents (
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     api_version text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
+    parent_id uuid,
+    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1857,6 +1872,8 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -2022,18 +2039,52 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
 CREATE VIEW workspace_latest_builds AS
- SELECT DISTINCT ON (wb.workspace_id) wb.id,
-    wb.workspace_id,
-    wb.template_version_id,
-    wb.job_id,
-    wb.template_version_preset_id,
-    wb.transition,
-    wb.created_at,
-    pj.job_status
-   FROM (workspace_builds wb
-     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
-  ORDER BY wb.workspace_id, wb.build_number DESC;
+ SELECT latest_build.id,
+    latest_build.workspace_id,
+    latest_build.template_version_id,
+    latest_build.job_id,
+    latest_build.template_version_preset_id,
+    latest_build.transition,
+    latest_build.created_at,
+    latest_build.job_status
+   FROM (workspaces
+     LEFT JOIN LATERAL ( SELECT workspace_builds.id,
+            workspace_builds.workspace_id,
+            workspace_builds.template_version_id,
+            workspace_builds.job_id,
+            workspace_builds.template_version_preset_id,
+            workspace_builds.transition,
+            workspace_builds.created_at,
+            provisioner_jobs.job_status
+           FROM (workspace_builds
+             JOIN provisioner_jobs ON ((provisioner_jobs.id = workspace_builds.job_id)))
+          WHERE (workspace_builds.workspace_id = workspaces.id)
+          ORDER BY workspace_builds.build_number DESC
+         LIMIT 1) latest_build ON (true))
+  WHERE (workspaces.deleted = false)
+  ORDER BY workspaces.id;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
@@ -2069,27 +2120,6 @@ CREATE TABLE workspace_resources (
     daily_cost integer DEFAULT 0 NOT NULL,
     module_path text
 );
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspace_prebuilds AS
  WITH all_prebuilds AS (
@@ -2851,6 +2881,9 @@ ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_cached_module_files_fkey FOREIGN KEY (cached_module_files) REFERENCES files(id);
+
+ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_variables
@@ -2921,6 +2954,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

@@ -4109,6 +4109,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Returns a list of templates for the specified organization.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
                     "application/json"
                 ],
@@ -4936,6 +4937,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
                     "application/json"
                 ],
@@ -8444,6 +8446,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/reinit": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent reinitialization",
+                "operationId": "get-workspace-agent-reinitialization",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ReinitializationEvent"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/rpc": {
             "get": {
                 "security": [
@@ -8575,6 +8602,42 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Recreate devcontainer for workspace agent",
+                "operationId": "recreate-devcontainer-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Container ID or name",
+                        "name": "container",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -10488,6 +10551,26 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "agentsdk.ReinitializationEvent": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "$ref": "#/definitions/agentsdk.ReinitializationReason"
+                },
+                "workspaceID": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.ReinitializationReason": {
+            "type": "string",
+            "enum": [
+                "prebuild_claimed"
+            ],
+            "x-enum-varnames": [
+                "ReinitializeReasonPrebuildClaimed"
+            ]
         },
         "aisdk.Attachment": {
             "type": "object",
@@ -14535,6 +14618,9 @@ const docTemplate = `{
                 "worker_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "worker_name": {
+                    "type": "string"
                 }
             }
         },
@@ -15526,6 +15612,9 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_classic_parameter_flow": {
+                    "type": "boolean"
                 }
             }
         },
@@ -16917,6 +17006,9 @@ const docTemplate = `{
                 "template_require_active_version": {
                     "type": "boolean"
                 },
+                "template_use_classic_parameter_flow": {
+                    "type": "boolean"
+                },
                 "ttl_ms": {
                     "type": "integer"
                 },
@@ -17021,6 +17113,14 @@ const docTemplate = `{
                 "operating_system": {
                     "type": "string"
                 },
+                "parent_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
                 "ready_at": {
                     "type": "string",
                     "format": "date-time"
@@ -17075,6 +17175,10 @@ const docTemplate = `{
                     "description": "CreatedAt is the time the container was created.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "devcontainer_dirty": {
+                    "description": "DevcontainerDirty is true if the devcontainer configuration has changed\nsince the container was created. This is used to determine if the\ncontainer needs to be rebuilt.",
+                    "type": "boolean"
                 },
                 "id": {
                     "description": "ID is the unique identifier of the container.",
@@ -19032,6 +19136,18 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
+        },
+        "uuid.NullUUID": {
+            "type": "object",
+            "properties": {
+                "uuid": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if UUID is not NULL",
+                    "type": "boolean"
+                }
+            }
         },
         "workspaceapps.AccessMethod": {
             "type": "string",

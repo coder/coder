@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
-import LoadingButton from "@mui/lab/LoadingButton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -25,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Loader } from "components/Loader/Loader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { EllipsisVertical } from "lucide-react";
@@ -165,17 +165,16 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 				</Stack>
 			</TableCell>
 			<TableCell css={{ textAlign: "right" }}>
-				<LoadingButton
-					disabled={authenticated}
-					variant="contained"
-					loading={externalAuthPollingState === "polling"}
+				<Button
+					disabled={authenticated || externalAuthPollingState === "polling"}
 					onClick={() => {
 						window.open(authURL, "_blank", "width=900,height=600");
 						startPollingExternalAuth();
 					}}
 				>
+					<Spinner loading={externalAuthPollingState === "polling"} />
 					{authenticated ? "Authenticated" : "Click to Login"}
-				</LoadingButton>
+				</Button>
 			</TableCell>
 			<TableCell>
 				<DropdownMenu>

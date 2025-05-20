@@ -60,6 +60,13 @@ func TestGetManifest(t *testing.T) {
 			Directory: "/cool/dir",
 			MOTDFile:  "/cool/motd",
 		}
+		childAgent = database.WorkspaceAgent{
+			ID:        uuid.New(),
+			Name:      "cool-child-agent",
+			ParentID:  uuid.NullUUID{Valid: true, UUID: agent.ID},
+			Directory: "/workspace/dir",
+			MOTDFile:  "/workspace/motd",
+		}
 		apps = []database.WorkspaceApp{
 			{
 				ID:                   uuid.New(),
@@ -337,6 +344,7 @@ func TestGetManifest(t *testing.T) {
 		expected := &agentproto.Manifest{
 			AgentId:                  agent.ID[:],
 			AgentName:                agent.Name,
+			ParentId:                 nil,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
 			WorkspaceName:            workspace.Name,
@@ -360,6 +368,70 @@ func TestGetManifest(t *testing.T) {
 		// Log got and expected with spew.
 		// t.Log("got:\n" + spew.Sdump(got))
 		// t.Log("expected:\n" + spew.Sdump(expected))
+
+		require.Equal(t, expected, got)
+	})
+
+	t.Run("OK/Child", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AppHostname: "*--apps.example.com",
+			ExternalAuthConfigs: []*externalauth.Config{
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitHub)},
+				{Type: "some-provider"},
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitLab)},
+			},
+			DisableDirectConnections: true,
+			DerpForceWebSockets:      true,
+
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return childAgent, nil
+			},
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.WorkspaceAgentScript{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: childAgent.ID,
+			Keys:             nil, // all
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+
+		expected := &agentproto.Manifest{
+			AgentId:                  childAgent.ID[:],
+			AgentName:                childAgent.Name,
+			ParentId:                 agent.ID[:],
+			OwnerUsername:            owner.Username,
+			WorkspaceId:              workspace.ID[:],
+			WorkspaceName:            workspace.Name,
+			GitAuthConfigs:           2, // two "enhanced" external auth configs
+			EnvironmentVariables:     nil,
+			Directory:                childAgent.Directory,
+			VsCodePortProxyUri:       fmt.Sprintf("https://{{port}}--%s--%s--%s--apps.example.com", childAgent.Name, workspace.Name, owner.Username),
+			MotdPath:                 childAgent.MOTDFile,
+			DisableDirectConnections: true,
+			DerpForceWebsockets:      true,
+			// tailnet.DERPMapToProto() is extensively tested elsewhere, so it's
+			// not necessary to manually recreate a big DERP map here like we
+			// did for apps and metadata.
+			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
+			Scripts:       []*agentproto.WorkspaceAgentScript{},
+			Apps:          []*agentproto.WorkspaceApp{},
+			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
+			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
+		}
 
 		require.Equal(t, expected, got)
 	})
