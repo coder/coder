@@ -1,4 +1,4 @@
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
@@ -177,6 +177,7 @@ export const TemplateEmbedPageViewExperimental: FC<TemplateEmbedPageViewExperime
                                                 parameter={parameter}
                                                 value={value}
                                                 onChange={(val) => handleChange(parameter, val)}
+												autofill={false}
                                             />
                                         );
                                     })}
@@ -188,10 +189,10 @@ export const TemplateEmbedPageViewExperimental: FC<TemplateEmbedPageViewExperime
                                     variant="subtle"
                                     onClick={experimentalFormContext.toggleOptedOut}
                                 >
-                                    Go back to the classic embed flow
+                                    Go back to the classic template embed flow
                                 </Button>
                             )}
-                            {error && (
+                            {Boolean(error) && (
                                 <p className="text-content-destructive text-sm">{String(error)}</p>
                             )}
                         </VerticalForm>
@@ -225,16 +226,11 @@ export const TemplateEmbedPageViewExperimental: FC<TemplateEmbedPageViewExperime
                         >
                             <Button
                                 css={{ borderRadius: 999 }}
-                                startIcon={clipboard.showCopiedSuccess ? (
-                                    <CheckIcon className="size-icon-sm" />
-                                ) : (
-                                    <CopyIcon className="size-icon-sm" />
-                                )}
-                                variant="contained"
+                                variant="outline"
                                 onClick={clipboard.copyToClipboard}
                                 disabled={clipboard.showCopiedSuccess}
                             >
-                                Copy button code
+                                {clipboard.showCopiedSuccess ? <CheckIcon className="size-icon-sm" /> : <CopyIcon className="size-icon-sm" />}Copy button code
                             </Button>
                         </div>
                     </div>
