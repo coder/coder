@@ -11,7 +11,7 @@
     "user_username": "bobby",
     "actions": [
       {
-        "label": "View failed workspaces",
+        "label": "View failed prebuilt workspaces",
         "url": "http://test.com/workspaces?filter=owner:prebuilds+status:failed+template:docker"
       },
       {

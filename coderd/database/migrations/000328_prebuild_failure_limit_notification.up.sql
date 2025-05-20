@@ -11,7 +11,7 @@ $$,
 		'Template Events',
 		'[
 		{
-			"label": "View failed workspaces",
+			"label": "View failed prebuilt workspaces",
 			"url": "{{base_url}}/workspaces?filter=owner:prebuilds+status:failed+template:{{.Labels.template}}"
 		},
 		{

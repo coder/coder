@@ -19,8 +19,8 @@ To resume prebuilds, fix the underlying issue and upload a new template ver=
 sion.
 
 
-View failed workspaces: http://test.com/workspaces?filter=3Downer:prebuilds=
-+status:failed+template:docker
+View failed prebuilt workspaces: http://test.com/workspaces?filter=3Downer:=
+prebuilds+status:failed+template:docker
 
 View template version: http://test.com/templates/cern/docker/versions/angry=
 _torvalds
@@ -67,7 +67,7 @@ version.</p>
 us:failed+template:docker" style=3D"display: inline-block; padding: 13px 24=
 px; background-color: #020617; color: #f8fafc; text-decoration: none; borde=
 r-radius: 8px; margin: 0 4px;">
-          View failed workspaces
+          View failed prebuilt workspaces
         </a>
        =20
         <a href=3D"http://test.com/templates/cern/docker/versions/angry_tor=
