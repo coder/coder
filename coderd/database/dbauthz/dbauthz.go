@@ -482,9 +482,9 @@ func As(ctx context.Context, actor rbac.Subject) context.Context {
 // running the insertFunc. The insertFunc is expected to return the object that
 // was inserted.
 func insert[
-ObjectType any,
-ArgumentType any,
-Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	ObjectType any,
+	ArgumentType any,
+	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -495,9 +495,9 @@ Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 }
 
 func insertWithAction[
-ObjectType any,
-ArgumentType any,
-Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	ObjectType any,
+	ArgumentType any,
+	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -524,10 +524,10 @@ Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 }
 
 func deleteQ[
-ObjectType rbac.Objecter,
-ArgumentType any,
-Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-Delete func(ctx context.Context, arg ArgumentType) error,
+	ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	Delete func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -539,10 +539,10 @@ Delete func(ctx context.Context, arg ArgumentType) error,
 }
 
 func updateWithReturn[
-ObjectType rbac.Objecter,
-ArgumentType any,
-Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -553,10 +553,10 @@ UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 }
 
 func update[
-ObjectType rbac.Objecter,
-ArgumentType any,
-Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-Exec func(ctx context.Context, arg ArgumentType) error,
+	ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -574,9 +574,9 @@ Exec func(ctx context.Context, arg ArgumentType) error,
 // user cannot read the resource. This is because the resource details are
 // required to run a proper authorization check.
 func fetchWithAction[
-ArgumentType any,
-ObjectType rbac.Objecter,
-DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	ArgumentType any,
+	ObjectType rbac.Objecter,
+	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -607,9 +607,9 @@ DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 }
 
 func fetch[
-ArgumentType any,
-ObjectType rbac.Objecter,
-DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	ArgumentType any,
+	ObjectType rbac.Objecter,
+	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -622,10 +622,10 @@ DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 // from SQL 'exec' functions which only return an error.
 // See fetchAndQuery for more information.
 func fetchAndExec[
-ObjectType rbac.Objecter,
-ArgumentType any,
-Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-Exec func(ctx context.Context, arg ArgumentType) error,
+	ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -648,10 +648,10 @@ Exec func(ctx context.Context, arg ArgumentType) error,
 // **before** the query runs. The returns from the fetch are only used to
 // assert rbac. The final return of this function comes from the Query function.
 func fetchAndQuery[
-ObjectType rbac.Objecter,
-ArgumentType any,
-Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -685,9 +685,9 @@ Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 // fetchWithPostFilter is like fetch, but works with lists of objects.
 // SQL filters are much more optimal.
 func fetchWithPostFilter[
-ArgumentType any,
-ObjectType rbac.Objecter,
-DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
+	ArgumentType any,
+	ObjectType rbac.Objecter,
+	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
 ](
 	authorizer rbac.Authorizer,
 	action policy.Action,
