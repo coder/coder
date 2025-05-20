@@ -1917,6 +1917,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
+  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1939,6 +1940,7 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
+| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |

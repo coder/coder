@@ -1659,6 +1659,119 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 	})
 }
 
+// TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
+// validation changes on apply. The params used in create workspace are invalid
+// according to the static params on import.
+//
+// This is testing that dynamic params defers input validation to terraform.
+// It does not try to do this in coder/coder.
+func TestWorkspaceTemplateParamsChange(t *testing.T) {
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
+
+		data "coder_parameter" "param_min" {
+			name = "param_min"
+			type = "number"
+			default = 10
+		}
+
+		data "coder_parameter" "param" {
+			name    = "param"
+			type    = "number"
+			default = 12
+			validation {
+				min = data.coder_parameter.param_min.value
+			}
+		}
+	`
+	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
+	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Logger: &logger,
+			// We intentionally do not run a built-in provisioner daemon here.
+			IncludeProvisionerDaemon: false,
+			DeploymentValues:         dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
+
+	// This can take a while, so set a relatively long timeout.
+	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+
+	// Creating a template as a template admin must succeed
+	templateFiles := map[string]string{"main.tf": mainTfTemplate}
+	tarBytes := testutil.CreateTar(t, templateFiles)
+	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+	require.NoError(t, err, "failed to upload file")
+
+	tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:               testutil.GetRandomName(t),
+		FileID:             fi.ID,
+		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+		Provisioner:        codersdk.ProvisionerTypeTerraform,
+		UserVariableValues: []codersdk.VariableValue{},
+	})
+	require.NoError(t, err, "failed to create template version")
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
+
+	// When: we create a workspace build using the above template but with
+	// parameter values that are different from those defined in the template.
+	// The new values are not valid according to the original plan, but are valid.
+	ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+		TemplateID: tpl.ID,
+		Name:       coderdtest.RandomUsername(t),
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  "param_min",
+				Value: "5",
+			},
+			{
+				Name:  "param",
+				Value: "7",
+			},
+		},
+		EnableDynamicParameters: true,
+	})
+
+	// Then: the build should succeed. The updated value of param_min should be
+	// used to validate param instead of the value defined in the temp
+	require.NoError(t, err, "failed to create workspace")
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
+
+	// Now delete the workspace
+	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	require.NoError(t, err)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
+}
+
 // TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
 // This is an end-to-end-style test, meaning that we actually run the
 // real Terraform provisioner and validate that the workspace is created
