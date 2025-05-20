@@ -19,6 +19,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import { useSyncFormParameters } from "hooks/useSyncFormParameters";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
 import {
 	DynamicParameter,
@@ -652,52 +653,3 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 		</div>
 	);
 };
-
-type UseSyncFormParametersProps = {
-	parameters: readonly PreviewParameter[];
-	formValues: readonly TypesGen.WorkspaceBuildParameter[];
-	setFieldValue: (
-		field: string,
-		value: TypesGen.WorkspaceBuildParameter[],
-	) => void;
-};
-
-function useSyncFormParameters({
-	parameters,
-	formValues,
-	setFieldValue,
-}: UseSyncFormParametersProps) {
-	// Form values only needs to be updated when parameters change
-	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
-	const formValuesRef = useRef(formValues);
-
-	useEffect(() => {
-		formValuesRef.current = formValues;
-	}, [formValues]);
-
-	useEffect(() => {
-		if (!parameters) return;
-		const currentFormValues = formValuesRef.current;
-
-		const newParameterValues = parameters.map((param) => {
-			return {
-				name: param.name,
-				value: param.value.valid ? param.value.value : "",
-			};
-		});
-
-		const isChanged =
-			currentFormValues.length !== newParameterValues.length ||
-			newParameterValues.some(
-				(p) =>
-					!currentFormValues.find(
-						(formValue) =>
-							formValue.name === p.name && formValue.value === p.value,
-					),
-			);
-
-		if (isChanged) {
-			setFieldValue("rich_parameter_values", newParameterValues);
-		}
-	}, [parameters, setFieldValue]);
-}
