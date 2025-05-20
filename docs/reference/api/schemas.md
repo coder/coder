@@ -5911,7 +5911,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `application_connect` |
 | `assign`              |
 | `create`              |
+| `create_agent`        |
 | `delete`              |
+| `delete_agent`        |
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |

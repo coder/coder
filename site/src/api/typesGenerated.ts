@@ -2096,7 +2096,9 @@ export type RBACAction =
 	| "application_connect"
 	| "assign"
 	| "create"
+	| "create_agent"
 	| "delete"
+	| "delete_agent"
 	| "read"
 	| "read_personal"
 	| "ssh"
@@ -2112,7 +2114,9 @@ export const RBACActions: RBACAction[] = [
 	"application_connect",
 	"assign",
 	"create",
+	"create_agent",
 	"delete",
+	"delete_agent",
 	"read",
 	"read_personal",
 	"ssh",

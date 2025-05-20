@@ -272,7 +272,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
-				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 			})...),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -291,7 +291,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
 				// Reduced permission set on dormant workspaces. No build, ssh, or exec
-				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
@@ -412,7 +412,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourceAssignRole), Permissions(map[string][]policy.Action{
-						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 					})...),
 				},
@@ -528,6 +528,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							Negate:       true,
 							ResourceType: ResourceWorkspace.Type,
 							Action:       policy.ActionDelete,
+						},
+						{
+							Negate:       true,
+							ResourceType: ResourceWorkspace.Type,
+							Action:       policy.ActionCreateAgent,
+						},
+						{
+							Negate:       true,
+							ResourceType: ResourceWorkspace.Type,
+							Action:       policy.ActionDeleteAgent,
 						},
 					},
 				},
