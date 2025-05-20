@@ -11999,7 +11999,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "enable_dynamic_parameters": {
-                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.",
+                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
                     "type": "boolean"
                 },
                 "log_level": {
