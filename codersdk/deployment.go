@@ -3094,7 +3094,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Failure Hard Limit",
-			Description: "Maximum number of consecutive failed prebuilds before a preset hits the hard limit. FailureHardLimit is disabled when set to zero.",
+			Description: "Maximum number of consecutive failed prebuilds before a preset hits the hard limit; disabled when set to zero.",
 			Flag:        "workspace-prebuilds-failure-hard-limit",
 			Env:         "CODER_WORKSPACE_PREBUILDS_FAILURE_HARD_LIMIT",
 			Value:       &c.Prebuilds.FailureHardLimit,
