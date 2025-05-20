@@ -1736,6 +1736,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.NoError(t, err, "failed to create template version")
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
 
 	// Creating a workspace as a non-privileged user must succeed
 	ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
@@ -1759,8 +1760,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	// Now restart the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
-		Transition:              codersdk.WorkspaceTransitionDelete,
-		EnableDynamicParameters: ptr.Ref(true),
+		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
 	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
