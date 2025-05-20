@@ -661,7 +661,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 		t.Skip("This test requires postgres")
 	}
 
-	// Test cases verify the behavior of prebuild creation depending on configured failure limits
+	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
 	testCases := []struct {
 		name           string
 		hardLimit      int64
@@ -703,7 +703,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				RBACRoles: []string{codersdk.RoleTemplateAdmin},
 			})
 
-			// Set up test environment with a template, version, and preset
+			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
 				ID: ownerID,
@@ -726,7 +726,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				templateVersionID,
 			)
 
-			// Verify initial state: one failed workspace exists
+			// Verify initial state: one failed workspace exists.
 			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)
 			workspaceCount := len(workspaces)
@@ -736,8 +736,8 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
 			clock.Advance(time.Nanosecond).MustWait(ctx)
 
-			// Trigger reconciliation to attempt creating a new prebuild
-			// The outcome depends on whether the hard limit has been reached
+			// Trigger reconciliation to attempt creating a new prebuild.
+			// The outcome depends on whether the hard limit has been reached.
 			require.NoError(t, controller.ReconcileAll(ctx))
 
 			// These two additional calls to ReconcileAll should not trigger any notifications.
@@ -745,17 +745,17 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			require.NoError(t, controller.ReconcileAll(ctx))
 			require.NoError(t, controller.ReconcileAll(ctx))
 
-			// Verify the final state after reconciliation
+			// Verify the final state after reconciliation.
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)
 
 			if !tc.isHardLimitHit {
-				// When hard limit is not reached, a new workspace should be created
+				// When hard limit is not reached, a new workspace should be created.
 				require.Equal(t, 2, len(workspaces))
 				return
 			}
 
-			// When hard limit is reached, no new workspace should be created
+			// When hard limit is reached, no new workspace should be created.
 			require.Equal(t, 1, len(workspaces))
 
 			// When hard limit is reached, a notification should be sent.
