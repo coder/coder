@@ -46,9 +46,10 @@ func TestGetManifest(t *testing.T) {
 			Username: "cool-user",
 		}
 		workspace = database.Workspace{
-			ID:      uuid.New(),
-			OwnerID: owner.ID,
-			Name:    "cool-workspace",
+			ID:            uuid.New(),
+			OwnerID:       owner.ID,
+			OwnerUsername: owner.Username,
+			Name:          "cool-workspace",
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -336,7 +337,6 @@ func TestGetManifest(t *testing.T) {
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
-		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -404,7 +404,6 @@ func TestGetManifest(t *testing.T) {
 		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
-		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -468,7 +467,6 @@ func TestGetManifest(t *testing.T) {
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
-		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
