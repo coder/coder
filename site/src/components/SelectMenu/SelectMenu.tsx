@@ -39,23 +39,9 @@ export const SelectMenuButton = forwardRef<
 >((props, ref) => {
 	const { startIcon, ...restProps } = props;
 	return (
-		<Button
-			css={{
-				// Icon and text should be aligned to the left
-				justifyContent: "flex-start",
-				flexShrink: 0,
-			}}
-			variant="outline"
-			size="lg"
-			className="flex items-center gap-2"
-			ref={ref}
-			{...restProps}
-		>
-			{startIcon && <div>{startIcon}</div>}
-			<span
-				// Make sure long text does not break the button layout
-				className="text-left block overflow-hidden text-ellipsis flex-grow"
-			>
+		<Button variant="outline" size="lg" ref={ref} {...restProps}>
+			{startIcon}
+			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
 				{props.children}
 			</span>
 			<ChevronDownIcon />
