@@ -33,12 +33,12 @@ locals {
 data "coder_workspace_preset" "cpt" {
   name = "Cape Town"
   parameters = {
-    (data.coder_parameter.region.name) = "za-cpt"
-    (data.coder_parameter.image_type.name) = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name) = "~"
+    (data.coder_parameter.region.name)                   = "za-cpt"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name) = "/home/coder"
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
   }
   prebuilds {
     instances = 1
@@ -48,12 +48,12 @@ data "coder_workspace_preset" "cpt" {
 data "coder_workspace_preset" "pittsburgh" {
   name = "Pittsburgh"
   parameters = {
-    (data.coder_parameter.region.name) = "us-pittsburgh"
-    (data.coder_parameter.image_type.name) = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name) = "~"
+    (data.coder_parameter.region.name)                   = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name) = "/home/coder"
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
   }
   prebuilds {
     instances = 2
@@ -63,12 +63,12 @@ data "coder_workspace_preset" "pittsburgh" {
 data "coder_workspace_preset" "falkenstein" {
   name = "Falkenstein"
   parameters = {
-    (data.coder_parameter.region.name) = "eu-helsinki"
-    (data.coder_parameter.image_type.name) = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name) = "~"
+    (data.coder_parameter.region.name)                   = "eu-helsinki"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name) = "/home/coder"
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
   }
   prebuilds {
     instances = 1
@@ -78,12 +78,12 @@ data "coder_workspace_preset" "falkenstein" {
 data "coder_workspace_preset" "sydney" {
   name = "Sydney"
   parameters = {
-    (data.coder_parameter.region.name) = "ap-sydney"
-    (data.coder_parameter.image_type.name) = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name) = "~"
+    (data.coder_parameter.region.name)                   = "ap-sydney"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name) = "/home/coder"
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
   }
   prebuilds {
     instances = 1
@@ -93,12 +93,12 @@ data "coder_workspace_preset" "sydney" {
 data "coder_workspace_preset" "saopaulo" {
   name = "São Paulo"
   parameters = {
-    (data.coder_parameter.region.name) = "sa-saopaulo"
-    (data.coder_parameter.image_type.name) = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name) = "~"
+    (data.coder_parameter.region.name)                   = "sa-saopaulo"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name) = "/home/coder"
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
   }
   prebuilds {
     instances = 1
