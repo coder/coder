@@ -1,7 +1,5 @@
 import type { Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
-import AppsIcon from "@mui/icons-material/Apps";
-import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -12,12 +10,16 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { formatDistance, formatDistanceToNow } from "date-fns";
-import { CircleCheckIcon } from "lucide-react";
-import { CircleAlertIcon } from "lucide-react";
-import { TriangleAlertIcon } from "lucide-react";
-import { ExternalLinkIcon } from "lucide-react";
-import { HourglassIcon } from "lucide-react";
-import { CircleHelpIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	CircleHelpIcon,
+	ExternalLinkIcon,
+	FileIcon,
+	HourglassIcon,
+	LayoutGridIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
 
@@ -287,7 +289,10 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 														},
 													}}
 												>
-													<InsertDriveFile sx={{ mr: 0.5 }} />
+													<FileIcon
+														className="size-icon-xs"
+														style={{ marginRight: "0.5rem" }}
+													/>
 													{formatURI(status.uri)}
 												</div>
 											</Tooltip>
@@ -397,7 +402,7 @@ const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 						style={{ borderRadius: "3px" }}
 					/>
 				) : (
-					<AppsIcon />
+					<LayoutGridIcon className="size-icon-xs" />
 				)}
 				{/* Keep app name short */}
 				<span
