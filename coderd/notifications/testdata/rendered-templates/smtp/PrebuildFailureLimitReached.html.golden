@@ -18,6 +18,14 @@ ate docker and preset particle-accelerator.
 To resume prebuilds, fix the underlying issue and upload a new template ver=
 sion.
 
+Refer to the documentation for more details:
+
+Troubleshooting templates (https://coder.com/docs/admin/templates/troublesh=
+ooting)
+Troubleshooting of prebuilt workspaces (https://coder.com/docs/admin/templa=
+tes/extending-templates/prebuilt-workspaces#administration-and-troubleshoot=
+ing)
+
 
 View failed prebuilt workspaces: http://test.com/workspaces?filter=3Downer:=
 prebuilds+status:failed+template:docker
@@ -60,6 +68,13 @@ tor</strong>.</p>
 
 <p>To resume prebuilds, fix the underlying issue and upload a new template =
 version.</p>
+
+<p>Refer to the documentation for more details:<br>
+- <a href=3D"https://coder.com/docs/admin/templates/troubleshooting">Troubl=
+eshooting templates</a><br>
+- <a href=3D"https://coder.com/docs/admin/templates/extending-templates/pre=
+built-workspaces#administration-and-troubleshooting">Troubleshooting of pre=
+built workspaces</a></p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

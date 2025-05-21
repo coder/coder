@@ -7,6 +7,10 @@ VALUES ('414d9331-c1fc-4761-b40c-d1f4702279eb',
 The number of failed prebuild attempts has reached the hard limit for template **{{ .Labels.template }}** and preset **{{ .Labels.preset }}**.
 
 To resume prebuilds, fix the underlying issue and upload a new template version.
+
+Refer to the documentation for more details:
+- [Troubleshooting templates](https://coder.com/docs/admin/templates/troubleshooting)
+- [Troubleshooting of prebuilt workspaces](https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#administration-and-troubleshooting)
 $$,
 		'Template Events',
 		'[
