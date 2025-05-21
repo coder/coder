@@ -378,7 +378,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 			PresetID: ps.Preset.ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("can't update preset prebuild status: %w", err)
+			return xerrors.Errorf("failed to update preset prebuild status: %w", err)
 		}
 
 		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
