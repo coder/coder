@@ -2,10 +2,10 @@ package testutil
 
 import (
 	"context"
-	"github.com/hashicorp/yamux"
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
