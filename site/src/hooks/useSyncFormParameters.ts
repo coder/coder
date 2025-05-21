@@ -29,22 +29,18 @@ export function useSyncFormParameters({
 		if (!parameters) return;
 		const currentFormValues = formValuesRef.current;
 
-		const newParameterValues = parameters.map((param) => {
-			return {
+		const newParameterValues = parameters.map((param) => ({
 				name: param.name,
 				value: param.value.valid ? param.value.value : "",
-			};
-		});
+		}));
+
+		const currentFormValuesMap = new Map(
+			currentFormValues.map((value) => [value.name, value.value]),
+		);
 
 		const isChanged =
 			currentFormValues.length !== newParameterValues.length ||
-			newParameterValues.some(
-				(p) =>
-					!currentFormValues.find(
-						(formValue) =>
-							formValue.name === p.name && formValue.value === p.value,
-					),
-			);
+			newParameterValues.some((p) => !currentFormValuesMap.has(p.name) || currentFormValuesMap.get(p.name) !== p.value);
 
 		if (isChanged) {
 			setFieldValue("rich_parameter_values", newParameterValues);
