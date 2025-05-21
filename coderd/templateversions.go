@@ -1846,18 +1846,6 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 	}
 }
 
-func convertTemplateVersionParameters(dbParams []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	params := make([]codersdk.TemplateVersionParameter, 0)
-	for _, dbParameter := range dbParams {
-		param, err := db2sdk.TemplateVersionParameter(dbParameter)
-		if err != nil {
-			return nil, err
-		}
-		params = append(params, param)
-	}
-	return params, nil
-}
-
 func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) []codersdk.TemplateVersionVariable {
 	variables := make([]codersdk.TemplateVersionVariable, 0)
 	for _, dbVariable := range dbVariables {
