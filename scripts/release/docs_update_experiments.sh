@@ -20,38 +20,71 @@ if isdarwin; then
 	awk() { gawk "$@"; }
 fi
 
-# Generate the experimental features table
-generate_experiments_table() {
-	# Get ExperimentsSafe entries from deployment.go
-	echo "| Feature | Description | Available in |"
-	echo "|---------|-------------|--------------|"
+DEPLOYMENT_GO_FILE="codersdk/deployment.go"
 
-	# For now, hardcode the features we know are in ExperimentsSafe
-	# This is simpler and more reliable than trying to parse the Go code
-	echo "| \`dev-containers\` | Enables dev containers support. | mainline, stable |"
-	echo "| \`agentic-chat\` | Enables the new agentic AI chat feature. | mainline, stable |"
-	echo "| \`workspace-prebuilds\` | Enables the new workspace prebuilds feature. | mainline, stable |"
+# Extract and parse experiment information from deployment.go
+extract_experiment_info() {
+    # Extract the experiment descriptions, stages, and doc paths
+    # We'll use Go code to capture this information and print it in a structured format
+    cat > /tmp/extract_experiment_info.go << 'EOT'
+package main
+
+import (
+	"encoding/json"
+	"os"
+
+	"github.com/coder/coder/v2/codersdk"
+)
+
+func main() {
+	experiments := []struct {
+		Name        string `json:"name"`
+		Value       string `json:"value"`
+		Description string `json:"description"`
+		Stage       string `json:"stage"`
+	}{}
+
+	// Get experiments from ExperimentsSafe
+	for _, exp := range codersdk.ExperimentsSafe {
+		experiments = append(experiments, struct {
+			Name        string `json:"name"`
+			Value       string `json:"value"`
+			Description string `json:"description"`
+			Stage       string `json:"stage"`
+		}{
+			Name:        string(exp),
+			Value:       string(exp),
+			Description: exp.GetDescription(),
+			Stage:       string(exp.GetStage()),
+		})
+	}
+
+	json.NewEncoder(os.Stdout).Encode(experiments)
+}
+EOT
+
+    # Run the Go code to extract the information
+    cd /home/coder/coder
+    go run /tmp/extract_experiment_info.go
+    rm /tmp/extract_experiment_info.go
 }
 
-# Extract early access features from deployment.go
-generate_early_access_table() {
-	echo "| Feature | Description | Documentation Path |"
-	echo "|---------|-------------|------------------|"
+# Generate the experimental features table with flag name
+generate_experiments_table() {
+    echo "| Feature Flag | Name | Available in |"
+    echo "|-------------|------|--------------|"
 
-	# For now, hardcode the Dev Containers as early access feature
-	# This is simpler and more reliable than complex grep/awk parsing
-	echo "| Dev Containers Integration | Dev Containers Integration | ai-coder/dev-containers.md |"
+    # Extract the experiment information
+    extract_experiment_info | jq -r '.[] | select(.stage=="early access") | "| `\(.value)` | \(.description) | mainline, stable |"'
 }
 
 # Extract beta features from deployment.go
 generate_beta_table() {
-	echo "| Feature | Description | Documentation Path |"
-	echo "|---------|-------------|------------------|"
+    echo "| Feature Flag | Name |"
+    echo "|-------------|------|"
 
-	# For now, hardcode the beta features
-	# This is simpler and more reliable than complex grep/awk parsing
-	echo "| AI Coding Agents | AI Coding Agents | ai-coder/agents.md |"
-	echo "| Prebuilt workspaces | Prebuilt workspaces | workspaces/prebuilds.md |"
+    # Extract beta features with flag name only
+    extract_experiment_info | jq -r '.[] | select(.stage=="beta") | "| `\(.value)` | \(.description) |"'
 }
 
 dest=docs/install/releases/feature-stages.md
@@ -60,49 +93,74 @@ log "Updating feature stages documentation in ${dest}"
 
 # Generate the tables
 experiments_table=$(generate_experiments_table)
-early_access_table=$(generate_early_access_table)
 beta_table=$(generate_beta_table)
 
 # We're using a single-pass awk script that replaces content between markers
 # No need for cleanup operations
 
-# Create a single awk script to update all sections without requiring multiple temp files
-awk -v exp_table="${experiments_table}" -v ea_table="${early_access_table}" -v beta_table="${beta_table}" '
-  # State variables to track which section we are in
-  BEGIN { in_exp = 0; in_ea = 0; in_beta = 0; }
+# Create temporary files with the new content
+cat > /tmp/ea_content.md << EOT
+<!-- BEGIN: available-experimental-features -->
 
-  # For experimental features section
-  /<!-- BEGIN: available-experimental-features -->/ {
-    print; print exp_table; in_exp = 1; next;
+$(echo "$experiments_table")
+
+<!-- END: available-experimental-features -->
+EOT
+
+cat > /tmp/beta_content.md << EOT
+<!-- BEGIN: beta-features -->
+
+$(echo "$beta_table")
+
+<!-- END: beta-features -->
+EOT
+
+# Use awk to replace the sections
+awk '
+  BEGIN { 
+    ea = 0; beta = 0;
+    while (getline < "/tmp/ea_content.md") ea_lines[++ea] = $0;
+    while (getline < "/tmp/beta_content.md") beta_lines[++beta] = $0;
+    ea = beta = 0;
   }
+  
+  /<!-- BEGIN: available-experimental-features -->/ { 
+    for (i = 1; i <= length(ea_lines); i++) print ea_lines[i];
+    ea = 1;
+    next;
+  }
+  
   /<!-- END: available-experimental-features -->/ {
-    in_exp = 0; print; next;
+    ea = 0;
+    next;
   }
-
-  # For early access features section
-  /<!-- BEGIN: early-access-features -->/ {
-    print; print ea_table; in_ea = 1; next;
-  }
-  /<!-- END: early-access-features -->/ {
-    in_ea = 0; print; next;
-  }
-
-  # For beta features section
+  
   /<!-- BEGIN: beta-features -->/ {
-    print; print beta_table; in_beta = 1; next;
+    for (i = 1; i <= length(beta_lines); i++) print beta_lines[i];
+    beta = 1;
+    next;
   }
+  
   /<!-- END: beta-features -->/ {
-    in_beta = 0; print; next;
+    beta = 0;
+    next;
   }
-
+  
   # Skip lines between markers
-  (in_exp || in_ea || in_beta) { next; }
-
+  (ea || beta) { next; }
+  
   # Print all other lines
   { print; }
-' "${dest}" >"${dest}.new"
+' "${dest}" > "${dest}.new"
 
 # Move the new file into place
 mv "${dest}.new" "${dest}"
 
+# Clean up temporary files
+rm -f /tmp/ea_content.md /tmp/beta_content.md
+
+# Clean up backup files
+rm -f "${dest}.bak"
+
+# Format the file with prettier
 (cd site && pnpm exec prettier --cache --write ../"${dest}")

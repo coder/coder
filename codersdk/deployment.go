@@ -3374,19 +3374,8 @@ func (e Experiment) GetDescription() string {
 	}
 }
 
-// GetDocsPath returns the path to documentation for the feature
-func (e Experiment) GetDocsPath() string {
-	switch e {
-	case ExperimentDevContainers:
-		return "ai-coder/dev-containers.md"
-	case ExperimentAgenticChat:
-		return "ai-coder/agents.md"
-	case ExperimentWorkspacePrebuilds:
-		return "workspaces/prebuilds.md"
-	default:
-		return ""
-	}
-}
+// GetDocsPath is removed to simplify the process for adding new features
+// Documentation paths are now managed directly in the documentation itself
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
