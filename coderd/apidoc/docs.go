@@ -12643,11 +12643,13 @@ const docTemplate = `{
                 "web-push",
                 "dynamic-parameters",
                 "workspace-prebuilds",
-                "agentic-chat"
+                "agentic-chat",
+                "dev-containers"
             ],
             "x-enum-comments": {
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentDevContainers": "Enables dev containers support.",
                 "ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
@@ -12663,7 +12665,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentDynamicParameters",
                 "ExperimentWorkspacePrebuilds",
-                "ExperimentAgenticChat"
+                "ExperimentAgenticChat",
+                "ExperimentDevContainers"
             ]
         },
         "codersdk.ExternalAuth": {

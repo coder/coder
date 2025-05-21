@@ -828,6 +828,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 export type Experiment =
 	| "agentic-chat"
 	| "auto-fill-parameters"
+	| "dev-containers"
 	| "dynamic-parameters"
 	| "example"
 	| "notifications"
@@ -976,6 +977,11 @@ export const FeatureNames: FeatureName[] = [
 export type FeatureSet = "enterprise" | "" | "premium";
 
 export const FeatureSets: FeatureSet[] = ["enterprise", "", "premium"];
+
+// From codersdk/deployment.go
+export type FeatureStage = "beta" | "early access";
+
+export const FeatureStages: FeatureStage[] = ["beta", "early access"];
 
 // From codersdk/files.go
 export const FormatZip = "zip";
