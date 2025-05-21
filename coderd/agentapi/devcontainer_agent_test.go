@@ -3,6 +3,7 @@ package agentapi_test
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -23,7 +24,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func devContainerAgentAPI(t *testing.T, log slog.Logger) *agentapi.DevContainerAgentAPI {
+func devContainerAgentAPI(t *testing.T, log slog.Logger) (*agentapi.DevContainerAgentAPI, database.WorkspaceResource) {
 	db, _ := dbtestutil.NewDB(t)
 
 	user := dbgen.User(t, db, database.User{})
@@ -72,99 +73,153 @@ func devContainerAgentAPI(t *testing.T, log slog.Logger) *agentapi.DevContainerA
 		},
 		Clock:    clock,
 		Database: dbauthz.New(db, auth, log, accessControlStore),
-	}
+	}, resource
 }
 
 func TestDevContainerAgentAPI(t *testing.T) {
 	t.Parallel()
 
-	log := testutil.Logger(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	api := devContainerAgentAPI(t, log)
+	t.Run("CanCreateDevContainerAgent", func(t *testing.T) {
+		t.Parallel()
 
-	// Given: There are no dev container agents.
-	listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
-	require.NoError(t, err)
-	require.Len(t, listResp.Agents, 0)
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		api, _ := devContainerAgentAPI(t, log)
 
-	// When: We create two dev container agents.
-	createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
-		Name:            "some-child-agent",
-		Directory:       "/workspaces/wibble",
-		Architecture:    "amd64",
-		OperatingSystem: "linux",
-	})
-	require.NoError(t, err)
+		createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
+			Name:            "some-child-agent",
+			Directory:       "/workspaces/wibble",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+		require.NoError(t, err)
 
-	childAgentOneID, err := uuid.FromBytes(createResp.Id)
-	require.NoError(t, err)
+		agentID, err := uuid.FromBytes(createResp.Id)
+		require.NoError(t, err)
 
-	createResp, err = api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
-		Name:            "some-other-child-agent",
-		Directory:       "/workspaces/wobble",
-		Architecture:    "amd64",
-		OperatingSystem: "linux",
-	})
-	require.NoError(t, err)
+		//nolint:gocritic // this is a test.
+		agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+		require.NoError(t, err)
 
-	childAgentTwoID, err := uuid.FromBytes(createResp.Id)
-	require.NoError(t, err)
-
-	// Then: We expect these dev container agents to be created.
-	agentOne, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOneID) //nolint:gocritic // this is a test
-	require.NoError(t, err)
-	require.Equal(t, "/workspaces/wibble", agentOne.Directory)
-	require.Equal(t, "amd64", agentOne.Architecture)
-	require.Equal(t, "linux", agentOne.OperatingSystem)
-	require.Equal(t, "some-child-agent", agentOne.Name)
-
-	agentTwo, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentTwoID) //nolint:gocritic // this is a test
-	require.NoError(t, err)
-	require.Equal(t, "/workspaces/wobble", agentTwo.Directory)
-	require.Equal(t, "amd64", agentTwo.Architecture)
-	require.Equal(t, "linux", agentTwo.OperatingSystem)
-	require.Equal(t, "some-other-child-agent", agentTwo.Name)
-
-	// Then: We expect to be able to list these dev container agents.
-	createdAgents := []database.WorkspaceAgent{agentOne, agentTwo}
-	slices.SortFunc(createdAgents, func(a, b database.WorkspaceAgent) int {
-		return cmp.Compare(a.ID.String(), b.ID.String())
+		require.Equal(t, "some-child-agent", agent.Name)
+		require.Equal(t, "/workspaces/wibble", agent.Directory)
+		require.Equal(t, "amd64", agent.Architecture)
+		require.Equal(t, "linux", agent.OperatingSystem)
 	})
 
-	listResp, err = api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
-	require.NoError(t, err)
-	require.Len(t, listResp.Agents, len(createdAgents))
+	t.Run("CanDeleteDevContainerAgent", func(t *testing.T) {
+		t.Parallel()
 
-	listedAgents := listResp.Agents
-	slices.SortFunc(listedAgents, func(a, b *proto.ListDevContainerAgentsResponse_DevContainerAgent) int {
-		return cmp.Compare(string(a.Id), string(b.Id))
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		api, res := devContainerAgentAPI(t, log)
+
+		// Given: A dev container agent.
+		agent := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
+			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
+			ResourceID:      res.ID,
+			Name:            "some-child-agent",
+			Directory:       "/workspaces/wibble",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+
+		// When: We delete the dev container agent.
+		_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+			Id: agent.ID[:],
+		})
+		require.NoError(t, err)
+
+		// Then: It is deleted.
+		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
-	for i, agent := range listedAgents {
-		require.Equal(t, createdAgents[i].ID[:], agent.Id)
-		require.Equal(t, createdAgents[i].Name, agent.Name)
-	}
+	t.Run("CanDeleteOneDevContainerAgentOfMany", func(t *testing.T) {
+		t.Parallel()
 
-	// When: We delete a dev container agent.
-	_, err = api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
-		Id: agentOne.ID[:],
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		api, res := devContainerAgentAPI(t, log)
+
+		// Given: Multiple dev container agents.
+		agentOne := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
+			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
+			ResourceID:      res.ID,
+			Name:            "child-agent-one",
+			Directory:       "/workspaces/wibble",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+
+		agentTwo := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
+			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
+			ResourceID:      res.ID,
+			Name:            "child-agent-two",
+			Directory:       "/workspaces/wobble",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+
+		// When: We delete one of the dev container agents.
+		_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+			Id: agentOne.ID[:],
+		})
+		require.NoError(t, err)
+
+		// Then: The correct one is deleted.
+		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentOne.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentTwo.ID)
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
 
-	// Then: We expect this dev container agent to be deleted.
-	listResp, err = api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
-	require.NoError(t, err)
-	require.Len(t, listResp.Agents, 1)
-	require.Equal(t, agentTwo.ID[:], listResp.Agents[0].Id)
+	t.Run("CanListDevContainerAgents", func(t *testing.T) {
+		t.Parallel()
 
-	// When: We delete the other dev container agent.
-	_, err = api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
-		Id: agentTwo.ID[:],
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		api, res := devContainerAgentAPI(t, log)
+
+		// Given: Multiple dev container agents.
+		agentOne := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
+			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
+			ResourceID:      res.ID,
+			Name:            "child-agent-one",
+			Directory:       "/workspaces/wibble",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+
+		agentTwo := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
+			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
+			ResourceID:      res.ID,
+			Name:            "child-agent-two",
+			Directory:       "/workspaces/wobble",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+
+		agents := []database.WorkspaceAgent{agentOne, agentTwo}
+		slices.SortFunc(agents, func(a, b database.WorkspaceAgent) int {
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		})
+
+		// When: We list the dev container agents.
+		listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+		require.NoError(t, err)
+
+		listedAgents := listResp.Agents
+		slices.SortFunc(listedAgents, func(a, b *proto.ListDevContainerAgentsResponse_DevContainerAgent) int {
+			return cmp.Compare(string(a.Id), string(b.Id))
+		})
+
+		// Then: We expect to see all the agents listed.
+		require.Len(t, listedAgents, len(agents))
+		for i, agent := range listedAgents {
+			require.Equal(t, agents[i].ID[:], agent.Id)
+			require.Equal(t, agents[i].Name, agent.Name)
+		}
 	})
-	require.NoError(t, err)
-
-	// Then: We expect this other dev container agent to be deleted.
-	listResp, err = api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
-	require.NoError(t, err)
-	require.Len(t, listResp.Agents, 0)
 }
