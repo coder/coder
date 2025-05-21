@@ -737,7 +737,7 @@ func TestAPI(t *testing.T) {
 			ID:           "container-id",
 			FriendlyName: "container-name",
 			Running:      true,
-			CreatedAt:    time.Now(),
+			CreatedAt:    time.Now().Add(-1 * time.Minute),
 			Labels: map[string]string{
 				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project",
 				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project/.devcontainer/devcontainer.json",
@@ -770,6 +770,8 @@ func TestAPI(t *testing.T) {
 		defer api.Close()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk.Set(time.Now()).MustWait(ctx)
 
 		// Simulate a file modification event to make the devcontainer dirty.
 		watcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
