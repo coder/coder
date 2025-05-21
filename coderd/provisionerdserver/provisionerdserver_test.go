@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -1117,6 +1118,227 @@ func TestCompleteJob(t *testing.T) {
 			JobId: job.ID.String(),
 		})
 		require.ErrorContains(t, err, "you don't own this job")
+	})
+
+	// Test for verifying transaction behavior on the extracted methods
+	t.Run("TransactionBehavior", func(t *testing.T) {
+		t.Parallel()
+		// Test TemplateImport transaction
+		t.Run("TemplateImportTransaction", func(t *testing.T) {
+			t.Parallel()
+			srv, db, _, pd := setup(t, false, &overrides{})
+			jobID := uuid.New()
+			versionID := uuid.New()
+			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:             versionID,
+				JobID:          jobID,
+				OrganizationID: pd.OrganizationID,
+			})
+			require.NoError(t, err)
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				ID:             jobID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Input:          []byte(`{"template_version_id": "` + versionID.String() + `"}`),
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			})
+			require.NoError(t, err)
+			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			})
+			require.NoError(t, err)
+
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_TemplateImport_{
+					TemplateImport: &proto.CompletedJob_TemplateImport{
+						StartResources: []*sdkproto.Resource{{
+							Name: "test-resource",
+							Type: "aws_instance",
+						}},
+						Plan: []byte("{}"),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Verify job was marked as completed
+			completedJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.True(t, completedJob.CompletedAt.Valid, "Job should be marked as completed")
+
+			// Verify resources were created
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1, "Expected one resource to be created")
+			require.Equal(t, "test-resource", resources[0].Name)
+		})
+
+		// Test TemplateDryRun transaction
+		t.Run("TemplateDryRunTransaction", func(t *testing.T) {
+			t.Parallel()
+			srv, db, _, pd := setup(t, false, &overrides{})
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:            uuid.New(),
+				Provisioner:   database.ProvisionerTypeEcho,
+				Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+				StorageMethod: database.ProvisionerStorageMethodFile,
+			})
+			require.NoError(t, err)
+			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			})
+			require.NoError(t, err)
+
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_TemplateDryRun_{
+					TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+						Resources: []*sdkproto.Resource{{
+							Name: "test-dry-run-resource",
+							Type: "aws_instance",
+						}},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Verify job was marked as completed
+			completedJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.True(t, completedJob.CompletedAt.Valid, "Job should be marked as completed")
+
+			// Verify resources were created
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1, "Expected one resource to be created")
+			require.Equal(t, "test-dry-run-resource", resources[0].Name)
+		})
+
+		// Test WorkspaceBuild transaction
+		t.Run("WorkspaceBuildTransaction", func(t *testing.T) {
+			t.Parallel()
+			srv, db, ps, pd := setup(t, false, &overrides{})
+
+			// Create test data
+			user := dbgen.User(t, db, database.User{})
+			template := dbgen.Template(t, db, database.Template{
+				Name:           "template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+			})
+			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: pd.OrganizationID,
+				TemplateID: uuid.NullUUID{
+					UUID:  template.ID,
+					Valid: true,
+				},
+				JobID: uuid.New(),
+			})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspaceTable.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStart,
+				Reason:            database.BuildReasonInitiator,
+			})
+			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Type:        database.ProvisionerJobTypeWorkspaceBuild,
+				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: build.ID,
+				})),
+				OrganizationID: pd.OrganizationID,
+			})
+			_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			})
+			require.NoError(t, err)
+
+			// Add a published channel to make sure the workspace event is sent
+			publishedWorkspace := make(chan struct{})
+			closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspaceTable.OwnerID),
+				wspubsub.HandleWorkspaceEvent(
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
+						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspaceTable.ID {
+							close(publishedWorkspace)
+						}
+					}))
+			require.NoError(t, err)
+			defer closeWorkspaceSubscribe()
+
+			// The actual test
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+						State: []byte{},
+						Resources: []*sdkproto.Resource{{
+							Name: "test-workspace-resource",
+							Type: "aws_instance",
+						}},
+						Timings: []*sdkproto.Timing{{
+							Stage:    "test",
+							Source:   "test-source",
+							Resource: "test-resource",
+							Action:   "test-action",
+							Start:    timestamppb.Now(),
+							End:      timestamppb.Now(),
+						}},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Wait for workspace notification
+			select {
+			case <-publishedWorkspace:
+				// Success
+			case <-time.After(testutil.WaitShort):
+				t.Fatal("Workspace event not published")
+			}
+
+			// Verify job was marked as completed
+			completedJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.True(t, completedJob.CompletedAt.Valid, "Job should be marked as completed")
+
+			// Verify resources were created
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1, "Expected one resource to be created")
+			require.Equal(t, "test-workspace-resource", resources[0].Name)
+
+			// Verify timings were recorded
+			timings, err := db.GetProvisionerJobTimingsByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, timings, 1, "Expected one timing entry to be created")
+			require.Equal(t, "test", string(timings[0].Stage), "Timing stage should match what was sent")
+		})
 	})
 
 	t.Run("TemplateImport_MissingGitAuth", func(t *testing.T) {
