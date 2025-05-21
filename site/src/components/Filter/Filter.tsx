@@ -268,7 +268,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 				onClick={() => setIsOpen(true)}
 				ref={anchorRef}
 				variant="outline"
-				size="sm"
+				className="h-9"
 			>
 				Filters
 				<ChevronDownIcon />
