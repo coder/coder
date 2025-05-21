@@ -1,5 +1,7 @@
 # Coder Development Guidelines
 
+Read [cursor rules](.cursorrules).
+
 ## Build/Test/Lint Commands
 
 ### Main Commands
@@ -33,13 +35,6 @@
 - Create packages when used during implementation
 - Validate abstractions against implementations
 
-### TypeScript/React
-
-- Use TypeScript for all frontend code
-- Follow ESLint and Prettier configurations
-- Components should be atomic, reusable, and free of business logic
-- Modules can contain Coder-specific business logic
-
 ### Error Handling
 
 - Use descriptive error messages
@@ -70,7 +65,7 @@
 
 ## Database queries
 
-- MUST DO! Any changes to database - adding queries, modifying queries should be done in the  `coderd\database\queries\*.sql` files.
+- MUST DO! Any changes to database - adding queries, modifying queries should be done in the  `coderd\database\queries\*.sql` files. Use `make gen` to generate necessary changes after.
 - MUST DO! Queries are grouped in files relating to context - e.g. `prebuilds.sql`, `users.sql`, `provisionerjobs.sql`.
 - After making changes to any `coderd\database\queries\*.sql` files you must run `make gen` to generate respective ORM changes.
 
@@ -106,35 +101,4 @@
 
 ## Frontend
 
-### Tech Stack
-
-- React with TypeScript
-- Material UI v5 for components
-- TanStack Query v4 for data fetching
-- Emotion for styling
-- Formik with Yup for forms and validation
-
-### Structure
-
-- `/site/` directory contains all UI code
-- Components in `/site/src/components`
-- Feature modules in `/site/src/modules`
-- Pages in `/site/src/pages`
-
-### State Management
-
-- React Query for API data fetching and caching
-- Context-based state with providers
-- React Router for navigation
-
-### Accessibility
-
-- Color contrast meets WCAG AA compliance (4.5:1 ratio)
-- Proper labeling for input elements
-- Include descriptive text for images
-
-### Testing
-
-- End-to-end testing with Playwright
-- Integration testing with Jest and react-testing-library
-- Visual testing with Storybook and Chromatic
+For building Frontend refer to [this document](docs/contributing/frontend.md)
