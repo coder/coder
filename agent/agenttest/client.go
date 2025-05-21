@@ -369,7 +369,7 @@ func (*FakeAgentAPI) CreateDevContainerAgent(_ context.Context, _ *agentproto.Cr
 	panic("unimplemented")
 }
 
-func (*FakeAgentAPI) DeleteDevContainerAgent(_ context.Context, _ *agentproto.DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+func (*FakeAgentAPI) DeleteDevContainerAgent(_ context.Context, _ *agentproto.DeleteDevContainerAgentRequest) (*agentproto.DeleteDevContainerAgentResponse, error) {
 	panic("unimplemented")
 }
 

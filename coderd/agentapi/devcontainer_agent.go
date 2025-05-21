@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -70,7 +69,7 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 	}, nil
 }
 
-func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*emptypb.Empty, error) {
+func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*agentproto.DeleteDevContainerAgentResponse, error) {
 	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
 	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
 
@@ -83,7 +82,7 @@ func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req 
 		return nil, err
 	}
 
-	return &emptypb.Empty{}, nil
+	return &agentproto.DeleteDevContainerAgentResponse{}, nil
 }
 
 func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {

@@ -393,6 +393,8 @@ message DeleteDevContainerAgentRequest {
 	bytes id = 1;
 }
 
+message DeleteDevContainerAgentResponse {}
+
 message ListDevContainerAgentsRequest {}
 
 message ListDevContainerAgentsResponse {
@@ -419,6 +421,6 @@ service Agent {
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
 	rpc CreateDevContainerAgent(CreateDevContainerAgentRequest) returns (CreateDevContainerAgentResponse);
-	rpc DeleteDevContainerAgent(DeleteDevContainerAgentRequest) returns (google.protobuf.Empty);
+	rpc DeleteDevContainerAgent(DeleteDevContainerAgentRequest) returns (DeleteDevContainerAgentResponse);
 	rpc ListDevContainerAgents(ListDevContainerAgentsRequest) returns (ListDevContainerAgentsResponse);
 }
