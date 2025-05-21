@@ -3339,7 +3339,7 @@ const (
 	// FeatureStageEarlyAccess indicates a feature that is neither feature-complete nor stable
 	// Early access features are often disabled by default and not recommended for production use
 	FeatureStageEarlyAccess FeatureStage = "early access"
-	
+
 	// FeatureStageBeta indicates a feature that is open to the public but still under development
 	// Beta features might have minor bugs but are generally ready for use
 	FeatureStageBeta FeatureStage = "beta"
