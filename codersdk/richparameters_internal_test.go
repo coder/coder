@@ -58,6 +58,16 @@ func Test_inOptionSet(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			name: "list(string)-no-form",
+			param: TemplateVersionParameter{
+				Type:     provider.OptionTypeListString,
+				FormType: "",
+				Options:  options("red", "green", "blue"),
+			},
+			want:  false,
+			value: `["red", "blue", "green"]`,
+		},
 		// now for some reasonable values
 		{
 			name: "list(string)-multi",
@@ -124,14 +134,6 @@ func Test_inOptionSet(t *testing.T) {
 
 			got := inOptionSet(tt.param, tt.value)
 			require.Equal(t, tt.want, got)
-
-			if tt.param.Type == provider.OptionTypeListString && tt.param.FormType == string(provider.ParameterFormTypeMultiSelect) {
-				// If list(string) & multi-select, empty string should also work.
-				// Since old provisioners send `""` for this type.
-				tt.param.FormType = ""
-				got = inOptionSet(tt.param, tt.value)
-				require.Equal(t, tt.want, got, "multi-select should be the same for empty string form_type")
-			}
 		})
 	}
 }

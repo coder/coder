@@ -110,9 +110,8 @@ func inOptionSet(richParameter TemplateVersionParameter, value string) bool {
 	}
 
 	// If the type is `list(string)` and the form_type is `multi-select`, then we check each individual
-	// value in the list against the option set. If the form_type is the empty string, we have to consider the
-	// possibility it might be a multi-select. Old provisioners do not send us the form_type.
-	mightBeMultiSelect := richParameter.Type == provider.OptionTypeListString && (richParameter.FormType == string(provider.ParameterFormTypeMultiSelect) || richParameter.FormType == "")
+	// value in the list against the option set.
+	mightBeMultiSelect := richParameter.Type == provider.OptionTypeListString && richParameter.FormType == string(provider.ParameterFormTypeMultiSelect)
 	if !mightBeMultiSelect {
 		return false
 	}
