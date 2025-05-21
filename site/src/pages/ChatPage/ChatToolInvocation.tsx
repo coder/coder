@@ -2,9 +2,7 @@ import type { ToolCall, ToolResult } from "@ai-sdk/provider-utils";
 import { useTheme } from "@emotion/react";
 import ArticleIcon from "@mui/icons-material/Article";
 import BuildIcon from "@mui/icons-material/Build";
-import CheckCircle from "@mui/icons-material/CheckCircle";
 import CodeIcon from "@mui/icons-material/Code";
-import ErrorIcon from "@mui/icons-material/Error";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -12,8 +10,12 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { TrashIcon } from "lucide-react";
-import { InfoIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	InfoIcon,
+	TrashIcon,
+} from "lucide-react";
 import type React from "react";
 import { type FC, memo, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -96,9 +98,15 @@ export const ChatToolInvocation: FC<ChatToolInvocationProps> = ({
 				)}
 				{toolInvocation.state === "result" ? (
 					hasError ? (
-						<ErrorIcon sx={{ color: statusColor, fontSize: 16 }} />
+						<CircleAlertIcon
+							className="size-icon-xs"
+							style={{ color: statusColor }}
+						/>
 					) : (
-						<CheckCircle sx={{ color: statusColor, fontSize: 16 }} />
+						<CircleCheckIcon
+							className="size-icon-xs"
+							style={{ color: statusColor }}
+						/>
 					)
 				) : null}
 				<div

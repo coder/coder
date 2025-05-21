@@ -1,8 +1,5 @@
 import type { Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import Warning from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -13,11 +10,16 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { formatDistance, formatDistanceToNow } from "date-fns";
-import { LayoutGridIcon } from "lucide-react";
-import { FileIcon } from "lucide-react";
-import { ExternalLinkIcon } from "lucide-react";
-import { HourglassIcon } from "lucide-react";
-import { CircleHelpIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	CircleHelpIcon,
+	ExternalLinkIcon,
+	FileIcon,
+	HourglassIcon,
+	LayoutGridIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
 
@@ -49,9 +51,9 @@ const getStatusIcon = (
 		: theme.palette.text.disabled;
 	switch (state) {
 		case "complete":
-			return <CheckCircle sx={{ color, fontSize: 18 }} />;
+			return <CircleCheckIcon className="size-icon-sm" style={{ color }} />;
 		case "failure":
-			return <ErrorIcon sx={{ color, fontSize: 18 }} />;
+			return <CircleAlertIcon className="size-icon-sm" style={{ color }} />;
 		case "working":
 			// Use Hourglass for past "working" states, spinner for the current one
 			return isLatest ? (
@@ -60,7 +62,7 @@ const getStatusIcon = (
 				<HourglassIcon className="size-icon-sm" style={{ color }} />
 			);
 		default:
-			return <Warning sx={{ color, fontSize: 18 }} />;
+			return <TriangleAlertIcon className="size-icon-sm" style={{ color }} />;
 	}
 };
 
