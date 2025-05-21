@@ -69,28 +69,46 @@ experiments_table=$(generate_experiments_table)
 early_access_table=$(generate_early_access_table)
 beta_table=$(generate_beta_table)
 
-# Update the experimental features section
-awk \
-	-v table="${experiments_table}" \
-	'BEGIN{include=1} /BEGIN: available-experimental-features/{print; print table; include=0} /END: available-experimental-features/{include=1; print} include' \
-	"${dest}" \
-	>"${dest}".tmp
+# We're using a single-pass awk script that replaces content between markers
+# No need for cleanup operations
 
-# Update the early access features section
-awk \
-	-v table="${early_access_table}" \
-	'BEGIN{include=1} /BEGIN: early-access-features/{print; print table; include=0} /END: early-access-features/{include=1; print} include' \
-	"${dest}".tmp \
-	>"${dest}".tmp2
+# Create a single awk script to update all sections without requiring multiple temp files
+awk -v exp_table="${experiments_table}" -v ea_table="${early_access_table}" -v beta_table="${beta_table}" '
+  # State variables to track which section we are in
+  BEGIN { in_exp = 0; in_ea = 0; in_beta = 0; }
+  
+  # For experimental features section
+  /<!-- BEGIN: available-experimental-features -->/ { 
+    print; print exp_table; in_exp = 1; next; 
+  }
+  /<!-- END: available-experimental-features -->/ { 
+    in_exp = 0; print; next; 
+  }
+  
+  # For early access features section
+  /<!-- BEGIN: early-access-features -->/ { 
+    print; print ea_table; in_ea = 1; next; 
+  }
+  /<!-- END: early-access-features -->/ { 
+    in_ea = 0; print; next; 
+  }
+  
+  # For beta features section
+  /<!-- BEGIN: beta-features -->/ { 
+    print; print beta_table; in_beta = 1; next; 
+  }
+  /<!-- END: beta-features -->/ { 
+    in_beta = 0; print; next; 
+  }
+  
+  # Skip lines between markers
+  (in_exp || in_ea || in_beta) { next; }
+  
+  # Print all other lines
+  { print; }
+' "${dest}" > "${dest}.new"
 
-# Update the beta features section
-awk \
-	-v table="${beta_table}" \
-	'BEGIN{include=1} /BEGIN: beta-features/{print; print table; include=0} /END: beta-features/{include=1; print} include' \
-	"${dest}".tmp2 \
-	>"${dest}".tmp3
-
-mv "${dest}".tmp3 "${dest}"
-rm -f "${dest}".tmp "${dest}".tmp2
+# Move the new file into place
+mv "${dest}.new" "${dest}"
 
 (cd site && pnpm exec prettier --cache --write ../"${dest}")
