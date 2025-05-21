@@ -27,6 +27,18 @@ export const Running: Story = {
 	},
 };
 
+export const Unhealthy: Story = {
+	args: {
+		workspace: {
+			...createWorkspaceWithStatus("running"),
+			health: {
+				healthy: false,
+				failing_agents: [],
+			},
+		},
+	},
+};
+
 export const Stopped: Story = {
 	args: {
 		workspace: createWorkspaceWithStatus("stopped"),
