@@ -677,9 +677,15 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 				slog.F("modified_at", modifiedAt),
 			)
 			api.knownDevcontainers[i].Dirty = true
-			if api.knownDevcontainers[i].Container != nil {
-				api.knownDevcontainers[i].Container.DevcontainerDirty = true
-			}
+		}
+		if api.knownDevcontainers[i].Container != nil && !api.knownDevcontainers[i].Container.DevcontainerDirty {
+			api.logger.Info(api.ctx, "marking devcontainer container as dirty",
+				slog.F("file", configPath),
+				slog.F("name", api.knownDevcontainers[i].Name),
+				slog.F("workspace_folder", api.knownDevcontainers[i].WorkspaceFolder),
+				slog.F("modified_at", modifiedAt),
+			)
+			api.knownDevcontainers[i].Container.DevcontainerDirty = true
 		}
 	}
 }
