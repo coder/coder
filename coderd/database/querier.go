@@ -196,7 +196,6 @@ type sqlcQuerier interface {
 	GetGroupMembersCountByGroupID(ctx context.Context, arg GetGroupMembersCountByGroupIDParams) (int64, error)
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
-	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID
@@ -265,11 +264,16 @@ type sqlcQuerier interface {
 	// Previous job information.
 	GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
+	// Gets a single provisioner job by ID for update.
+	// This is used to securely reap jobs that have been hung/pending for a long time.
+	GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error)
 	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error)
 	GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error)
 	GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error)
+	// To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
+	GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error)
 	GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (ProvisionerKey, error)
 	GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (ProvisionerKey, error)
 	GetProvisionerKeyByName(ctx context.Context, arg GetProvisionerKeyByNameParams) (ProvisionerKey, error)
@@ -418,6 +422,7 @@ type sqlcQuerier interface {
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (Workspace, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
+	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
@@ -567,6 +572,7 @@ type sqlcQuerier interface {
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error
 	UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error
 	UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error
+	UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error
 	UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error)
 	UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error
 	UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) error

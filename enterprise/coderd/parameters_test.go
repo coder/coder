@@ -70,8 +70,8 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	require.Equal(t, -1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
-	require.True(t, preview.Parameters[0].Value.Valid())
-	require.Equal(t, database.EveryoneGroup, preview.Parameters[0].Value.Value.AsString())
+	require.True(t, preview.Parameters[0].Value.Valid)
+	require.Equal(t, database.EveryoneGroup, preview.Parameters[0].Value.Value)
 
 	// Send a new value, and see it reflected
 	err = stream.Send(codersdk.DynamicParametersRequest{
@@ -83,8 +83,8 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	require.Equal(t, 1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
-	require.True(t, preview.Parameters[0].Value.Valid())
-	require.Equal(t, group.Name, preview.Parameters[0].Value.Value.AsString())
+	require.True(t, preview.Parameters[0].Value.Valid)
+	require.Equal(t, group.Name, preview.Parameters[0].Value.Value)
 
 	// Back to default
 	err = stream.Send(codersdk.DynamicParametersRequest{
@@ -96,6 +96,6 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	require.Equal(t, 3, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
-	require.True(t, preview.Parameters[0].Value.Valid())
-	require.Equal(t, database.EveryoneGroup, preview.Parameters[0].Value.Value.AsString())
+	require.True(t, preview.Parameters[0].Value.Valid)
+	require.Equal(t, database.EveryoneGroup, preview.Parameters[0].Value.Value)
 }

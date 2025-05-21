@@ -169,7 +169,9 @@ Status Code **200**
 | `action`        | `application_connect`              |
 | `action`        | `assign`                           |
 | `action`        | `create`                           |
+| `action`        | `create_agent`                     |
 | `action`        | `delete`                           |
+| `action`        | `delete_agent`                     |
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
@@ -336,7 +338,9 @@ Status Code **200**
 | `action`        | `application_connect`              |
 | `action`        | `assign`                           |
 | `action`        | `create`                           |
+| `action`        | `create_agent`                     |
 | `action`        | `delete`                           |
+| `action`        | `delete_agent`                     |
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
@@ -503,7 +507,9 @@ Status Code **200**
 | `action`        | `application_connect`              |
 | `action`        | `assign`                           |
 | `action`        | `create`                           |
+| `action`        | `create_agent`                     |
 | `action`        | `delete`                           |
+| `action`        | `delete_agent`                     |
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
@@ -639,7 +645,9 @@ Status Code **200**
 | `action`        | `application_connect`              |
 | `action`        | `assign`                           |
 | `action`        | `create`                           |
+| `action`        | `create_agent`                     |
 | `action`        | `delete`                           |
+| `action`        | `delete_agent`                     |
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
@@ -997,7 +1005,9 @@ Status Code **200**
 | `action`        | `application_connect`              |
 | `action`        | `assign`                           |
 | `action`        | `create`                           |
+| `action`        | `create_agent`                     |
 | `action`        | `delete`                           |
+| `action`        | `delete_agent`                     |
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |

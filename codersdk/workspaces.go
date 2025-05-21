@@ -41,6 +41,7 @@ type Workspace struct {
 	TemplateAllowUserCancelWorkspaceJobs bool                `json:"template_allow_user_cancel_workspace_jobs"`
 	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id" format:"uuid"`
 	TemplateRequireActiveVersion         bool                `json:"template_require_active_version"`
+	TemplateUseClassicParameterFlow      bool                `json:"template_use_classic_parameter_flow"`
 	LatestBuild                          WorkspaceBuild      `json:"latest_build"`
 	LatestAppStatus                      *WorkspaceAppStatus `json:"latest_app_status"`
 	Outdated                             bool                `json:"outdated"`
@@ -109,6 +110,10 @@ type CreateWorkspaceBuildRequest struct {
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// EnableDynamicParameters skips some of the static parameter checking.
+	// It will default to whatever the template has marked as the default experience.
+	// Requires the "dynamic-experiment" to be used.
+	EnableDynamicParameters *bool `json:"enable_dynamic_parameters,omitempty"`
 }
 
 type WorkspaceOptions struct {

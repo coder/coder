@@ -704,6 +704,8 @@ func createWorkspace(
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
+			Experiments(api.Experiments).
+			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
@@ -716,7 +718,7 @@ func createWorkspace(
 		}
 
 		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			builder = builder.UsingDynamicParameters()
+			builder = builder.DynamicParameters(req.EnableDynamicParameters)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
@@ -2259,6 +2261,7 @@ func convertWorkspace(
 		TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 		TemplateActiveVersionID:              template.ActiveVersionID,
 		TemplateRequireActiveVersion:         template.RequireActiveVersion,
+		TemplateUseClassicParameterFlow:      template.UseClassicParameterFlow,
 		Outdated:                             workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:                                 workspace.Name,
 		AutostartSchedule:                    autostartSchedule,

@@ -1743,21 +1743,6 @@ func (mr *MockStoreMockRecorder) GetHealthSettings(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthSettings", reflect.TypeOf((*MockStore)(nil).GetHealthSettings), ctx)
 }
 
-// GetHungProvisionerJobs mocks base method.
-func (m *MockStore) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]database.ProvisionerJob, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHungProvisionerJobs", ctx, updatedAt)
-	ret0, _ := ret[0].([]database.ProvisionerJob)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetHungProvisionerJobs indicates an expected call of GetHungProvisionerJobs.
-func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(ctx, updatedAt any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), ctx, updatedAt)
-}
-
 // GetInboxNotificationByID mocks base method.
 func (m *MockStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	m.ctrl.T.Helper()
@@ -2448,6 +2433,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobByID(ctx, id any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByID", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByID), ctx, id)
 }
 
+// GetProvisionerJobByIDForUpdate mocks base method.
+func (m *MockStore) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobByIDForUpdate indicates an expected call of GetProvisionerJobByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetProvisionerJobByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByIDForUpdate), ctx, id)
+}
+
 // GetProvisionerJobTimingsByJobID mocks base method.
 func (m *MockStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	m.ctrl.T.Helper()
@@ -2521,6 +2521,21 @@ func (m *MockStore) GetProvisionerJobsCreatedAfter(ctx context.Context, createdA
 func (mr *MockStoreMockRecorder) GetProvisionerJobsCreatedAfter(ctx, createdAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsCreatedAfter), ctx, createdAt)
+}
+
+// GetProvisionerJobsToBeReaped mocks base method.
+func (m *MockStore) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobsToBeReaped", ctx, arg)
+	ret0, _ := ret[0].([]database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobsToBeReaped indicates an expected call of GetProvisionerJobsToBeReaped.
+func (mr *MockStoreMockRecorder) GetProvisionerJobsToBeReaped(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsToBeReaped", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsToBeReaped), ctx, arg)
 }
 
 // GetProvisionerKeyByHashedSecret mocks base method.
@@ -3946,6 +3961,21 @@ func (m *MockStore) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) GetWorkspaceByOwnerIDAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByOwnerIDAndName", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByOwnerIDAndName), ctx, arg)
+}
+
+// GetWorkspaceByResourceID mocks base method.
+func (m *MockStore) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceByResourceID", ctx, resourceID)
+	ret0, _ := ret[0].(database.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceByResourceID indicates an expected call of GetWorkspaceByResourceID.
+func (mr *MockStoreMockRecorder) GetWorkspaceByResourceID(ctx, resourceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByResourceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByResourceID), ctx, resourceID)
 }
 
 // GetWorkspaceByWorkspaceAppID mocks base method.
@@ -5730,6 +5760,20 @@ func (m *MockStore) UpdateProvisionerJobWithCompleteByID(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) UpdateProvisionerJobWithCompleteByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobWithCompleteByID", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobWithCompleteByID), ctx, arg)
+}
+
+// UpdateProvisionerJobWithCompleteWithStartedAtByID mocks base method.
+func (m *MockStore) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionerJobWithCompleteWithStartedAtByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProvisionerJobWithCompleteWithStartedAtByID indicates an expected call of UpdateProvisionerJobWithCompleteWithStartedAtByID.
+func (mr *MockStoreMockRecorder) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobWithCompleteWithStartedAtByID", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobWithCompleteWithStartedAtByID), ctx, arg)
 }
 
 // UpdateReplica mocks base method.

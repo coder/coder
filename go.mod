@@ -96,12 +96,12 @@ require (
 	github.com/chromedp/chromedp v0.13.3
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/flog v1.1.0
-	github.com/coder/guts v1.3.1-0.20250428170043-ad369017e95b
+	github.com/coder/guts v1.5.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.1.3
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.4.3-0.20250519162750-a4f40659a9be
+	github.com/coder/terraform-provider-coder/v2 v2.4.2
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -204,10 +204,10 @@ require (
 	golang.org/x/sys v0.33.0
 	golang.org/x/term v0.32.0
 	golang.org/x/text v0.25.0 // indirect
-	golang.org/x/tools v0.32.0
+	golang.org/x/tools v0.33.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.231.0
-	google.golang.org/grpc v1.72.1
+	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/DataDog/dd-trace-go.v1 v1.73.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -333,7 +333,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-cty v1.5.0 // indirect
+	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7 // indirect
@@ -344,9 +344,9 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hashicorp/hcl/v2 v2.23.0
 	github.com/hashicorp/logutils v1.0.0 // indirect
-	github.com/hashicorp/terraform-plugin-go v0.27.0 // indirect
+	github.com/hashicorp/terraform-plugin-go v0.26.0 // indirect
 	github.com/hashicorp/terraform-plugin-log v0.9.0 // indirect
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.37.0 // indirect
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.36.1 // indirect
 	github.com/hdevalence/ed25519consensus v0.1.0 // indirect
 	github.com/illarion/gonotify v1.0.1 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20231206064809-8c70d406f6d2 // indirect
@@ -485,7 +485,7 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
-	github.com/coder/preview v0.0.2-0.20250516233606-a1da43489319
+	github.com/coder/preview v0.0.2-0.20250520134327-ac391431027d
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.28.0

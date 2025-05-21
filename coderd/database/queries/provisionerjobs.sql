@@ -41,6 +41,18 @@ FROM
 WHERE
 	id = $1;
 
+-- name: GetProvisionerJobByIDForUpdate :one
+-- Gets a single provisioner job by ID for update.
+-- This is used to securely reap jobs that have been hung/pending for a long time.
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+SKIP LOCKED;
+
 -- name: GetProvisionerJobsByIDs :many
 SELECT
 	*
@@ -262,15 +274,40 @@ SET
 WHERE
 	id = $1;
 
--- name: GetHungProvisionerJobs :many
+-- name: UpdateProvisionerJobWithCompleteWithStartedAtByID :exec
+UPDATE
+	provisioner_jobs
+SET
+	updated_at = $2,
+	completed_at = $3,
+	error = $4,
+	error_code = $5,
+	started_at = $6
+WHERE
+	id = $1;
+
+-- name: GetProvisionerJobsToBeReaped :many
 SELECT
 	*
 FROM
 	provisioner_jobs
 WHERE
-	updated_at < $1
-	AND started_at IS NOT NULL
-	AND completed_at IS NULL;
+	(
+		-- If the job has not been started before @pending_since, reap it.
+		updated_at < @pending_since
+		AND started_at IS NULL
+		AND completed_at IS NULL
+	)
+	OR
+	(
+		-- If the job has been started but not completed before @hung_since, reap it.
+		updated_at < @hung_since
+		AND started_at IS NOT NULL
+		AND completed_at IS NULL
+	)
+-- To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
+ORDER BY random()
+LIMIT @max_jobs;
 
 -- name: InsertProvisionerJobTimings :many
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
