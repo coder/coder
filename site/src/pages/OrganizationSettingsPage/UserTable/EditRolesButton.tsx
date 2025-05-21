@@ -175,7 +175,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 				</fieldset>
 				<div className="p-6 border-t-1 border-solid border-border text-sm">
 					<div className="flex gap-4">
-						<UserIcon className="size-icon-sm" />
+						<UserIcon />
 						<div className="flex flex-col">
 							<strong>Member</strong>
 							<span className="text-xs text-content-secondary">

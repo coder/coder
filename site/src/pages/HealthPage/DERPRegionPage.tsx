@@ -8,9 +8,7 @@ import type {
 	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { TagIcon } from "lucide-react";
-import { ChevronLeftIcon } from "lucide-react";
-import { CodeIcon } from "lucide-react";
+import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
@@ -92,7 +90,7 @@ const DERPRegionPage: FC = () => {
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 						<Tooltip title="Region ID">
-							<Pill icon={<TagIcon className="size-icon-sm" />}>
+							<Pill icon={<HashIcon className="size-icon-sm" />}>
 								{region!.RegionID}
 							</Pill>
 						</Tooltip>
