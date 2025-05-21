@@ -535,10 +535,10 @@ export const router = createBrowserRouter(
 					<Route path="/:username/:workspace">
 						<Route index element={<WorkspacePage />} />
 						<Route
-							path="/builds/:buildNumber"
+							path="builds/:buildNumber"
 							element={<WorkspaceBuildPage />}
 						/>
-						<Route path="/settings" element={<WorkspaceSettingsLayout />}>
+						<Route path="settings" element={<WorkspaceSettingsLayout />}>
 							<Route index element={<WorkspaceSettingsPage />} />
 							<Route
 								path="parameters"
