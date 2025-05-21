@@ -97,8 +97,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		agentID, err := uuid.FromBytes(createResp.Id)
 		require.NoError(t, err)
 
-		//nolint:gocritic // this is a test.
-		agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+		agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
 		require.NoError(t, err)
 
 		require.Equal(t, "some-child-agent", agent.Name)
@@ -131,7 +130,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: It is deleted.
-		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
+		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agent.ID) //nolint:gocritic // this is a test.
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
@@ -168,10 +167,10 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: The correct one is deleted.
-		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentOne.ID)
+		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentOne.ID) //nolint:gocritic // this is a test.
 		require.ErrorIs(t, err, sql.ErrNoRows)
 
-		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentTwo.ID)
+		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentTwo.ID) //nolint:gocritic // this is a test.
 		require.NoError(t, err)
 	})
 
@@ -207,7 +206,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		})
 
 		// When: We list the dev container agents.
-		listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+		listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{}) //nolint:gocritic // this is a test.
 		require.NoError(t, err)
 
 		listedAgents := listResp.Agents
