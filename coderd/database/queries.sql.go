@@ -8279,7 +8279,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -8395,10 +8395,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -10160,7 +10160,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
@@ -11161,24 +11161,24 @@ VALUES
 `
 
 type InsertTemplateVersionParameterParams struct {
-	TemplateVersionID   uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	Name                string          `db:"name" json:"name"`
-	Description         string          `db:"description" json:"description"`
-	Type                string          `db:"type" json:"type"`
-	FormType            string          `db:"form_type" json:"form_type"`
-	Mutable             bool            `db:"mutable" json:"mutable"`
-	DefaultValue        string          `db:"default_value" json:"default_value"`
-	Icon                string          `db:"icon" json:"icon"`
-	Options             json.RawMessage `db:"options" json:"options"`
-	ValidationRegex     string          `db:"validation_regex" json:"validation_regex"`
-	ValidationMin       sql.NullInt32   `db:"validation_min" json:"validation_min"`
-	ValidationMax       sql.NullInt32   `db:"validation_max" json:"validation_max"`
-	ValidationError     string          `db:"validation_error" json:"validation_error"`
-	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
-	Required            bool            `db:"required" json:"required"`
-	DisplayName         string          `db:"display_name" json:"display_name"`
-	DisplayOrder        int32           `db:"display_order" json:"display_order"`
-	Ephemeral           bool            `db:"ephemeral" json:"ephemeral"`
+	TemplateVersionID   uuid.UUID         `db:"template_version_id" json:"template_version_id"`
+	Name                string            `db:"name" json:"name"`
+	Description         string            `db:"description" json:"description"`
+	Type                string            `db:"type" json:"type"`
+	FormType            ParameterFormType `db:"form_type" json:"form_type"`
+	Mutable             bool              `db:"mutable" json:"mutable"`
+	DefaultValue        string            `db:"default_value" json:"default_value"`
+	Icon                string            `db:"icon" json:"icon"`
+	Options             json.RawMessage   `db:"options" json:"options"`
+	ValidationRegex     string            `db:"validation_regex" json:"validation_regex"`
+	ValidationMin       sql.NullInt32     `db:"validation_min" json:"validation_min"`
+	ValidationMax       sql.NullInt32     `db:"validation_max" json:"validation_max"`
+	ValidationError     string            `db:"validation_error" json:"validation_error"`
+	ValidationMonotonic string            `db:"validation_monotonic" json:"validation_monotonic"`
+	Required            bool              `db:"required" json:"required"`
+	DisplayName         string            `db:"display_name" json:"display_name"`
+	DisplayOrder        int32             `db:"display_order" json:"display_order"`
+	Ephemeral           bool              `db:"ephemeral" json:"ephemeral"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -12035,14 +12035,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN 
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
+    FOR table_record IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
-                    table_record.table_schema, 
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
+                    table_record.table_schema,
                     table_record.table_name);
     END LOOP;
 END;
@@ -15501,7 +15501,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

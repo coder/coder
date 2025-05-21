@@ -1108,6 +1108,89 @@ func AllParameterDestinationSchemeValues() []ParameterDestinationScheme {
 	}
 }
 
+// Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. Always include the empty string for using the default form type.
+type ParameterFormType string
+
+const (
+	ParameterFormTypeValue0      ParameterFormType = ""
+	ParameterFormTypeRadio       ParameterFormType = "radio"
+	ParameterFormTypeDropdown    ParameterFormType = "dropdown"
+	ParameterFormTypeInput       ParameterFormType = "input"
+	ParameterFormTypeTextarea    ParameterFormType = "textarea"
+	ParameterFormTypeSlider      ParameterFormType = "slider"
+	ParameterFormTypeCheckbox    ParameterFormType = "checkbox"
+	ParameterFormTypeSwitch      ParameterFormType = "switch"
+	ParameterFormTypeTagSelect   ParameterFormType = "tag-select"
+	ParameterFormTypeMultiSelect ParameterFormType = "multi-select"
+)
+
+func (e *ParameterFormType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParameterFormType(s)
+	case string:
+		*e = ParameterFormType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParameterFormType: %T", src)
+	}
+	return nil
+}
+
+type NullParameterFormType struct {
+	ParameterFormType ParameterFormType `json:"parameter_form_type"`
+	Valid             bool              `json:"valid"` // Valid is true if ParameterFormType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullParameterFormType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ParameterFormType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ParameterFormType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullParameterFormType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ParameterFormType), nil
+}
+
+func (e ParameterFormType) Valid() bool {
+	switch e {
+	case ParameterFormTypeValue0,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect:
+		return true
+	}
+	return false
+}
+
+func AllParameterFormTypeValues() []ParameterFormType {
+	return []ParameterFormType{
+		ParameterFormTypeValue0,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect,
+	}
+}
+
 type ParameterScope string
 
 const (
@@ -3246,7 +3329,7 @@ type TemplateVersionParameter struct {
 	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 	// Specify what form_type should be used to render the parameter in the UI. This value should correspond to an enum, but this will not be enforced in the sql. Mistakes here should not be fatal for functional usage.
-	FormType string `db:"form_type" json:"form_type"`
+	FormType ParameterFormType `db:"form_type" json:"form_type"`
 }
 
 type TemplateVersionPreset struct {
