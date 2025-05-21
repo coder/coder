@@ -2503,10 +2503,10 @@ func (q *FakeQuerier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID
 	defer q.mutex.Unlock()
 
 	for i, agent := range q.workspaceAgents {
-		if agent.ID != id {
-			continue
+		if agent.ID == id {
+			q.workspaceAgents = append(q.workspaceAgents[:i], q.workspaceAgents[i+1:]...)
+			return nil
 		}
-		q.workspaceAgents = append(q.workspaceAgents[:i], q.workspaceAgents[i+1:]...)
 	}
 
 	return nil
