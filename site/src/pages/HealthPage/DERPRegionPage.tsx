@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
@@ -9,8 +8,7 @@ import type {
 	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { ChevronLeftIcon } from "lucide-react";
-import { CodeIcon } from "lucide-react";
+import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
@@ -92,7 +90,9 @@ const DERPRegionPage: FC = () => {
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 						<Tooltip title="Region ID">
-							<Pill icon={<TagOutlined />}>{region!.RegionID}</Pill>
+							<Pill icon={<HashIcon className="size-icon-sm" />}>
+								{region!.RegionID}
+							</Pill>
 						</Tooltip>
 						<Tooltip title="Region Code">
 							<Pill icon={<CodeIcon className="size-icon-sm" />}>

@@ -11998,6 +11998,10 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
+                "enable_dynamic_parameters": {
+                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
+                    "type": "boolean"
+                },
                 "log_level": {
                     "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
                     "enum": [
@@ -14322,6 +14326,10 @@ const docTemplate = `{
         "codersdk.PrebuildsConfig": {
             "type": "object",
             "properties": {
+                "failure_hard_limit": {
+                    "description": "FailureHardLimit defines the maximum number of consecutive failed prebuild attempts allowed\nbefore a preset is considered to be in a hard limit state. When a preset hits this limit,\nno new prebuilds will be created until the limit is reset.\nFailureHardLimit is disabled when set to zero.",
+                    "type": "integer"
+                },
                 "reconciliation_backoff_interval": {
                     "description": "ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval\nwhen errors occur during reconciliation.",
                     "type": "integer"
@@ -14897,7 +14905,9 @@ const docTemplate = `{
                 "application_connect",
                 "assign",
                 "create",
+                "create_agent",
                 "delete",
+                "delete_agent",
                 "read",
                 "read_personal",
                 "ssh",
@@ -14913,7 +14923,9 @@ const docTemplate = `{
                 "ActionApplicationConnect",
                 "ActionAssign",
                 "ActionCreate",
+                "ActionCreateAgent",
                 "ActionDelete",
+                "ActionDeleteAgent",
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",

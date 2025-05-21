@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	insecurerand "math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to reap
 	"reflect"
 	"regexp"
 	"slices"
@@ -3707,23 +3708,6 @@ func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
 	return string(q.healthSettings), nil
 }
 
-func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	hungJobs := []database.ProvisionerJob{}
-	for _, provisionerJob := range q.provisionerJobs {
-		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
-			// clone the Tags before appending, since maps are reference types and
-			// we don't want the caller to be able to mutate the map we have inside
-			// dbmem!
-			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
-			hungJobs = append(hungJobs, provisionerJob)
-		}
-	}
-	return hungJobs, nil
-}
-
 func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4303,6 +4287,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 				CreatedAt:           preset.CreatedAt,
 				DesiredInstances:    preset.DesiredInstances,
 				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				PrebuildStatus:      preset.PrebuildStatus,
 				TemplateID:          tv.TemplateID,
 				OrganizationID:      tv.OrganizationID,
 			}, nil
@@ -4366,6 +4351,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
@@ -4642,6 +4631,13 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return q.getProvisionerJobByIDNoLock(ctx, id)
 }
 
+func (q *FakeQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
 func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4882,6 +4878,33 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 		}
 	}
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerJobsToBeReaped(_ context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	maxJobs := arg.MaxJobs
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if !provisionerJob.CompletedAt.Valid {
+			if (provisionerJob.StartedAt.Valid && provisionerJob.UpdatedAt.Before(arg.HungSince)) ||
+				(!provisionerJob.StartedAt.Valid && provisionerJob.UpdatedAt.Before(arg.PendingSince)) {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
+				hungJobs = append(hungJobs, provisionerJob)
+				if len(hungJobs) >= int(maxJobs) {
+					break
+				}
+			}
+		}
+	}
+	insecurerand.Shuffle(len(hungJobs), func(i, j int) {
+		hungJobs[i], hungJobs[j] = hungJobs[j], hungJobs[i]
+	})
+	return hungJobs, nil
 }
 
 func (q *FakeQuerier) GetProvisionerKeyByHashedSecret(_ context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -8035,6 +8058,33 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, resource := range q.workspaceResources {
+		if resource.ID != resourceID {
+			continue
+		}
+
+		for _, build := range q.workspaceBuilds {
+			if build.JobID != resource.JobID {
+				continue
+			}
+
+			for _, workspace := range q.workspaces {
+				if workspace.ID != build.WorkspaceID {
+					continue
+				}
+
+				return q.extendWorkspace(workspace), nil
+			}
+		}
+	}
+
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	if err := validateDatabaseType(workspaceAppID); err != nil {
 		return database.Workspace{}, err
@@ -9044,6 +9094,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Int32: 0,
 			Valid: true,
 		},
+		PrebuildStatus: database.PrebuildStatusHealthy,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -10872,6 +10923,25 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, preset := range q.presets {
+		if preset.ID == arg.PresetID {
+			preset.PrebuildStatus = arg.Status
+			return nil
+		}
+	}
+
+	return xerrors.Errorf("preset %v does not exist", arg.PresetID)
+}
+
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10951,6 +11021,30 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
+		job.JobStatus = provisionerJobStatus(job)
+		q.provisionerJobs[index] = job
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateProvisionerJobWithCompleteWithStartedAtByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, job := range q.provisionerJobs {
+		if arg.ID != job.ID {
+			continue
+		}
+		job.UpdatedAt = arg.UpdatedAt
+		job.CompletedAt = arg.CompletedAt
+		job.Error = arg.Error
+		job.ErrorCode = arg.ErrorCode
+		job.StartedAt = arg.StartedAt
 		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil

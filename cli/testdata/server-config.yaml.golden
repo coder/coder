@@ -183,7 +183,7 @@ networking:
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
-# Interval to poll for hung jobs and automatically terminate them.
+# Interval to poll for hung and pending jobs and automatically terminate them.
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
 introspection:
@@ -704,3 +704,7 @@ workspace_prebuilds:
   # backoff.
   # (default: 1h0m0s, type: duration)
   reconciliation_backoff_lookback_period: 1h0m0s
+  # Maximum number of consecutive failed prebuilds before a preset hits the hard
+  # limit; disabled when set to zero.
+  # (default: 3, type: int)
+  failure_hard_limit: 3

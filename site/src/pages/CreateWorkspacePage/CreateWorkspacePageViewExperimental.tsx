@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { PreviewDiagnostics, PreviewParameter } from "api/typesGenerated";
+import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -20,6 +20,7 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -51,7 +52,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
-	diagnostics: PreviewDiagnostics;
+	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
@@ -489,6 +490,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</section>
 					)}
 
+					{parameters.length === 0 && diagnostics.length > 0 && (
+						<Diagnostics diagnostics={diagnostics} />
+					)}
+
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-9">
 							<hgroup>
@@ -652,52 +657,3 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 		</div>
 	);
 };
-
-type UseSyncFormParametersProps = {
-	parameters: readonly PreviewParameter[];
-	formValues: readonly TypesGen.WorkspaceBuildParameter[];
-	setFieldValue: (
-		field: string,
-		value: TypesGen.WorkspaceBuildParameter[],
-	) => void;
-};
-
-function useSyncFormParameters({
-	parameters,
-	formValues,
-	setFieldValue,
-}: UseSyncFormParametersProps) {
-	// Form values only needs to be updated when parameters change
-	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
-	const formValuesRef = useRef(formValues);
-
-	useEffect(() => {
-		formValuesRef.current = formValues;
-	}, [formValues]);
-
-	useEffect(() => {
-		if (!parameters) return;
-		const currentFormValues = formValuesRef.current;
-
-		const newParameterValues = parameters.map((param) => {
-			return {
-				name: param.name,
-				value: param.value.valid ? param.value.value : "",
-			};
-		});
-
-		const isChanged =
-			currentFormValues.length !== newParameterValues.length ||
-			newParameterValues.some(
-				(p) =>
-					!currentFormValues.find(
-						(formValue) =>
-							formValue.name === p.name && formValue.value === p.value,
-					),
-			);
-
-		if (isChanged) {
-			setFieldValue("rich_parameter_values", newParameterValues);
-		}
-	}, [parameters, setFieldValue]);
-}

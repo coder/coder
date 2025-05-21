@@ -13,7 +13,9 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -51,9 +53,11 @@ type Builder struct {
 	state            stateTarget
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
+	experiments      codersdk.Experiments
 
-	richParameterValues      []codersdk.WorkspaceBuildParameter
-	dynamicParametersEnabled bool
+	richParameterValues []codersdk.WorkspaceBuildParameter
+	// dynamicParametersEnabled is non-nil if set externally
+	dynamicParametersEnabled *bool
 	initiator                uuid.UUID
 	reason                   database.BuildReason
 	templateVersionPresetID  uuid.UUID
@@ -66,6 +70,7 @@ type Builder struct {
 	template                             *database.Template
 	templateVersion                      *database.TemplateVersion
 	templateVersionJob                   *database.ProvisionerJob
+	terraformValues                      *database.TemplateVersionTerraformValue
 	templateVersionParameters            *[]database.TemplateVersionParameter
 	templateVersionVariables             *[]database.TemplateVersionVariable
 	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
@@ -155,6 +160,14 @@ func (b Builder) DeploymentValues(dv *codersdk.DeploymentValues) Builder {
 	return b
 }
 
+func (b Builder) Experiments(exp codersdk.Experiments) Builder {
+	// nolint: revive
+	cpy := make(codersdk.Experiments, len(exp))
+	copy(cpy, exp)
+	b.experiments = cpy
+	return b
+}
+
 func (b Builder) Initiator(u uuid.UUID) Builder {
 	// nolint: revive
 	b.initiator = u
@@ -187,8 +200,9 @@ func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	return b
 }
 
-func (b Builder) UsingDynamicParameters() Builder {
-	b.dynamicParametersEnabled = true
+func (b Builder) DynamicParameters(using bool) Builder {
+	// nolint: revive
+	b.dynamicParametersEnabled = ptr.Ref(using)
 	return b
 }
 
@@ -516,6 +530,22 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 	return bld.TemplateVersionID, nil
 }
 
+func (b *Builder) getTemplateTerraformValues() (*database.TemplateVersionTerraformValue, error) {
+	if b.terraformValues != nil {
+		return b.terraformValues, nil
+	}
+	v, err := b.getTemplateVersion()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version so we can get terraform values: %w", err)
+	}
+	vals, err := b.store.GetTemplateVersionTerraformValues(b.ctx, v.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template version terraform values %s: %w", v.JobID, err)
+	}
+	b.terraformValues = &vals
+	return b.terraformValues, err
+}
+
 func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
 	if b.lastBuild != nil {
 		return b.lastBuild, nil
@@ -593,9 +623,10 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 
-	if b.dynamicParametersEnabled {
-		// Dynamic parameters skip all parameter validation.
-		// Pass the user's input as is.
+	// Dynamic parameters skip all parameter validation.
+	// Deleting a workspace also should skip parameter validation.
+	// Pass the user's input as is.
+	if b.usingDynamicParameters() {
 		// TODO: The previous behavior was only to pass param values
 		//  for parameters that exist. Since dynamic params can have
 		//  conditional parameter existence, the static frame of reference
@@ -988,4 +1019,37 @@ func (b *Builder) checkRunningBuild() error {
 		}
 	}
 	return nil
+}
+
+func (b *Builder) usingDynamicParameters() bool {
+	if !b.experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+		// Experiment required
+		return false
+	}
+
+	vals, err := b.getTemplateTerraformValues()
+	if err != nil {
+		return false
+	}
+
+	if !ProvisionerVersionSupportsDynamicParameters(vals.ProvisionerdVersion) {
+		return false
+	}
+
+	if b.dynamicParametersEnabled != nil {
+		return *b.dynamicParametersEnabled
+	}
+
+	tpl, err := b.getTemplate()
+	if err != nil {
+		return false // Let another part of the code get this error
+	}
+	return !tpl.UseClassicParameterFlow
+}
+
+func ProvisionerVersionSupportsDynamicParameters(version string) bool {
+	major, minor, err := apiversion.Parse(version)
+	// If the api version is not valid or less than 1.6, we need to use the static parameters
+	useStaticParams := err != nil || major < 1 || (major == 1 && minor < 6)
+	return !useStaticParams
 }

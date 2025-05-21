@@ -839,6 +839,32 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 	req.NoError(err)
 }
 
+func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
+	t.Parallel()
+
+	for v, dyn := range map[string]bool{
+		"":     false,
+		"na":   false,
+		"0.0":  false,
+		"0.10": false,
+		"1.4":  false,
+		"1.5":  false,
+		"1.6":  true,
+		"1.7":  true,
+		"1.8":  true,
+		"2.0":  true,
+		"2.17": true,
+		"4.0":  true,
+	} {
+		t.Run(v, func(t *testing.T) {
+			t.Parallel()
+
+			does := wsbuilder.ProvisionerVersionSupportsDynamicParameters(v)
+			require.Equal(t, dyn, does)
+		})
+	}
+}
+
 type txExpect func(mTx *dbmock.MockStore)
 
 func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
