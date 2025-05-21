@@ -1426,6 +1426,67 @@ func AllPortShareProtocolValues() []PortShareProtocol {
 	}
 }
 
+type PrebuildStatus string
+
+const (
+	PrebuildStatusHealthy          PrebuildStatus = "healthy"
+	PrebuildStatusHardLimited      PrebuildStatus = "hard_limited"
+	PrebuildStatusValidationFailed PrebuildStatus = "validation_failed"
+)
+
+func (e *PrebuildStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PrebuildStatus(s)
+	case string:
+		*e = PrebuildStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PrebuildStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPrebuildStatus struct {
+	PrebuildStatus PrebuildStatus `json:"prebuild_status"`
+	Valid          bool           `json:"valid"` // Valid is true if PrebuildStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPrebuildStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PrebuildStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PrebuildStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPrebuildStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PrebuildStatus), nil
+}
+
+func (e PrebuildStatus) Valid() bool {
+	switch e {
+	case PrebuildStatusHealthy,
+		PrebuildStatusHardLimited,
+		PrebuildStatusValidationFailed:
+		return true
+	}
+	return false
+}
+
+func AllPrebuildStatusValues() []PrebuildStatus {
+	return []PrebuildStatus{
+		PrebuildStatusHealthy,
+		PrebuildStatusHardLimited,
+		PrebuildStatusValidationFailed,
+	}
+}
+
 // The status of a provisioner daemon.
 type ProvisionerDaemonStatus string
 
@@ -3333,12 +3394,13 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	Name                string        `db:"name" json:"name"`
-	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                string         `db:"name" json:"name"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 }
 
 type TemplateVersionPresetParameter struct {

@@ -168,6 +168,12 @@ CREATE TYPE port_share_protocol AS ENUM (
     'https'
 );
 
+CREATE TYPE prebuild_status AS ENUM (
+    'healthy',
+    'hard_limited',
+    'validation_failed'
+);
+
 CREATE TYPE provisioner_daemon_status AS ENUM (
     'offline',
     'idle',
@@ -1457,7 +1463,8 @@ CREATE TABLE template_version_presets (
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desired_instances integer,
-    invalidate_after_secs integer DEFAULT 0
+    invalidate_after_secs integer DEFAULT 0,
+    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (

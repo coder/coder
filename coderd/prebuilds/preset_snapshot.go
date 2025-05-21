@@ -32,10 +32,11 @@ const (
 // It contains the raw data needed to calculate the current state of a preset's prebuilds,
 // including running prebuilds, in-progress builds, and backoff information.
 type PresetSnapshot struct {
-	Preset     database.GetTemplatePresetsWithPrebuildsRow
-	Running    []database.GetRunningPrebuiltWorkspacesRow
-	InProgress []database.CountInProgressPrebuildsRow
-	Backoff    *database.GetPresetsBackoffRow
+	Preset        database.GetTemplatePresetsWithPrebuildsRow
+	Running       []database.GetRunningPrebuiltWorkspacesRow
+	InProgress    []database.CountInProgressPrebuildsRow
+	Backoff       *database.GetPresetsBackoffRow
+	IsHardLimited bool
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,

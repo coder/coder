@@ -4287,6 +4287,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 				CreatedAt:           preset.CreatedAt,
 				DesiredInstances:    preset.DesiredInstances,
 				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				PrebuildStatus:      preset.PrebuildStatus,
 				TemplateID:          tv.TemplateID,
 				OrganizationID:      tv.OrganizationID,
 			}, nil
@@ -4350,6 +4351,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
@@ -9089,6 +9094,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Int32: 0,
 			Valid: true,
 		},
+		PrebuildStatus: database.PrebuildStatusHealthy,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -10916,6 +10922,25 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, preset := range q.presets {
+		if preset.ID == arg.PresetID {
+			preset.PrebuildStatus = arg.Status
+			return nil
+		}
+	}
+
+	return xerrors.Errorf("preset %v does not exist", arg.PresetID)
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
