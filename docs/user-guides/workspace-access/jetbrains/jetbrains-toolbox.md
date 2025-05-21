@@ -2,18 +2,16 @@
 
 JetBrains Toolbox helps you manage JetBrains products and includes remote development capabilities for connecting to Coder workspaces.
 
-## Before you begin
-
-- Install [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) version 2.6.0.40284 or later
-- Ensure your Coder workspace [has the necessary IDE backends installed](../../../admin/templates/extending-templates/jetbrains-gateway.md)
-
 ## Install the Coder plugin for Toolbox
+
+1. Install [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) version 2.6.0.40632 or later.
 
 1. Open Toolbox and navigate to the **Remote Development** section.
 1. Install the Coder plugin using one of these methods:
    - Search for `Coder` in the **Remote Development** plugins section.
    - Use this URI to install directly: `jetbrains://gateway/com.coder.toolbox`.
    - Download from [JetBrains Marketplace](https://plugins.jetbrains.com/).
+   - Download from [GitHub Releases](https://github.com/coder/coder-jetbrains-toolbox/releases).
 
 ## Use URI parameters
 
@@ -40,26 +38,9 @@ For more details, see the [coder-jetbrains-toolbox repository](https://github.co
 
 ## Configure internal certificates
 
-When connecting to a Coder deployment with internal certificates, follow the same procedure described in the [JetBrains Gateway](./index.md#configuring-the-gateway-plugin-to-use-internal-certificates) section above, but use the Toolbox installation paths:
+To connect to a Coder deployment that uses internal certificates, configure the certificates directly in JetBrains Toolbox:
 
-<div class="tabs">
-
-### Linux
-
-```shell
-keytool -import -alias coder -file <path-to-certificate> -keystore "<toolbox-installation>/jbr/lib/security/cacerts"
-```
-
-### macOS
-
-```shell
-keytool -import -alias coder -file <path-to-certificate> -keystore "$HOME/Library/Application Support/JetBrains/Toolbox/jbr/Contents/Home/lib/security/cacerts"
-```
-
-### Windows
-
-```shell
-keytool -import -alias coder -file <path-to-certificate> -keystore "%USERPROFILE%\AppData\Local\JetBrains\Toolbox\jbr\lib\security\cacerts"
-```
-
-</div>
+1. Click the settings icon (⚙) in the lower left corner of JetBrains Toolbox.
+1. Select **Settings**.
+1. Go to the **Coder** section.
+1. Add your certificate path in the **CA Path** field.
