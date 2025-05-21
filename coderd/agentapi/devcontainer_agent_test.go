@@ -79,34 +79,77 @@ func devContainerAgentAPI(t *testing.T, log slog.Logger) (*agentapi.DevContainer
 func TestDevContainerAgentAPI(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CanCreateDevContainerAgent", func(t *testing.T) {
+	t.Run("CreateDevContainerAgent", func(t *testing.T) {
 		t.Parallel()
 
-		log := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		api, _ := devContainerAgentAPI(t, log)
+		tests := []struct {
+			name      string
+			agentName string
+			agentDir  string
+			agentArch string
+			agentOS   string
+			shouldErr bool
+		}{
+			{
+				name:      "Ok",
+				agentName: "some-child-agent",
+				agentDir:  "/workspaces/wibble",
+				agentArch: "amd64",
+				agentOS:   "linux",
+			},
+			{
+				name:      "NameWithUnderscore",
+				agentName: "some_child_agent",
+				agentDir:  "/workspaces/wibble",
+				agentArch: "amd64",
+				agentOS:   "linux",
+				shouldErr: true,
+			},
+			{
+				name:      "EmptyName",
+				agentName: "",
+				agentDir:  "/workspaces/wibble",
+				agentArch: "amd64",
+				agentOS:   "linux",
+				shouldErr: true,
+			},
+		}
 
-		createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
-			Name:            "some-child-agent",
-			Directory:       "/workspaces/wibble",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-		})
-		require.NoError(t, err)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-		agentID, err := uuid.FromBytes(createResp.Id)
-		require.NoError(t, err)
+				log := testutil.Logger(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				api, _ := devContainerAgentAPI(t, log)
 
-		agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
-		require.NoError(t, err)
+				createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
+					Name:            tt.agentName,
+					Directory:       tt.agentDir,
+					Architecture:    tt.agentArch,
+					OperatingSystem: tt.agentOS,
+				})
+				if tt.shouldErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
 
-		require.Equal(t, "some-child-agent", agent.Name)
-		require.Equal(t, "/workspaces/wibble", agent.Directory)
-		require.Equal(t, "amd64", agent.Architecture)
-		require.Equal(t, "linux", agent.OperatingSystem)
+					agentID, err := uuid.FromBytes(createResp.Id)
+					require.NoError(t, err)
+
+					agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+					require.NoError(t, err)
+
+					require.Equal(t, tt.agentName, agent.Name)
+					require.Equal(t, tt.agentDir, agent.Directory)
+					require.Equal(t, tt.agentArch, agent.Architecture)
+					require.Equal(t, tt.agentOS, agent.OperatingSystem)
+				}
+			})
+		}
 	})
 
-	t.Run("CanDeleteDevContainerAgent", func(t *testing.T) {
+	t.Run("DeleteDevContainerAgent", func(t *testing.T) {
 		t.Parallel()
 
 		log := testutil.Logger(t)
@@ -134,7 +177,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
-	t.Run("CanDeleteOneDevContainerAgentOfMany", func(t *testing.T) {
+	t.Run("DeleteOneDevContainerAgentOfMany", func(t *testing.T) {
 		t.Parallel()
 
 		log := testutil.Logger(t)
@@ -174,7 +217,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("CanListDevContainerAgents", func(t *testing.T) {
+	t.Run("ListDevContainerAgents", func(t *testing.T) {
 		t.Parallel()
 
 		log := testutil.Logger(t)

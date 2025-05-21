@@ -2,7 +2,6 @@ package agentapi
 
 import (
 	"context"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -12,6 +11,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 )
 
@@ -33,9 +33,16 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 		return nil, xerrors.Errorf("get parent agent: %w", err)
 	}
 
-	// TODO(DanielleMaywood):
-	// Validate this agent name
-	agentName := strings.ToLower(req.Name)
+	// NOTE(DanielleMaywood):
+	// This allows duplicate agent names to make it through.
+	// It would be nice if this was enforced at the database level.
+	agentName := req.Name
+	if agentName == "" {
+		return nil, xerrors.Errorf("agent name cannot be empty")
+	}
+	if !provisioner.AgentNameRegex.MatchString(agentName) {
+		return nil, xerrors.Errorf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex.String())
+	}
 
 	devContainerAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
