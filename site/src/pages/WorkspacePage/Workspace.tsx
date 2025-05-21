@@ -240,150 +240,88 @@ export const Workspace: FC<WorkspaceProps> = ({
 						<WorkspaceBuildLogsSection logs={buildLogs} />
 					)}
 
-					{/* Container for Agent Rows + Activity Sidebar */}
 					{selectedResource && (
-						<div css={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
-							{/* Left Side: Agent Rows */}
-							<section
-								css={{
-									display: "flex",
-									flexDirection: "column",
-									gap: 24,
-									flexGrow: 1,
-									minWidth: 0 /* Prevent overflow */,
-								}}
-							>
-								{selectedResource.agents
-									// If an agent has a `parent_id`, that means it is
-									// child of another agent. We do not want these agents
-									// to be displayed at the top-level on this page. We
-									// want them to display _as children_ of their parents.
-									?.filter((agent) => agent.parent_id === null)
-									.map((agent) => (
-										<AgentRow
-											key={agent.id}
-											agent={agent}
-											workspace={workspace}
-											template={template}
-											sshPrefix={sshPrefix}
-											showApps={permissions.updateWorkspace}
-											showBuiltinApps={permissions.updateWorkspace}
-											hideSSHButton={hideSSHButton}
-											hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-											serverVersion={buildInfo?.version || ""}
-											serverAPIVersion={buildInfo?.agent_api_version || ""}
-											onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-										/>
-									))}
+						<section
+							css={{
+								display: "flex",
+								flexDirection: "column",
+								gap: 24,
+								flexGrow: 1,
+								minWidth: 0 /* Prevent overflow */,
+							}}
+						>
+							{selectedResource.agents
+								// If an agent has a `parent_id`, that means it is
+								// child of another agent. We do not want these agents
+								// to be displayed at the top-level on this page. We
+								// want them to display _as children_ of their parents.
+								?.filter((agent) => agent.parent_id === null)
+								.map((agent) => (
+									<AgentRow
+										key={agent.id}
+										agent={agent}
+										workspace={workspace}
+										template={template}
+										sshPrefix={sshPrefix}
+										showApps={permissions.updateWorkspace}
+										showBuiltinApps={permissions.updateWorkspace}
+										hideSSHButton={hideSSHButton}
+										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+										serverVersion={buildInfo?.version || ""}
+										serverAPIVersion={buildInfo?.agent_api_version || ""}
+										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+									/>
+								))}
 
-								{(!selectedResource.agents ||
-									selectedResource.agents?.length === 0) && (
-									<div
-										css={{
-											display: "flex",
-											justifyContent: "center",
-											alignItems: "center",
-											width: "100%",
-											height: "100%",
-										}}
-									>
-										<div>
-											<h4 css={{ fontSize: 16, fontWeight: 500 }}>
-												No agents are currently assigned to this resource.
-											</h4>
-										</div>
-									</div>
-								)}
-							</section>
-
-							{/* Right Side: Activity Box */}
-							{hasAppStatus && (
+							{(!selectedResource.agents ||
+								selectedResource.agents?.length === 0) && (
 								<div
 									css={{
-										// Mimic AgentRow styling but with subtler border
-										border: `1px solid ${theme.palette.divider}`, // Use divider color
-										borderRadius: "8px",
-										boxShadow: theme.shadows[3],
-										width: 360,
-										flexShrink: 0,
-										backgroundColor: theme.palette.background.default, // Add background color
-										overflow: "hidden",
+										display: "flex",
+										justifyContent: "center",
+										alignItems: "center",
+										width: "100%",
+										height: "100%",
 									}}
 								>
-									{/* Activity Header */}
-									<div
-										css={{
-											display: "flex",
-											justifyContent: "space-between",
-											alignItems: "center",
-											backgroundColor: theme.palette.background.paper,
-											paddingLeft: 16,
-											paddingRight: 16,
-											paddingTop: 12,
-											paddingBottom: 12,
-											borderBottom: `1px solid ${theme.palette.divider}`, // Add separator
-										}}
-									>
-										<div
-											css={{
-												fontWeight: 500,
-												fontSize: 14,
-											}}
-										>
-											Activity
-										</div>
-										<div
-											css={{
-												fontSize: 12,
-												color: theme.palette.text.secondary,
-											}}
-										>
-											{
-												// Calculate total status count
-												selectedResource.agents
-													?.flatMap((agent) => agent.apps ?? [])
-													.reduce(
-														(count, app) => count + (app.statuses?.length ?? 0),
-														0,
-													)
-											}{" "}
-											Total
-										</div>
-									</div>
-
-									<div
-										css={{
-											maxHeight: 800,
-											overflowY: "auto",
-											// Thin scrollbar styles
-											"&::-webkit-scrollbar": {
-												width: "6px",
-											},
-											"&::-webkit-scrollbar-track": {
-												background: theme.palette.background.paper, // Match header background
-											},
-											"&::-webkit-scrollbar-thumb": {
-												backgroundColor: theme.palette.divider, // Use divider color
-												borderRadius: "3px",
-											},
-											"&::-webkit-scrollbar-thumb:hover": {
-												backgroundColor: theme.palette.text.secondary, // Darken on hover
-											},
-										}}
-									>
-										<AppStatuses
-											apps={
-												selectedResource.agents?.flatMap(
-													(agent) => agent.apps ?? [],
-												) as WorkspaceApp[]
-											}
-											workspace={workspace}
-											agents={selectedResource.agents || []}
-										/>
+									<div>
+										<h4 css={{ fontSize: 16, fontWeight: 500 }}>
+											No agents are currently assigned to this resource.
+										</h4>
 									</div>
 								</div>
 							)}
-						</div>
+						</section>
+					)}
+
+					{selectedResource && hasAppStatus && (
+						<section className="border border-solid border-border rounded-lg bg-surface-primary">
+							<header className="p-4 border-0 border-b border-border border-solid flex items-center justify-between">
+								<h3 className="m-0 text-sm font-medium">Activity</h3>
+								<div className="text-content-secondary text-xs">
+									{
+										// Calculate total status count
+										selectedResource.agents
+											?.flatMap((agent) => agent.apps ?? [])
+											.reduce(
+												(count, app) => count + (app.statuses?.length ?? 0),
+												0,
+											)
+									}{" "}
+									Total
+								</div>
+							</header>
+
+							<AppStatuses
+								apps={
+									selectedResource.agents?.flatMap(
+										(agent) => agent.apps ?? [],
+									) as WorkspaceApp[]
+								}
+								workspace={workspace}
+								agents={selectedResource.agents || []}
+							/>
+						</section>
 					)}
 
 					<WorkspaceTimings

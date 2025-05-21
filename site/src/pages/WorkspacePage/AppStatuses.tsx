@@ -1,101 +1,64 @@
-import type { Theme } from "@emotion/react";
-import { useTheme } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { formatDistance, formatDistanceToNow } from "date-fns";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
-	CircleHelpIcon,
 	ExternalLinkIcon,
 	FileIcon,
 	HourglassIcon,
-	LayoutGridIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 
-const getStatusColor = (
-	theme: Theme,
-	state: APIWorkspaceAppStatus["state"],
-) => {
+const getStatusColor = (state: APIWorkspaceAppStatus["state"]) => {
 	switch (state) {
 		case "complete":
-			return theme.palette.success.main;
+			return "text-content-success";
 		case "failure":
-			return theme.palette.error.main;
+			return "text-content-warning";
 		case "working":
-			return theme.palette.primary.main;
+			return "text-highlight-sky";
 		default:
-			// Assuming unknown state maps to warning/secondary visually
-			return theme.palette.text.secondary;
+			return "text-content-secondary";
 	}
 };
 
 const getStatusIcon = (
-	theme: Theme,
 	state: APIWorkspaceAppStatus["state"],
 	isLatest: boolean,
 ) => {
-	// Determine color: Use state color if latest, otherwise use disabled text color (grey)
-	const color = isLatest
-		? getStatusColor(theme, state)
-		: theme.palette.text.disabled;
+	const className = cn(["size-[18px]", getStatusColor(state)]);
+
 	switch (state) {
 		case "complete":
-			return <CircleCheckIcon className="size-icon-sm" style={{ color }} />;
+			return <CircleCheckIcon className={className} />;
 		case "failure":
-			return <CircleAlertIcon className="size-icon-sm" style={{ color }} />;
+			return <CircleAlertIcon className={className} />;
 		case "working":
-			// Use Hourglass for past "working" states, spinner for the current one
 			return isLatest ? (
-				<CircularProgress size={18} sx={{ color }} />
+				<Spinner size="sm" loading />
 			) : (
-				<HourglassIcon className="size-icon-sm" style={{ color }} />
+				<HourglassIcon className={className} />
 			);
 		default:
-			return <TriangleAlertIcon className="size-icon-sm" style={{ color }} />;
+			return <TriangleAlertIcon className={className} />;
 	}
-};
-
-const commonStyles = {
-	fontSize: "12px",
-	lineHeight: "15px",
-	color: "text.disabled",
-	display: "inline-flex",
-	alignItems: "center",
-	gap: 0.5,
-	px: 0.75,
-	py: 0.25,
-	borderRadius: "6px",
-	bgcolor: "transparent",
-	minWidth: 0,
-	maxWidth: "fit-content",
-	overflow: "hidden",
-	textOverflow: "ellipsis",
-	whiteSpace: "nowrap",
-	textDecoration: "none",
-	transition: "all 0.15s ease-in-out",
-	"&:hover": {
-		textDecoration: "none",
-		bgcolor: "action.hover",
-		color: "text.secondary",
-	},
-	"& .MuiSvgIcon-root": {
-		// Consistent icon styling within links
-		fontSize: 11,
-		opacity: 0.7,
-		mt: "-1px", // Slight vertical alignment adjustment
-		flexShrink: 0,
-	},
 };
 
 const formatURI = (uri: string) => {
@@ -153,8 +116,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	agents,
 	referenceDate,
 }) => {
-	const theme = useTheme();
-
 	// 1. Flatten all statuses and include the parent app object
 	const allStatuses: StatusWithAppInfo[] = apps.flatMap((app) =>
 		app.statuses.map((status) => ({
@@ -178,9 +139,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	}
 
 	return (
-		<div
-			css={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}
-		>
+		<div className="flex flex-col">
 			{allStatuses.map((status, index) => {
 				const isLatest = index === 0;
 				const isFileURI = status.uri?.startsWith("file://");
@@ -202,71 +161,23 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 				return (
 					<div
 						key={status.id}
-						css={{
-							display: "flex",
-							alignItems: "flex-start", // Align icon with the first line of text
-							gap: 12,
-							backgroundColor: theme.palette.background.paper,
-							borderRadius: 8,
-							padding: 12,
-							opacity: isLatest ? 1 : 0.65, // Apply opacity if not the latest
-							transition: "opacity 0.15s ease-in-out", // Add smooth transition
-							"&:hover": {
-								opacity: 1, // Restore opacity on hover for older items
-							},
-						}}
+						className={`
+							flex items-center justify-between px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid border-border
+							${isLatest ? "" : "opacity-50 hover:opacity-100"}
+						`}
 					>
-						{/* Icon Column */}
-						<div
-							css={{
-								flexShrink: 0,
-								marginTop: 2,
-								display: "flex",
-								alignItems: "center",
-							}}
-						>
-							{getStatusIcon(theme, status.state, isLatest) || (
-								<CircleHelpIcon
-									className="size-icon-sm"
-									css={{ color: theme.palette.text.disabled }}
-								/>
-							)}
+						<div className="flex flex-col">
+							<span className="text-sm font-medium text-content-primary flex items-center gap-2">
+								{getStatusIcon(status.state, isLatest)}
+								{status.message}
+							</span>
+							<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+								{formattedTimestamp}
+							</span>
 						</div>
 
-						{/* Content Column */}
-						<div
-							css={{
-								display: "flex",
-								flexDirection: "column",
-								gap: 4,
-								minWidth: 0,
-								flex: 1,
-							}}
-						>
-							{/* Message */}
-							<div
-								css={{
-									fontSize: 14,
-									lineHeight: "20px",
-									color: theme.palette.text.primary,
-									fontWeight: 500,
-								}}
-							>
-								{status.message}
-							</div>
-
-							{/* Links Row */}
-							<div
-								css={{
-									display: "flex",
-									flexDirection: "column",
-									alignItems: "flex-start",
-									gap: 4,
-									marginTop: 4,
-									minWidth: 0,
-								}}
-							>
-								{/* Conditional App Link */}
+						{isLatest && (
+							<div className="flex items-center gap-2">
 								{currentApp && agent && showAppLink && (
 									<AppLink
 										app={currentApp}
@@ -275,76 +186,31 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 									/>
 								)}
 
-								{/* Existing URI Link */}
-								{status.uri && (
-									<div css={{ display: "flex", minWidth: 0, width: "100%" }}>
-										{isFileURI ? (
-											<Tooltip title="This file is located in your workspace">
-												<div
-													css={{
-														...commonStyles,
-														"&:hover": {
-															bgcolor: "action.hover",
-															color: "text.secondary",
-														},
-													}}
-												>
-													<FileIcon
-														className="size-icon-xs"
-														style={{ marginRight: "0.5rem" }}
-													/>
-													{formatURI(status.uri)}
-												</div>
+								{status.uri &&
+									(isFileURI ? (
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger>
+													<span className="flex items-center gap-1">
+														<FileIcon className="size-icon-xs" />
+														{formatURI(status.uri)}
+													</span>
+												</TooltipTrigger>
+												<TooltipContent>
+													This file is located in your workspace
+												</TooltipContent>
 											</Tooltip>
-										) : (
-											<Link
-												href={status.uri}
-												target="_blank"
-												rel="noopener"
-												sx={{
-													...commonStyles,
-													"&:hover": {
-														...commonStyles["&:hover"],
-														color: "text.primary", // Keep hover color
-													},
-												}}
-											>
-												<ExternalLinkIcon
-													className="size-icon-xs"
-													style={{ marginRight: "4px" }}
-												/>
-												<div
-													css={{
-														bgcolor: "transparent",
-														padding: 0,
-														color: "inherit",
-														fontSize: "inherit",
-														lineHeight: "inherit",
-														overflow: "hidden",
-														textOverflow: "ellipsis",
-														whiteSpace: "nowrap",
-														flexShrink: 1, // Allow text to shrink
-													}}
-												>
-													{formatURI(status.uri)}
-												</div>
-											</Link>
-										)}
-									</div>
-								)}
+										</TooltipProvider>
+									) : (
+										<Button asChild variant="outline" size="sm">
+											<a href={status.uri} target="_blank" rel="noreferrer">
+												<ExternalLinkIcon />
+												{formatURI(status.uri)}
+											</a>
+										</Button>
+									))}
 							</div>
-
-							{/* Timestamp */}
-							<div
-								css={{
-									fontSize: 12,
-									color: theme.palette.text.secondary,
-									marginTop: 2,
-								}}
-							>
-								{formattedTimestamp}
-							</div>
-						</div>
+						)}
 					</div>
 				);
 			})}
@@ -360,62 +226,18 @@ type AppLinkProps = {
 
 const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 	const link = useAppLink(app, { agent, workspace });
-	const theme = useTheme();
 
 	return (
-		<Tooltip title={`Open ${link.label}`} placement="top">
-			<Link
+		<Button asChild variant="outline" size="sm">
+			<a
 				href={link.href}
 				onClick={link.onClick}
 				target="_blank"
-				rel="noopener"
-				sx={{
-					...commonStyles,
-					position: "relative",
-					"& .MuiSvgIcon-root": {
-						fontSize: 14,
-						opacity: 0.7,
-						mr: 0.5,
-					},
-					"& img": {
-						opacity: 0.8,
-						marginRight: 0.5,
-					},
-					"&:hover": {
-						...commonStyles["&:hover"],
-						color: theme.palette.text.primary, // Keep consistent hover color
-						"& img": {
-							opacity: 1,
-						},
-						"& .MuiSvgIcon-root": {
-							opacity: 1,
-						},
-					},
-				}}
+				rel="noreferrer"
 			>
-				{app.icon ? (
-					<img
-						src={app.icon}
-						alt={`${link.label} icon`}
-						width={14}
-						height={14}
-						style={{ borderRadius: "3px" }}
-					/>
-				) : (
-					<LayoutGridIcon className="size-icon-xs" />
-				)}
-				{/* Keep app name short */}
-				<span
-					css={{
-						lineHeight: 1,
-						textOverflow: "ellipsis",
-						overflow: "hidden",
-						whiteSpace: "nowrap",
-					}}
-				>
-					{link.label}
-				</span>
-			</Link>
-		</Tooltip>
+				<ExternalImage src={app.icon} />
+				{link.label}
+			</a>
+		</Button>
 	);
 };
