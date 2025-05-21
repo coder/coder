@@ -773,6 +773,9 @@ func TestAPI(t *testing.T) {
 
 		clk.Set(time.Now()).MustWait(ctx)
 
+		// Make sure the start loop has been called.
+		watcher.waitNext(ctx)
+
 		// Simulate a file modification event to make the devcontainer dirty.
 		watcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
 			Name: "/home/coder/project/.devcontainer/devcontainer.json",
