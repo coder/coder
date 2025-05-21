@@ -3,7 +3,6 @@ import { useTheme } from "@emotion/react";
 import ArticleIcon from "@mui/icons-material/Article";
 import BuildIcon from "@mui/icons-material/Build";
 import CodeIcon from "@mui/icons-material/Code";
-import DeleteIcon from "@mui/icons-material/Delete";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -11,9 +10,12 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { CircleCheckIcon } from "lucide-react";
-import { CircleAlertIcon } from "lucide-react";
-import { InfoIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	InfoIcon,
+	TrashIcon,
+} from "lucide-react";
 import type React from "react";
 import { type FC, memo, useMemo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -539,7 +541,7 @@ const ChatToolInvocationResultPreview: FC<{
 						color: theme.palette.text.secondary,
 					}}
 				>
-					<DeleteIcon fontSize="small" />
+					<TrashIcon className="size-icon-xs" />
 					{toolInvocation.result}
 				</div>
 			);
