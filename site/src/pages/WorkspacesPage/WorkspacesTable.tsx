@@ -734,7 +734,7 @@ const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
 				<IconAppLink app={app} workspace={workspace} agent={agent} />
 			)}
 
-			{status?.uri && (
+			{status?.uri && status?.uri !== "n/a" && (
 				<BaseIconLink label={status.uri} href={status.uri} target="_blank">
 					{status.uri.startsWith("file://") ? (
 						<FileIcon />
