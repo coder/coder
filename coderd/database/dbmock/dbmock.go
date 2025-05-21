@@ -3753,18 +3753,18 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ct
 }
 
 // GetWorkspaceAgentsWithParentID mocks base method.
-func (m *MockStore) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
+func (m *MockStore) GetWorkspaceAgentsWithParentID(ctx context.Context, dollar_1 uuid.UUID) ([]database.WorkspaceAgent, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentsWithParentID", ctx, parentID)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentsWithParentID", ctx, dollar_1)
 	ret0, _ := ret[0].([]database.WorkspaceAgent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspaceAgentsWithParentID indicates an expected call of GetWorkspaceAgentsWithParentID.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentsWithParentID(ctx, parentID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentsWithParentID(ctx, dollar_1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentsWithParentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentsWithParentID), ctx, parentID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentsWithParentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentsWithParentID), ctx, dollar_1)
 }
 
 // GetWorkspaceAppByAgentIDAndSlug mocks base method.

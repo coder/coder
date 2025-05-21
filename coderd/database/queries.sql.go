@@ -14766,11 +14766,11 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 }
 
 const getWorkspaceAgentsWithParentID = `-- name: GetWorkspaceAgentsWithParentID :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id FROM workspace_agents WHERE parent_id = $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope FROM workspace_agents WHERE parent_id = $1 :: uuid
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]WorkspaceAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsWithParentID, parentID)
+func (q *sqlQuerier) GetWorkspaceAgentsWithParentID(ctx context.Context, dollar_1 uuid.UUID) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsWithParentID, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -14811,6 +14811,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentI
 			&i.APIVersion,
 			&i.DisplayOrder,
 			&i.ParentID,
+			&i.APIKeyScope,
 		); err != nil {
 			return nil, err
 		}

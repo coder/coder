@@ -37,7 +37,6 @@ const (
 	ResourceUser                          RBACResource = "user"
 	ResourceWebpushSubscription           RBACResource = "webpush_subscription"
 	ResourceWorkspace                     RBACResource = "workspace"
-	ResourceWorkspaceAgent                RBACResource = "workspace_agent"
 	ResourceWorkspaceAgentDevcontainers   RBACResource = "workspace_agent_devcontainers"
 	ResourceWorkspaceAgentResourceMonitor RBACResource = "workspace_agent_resource_monitor"
 	ResourceWorkspaceDormant              RBACResource = "workspace_dormant"

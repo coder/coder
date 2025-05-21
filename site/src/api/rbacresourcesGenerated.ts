@@ -182,11 +182,6 @@ export const RBACResourceActions: Partial<
 		stop: "allows stopping a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 	},
-	workspace_agent: {
-		create: "create workspace agent",
-		delete: "delete workspace agent",
-		read: "read workspace agent",
-	},
 	workspace_agent_devcontainers: {
 		create: "create workspace agent devcontainers",
 	},

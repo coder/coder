@@ -359,10 +359,6 @@ type WorkspaceAgentConnectionStatus struct {
 	DisconnectedAt   *time.Time           `json:"disconnected_at"`
 }
 
-func (a WorkspaceAgent) RBACObject() rbac.Object {
-	return rbac.ResourceWorkspaceAgent.WithID(a.ID)
-}
-
 func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
 	connectionTimeout := time.Duration(a.ConnectionTimeoutSeconds) * time.Second
 

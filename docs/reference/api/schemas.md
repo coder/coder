@@ -5972,7 +5972,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user`                             |
 | `webpush_subscription`             |
 | `workspace`                        |
-| `workspace_agent`                  |
 | `workspace_agent_devcontainers`    |
 | `workspace_agent_resource_monitor` |
 | `workspace_dormant`                |

@@ -332,7 +332,7 @@ WHERE workspace_builds.id = $1
 ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at;
 
 -- name: GetWorkspaceAgentsWithParentID :many
-SELECT * FROM workspace_agents WHERE parent_id = $1;
+SELECT * FROM workspace_agents WHERE parent_id = $1 :: uuid;
 
 -- name: DeleteWorkspaceAgentByID :exec
 DELETE FROM workspace_agents WHERE id = $1;

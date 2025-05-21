@@ -1789,7 +1789,7 @@ func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx cont
 	return agents, err
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
+func (m queryMetricsStore) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentsWithParentID(ctx, parentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsWithParentID").Observe(time.Since(start).Seconds())

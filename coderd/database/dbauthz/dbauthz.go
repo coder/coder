@@ -328,7 +328,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "devcontaineragentapi"},
 				DisplayName: "Dev Container Agent API",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspaceAgent.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionDelete},
+					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1507,12 +1507,12 @@ func (q *querier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUI
 }
 
 func (q *querier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
-	agent, err := q.db.GetWorkspaceAgentByID(ctx, id)
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionDelete, agent); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionDeleteAgent, workspace); err != nil {
 		return err
 	}
 
@@ -3100,10 +3100,16 @@ func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Conte
 	return q.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 }
 
-func (q *querier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.NullUUID) ([]database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgent); err != nil {
+func (q *querier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, parentID)
+	if err != nil {
 		return nil, err
 	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+
 	return q.db.GetWorkspaceAgentsWithParentID(ctx, parentID)
 }
 

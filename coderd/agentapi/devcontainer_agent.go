@@ -58,6 +58,7 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 		MOTDFile:                 "",
 		DisplayApps:              []database.DisplayApp{},
 		DisplayOrder:             0,
+		APIKeyScope:              parentAgent.APIKeyScope,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert dev container agent: %w", err)
@@ -89,7 +90,7 @@ func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, _ *ag
 	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
 	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
 
-	workspaceAgents, err := a.Database.GetWorkspaceAgentsWithParentID(ctx, uuid.NullUUID{Valid: true, UUID: a.AgentID})
+	workspaceAgents, err := a.Database.GetWorkspaceAgentsWithParentID(ctx, a.AgentID)
 	if err != nil {
 		return nil, err
 	}

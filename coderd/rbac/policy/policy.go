@@ -343,11 +343,4 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: actDef("create workspace agent devcontainers"),
 		},
 	},
-	"workspace_agent": {
-		Actions: map[Action]ActionDefinition{
-			ActionRead:   actDef("read workspace agent"),
-			ActionCreate: actDef("create workspace agent"),
-			ActionDelete: actDef("delete workspace agent"),
-		},
-	},
 }
