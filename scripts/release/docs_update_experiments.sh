@@ -25,7 +25,7 @@ generate_experiments_table() {
 	# Get ExperimentsSafe entries from deployment.go
 	echo "| Feature | Description | Available in |"
 	echo "|---------|-------------|--------------|"
-	
+
 	# For now, hardcode the features we know are in ExperimentsSafe
 	# This is simpler and more reliable than trying to parse the Go code
 	echo "| \`dev-containers\` | Enables dev containers support. | mainline, stable |"
@@ -37,7 +37,7 @@ generate_experiments_table() {
 generate_early_access_table() {
 	echo "| Feature | Description | Documentation Path |"
 	echo "|---------|-------------|------------------|"
-	
+
 	# For now, hardcode the Dev Containers as early access feature
 	# This is simpler and more reliable than complex grep/awk parsing
 	echo "| Dev Containers Integration | Dev Containers Integration | ai-coder/dev-containers.md |"
@@ -47,14 +47,13 @@ generate_early_access_table() {
 generate_beta_table() {
 	echo "| Feature | Description | Documentation Path |"
 	echo "|---------|-------------|------------------|"
-	
+
 	# For now, hardcode the beta features
 	# This is simpler and more reliable than complex grep/awk parsing
 	echo "| AI Coding Agents | AI Coding Agents | ai-coder/agents.md |"
 	echo "| Prebuilt workspaces | Prebuilt workspaces | workspaces/prebuilds.md |"
 }
 
-workdir=build/docs/experiments
 dest=docs/install/releases/feature-stages.md
 
 log "Updating feature stages documentation in ${dest}"
