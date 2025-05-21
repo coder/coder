@@ -1,21 +1,22 @@
-import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useContext, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 
 type ButtonValues = Record<string, string>;
 
@@ -64,6 +65,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	template,
 	templateParameters,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
 	const clipboard = useClipboard({
 		textToCopy: getClipboardCopyContent(
@@ -97,8 +99,19 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 			{!buttonValues || !templateParameters ? (
 				<Loader />
 			) : (
-				<div css={{ display: "flex", alignItems: "flex-start", gap: 48 }}>
-					<div css={{ flex: 1, maxWidth: 400 }}>
+				<div className="flex items-start gap-12">
+					<div className="max-w-3xl">
+						{experimentalFormContext && (
+							<div className="mb-4">
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={experimentalFormContext.toggleOptedOut}
+								>
+									Try out the new workspace creation flow ✨
+								</Button>
+							</div>
+						)}
 						<VerticalForm>
 							<FormSection
 								title="Creation mode"
@@ -184,17 +197,15 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 						>
 							<Button
 								css={{ borderRadius: 999 }}
-								startIcon={
-									clipboard.showCopiedSuccess ? (
-										<CheckIcon className="size-icon-sm" />
-									) : (
-										<CopyIcon className="size-icon-sm" />
-									)
-								}
-								variant="contained"
+								variant="outline"
 								onClick={clipboard.copyToClipboard}
 								disabled={clipboard.showCopiedSuccess}
 							>
+								{clipboard.showCopiedSuccess ? (
+									<CheckIcon className="size-icon-sm" />
+								) : (
+									<CopyIcon className="size-icon-sm" />
+								)}
 								Copy button code
 							</Button>
 						</div>

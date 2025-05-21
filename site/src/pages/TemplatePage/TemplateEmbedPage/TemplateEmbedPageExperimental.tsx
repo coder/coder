@@ -172,8 +172,19 @@ const TemplateEmbedPageViewExperimental: FC<
 			{!buttonValues ? (
 				<Loader />
 			) : (
-				<div css={{ display: "flex", alignItems: "flex-start", gap: 48 }}>
-					<div css={{ flex: 1, maxWidth: 400 }}>
+				<div className="flex items-start gap-12">
+					<div className="max-w-3xl ">
+						{experimentalFormContext && (
+							<div className="mb-4">
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={experimentalFormContext.toggleOptedOut}
+								>
+									Go back to the classic template embed flow
+								</Button>
+							</div>
+						)}
 						<VerticalForm>
 							<FormSection
 								title="Creation mode"
@@ -215,15 +226,7 @@ const TemplateEmbedPageViewExperimental: FC<
 									})}
 								</div>
 							)}
-							{experimentalFormContext && (
-								<Button
-									size="sm"
-									variant="subtle"
-									onClick={experimentalFormContext.toggleOptedOut}
-								>
-									Go back to the classic template embed flow
-								</Button>
-							)}
+
 							{Boolean(error) && (
 								<p className="text-content-destructive text-sm">
 									{String(error)}
@@ -231,21 +234,7 @@ const TemplateEmbedPageViewExperimental: FC<
 							)}
 						</VerticalForm>
 					</div>
-					<div
-						css={(theme) => ({
-							height: "calc(100vh - (80px + 36px))",
-							top: 40,
-							position: "sticky",
-							display: "flex",
-							padding: 64,
-							flex: 1,
-							alignItems: "center",
-							justifyContent: "center",
-							borderRadius: 8,
-							backgroundColor: theme.palette.background.paper,
-							border: `1px solid ${theme.palette.divider}`,
-						})}
-					>
+					<div className="flex-1 sticky top-16 flex h-[350px] flex-1 items-center justify-center rounded-md bg-surface-secondary p-16 border border-border border-solid">
 						<img src="/open-in-coder.svg" alt="Open in Coder button" />
 						<div
 							css={{
