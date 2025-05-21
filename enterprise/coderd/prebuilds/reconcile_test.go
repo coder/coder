@@ -748,15 +748,19 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			// Verify the final state after reconciliation.
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)
+			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+			require.NoError(t, err)
 
 			if !tc.isHardLimitHit {
 				// When hard limit is not reached, a new workspace should be created.
 				require.Equal(t, 2, len(workspaces))
+				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus)
 				return
 			}
 
 			// When hard limit is reached, no new workspace should be created.
 			require.Equal(t, 1, len(workspaces))
+			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
 
 			// When hard limit is reached, a notification should be sent.
 			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
