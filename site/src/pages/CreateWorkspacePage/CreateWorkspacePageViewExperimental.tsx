@@ -19,8 +19,8 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useSyncFormParameters } from "hooks/useSyncFormParameters";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
 	getInitialParameterValues,

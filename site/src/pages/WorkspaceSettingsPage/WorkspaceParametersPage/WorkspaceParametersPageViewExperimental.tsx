@@ -7,7 +7,7 @@ import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
-import { useSyncFormParameters } from "hooks/useSyncFormParameters";
+import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
