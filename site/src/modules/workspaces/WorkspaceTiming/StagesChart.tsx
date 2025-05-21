@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ErrorSharp from "@mui/icons-material/ErrorSharp";
 import type { TimingStage } from "api/typesGenerated";
+import { CircleAlertIcon } from "lucide-react";
 import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
@@ -159,9 +159,9 @@ export const StagesChart: FC<StagesChartProps> = ({
 													}}
 												>
 													{t.error && (
-														<ErrorSharp
+														<CircleAlertIcon
+															className="size-icon-sm"
 															css={{
-																fontSize: 18,
 																color: "#F87171",
 																marginRight: 4,
 															}}
