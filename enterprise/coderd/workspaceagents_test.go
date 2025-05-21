@@ -90,12 +90,11 @@ func TestReinitializeAgent(t *testing.T) {
 		t.Skip("dbmem cannot currently claim a workspace")
 	}
 
-	var startupScript string
 	if runtime.GOOS == "windows" {
-		startupScript = fmt.Sprintf("cmd.exe /c set >> \"%s\" && echo --- >> \"%s\"", tempAgentLog.Name(), tempAgentLog.Name())
-	} else {
-		startupScript = fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+		t.Skip("test startup script is not supported on windows")
 	}
+
+	startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
 
 	db, ps := dbtestutil.NewDB(t)
 	// GIVEN a live enterprise API with the prebuilds feature enabled
