@@ -489,6 +489,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</section>
 					)}
 
+					{parameters.length === 0 && diagnostics.length > 0 && (
+						<Diagnostics diagnostics={diagnostics} />
+					)}
+
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-9">
 							<hgroup>
