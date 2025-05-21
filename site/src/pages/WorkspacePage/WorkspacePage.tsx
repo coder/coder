@@ -11,8 +11,6 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
-import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
@@ -106,29 +104,18 @@ const WorkspacePage: FC = () => {
 		workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
 	const isLoading = !workspace || !template || !permissions;
 
-	return (
-		<>
-			<AnnouncementBanners />
-			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<Navbar />
-				{pageError ? (
-					<Margins>
-						<ErrorAlert
-							error={pageError}
-							css={{ marginTop: 16, marginBottom: 16 }}
-						/>
-					</Margins>
-				) : isLoading ? (
-					<Loader />
-				) : (
-					<WorkspaceReadyPage
-						workspace={workspace}
-						template={template}
-						permissions={permissions}
-					/>
-				)}
-			</div>
-		</>
+	return pageError ? (
+		<Margins>
+			<ErrorAlert error={pageError} css={{ marginTop: 16, marginBottom: 16 }} />
+		</Margins>
+	) : isLoading ? (
+		<Loader />
+	) : (
+		<WorkspaceReadyPage
+			workspace={workspace}
+			template={template}
+			permissions={permissions}
+		/>
 	);
 };
 

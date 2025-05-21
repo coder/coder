@@ -532,20 +532,20 @@ export const router = createBrowserRouter(
 
 					{/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-					<Route
-						path="/:username/:workspace/builds/:buildNumber"
-						element={<WorkspaceBuildPage />}
-					/>
-					<Route
-						path="/:username/:workspace/settings"
-						element={<WorkspaceSettingsLayout />}
-					>
-						<Route index element={<WorkspaceSettingsPage />} />
+					<Route path="/:username/:workspace">
+						<Route index element={<WorkspacePage />} />
 						<Route
-							path="parameters"
-							element={<WorkspaceParametersExperimentRouter />}
+							path="/builds/:buildNumber"
+							element={<WorkspaceBuildPage />}
 						/>
-						<Route path="schedule" element={<WorkspaceSchedulePage />} />
+						<Route path="/settings" element={<WorkspaceSettingsLayout />}>
+							<Route index element={<WorkspaceSettingsPage />} />
+							<Route
+								path="parameters"
+								element={<WorkspaceParametersExperimentRouter />}
+							/>
+							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+						</Route>
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
@@ -574,7 +574,6 @@ export const router = createBrowserRouter(
 				</Route>
 
 				{/* Pages that don't have the dashboard layout */}
-				<Route path="/:username/:workspace" element={<WorkspacePage />} />
 				<Route
 					path="/templates/:template/versions/:version/edit"
 					element={<TemplateVersionEditorPage />}
