@@ -89,7 +89,7 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 			{notification.detail && (
 				<p css={styles.notificationDetail}>{notification.detail}</p>
 			)}
-			<div className="flex items-center gap-1">{notification.actions}</div>
+			<div className="mt-2 flex items-center gap-1">{notification.actions}</div>
 		</article>
 	);
 };
