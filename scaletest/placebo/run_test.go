@@ -14,7 +14,9 @@ import (
 )
 
 func Test_Runner(t *testing.T) {
-	t.Skip("This test is flakey, see https://github.com/coder/coder/actions/runs/3463709674/jobs/5784335013#step:9:215")
+	// This test previously had tight timing bounds that caused flakes on
+	// slower CI runners. The upper limits have been relaxed so we can run it
+	// reliably across environments.
 	t.Parallel()
 
 	t.Run("NoSleep", func(t *testing.T) {
@@ -26,7 +28,7 @@ func Test_Runner(t *testing.T) {
 		err := r.Run(context.Background(), "", logs)
 		require.NoError(t, err)
 
-		require.WithinDuration(t, time.Now(), start, 100*time.Millisecond)
+		require.WithinDuration(t, time.Now(), start, 200*time.Millisecond)
 		require.Empty(t, logs.String())
 	})
 
@@ -42,7 +44,7 @@ func Test_Runner(t *testing.T) {
 		err := r.Run(context.Background(), "", logs)
 		require.NoError(t, err)
 
-		require.WithinRange(t, time.Now(), start.Add(90*time.Millisecond), start.Add(200*time.Millisecond))
+		require.WithinRange(t, time.Now(), start.Add(90*time.Millisecond), start.Add(500*time.Millisecond))
 		require.Contains(t, logs.String(), "sleeping for 100ms")
 	})
 
@@ -59,7 +61,7 @@ func Test_Runner(t *testing.T) {
 		err := r.Run(context.Background(), "", logs)
 		require.NoError(t, err)
 
-		require.WithinRange(t, time.Now(), start.Add(90*time.Millisecond), start.Add(300*time.Millisecond))
+		require.WithinRange(t, time.Now(), start.Add(90*time.Millisecond), start.Add(600*time.Millisecond))
 		logsStr := logs.String()
 		require.Contains(t, logsStr, "sleeping for")
 		require.NotContains(t, logsStr, "sleeping for 100ms")
