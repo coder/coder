@@ -2,25 +2,17 @@
 
 # Usage: ./docs_update_experiments.sh
 #
-# This script updates the available experimental features in the documentation.
-# It fetches the latest mainline and stable releases to extract the available
-# experiments and their descriptions. The script will update the
-# feature-stages.md file with a table of the latest experimental features.
+# This script updates the following sections in the documentation:
+# - Available experimental features from ExperimentsSafe in codersdk/deployment.go
+# - Early access features from GetStage() in codersdk/deployment.go
+# - Beta features from GetStage() in codersdk/deployment.go
+#
+# The script will update feature-stages.md with tables for each section.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 cdroot
-
-# Ensure GITHUB_TOKEN is available
-if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-	if GITHUB_TOKEN="$(gh auth token 2>/dev/null)"; then
-		export GITHUB_TOKEN
-	else
-		echo "Error: GitHub token not found. Please run 'gh auth login' to authenticate." >&2
-		exit 1
-	fi
-fi
 
 if isdarwin; then
 	dependencies gsed gawk
@@ -28,153 +20,149 @@ if isdarwin; then
 	awk() { gawk "$@"; }
 fi
 
-echo_latest_stable_version() {
-	# Extract redirect URL to determine latest stable tag
-	version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
-	version="${version#https://github.com/coder/coder/releases/tag/v}"
-	echo "v${version}"
+# File path to deployment.go - needed for documentation purposes
+# shellcheck disable=SC2034
+DEPLOYMENT_GO_FILE="codersdk/deployment.go"
+
+# Extract and parse experiment information from deployment.go
+extract_experiment_info() {
+	# Extract the experiment descriptions, stages, and doc paths
+	# We'll use Go code to capture this information and print it in a structured format
+	cat >/tmp/extract_experiment_info.go <<'EOT'
+package main
+
+import (
+	"encoding/json"
+	"os"
+
+	"github.com/coder/coder/v2/codersdk"
+)
+
+func main() {
+	experiments := []struct {
+		Name        string `json:"name"`
+		Value       string `json:"value"`
+		Description string `json:"description"`
+		Stage       string `json:"stage"`
+	}{}
+
+	// Get experiments from ExperimentsSafe
+	for _, exp := range codersdk.ExperimentsSafe {
+		experiments = append(experiments, struct {
+			Name        string `json:"name"`
+			Value       string `json:"value"`
+			Description string `json:"description"`
+			Stage       string `json:"stage"`
+		}{
+			Name:        string(exp),
+			Value:       string(exp),
+			Description: exp.GetDescription(),
+			Stage:       string(exp.GetStage()),
+		})
+	}
+
+	json.NewEncoder(os.Stdout).Encode(experiments)
+}
+EOT
+
+	# Run the Go code to extract the information
+	cd /home/coder/coder
+	go run /tmp/extract_experiment_info.go
+	rm /tmp/extract_experiment_info.go
 }
 
-echo_latest_mainline_version() {
-	# Use GitHub API to get latest release version, authenticated
-	echo "v$(
-		curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/repos/coder/coder/releases |
-			awk -F'"' '/"tag_name"/ {print $4}' |
-			tr -d v |
-			tr . ' ' |
-			sort -k1,1nr -k2,2nr -k3,3nr |
-			head -n1 |
-			tr ' ' .
-	)"
+# Generate the experimental features table with flag name
+generate_experiments_table() {
+	echo "| Feature Flag | Name | Available in |"
+	echo "|-------------|------|--------------|"
+
+	# Extract the experiment information
+	extract_experiment_info | jq -r '.[] | select(.stage=="early access") | "| `\(.value)` | \(.description) | mainline, stable |"'
 }
 
-echo_latest_main_version() {
-	echo origin/main
+# Extract beta features from deployment.go
+generate_beta_table() {
+	echo "| Feature Flag | Name |"
+	echo "|-------------|------|"
+
+	# Extract beta features with flag name only
+	extract_experiment_info | jq -r '.[] | select(.stage=="beta") | "| `\(.value)` | \(.description) |"'
 }
 
-sparse_clone_codersdk() {
-	mkdir -p "${1}"
-	cd "${1}"
-	rm -rf "${2}"
-	git clone --quiet --no-checkout "${PROJECT_ROOT}" "${2}"
-	cd "${2}"
-	git sparse-checkout set --no-cone codersdk
-	git checkout "${3}" -- codersdk
-	echo "${1}/${2}"
-}
-
-parse_all_experiments() {
-	# Try ExperimentsSafe first, then fall back to ExperimentsAll if needed
-	experiments_var="ExperimentsSafe"
-	experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
-
-	if [[ -z "${experiments_output}" ]]; then
-		# Fall back to ExperimentsAll if ExperimentsSafe is not found
-		experiments_var="ExperimentsAll"
-		experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
-
-		if [[ -z "${experiments_output}" ]]; then
-			log "Warning: Neither ExperimentsSafe nor ExperimentsAll found in ${dir}"
-			return
-		fi
-	fi
-
-	echo "${experiments_output}" |
-		tr -d $'\n\t ' |
-		grep -E -o "${experiments_var}=Experiments\{[^}]*\}" |
-		sed -e 's/.*{\(.*\)}.*/\1/' |
-		tr ',' '\n'
-}
-
-parse_experiments() {
-	go doc -all -C "${1}" ./codersdk Experiment |
-		sed \
-			-e 's/\t\(Experiment[^ ]*\)\ \ *Experiment = "\([^"]*\)"\(.*\/\/ \(.*\)\)\?/\1|\2|\4/' \
-			-e 's/\t\/\/ \(.*\)/||\1/' |
-		grep '|'
-}
-
-workdir=build/docs/experiments
 dest=docs/install/releases/feature-stages.md
 
-log "Updating available experimental features in ${dest}"
+log "Updating feature stages documentation in ${dest}"
 
-declare -A experiments=() experiment_tags=()
+# Generate the tables
+experiments_table=$(generate_experiments_table)
+beta_table=$(generate_beta_table)
 
-for channel in mainline stable; do
-	log "Fetching experiments from ${channel}"
+# We're using a single-pass awk script that replaces content between markers
+# No need for cleanup operations
 
-	tag=$(echo_latest_"${channel}"_version)
-	if [[ -z "${tag}" || "${tag}" == "v" ]]; then
-		echo "Error: Failed to retrieve valid ${channel} version tag. Check your GitHub token or rate limit." >&2
-		exit 1
-	fi
+# Create temporary files with the new content
+cat >/tmp/ea_content.md <<EOT
+<!-- BEGIN: available-experimental-features -->
 
-	dir="$(sparse_clone_codersdk "${workdir}" "${channel}" "${tag}")"
+$experiments_table
 
-	declare -A all_experiments=()
-	all_experiments_out="$(parse_all_experiments "${dir}")"
-	if [[ -n "${all_experiments_out}" ]]; then
-		readarray -t all_experiments_tmp <<<"${all_experiments_out}"
-		for exp in "${all_experiments_tmp[@]}"; do
-			all_experiments[$exp]=1
-		done
-	fi
+<!-- END: available-experimental-features -->
+EOT
 
-	maybe_desc=
+cat >/tmp/beta_content.md <<EOT
+<!-- BEGIN: beta-features -->
 
-	while read -r line; do
-		line=${line//$'\n'/}
-		readarray -d '|' -t parts <<<"$line"
+$beta_table
 
-		if [[ -z ${parts[0]} ]]; then
-			maybe_desc+="${parts[2]//$'\n'/ }"
-			continue
-		fi
+<!-- END: beta-features -->
+EOT
 
-		var="${parts[0]}"
-		key="${parts[1]}"
-		desc="${parts[2]}"
-		desc=${desc//$'\n'/}
+# Use awk to replace the sections
+awk '
+  BEGIN { 
+    ea = 0; beta = 0;
+    while (getline < "/tmp/ea_content.md") ea_lines[++ea] = $0;
+    while (getline < "/tmp/beta_content.md") beta_lines[++beta] = $0;
+    ea = beta = 0;
+  }
+  
+  /<!-- BEGIN: available-experimental-features -->/ { 
+    for (i = 1; i <= length(ea_lines); i++) print ea_lines[i];
+    ea = 1;
+    next;
+  }
+  
+  /<!-- END: available-experimental-features -->/ {
+    ea = 0;
+    next;
+  }
+  
+  /<!-- BEGIN: beta-features -->/ {
+    for (i = 1; i <= length(beta_lines); i++) print beta_lines[i];
+    beta = 1;
+    next;
+  }
+  
+  /<!-- END: beta-features -->/ {
+    beta = 0;
+    next;
+  }
+  
+  # Skip lines between markers
+  (ea || beta) { next; }
+  
+  # Print all other lines
+  { print; }
+' "${dest}" >"${dest}.new"
 
-		if [[ -z "${desc}" ]]; then
-			desc="${maybe_desc% }"
-		fi
-		maybe_desc=
+# Move the new file into place
+mv "${dest}.new" "${dest}"
 
-		if [[ ! -v all_experiments[$var] ]]; then
-			log "Skipping ${var}, not listed in experiments list"
-			continue
-		fi
+# Clean up temporary files
+rm -f /tmp/ea_content.md /tmp/beta_content.md
 
-		if [[ ! -v experiments[$key] ]]; then
-			experiments[$key]="$desc"
-		fi
+# Clean up backup files
+rm -f "${dest}.bak"
 
-		experiment_tags[$key]+="${channel}, "
-	done < <(parse_experiments "${dir}")
-done
-
-table="$(
-	if [[ "${#experiments[@]}" -eq 0 ]]; then
-		echo "Currently no experimental features are available in the latest mainline or stable release."
-		exit 0
-	fi
-
-	echo "| Feature | Description | Available in |"
-	echo "|---------|-------------|--------------|"
-	for key in "${!experiments[@]}"; do
-		desc=${experiments[$key]}
-		tags=${experiment_tags[$key]%, }
-		echo "| \`$key\` | $desc | ${tags} |"
-	done
-)"
-
-awk \
-	-v table="${table}" \
-	'BEGIN{include=1} /BEGIN: available-experimental-features/{print; print table; include=0} /END: available-experimental-features/{include=1} include' \
-	"${dest}" \
-	>"${dest}".tmp
-mv "${dest}".tmp "${dest}"
-
+# Format the file with prettier
 (cd site && pnpm exec prettier --cache --write ../"${dest}")

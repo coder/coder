@@ -3329,7 +3329,60 @@ const (
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
+	ExperimentDevContainers      Experiment = "dev-containers"       // Enables dev containers support.
+	ExperimentCoderDesktop       Experiment = "coder-desktop"        // Enables Coder Desktop functionality.
+	ExperimentSecuringAgents     Experiment = "securing-agents"      // Enables features for securing AI agents.
 )
+
+// FeatureStage represents the maturity level of a feature
+type FeatureStage string
+
+const (
+	// FeatureStageEarlyAccess indicates a feature that is neither feature-complete nor stable
+	// Early access features are often disabled by default and not recommended for production use
+	FeatureStageEarlyAccess FeatureStage = "early access"
+
+	// FeatureStageBeta indicates a feature that is open to the public but still under development
+	// Beta features might have minor bugs but are generally ready for use
+	FeatureStageBeta FeatureStage = "beta"
+)
+
+// GetStage returns the feature stage of the experiment (early access, beta, or GA)
+func (e Experiment) GetStage() FeatureStage {
+	// Default is early access for experiments
+	switch e {
+	case ExperimentAgenticChat:
+		return FeatureStageBeta
+	case ExperimentWorkspacePrebuilds:
+		return FeatureStageBeta
+	case ExperimentDevContainers:
+		return FeatureStageEarlyAccess
+	case ExperimentCoderDesktop:
+		return FeatureStageBeta
+	case ExperimentSecuringAgents:
+		return FeatureStageEarlyAccess
+	default:
+		return FeatureStageEarlyAccess
+	}
+}
+
+// GetDescription returns a user-friendly description for the experiment
+func (e Experiment) GetDescription() string {
+	switch e {
+	case ExperimentDevContainers:
+		return "Dev Containers Integration"
+	case ExperimentAgenticChat:
+		return "AI Coding Agents"
+	case ExperimentWorkspacePrebuilds:
+		return "Prebuilt workspaces"
+	case ExperimentCoderDesktop:
+		return "Coder Desktop"
+	case ExperimentSecuringAgents:
+		return "Securing AI Agents"
+	default:
+		return string(e)
+	}
+}
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
@@ -3337,6 +3390,10 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentWorkspacePrebuilds,
+	ExperimentAgenticChat,
+	ExperimentDevContainers,
+	ExperimentCoderDesktop,
+	ExperimentSecuringAgents,
 }
 
 // Experiments is a list of experiments.
