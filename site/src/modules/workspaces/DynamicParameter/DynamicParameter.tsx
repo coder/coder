@@ -222,6 +222,15 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	const onChangeEvent = useEffectEvent(onChange);
 	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
 	const prevDebouncedValueRef = useRef<string | undefined>();
+	const prevValueRef = useRef(value);
+
+	// This is necessary in the case of fields being set by preset parameters
+	useEffect(() => {
+		if (value !== undefined && value !== prevValueRef.current) {
+			setLocalValue(value);
+			prevValueRef.current = value;
+		}
+	}, [value]);
 
 	useEffect(() => {
 		if (prevDebouncedValueRef.current !== undefined) {
@@ -230,18 +239,30 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 		prevDebouncedValueRef.current = debouncedLocalValue;
 	}, [debouncedLocalValue, onChangeEvent]);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+	const resizeTextarea = useEffectEvent(() => {
+		if (textareaRef.current) {
+			const textarea = textareaRef.current;
+			textarea.style.height = `${textarea.scrollHeight}px`;
+		}
+	});
+
+	useEffect(() => {
+		resizeTextarea();
+	}, [resizeTextarea]);
 
 	switch (parameter.form_type) {
-		case "textarea":
+		case "textarea": {
 			return (
 				<Textarea
+					ref={textareaRef}
 					id={id}
-					className="max-w-2xl"
+					className="overflow-y-auto max-h-[500px]"
 					value={localValue}
 					onChange={(e) => {
 						const target = e.currentTarget;
 						target.style.height = "auto";
-						target.style.maxHeight = "700px";
 						target.style.height = `${target.scrollHeight}px`;
 
 						setLocalValue(e.target.value);
@@ -251,6 +272,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 					required={parameter.required}
 				/>
 			);
+		}
 
 		case "input": {
 			const inputType = parameter.type === "number" ? "number" : "text";
@@ -458,7 +480,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					<Slider
 						id={id}
 						className="mt-2"
-						value={[Number(value)]}
+						value={[Number.isFinite(Number(value)) ? Number(value) : 0]}
 						onValueChange={([value]) => {
 							onChange(value.toString());
 						}}

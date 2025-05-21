@@ -1917,6 +1917,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
+  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1939,6 +1940,7 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
+| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
@@ -5915,7 +5917,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `application_connect` |
 | `assign`              |
 | `create`              |
+| `create_agent`        |
 | `delete`              |
+| `delete_agent`        |
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
@@ -8420,6 +8424,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -8456,6 +8461,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
+| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -10092,6 +10098,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_require_active_version": true,
+      "template_use_classic_parameter_flow": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }

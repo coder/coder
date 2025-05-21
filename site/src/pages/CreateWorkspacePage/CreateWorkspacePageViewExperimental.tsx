@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { PreviewDiagnostics, PreviewParameter } from "api/typesGenerated";
+import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -20,6 +20,7 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -51,7 +52,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
-	diagnostics: PreviewDiagnostics;
+	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
@@ -213,6 +214,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
 
+		const currentValues = form.values.rich_parameter_values ?? [];
+
+		const updates: Array<{
+			field: string;
+			fieldValue: TypesGen.WorkspaceBuildParameter;
+			parameter: PreviewParameter;
+			presetValue: string;
+		}> = [];
+
 		for (const presetParameter of selectedPreset.Parameters) {
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
@@ -220,32 +230,64 @@ export const CreateWorkspacePageViewExperimental: FC<
 			if (parameterIndex === -1) continue;
 
 			const parameterField = `rich_parameter_values.${parameterIndex}`;
+			const parameter = parameters[parameterIndex];
+			const currentValue = currentValues.find(
+				(p) => p.name === presetParameter.Name,
+			)?.value;
 
-			form.setFieldValue(parameterField, {
-				name: presetParameter.Name,
-				value: presetParameter.Value,
-			});
+			if (currentValue !== presetParameter.Value) {
+				updates.push({
+					field: parameterField,
+					fieldValue: {
+						name: presetParameter.Name,
+						value: presetParameter.Value,
+					},
+					parameter,
+					presetValue: presetParameter.Value,
+				});
+			}
+		}
+
+		if (updates.length > 0) {
+			for (const update of updates) {
+				form.setFieldValue(update.field, update.fieldValue);
+				form.setFieldTouched(update.parameter.name, true);
+			}
+
+			sendDynamicParamsRequest(
+				updates.map((update) => ({
+					parameter: update.parameter,
+					value: update.presetValue,
+				})),
+			);
 		}
 	}, [
 		presetOptions,
 		selectedPresetIndex,
 		presets,
 		form.setFieldValue,
+		form.setFieldTouched,
 		parameters,
+		form.values.rich_parameter_values,
 	]);
 
 	// send the last user modified parameter and all touched parameters to the websocket
 	const sendDynamicParamsRequest = (
-		parameter: PreviewParameter,
-		value: string,
+		parameters: Array<{ parameter: PreviewParameter; value: string }>,
 	) => {
 		const formInputs: Record<string, string> = {};
-		formInputs[parameter.name] = value;
-		const parameters = form.values.rich_parameter_values ?? [];
+		const formParameters = form.values.rich_parameter_values ?? [];
+
+		for (const { parameter, value } of parameters) {
+			formInputs[parameter.name] = value;
+		}
 
 		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (isTouched && fieldName !== parameter.name) {
-				const param = parameters.find((p) => p.name === fieldName);
+			if (
+				isTouched &&
+				!parameters.some((p) => p.parameter.name === fieldName)
+			) {
+				const param = formParameters.find((p) => p.name === fieldName);
 				if (param?.value) {
 					formInputs[fieldName] = param.value;
 				}
@@ -260,12 +302,20 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameterField: string,
 		value: string,
 	) => {
+		const currentFormValue = form.values.rich_parameter_values?.find(
+			(p) => p.name === parameter.name,
+		)?.value;
+
 		await form.setFieldValue(parameterField, {
 			name: parameter.name,
 			value,
 		});
-		form.setFieldTouched(parameter.name, true);
-		sendDynamicParamsRequest(parameter, value);
+
+		// Only send the request if the value has changed from the form value
+		if (currentFormValue !== value) {
+			form.setFieldTouched(parameter.name, true);
+			sendDynamicParamsRequest([{ parameter, value }]);
+		}
 	};
 
 	useSyncFormParameters({
@@ -440,6 +490,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</section>
 					)}
 
+					{parameters.length === 0 && diagnostics.length > 0 && (
+						<Diagnostics diagnostics={diagnostics} />
+					)}
+
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-9">
 							<hgroup>
@@ -603,52 +657,3 @@ const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 		</div>
 	);
 };
-
-type UseSyncFormParametersProps = {
-	parameters: readonly PreviewParameter[];
-	formValues: readonly TypesGen.WorkspaceBuildParameter[];
-	setFieldValue: (
-		field: string,
-		value: TypesGen.WorkspaceBuildParameter[],
-	) => void;
-};
-
-function useSyncFormParameters({
-	parameters,
-	formValues,
-	setFieldValue,
-}: UseSyncFormParametersProps) {
-	// Form values only needs to be updated when parameters change
-	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
-	const formValuesRef = useRef(formValues);
-
-	useEffect(() => {
-		formValuesRef.current = formValues;
-	}, [formValues]);
-
-	useEffect(() => {
-		if (!parameters) return;
-		const currentFormValues = formValuesRef.current;
-
-		const newParameterValues = parameters.map((param) => {
-			return {
-				name: param.name,
-				value: param.value.valid ? param.value.value : "",
-			};
-		});
-
-		const isChanged =
-			currentFormValues.length !== newParameterValues.length ||
-			newParameterValues.some(
-				(p) =>
-					!currentFormValues.find(
-						(formValue) =>
-							formValue.name === p.name && formValue.value === p.value,
-					),
-			);
-
-		if (isChanged) {
-			setFieldValue("rich_parameter_values", newParameterValues);
-		}
-	}, [parameters, setFieldValue]);
-}

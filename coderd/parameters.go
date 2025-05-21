@@ -12,13 +12,14 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -69,13 +70,10 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	major, minor, err := apiversion.Parse(tf.ProvisionerdVersion)
-	// If the api version is not valid or less than 1.5, we need to use the static parameters
-	useStaticParams := err != nil || major < 1 || (major == 1 && minor < 6)
-	if useStaticParams {
-		api.handleStaticParameters(rw, r, templateVersion.ID)
-	} else {
+	if wsbuilder.ProvisionerVersionSupportsDynamicParameters(tf.ProvisionerdVersion) {
 		api.handleDynamicParameters(rw, r, tf, templateVersion)
+	} else {
+		api.handleStaticParameters(rw, r, templateVersion.ID)
 	}
 }
 
@@ -289,10 +287,10 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	result, diagnostics := render(ctx, map[string]string{})
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1, // Always start with -1.
-		Diagnostics: previewtypes.Diagnostics(diagnostics),
+		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 	}
 	if result != nil {
-		response.Parameters = result.Parameters
+		response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
 	}
 	err = stream.Send(response)
 	if err != nil {
@@ -317,10 +315,10 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 			result, diagnostics := render(ctx, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
-				Diagnostics: previewtypes.Diagnostics(diagnostics),
+				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 			}
 			if result != nil {
-				response.Parameters = result.Parameters
+				response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
 			}
 			err = stream.Send(response)
 			if err != nil {

@@ -141,6 +141,7 @@
             kubectl
             kubectx
             kubernetes-helm
+            lazydocker
             lazygit
             less
             mockgen

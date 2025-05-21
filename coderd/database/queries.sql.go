@@ -7476,60 +7476,6 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 	return i, err
 }
 
-const getHungProvisionerJobs = `-- name: GetHungProvisionerJobs :many
-SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
-FROM
-	provisioner_jobs
-WHERE
-	updated_at < $1
-	AND started_at IS NOT NULL
-	AND completed_at IS NULL
-`
-
-func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getHungProvisionerJobs, updatedAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProvisionerJob
-	for rows.Next() {
-		var i ProvisionerJob
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.StartedAt,
-			&i.CanceledAt,
-			&i.CompletedAt,
-			&i.Error,
-			&i.OrganizationID,
-			&i.InitiatorID,
-			&i.Provisioner,
-			&i.StorageMethod,
-			&i.Type,
-			&i.Input,
-			&i.WorkerID,
-			&i.FileID,
-			&i.Tags,
-			&i.ErrorCode,
-			&i.TraceMetadata,
-			&i.JobStatus,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
@@ -7541,6 +7487,46 @@ WHERE
 
 func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, getProvisionerJobByID, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+	)
+	return i, err
+}
+
+const getProvisionerJobByIDForUpdate = `-- name: GetProvisionerJobByIDForUpdate :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+SKIP LOCKED
+`
+
+// Gets a single provisioner job by ID for update.
+// This is used to securely reap jobs that have been hung/pending for a long time.
+func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDForUpdate, id)
 	var i ProvisionerJob
 	err := row.Scan(
 		&i.ID,
@@ -8005,6 +7991,79 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 	return items, nil
 }
 
+const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+FROM
+	provisioner_jobs
+WHERE
+	(
+		-- If the job has not been started before @pending_since, reap it.
+		updated_at < $1
+		AND started_at IS NULL
+		AND completed_at IS NULL
+	)
+	OR
+	(
+		-- If the job has been started but not completed before @hung_since, reap it.
+		updated_at < $2
+		AND started_at IS NOT NULL
+		AND completed_at IS NULL
+	)
+ORDER BY random()
+LIMIT $3
+`
+
+type GetProvisionerJobsToBeReapedParams struct {
+	PendingSince time.Time `db:"pending_since" json:"pending_since"`
+	HungSince    time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+}
+
+// To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
+func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+			&i.JobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProvisionerJob = `-- name: InsertProvisionerJob :one
 INSERT INTO
 	provisioner_jobs (
@@ -8209,6 +8268,40 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.CompletedAt,
 		arg.Error,
 		arg.ErrorCode,
+	)
+	return err
+}
+
+const updateProvisionerJobWithCompleteWithStartedAtByID = `-- name: UpdateProvisionerJobWithCompleteWithStartedAtByID :exec
+UPDATE
+	provisioner_jobs
+SET
+	updated_at = $2,
+	completed_at = $3,
+	error = $4,
+	error_code = $5,
+	started_at = $6
+WHERE
+	id = $1
+`
+
+type UpdateProvisionerJobWithCompleteWithStartedAtByIDParams struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
+	Error       sql.NullString `db:"error" json:"error"`
+	ErrorCode   sql.NullString `db:"error_code" json:"error_code"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCompleteWithStartedAtByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.CompletedAt,
+		arg.Error,
+		arg.ErrorCode,
+		arg.StartedAt,
 	)
 	return err
 }
@@ -18110,6 +18203,65 @@ type GetWorkspaceByOwnerIDAndNameParams struct {
 
 func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+		&i.DormantAt,
+		&i.DeletingAt,
+		&i.AutomaticUpdates,
+		&i.Favorite,
+		&i.NextStartAt,
+		&i.OwnerAvatarUrl,
+		&i.OwnerUsername,
+		&i.OrganizationName,
+		&i.OrganizationDisplayName,
+		&i.OrganizationIcon,
+		&i.OrganizationDescription,
+		&i.TemplateName,
+		&i.TemplateDisplayName,
+		&i.TemplateIcon,
+		&i.TemplateDescription,
+	)
+	return i, err
+}
+
+const getWorkspaceByResourceID = `-- name: GetWorkspaceByResourceID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+FROM
+	workspaces_expanded as workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = $1
+			)
+	)
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByResourceID, resourceID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

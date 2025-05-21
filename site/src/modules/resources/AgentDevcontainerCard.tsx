@@ -88,7 +88,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						return (
 							<TooltipProvider key={portLabel}>
 								<Tooltip>
-									<TooltipTrigger>
+									<TooltipTrigger asChild>
 										<AgentButton disabled={!hasHostBind} asChild>
 											<a href={linkDest}>
 												<ExternalLinkIcon />

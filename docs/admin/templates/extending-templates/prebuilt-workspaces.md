@@ -142,7 +142,7 @@ To prevent this, add a `lifecycle` block with `ignore_changes`:
 ```hcl
 resource "docker_container" "workspace" {
   lifecycle {
-    ignore_changes = all
+    ignore_changes = [env, image] # include all fields which caused drift
   }
 
   count = data.coder_workspace.me.start_count
@@ -151,19 +151,8 @@ resource "docker_container" "workspace" {
 }
 ```
 
-For more targeted control, specify which attributes to ignore:
-
-```hcl
-resource "docker_container" "workspace" {
-  lifecycle {
-    ignore_changes = [name]
-  }
-
-  count = data.coder_workspace.me.start_count
-  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  ...
-}
-```
+Limit the scope of `ignore_changes` to include only the fields specified in the notification.
+If you include too many fields, Terraform might ignore changes that wouldn't otherwise cause drift.
 
 Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
 
