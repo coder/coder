@@ -10,7 +10,7 @@ If you encounter an issue with any Coder feature, please submit a
 ## Feature stages
 
 | Feature stage                          | Stable | Production-ready | Support               | Description                                                                                                                   |
-|----------------------------------------|--------|------------------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| -------------------------------------- | ------ | ---------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | [Early Access](#early-access-features) | No     | No               | GitHub issues         | For staging only. Not feature-complete or stable. Disabled by default.                                                        |
 | [Beta](#beta)                          | No     | Not fully        | Docs, Discord, GitHub | Publicly available. In active development with minor bugs. Suitable for staging; optional for production. Not covered by SLA. |
 | [GA](#general-availability-ga)         | Yes    | Yes              | License-based         | Stable and tested. Enabled by default. Fully documented. Support based on license.                                            |
@@ -66,7 +66,7 @@ You can opt-out of a feature after you've enabled it.
 <!-- BEGIN: available-experimental-features -->
 
 | Feature               | Description                                  | Available in     |
-|-----------------------|----------------------------------------------|------------------|
+| --------------------- | -------------------------------------------- | ---------------- |
 | `dev-containers`      | Enables dev containers support.              | mainline, stable |
 | `agentic-chat`        | Enables the new agentic AI chat feature.     | mainline, stable |
 | `workspace-prebuilds` | Enables the new workspace prebuilds feature. | mainline, stable |
@@ -79,7 +79,7 @@ You can opt-out of a feature after you've enabled it.
 <!-- BEGIN: early-access-features -->
 
 | Feature                    | Description                | Documentation Path         |
-|----------------------------|----------------------------|----------------------------|
+| -------------------------- | -------------------------- | -------------------------- |
 | Dev Containers Integration | Dev Containers Integration | ai-coder/dev-containers.md |
 
 <!-- END: early-access-features -->
@@ -121,7 +121,7 @@ available in the documentation.
 <!-- BEGIN: beta-features -->
 
 | Feature             | Description         | Documentation Path      |
-|---------------------|---------------------|-------------------------|
+| ------------------- | ------------------- | ----------------------- |
 | AI Coding Agents    | AI Coding Agents    | ai-coder/agents.md      |
 | Prebuilt workspaces | Prebuilt workspaces | workspaces/prebuilds.md |
 
