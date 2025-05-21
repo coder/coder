@@ -662,30 +662,28 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 	api.configFileModifiedTimes[configPath] = modifiedAt
 
 	for i := range api.knownDevcontainers {
-		if api.knownDevcontainers[i].ConfigPath != configPath {
+		dc := &api.knownDevcontainers[i]
+		if dc.ConfigPath != configPath {
 			continue
 		}
+
+		logger := api.logger.With(
+			slog.F("file", configPath),
+			slog.F("name", dc.Name),
+			slog.F("workspace_folder", dc.WorkspaceFolder),
+			slog.F("modified_at", modifiedAt),
+		)
 
 		// TODO(mafredri): Simplistic mark for now, we should check if the
 		// container is running and if the config file was modified after
 		// the container was created.
-		if !api.knownDevcontainers[i].Dirty {
-			api.logger.Info(api.ctx, "marking devcontainer as dirty",
-				slog.F("file", configPath),
-				slog.F("name", api.knownDevcontainers[i].Name),
-				slog.F("workspace_folder", api.knownDevcontainers[i].WorkspaceFolder),
-				slog.F("modified_at", modifiedAt),
-			)
-			api.knownDevcontainers[i].Dirty = true
+		if !dc.Dirty {
+			logger.Info(api.ctx, "marking devcontainer as dirty")
+			dc.Dirty = true
 		}
-		if api.knownDevcontainers[i].Container != nil && !api.knownDevcontainers[i].Container.DevcontainerDirty {
-			api.logger.Info(api.ctx, "marking devcontainer container as dirty",
-				slog.F("file", configPath),
-				slog.F("name", api.knownDevcontainers[i].Name),
-				slog.F("workspace_folder", api.knownDevcontainers[i].WorkspaceFolder),
-				slog.F("modified_at", modifiedAt),
-			)
-			api.knownDevcontainers[i].Container.DevcontainerDirty = true
+		if dc.Container != nil && !dc.Container.DevcontainerDirty {
+			logger.Info(api.ctx, "marking devcontainer container as dirty")
+			dc.Container.DevcontainerDirty = true
 		}
 	}
 }
