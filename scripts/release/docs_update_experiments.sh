@@ -20,13 +20,15 @@ if isdarwin; then
 	awk() { gawk "$@"; }
 fi
 
+# File path to deployment.go - needed for documentation purposes
+# shellcheck disable=SC2034
 DEPLOYMENT_GO_FILE="codersdk/deployment.go"
 
 # Extract and parse experiment information from deployment.go
 extract_experiment_info() {
-    # Extract the experiment descriptions, stages, and doc paths
-    # We'll use Go code to capture this information and print it in a structured format
-    cat > /tmp/extract_experiment_info.go << 'EOT'
+	# Extract the experiment descriptions, stages, and doc paths
+	# We'll use Go code to capture this information and print it in a structured format
+	cat >/tmp/extract_experiment_info.go <<'EOT'
 package main
 
 import (
@@ -63,28 +65,28 @@ func main() {
 }
 EOT
 
-    # Run the Go code to extract the information
-    cd /home/coder/coder
-    go run /tmp/extract_experiment_info.go
-    rm /tmp/extract_experiment_info.go
+	# Run the Go code to extract the information
+	cd /home/coder/coder
+	go run /tmp/extract_experiment_info.go
+	rm /tmp/extract_experiment_info.go
 }
 
 # Generate the experimental features table with flag name
 generate_experiments_table() {
-    echo "| Feature Flag | Name | Available in |"
-    echo "|-------------|------|--------------|"
+	echo "| Feature Flag | Name | Available in |"
+	echo "|-------------|------|--------------|"
 
-    # Extract the experiment information
-    extract_experiment_info | jq -r '.[] | select(.stage=="early access") | "| `\(.value)` | \(.description) | mainline, stable |"'
+	# Extract the experiment information
+	extract_experiment_info | jq -r '.[] | select(.stage=="early access") | "| `\(.value)` | \(.description) | mainline, stable |"'
 }
 
 # Extract beta features from deployment.go
 generate_beta_table() {
-    echo "| Feature Flag | Name |"
-    echo "|-------------|------|"
+	echo "| Feature Flag | Name |"
+	echo "|-------------|------|"
 
-    # Extract beta features with flag name only
-    extract_experiment_info | jq -r '.[] | select(.stage=="beta") | "| `\(.value)` | \(.description) |"'
+	# Extract beta features with flag name only
+	extract_experiment_info | jq -r '.[] | select(.stage=="beta") | "| `\(.value)` | \(.description) |"'
 }
 
 dest=docs/install/releases/feature-stages.md
@@ -99,18 +101,18 @@ beta_table=$(generate_beta_table)
 # No need for cleanup operations
 
 # Create temporary files with the new content
-cat > /tmp/ea_content.md << EOT
+cat >/tmp/ea_content.md <<EOT
 <!-- BEGIN: available-experimental-features -->
 
-$(echo "$experiments_table")
+$experiments_table
 
 <!-- END: available-experimental-features -->
 EOT
 
-cat > /tmp/beta_content.md << EOT
+cat >/tmp/beta_content.md <<EOT
 <!-- BEGIN: beta-features -->
 
-$(echo "$beta_table")
+$beta_table
 
 <!-- END: beta-features -->
 EOT
@@ -151,7 +153,7 @@ awk '
   
   # Print all other lines
   { print; }
-' "${dest}" > "${dest}.new"
+' "${dest}" >"${dest}.new"
 
 # Move the new file into place
 mv "${dest}.new" "${dest}"

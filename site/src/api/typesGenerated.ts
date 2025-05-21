@@ -828,10 +828,12 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 export type Experiment =
 	| "agentic-chat"
 	| "auto-fill-parameters"
+	| "coder-desktop"
 	| "dev-containers"
 	| "dynamic-parameters"
 	| "example"
 	| "notifications"
+	| "securing-agents"
 	| "web-push"
 	| "workspace-prebuilds"
 	| "workspace-usage";

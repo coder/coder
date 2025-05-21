@@ -3378,6 +3378,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace-prebuilds`  |
 | `agentic-chat`         |
 | `dev-containers`       |
+| `coder-desktop`        |
+| `securing-agents`      |
 
 ## codersdk.ExternalAuth
 

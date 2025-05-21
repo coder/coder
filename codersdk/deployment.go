@@ -3330,6 +3330,8 @@ const (
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
 	ExperimentDevContainers      Experiment = "dev-containers"       // Enables dev containers support.
+	ExperimentCoderDesktop       Experiment = "coder-desktop"        // Enables Coder Desktop functionality.
+	ExperimentSecuringAgents     Experiment = "securing-agents"      // Enables features for securing AI agents.
 )
 
 // FeatureStage represents the maturity level of a feature
@@ -3355,6 +3357,10 @@ func (e Experiment) GetStage() FeatureStage {
 		return FeatureStageBeta
 	case ExperimentDevContainers:
 		return FeatureStageEarlyAccess
+	case ExperimentCoderDesktop:
+		return FeatureStageBeta
+	case ExperimentSecuringAgents:
+		return FeatureStageEarlyAccess
 	default:
 		return FeatureStageEarlyAccess
 	}
@@ -3369,6 +3375,10 @@ func (e Experiment) GetDescription() string {
 		return "AI Coding Agents"
 	case ExperimentWorkspacePrebuilds:
 		return "Prebuilt workspaces"
+	case ExperimentCoderDesktop:
+		return "Coder Desktop"
+	case ExperimentSecuringAgents:
+		return "Securing AI Agents"
 	default:
 		return string(e)
 	}
@@ -3382,6 +3392,8 @@ var ExperimentsSafe = Experiments{
 	ExperimentWorkspacePrebuilds,
 	ExperimentAgenticChat,
 	ExperimentDevContainers,
+	ExperimentCoderDesktop,
+	ExperimentSecuringAgents,
 }
 
 // Experiments is a list of experiments.
