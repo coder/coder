@@ -1,8 +1,8 @@
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { differenceInWeeks } from "date-fns";
+import { ChevronDownIcon } from "lucide-react";
 import { CheckIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type { DateRangeValue } from "./DateRange";
@@ -35,7 +35,7 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 				aria-haspopup="true"
 				aria-expanded={open ? "true" : undefined}
 				onClick={() => setOpen(true)}
-				endIcon={<ExpandMoreOutlined />}
+				endIcon={<ChevronDownIcon className="size-icon-xs" />}
 			>
 				Last {numberOfWeeks} weeks
 			</Button>
