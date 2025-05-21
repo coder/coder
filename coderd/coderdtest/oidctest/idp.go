@@ -215,7 +215,7 @@ func WithCustomClientAuth(hook func(t testing.TB, req *http.Request) (url.Values
 // WithLogging is optional, but will log some HTTP calls made to the IDP.
 func WithLogging(t testing.TB, options *slogtest.Options) func(*FakeIDP) {
 	return func(f *FakeIDP) {
-		f.logger = slogtest.Make(t, options)
+		f.logger = slogtest.Make(t, options).Named("fakeidp")
 	}
 }
 
@@ -700,6 +700,7 @@ func (f *FakeIDP) newToken(t testing.TB, email string, expires time.Time) string
 func (f *FakeIDP) newRefreshTokens(email string) string {
 	refreshToken := uuid.NewString()
 	f.refreshTokens.Store(refreshToken, email)
+	f.logger.Info(context.Background(), "new refresh token", slog.F("email", email), slog.F("token", refreshToken))
 	return refreshToken
 }
 
@@ -909,6 +910,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				return
 			}
 
+			f.logger.Info(r.Context(), "http idp call refresh_token", slog.F("token", refreshToken))
 			_, ok := f.refreshTokens.Load(refreshToken)
 			if !assert.True(t, ok, "invalid refresh_token") {
 				http.Error(rw, "invalid refresh_token", http.StatusBadRequest)
@@ -932,6 +934,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			f.refreshTokensUsed.Store(refreshToken, true)
 			// Always invalidate the refresh token after it is used.
 			f.refreshTokens.Delete(refreshToken)
+			f.logger.Info(r.Context(), "refresh token invalidated", slog.F("token", refreshToken))
 		case "urn:ietf:params:oauth:grant-type:device_code":
 			// Device flow
 			var resp externalauth.ExchangeDeviceCodeResponse
