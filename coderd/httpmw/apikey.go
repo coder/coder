@@ -232,16 +232,21 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return optionalWrite(http.StatusUnauthorized, resp)
 	}
 
-	var (
-		link database.UserLink
-		now  = dbtime.Now()
-		// Tracks if the API key has properties updated
-		changed = false
-	)
+	now := dbtime.Now()
+	if key.ExpiresAt.Before(now) {
+		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
+		})
+	}
+
+	// We only check OIDC stuff if we have a valid APIKey. An expired key means we don't trust the requestor
+	// really is the user whose key they have, and so we shouldn't be doing anything on their behalf including possibly
+	// refreshing the OIDC token.
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 		var err error
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
@@ -258,7 +263,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			})
 		}
 		// Check if the OAuth token is expired
-		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		if !link.OAuthExpiry.IsZero() && link.OAuthExpiry.Before(now) {
 			if cfg.OAuth2Configs.IsZero() {
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
@@ -267,12 +272,15 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				})
 			}
 
+			var friendlyName string
 			var oauthConfig promoauth.OAuth2Config
 			switch key.LoginType {
 			case database.LoginTypeGithub:
 				oauthConfig = cfg.OAuth2Configs.Github
+				friendlyName = "GitHub"
 			case database.LoginTypeOIDC:
 				oauthConfig = cfg.OAuth2Configs.OIDC
+				friendlyName = "OpenID Connect"
 			default:
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
@@ -292,7 +300,13 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				})
 			}
 
-			// If it is, let's refresh it from the provided config
+			if link.OAuthRefreshToken == "" {
+				return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  fmt.Sprintf("%s session expired at %q. Try signing in again.", friendlyName, link.OAuthExpiry.String()),
+				})
+			}
+			// We have a refresh token, so let's try it
 			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
 				AccessToken:  link.OAuthAccessToken,
 				RefreshToken: link.OAuthRefreshToken,
@@ -300,28 +314,39 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			}).Token()
 			if err != nil {
 				return write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Could not refresh expired Oauth token. Try re-authenticating to resolve this issue.",
-					Detail:  err.Error(),
+					Message: fmt.Sprintf(
+						"Could not refresh expired %s token. Try re-authenticating to resolve this issue.",
+						friendlyName),
+					Detail: err.Error(),
 				})
 			}
 			link.OAuthAccessToken = token.AccessToken
 			link.OAuthRefreshToken = token.RefreshToken
 			link.OAuthExpiry = token.Expiry
-			key.ExpiresAt = token.Expiry
-			changed = true
+			//nolint:gocritic // system needs to update user link
+			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
+				UserID:                 link.UserID,
+				LoginType:              link.LoginType,
+				OAuthAccessToken:       link.OAuthAccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:      link.OAuthRefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:            link.OAuthExpiry,
+				// Refresh should keep the same debug context because we use
+				// the original claims for the group/role sync.
+				Claims: link.Claims,
+			})
+			if err != nil {
+				return write(http.StatusInternalServerError, codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+				})
+			}
 		}
 	}
 
-	// Checking if the key is expired.
-	// NOTE: The `RequireAuth` React component depends on this `Detail` to detect when
-	// the users token has expired. If you change the text here, make sure to update it
-	// in site/src/components/RequireAuth/RequireAuth.tsx as well.
-	if key.ExpiresAt.Before(now) {
-		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
-		})
-	}
+	// Tracks if the API key has properties updated
+	changed := false
 
 	// Only update LastUsed once an hour to prevent database spam.
 	if now.Sub(key.LastUsed) > time.Hour {
@@ -362,29 +387,6 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				Message: internalErrorMessage,
 				Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
 			})
-		}
-		// If the API Key is associated with a user_link (e.g. Github/OIDC)
-		// then we want to update the relevant oauth fields.
-		if link.UserID != uuid.Nil {
-			//nolint:gocritic // system needs to update user link
-			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:                 link.UserID,
-				LoginType:              link.LoginType,
-				OAuthAccessToken:       link.OAuthAccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:      link.OAuthRefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:            link.OAuthExpiry,
-				// Refresh should keep the same debug context because we use
-				// the original claims for the group/role sync.
-				Claims: link.Claims,
-			})
-			if err != nil {
-				return write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
-				})
-			}
 		}
 
 		// We only want to update this occasionally to reduce DB write
