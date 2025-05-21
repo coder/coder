@@ -3374,9 +3374,6 @@ func (e Experiment) GetDescription() string {
 	}
 }
 
-// GetDocsPath is removed to simplify the process for adding new features
-// Documentation paths are now managed directly in the documentation itself
-
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
