@@ -274,7 +274,10 @@ const ProvisionersPage = lazy(
 		),
 );
 const TemplateEmbedExperimentRouter = lazy(
-	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedExperimentRouter"),
+	() =>
+		import(
+			"./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedExperimentRouter"
+		),
 );
 const TemplateInsightsPage = lazy(
 	() =>
