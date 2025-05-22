@@ -330,7 +330,7 @@ var (
 					DisplayName: "Dev Container Agent API",
 					Site:        []rbac.Permission{},
 					Org: map[string][]rbac.Permission{
-						orgID.String(): []rbac.Permission{},
+						orgID.String(): {},
 					},
 					User: rbac.Permissions(map[string][]policy.Action{
 						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
