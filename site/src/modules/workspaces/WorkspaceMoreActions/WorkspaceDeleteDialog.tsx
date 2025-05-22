@@ -61,18 +61,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<p className="label">workspace</p>
 						</div>
 						<div css={{ textAlign: "right" }}>
-							<p className="info">
-								{(() => {
-									try {
-										if (typeof workspace.created_at === "string") {
-											return relativeTime(workspace.created_at);
-										}
-										return "a minute ago";
-									} catch (e) {
-										return "a minute ago";
-									}
-								})()}
-							</p>
+							<p className="info">{relativeTime(workspace.created_at)}</p>
 							<p className="label">created</p>
 						</div>
 					</div>

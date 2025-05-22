@@ -23,12 +23,7 @@ export const Logs: FC<LogsProps> = ({
 					<LogLine key={line.id} level={line.level}>
 						{!hideTimestamps && (
 							<LogLinePrefix>
-								{format(
-									typeof line.time === "string"
-										? parseISO(line.time)
-										: new Date(line.time),
-									"HH:mm:ss.SSS",
-								)}
+								{format(parseISO(line.time), "HH:mm:ss.SSS")}
 							</LogLinePrefix>
 						)}
 						<span>{line.output}</span>
