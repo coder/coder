@@ -1,6 +1,6 @@
 //go:build slim
 
-package database
+package rbac
 
 const (
 	// This line fails to compile, preventing this package from being imported

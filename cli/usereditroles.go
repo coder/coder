@@ -1,32 +1,19 @@
 package cli
 
 import (
-	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) userEditRoles() *serpent.Command {
 	client := new(codersdk.Client)
-
-	roles := rbac.SiteRoles()
-
-	siteRoles := make([]string, 0)
-	for _, role := range roles {
-		siteRoles = append(siteRoles, role.Identifier.Name)
-	}
-	sort.Strings(siteRoles)
-
 	var givenRoles []string
-
 	cmd := &serpent.Command{
 		Use:   "edit-roles <username|user_id>",
 		Short: "Edit a user's roles by username or id",
@@ -34,7 +21,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			cliui.SkipPromptOption(),
 			{
 				Name:        "roles",
-				Description: fmt.Sprintf("A list of roles to give to the user. This removes any existing roles the user may have. The available roles are: %s.", strings.Join(siteRoles, ", ")),
+				Description: "A list of roles to give to the user. This removes any existing roles the user may have.",
 				Flag:        "roles",
 				Value:       serpent.StringArrayOf(&givenRoles),
 			},
@@ -52,13 +39,21 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("fetch user roles: %w", err)
 			}
+			siteRoles, err := client.ListSiteRoles(ctx)
+			if err != nil {
+				return xerrors.Errorf("fetch site roles: %w", err)
+			}
+			siteRoleNames := make([]string, 0, len(siteRoles))
+			for _, role := range siteRoles {
+				siteRoleNames = append(siteRoleNames, role.Name)
+			}
 
 			var selectedRoles []string
 			if len(givenRoles) > 0 {
 				// Make sure all of the given roles are valid site roles
 				for _, givenRole := range givenRoles {
-					if !slices.Contains(siteRoles, givenRole) {
-						siteRolesPretty := strings.Join(siteRoles, ", ")
+					if !slices.Contains(siteRoleNames, givenRole) {
+						siteRolesPretty := strings.Join(siteRoleNames, ", ")
 						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", givenRole, siteRolesPretty)
 					}
 				}
@@ -67,7 +62,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			} else {
 				selectedRoles, err = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 					Message:  "Select the roles you'd like to assign to the user",
-					Options:  siteRoles,
+					Options:  siteRoleNames,
 					Defaults: userRoles.Roles,
 				})
 				if err != nil {
