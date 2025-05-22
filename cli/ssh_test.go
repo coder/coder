@@ -2064,7 +2064,7 @@ func TestSSH_Container(t *testing.T) {
 				},
 			},
 			Warnings: nil,
-		}, nil)
+		}, nil).AnyTimes()
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
 			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
