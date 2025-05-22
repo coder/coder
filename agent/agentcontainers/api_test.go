@@ -161,11 +161,16 @@ func TestAPI(t *testing.T) {
 			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
 		}
 
+		type initialDataPayload struct {
+			val codersdk.WorkspaceAgentListContainersResponse
+			err error
+		}
+
 		// Each test case is called multiple times to ensure idempotency
 		for _, tc := range []struct {
 			name string
 			// initialData to be stored in the handler
-			initialData codersdk.WorkspaceAgentListContainersResponse
+			initialData initialDataPayload
 			// function to set up expectations for the mock
 			setupMock func(mcl *acmock.MockLister, preReq *gomock.Call)
 			// expected result
@@ -175,7 +180,7 @@ func TestAPI(t *testing.T) {
 		}{
 			{
 				name:        "no initial data",
-				initialData: makeResponse(),
+				initialData: initialDataPayload{makeResponse(), nil},
 				setupMock: func(mcl *acmock.MockLister, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
 				},
@@ -183,11 +188,25 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name:        "repeat initial data",
-				initialData: makeResponse(fakeCt),
+				initialData: initialDataPayload{makeResponse(fakeCt), nil},
 				expected:    makeResponse(fakeCt),
 			},
 			{
-				name: "lister error",
+				name:        "lister error always",
+				initialData: initialDataPayload{makeResponse(), assert.AnError},
+				expectedErr: assert.AnError.Error(),
+			},
+			{
+				name:        "lister error only during initial data",
+				initialData: initialDataPayload{makeResponse(), assert.AnError},
+				setupMock: func(mcl *acmock.MockLister, preReq *gomock.Call) {
+					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
+				},
+				expectedErr: assert.AnError.Error(),
+			},
+			{
+				name:        "lister error after initial data",
+				initialData: initialDataPayload{makeResponse(fakeCt), nil},
 				setupMock: func(mcl *acmock.MockLister, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(), assert.AnError).After(preReq).AnyTimes()
 				},
@@ -195,38 +214,43 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name:        "updated data",
-				initialData: makeResponse(fakeCt),
+				initialData: initialDataPayload{makeResponse(fakeCt), nil},
 				setupMock: func(mcl *acmock.MockLister, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt2), nil).After(preReq).AnyTimes()
 				},
 				expected: makeResponse(fakeCt2),
 			},
 		} {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				var (
 					ctx        = testutil.Context(t, testutil.WaitShort)
-					clk        = quartz.NewMock(t)
-					ctrl       = gomock.NewController(t)
-					mockLister = acmock.NewMockLister(ctrl)
+					mClock     = quartz.NewMock(t)
+					tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+					mCtrl      = gomock.NewController(t)
+					mLister    = acmock.NewMockLister(mCtrl)
 					logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 					r          = chi.NewRouter()
 				)
 
-				initialData := mockLister.EXPECT().List(gomock.Any()).Return(tc.initialData, nil)
+				initialDataCall := mLister.EXPECT().List(gomock.Any()).Return(tc.initialData.val, tc.initialData.err)
 				if tc.setupMock != nil {
-					tc.setupMock(mockLister, initialData.Times(1))
+					tc.setupMock(mLister, initialDataCall.Times(1))
 				} else {
-					initialData.AnyTimes()
+					initialDataCall.AnyTimes()
 				}
 
 				api := agentcontainers.NewAPI(logger,
-					agentcontainers.WithClock(clk),
-					agentcontainers.WithLister(mockLister),
+					agentcontainers.WithClock(mClock),
+					agentcontainers.WithLister(mLister),
 				)
 				defer api.Close()
 				r.Mount("/", api.Routes())
+
+				// Make sure the ticker function has been registered
+				// before advancing the clock.
+				tickerTrap.MustWait(ctx).Release()
+				tickerTrap.Close()
 
 				// Initial request returns the initial data.
 				req := httptest.NewRequest(http.MethodGet, "/", nil).
@@ -234,13 +258,21 @@ func TestAPI(t *testing.T) {
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
 
-				var got codersdk.WorkspaceAgentListContainersResponse
-				err := json.NewDecoder(rec.Body).Decode(&got)
-				require.NoError(t, err, "unmarshal response failed")
-				require.Equal(t, tc.initialData, got, "want initial data")
+				if tc.initialData.err != nil {
+					got := &codersdk.Error{}
+					err := json.NewDecoder(rec.Body).Decode(got)
+					require.NoError(t, err, "unmarshal response failed")
+					require.ErrorContains(t, got, tc.initialData.err.Error(), "want error")
+					return
+				} else {
+					var got codersdk.WorkspaceAgentListContainersResponse
+					err := json.NewDecoder(rec.Body).Decode(&got)
+					require.NoError(t, err, "unmarshal response failed")
+					require.Equal(t, tc.initialData.val, got, "want initial data")
+				}
 
-				// Advance the clock to run updateLoop.
-				_, aw := clk.AdvanceNext()
+				// Advance the clock to run updaterLoop.
+				_, aw := mClock.AdvanceNext()
 				aw.MustWait(ctx)
 
 				// Second request returns the updated data.
@@ -750,18 +782,23 @@ func TestAPI(t *testing.T) {
 			ConfigPath:      "/home/coder/project/.devcontainer/devcontainer.json",
 		}
 
+		ctx := testutil.Context(t, testutil.WaitShort)
+
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		lister := &fakeLister{
+		fLister := &fakeLister{
 			containers: codersdk.WorkspaceAgentListContainersResponse{
 				Containers: []codersdk.WorkspaceAgentContainer{container},
 			},
 		}
-		watcher := newFakeWatcher(t)
-		clk := quartz.NewMock(t)
+		fWatcher := newFakeWatcher(t)
+		mClock := quartz.NewMock(t)
+		mClock.Set(time.Now()).MustWait(ctx)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
 		api := agentcontainers.NewAPI(logger,
-			agentcontainers.WithClock(clk),
-			agentcontainers.WithLister(lister),
-			agentcontainers.WithWatcher(watcher),
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithLister(fLister),
+			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithDevcontainers(
 				[]codersdk.WorkspaceAgentDevcontainer{dc},
 				[]codersdk.WorkspaceAgentScript{{LogSourceID: uuid.New(), ID: dc.ID}},
@@ -769,15 +806,16 @@ func TestAPI(t *testing.T) {
 		)
 		defer api.Close()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk.Set(time.Now()).MustWait(ctx)
+		// Make sure the ticker function has been registered
+		// before advancing any use of mClock.Advance.
+		tickerTrap.MustWait(ctx).Release()
+		tickerTrap.Close()
 
 		// Make sure the start loop has been called.
-		watcher.waitNext(ctx)
+		fWatcher.waitNext(ctx)
 
 		// Simulate a file modification event to make the devcontainer dirty.
-		watcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
 			Name: "/home/coder/project/.devcontainer/devcontainer.json",
 			Op:   fsnotify.Write,
 		})
@@ -799,11 +837,11 @@ func TestAPI(t *testing.T) {
 
 		// Next, simulate a situation where the container is no longer
 		// running.
-		lister.containers.Containers = []codersdk.WorkspaceAgentContainer{}
+		fLister.containers.Containers = []codersdk.WorkspaceAgentContainer{}
 
 		// Trigger a refresh which will use the second response from mock
 		// lister (no containers).
-		_, aw := clk.AdvanceNext()
+		_, aw := mClock.AdvanceNext()
 		aw.MustWait(ctx)
 
 		// Afterwards the devcontainer should not be running and not dirty.
@@ -828,9 +866,6 @@ func TestAPI(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		startTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-		mClock := quartz.NewMock(t)
-		mClock.Set(startTime)
-		fWatcher := newFakeWatcher(t)
 
 		// Create a fake container with a config file.
 		configPath := "/workspace/project/.devcontainer/devcontainer.json"
@@ -845,6 +880,10 @@ func TestAPI(t *testing.T) {
 			},
 		}
 
+		mClock := quartz.NewMock(t)
+		mClock.Set(startTime)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+		fWatcher := newFakeWatcher(t)
 		fLister := &fakeLister{
 			containers: codersdk.WorkspaceAgentListContainersResponse{
 				Containers: []codersdk.WorkspaceAgentContainer{container},
@@ -862,6 +901,11 @@ func TestAPI(t *testing.T) {
 
 		r := chi.NewRouter()
 		r.Mount("/", api.Routes())
+
+		// Make sure the ticker function has been registered
+		// before advancing any use of mClock.Advance.
+		tickerTrap.MustWait(ctx).Release()
+		tickerTrap.Close()
 
 		// Call the list endpoint first to ensure config files are
 		// detected and watched.
@@ -895,7 +939,7 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		// Advance the clock to run updateLoop.
+		// Advance the clock to run updaterLoop.
 		_, aw := mClock.AdvanceNext()
 		aw.MustWait(ctx)
 
@@ -920,7 +964,7 @@ func TestAPI(t *testing.T) {
 		container.CreatedAt = mClock.Now() // Update the creation time.
 		fLister.containers.Containers = []codersdk.WorkspaceAgentContainer{container}
 
-		// Advance the clock to run updateLoop.
+		// Advance the clock to run updaterLoop.
 		_, aw = mClock.AdvanceNext()
 		aw.MustWait(ctx)
 
