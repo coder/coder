@@ -22,6 +22,7 @@ import {
 	ExternalLinkIcon,
 	FileIcon,
 	HourglassIcon,
+	LayoutGridIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
@@ -264,7 +265,7 @@ const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 				target="_blank"
 				rel="noreferrer"
 			>
-				<ExternalImage src={app.icon} />
+				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
 			</a>
 		</Button>
