@@ -5,18 +5,18 @@ import TemplateEmbedPageExperimental from "./TemplateEmbedPageExperimental";
 
 // Similar context as in CreateWorkspaceExperimentRouter for maintaining consistency
 export const ExperimentalFormContext = createContext<
-  { toggleOptedOut: () => void } | undefined
+	{ toggleOptedOut: () => void } | undefined
 >(undefined);
 
 const TemplateEmbedExperimentRouter: FC = () => {
-  const { experiments } = useDashboard();
-  const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
+	const { experiments } = useDashboard();
+	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
-  if (dynamicParametersEnabled) {
-    return <TemplateEmbedPageExperimental />;
-  }
+	if (dynamicParametersEnabled) {
+		return <TemplateEmbedPageExperimental />;
+	}
 
-  return <TemplateEmbedPage />;
+	return <TemplateEmbedPage />;
 };
 
 export default TemplateEmbedExperimentRouter;
