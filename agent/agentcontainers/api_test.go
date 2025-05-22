@@ -202,7 +202,7 @@ func TestAPI(t *testing.T) {
 				setupMock: func(mcl *acmock.MockLister, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
 				},
-				expectedErr: assert.AnError.Error(),
+				expected: makeResponse(fakeCt),
 			},
 			{
 				name:        "lister error after initial data",
@@ -263,7 +263,6 @@ func TestAPI(t *testing.T) {
 					err := json.NewDecoder(rec.Body).Decode(got)
 					require.NoError(t, err, "unmarshal response failed")
 					require.ErrorContains(t, got, tc.initialData.err.Error(), "want error")
-					return
 				} else {
 					var got codersdk.WorkspaceAgentListContainersResponse
 					err := json.NewDecoder(rec.Body).Decode(&got)
