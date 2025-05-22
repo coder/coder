@@ -7686,6 +7686,22 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 	return stats, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceAgents := make([]database.WorkspaceAgent, 0)
+	for _, agent := range q.workspaceAgents {
+		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID {
+			continue
+		}
+
+		workspaceAgents = append(workspaceAgents, agent)
+	}
+
+	return workspaceAgents, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7760,22 +7776,6 @@ func (q *FakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.C
 	}
 
 	return agents, nil
-}
-
-func (q *FakeQuerier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaceAgents := make([]database.WorkspaceAgent, 0)
-	for _, agent := range q.workspaceAgents {
-		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID {
-			continue
-		}
-
-		workspaceAgents = append(workspaceAgents, agent)
-	}
-
-	return workspaceAgents, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {

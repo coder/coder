@@ -14484,6 +14484,67 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context
 	return items, nil
 }
 
+const getWorkspaceAgentsByParentID = `-- name: GetWorkspaceAgentsByParentID :many
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope FROM workspace_agents WHERE parent_id = $1 :: uuid
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, dollar_1 uuid.UUID) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByParentID, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+			&i.Version,
+			&i.LastConnectedReplicaID,
+			&i.ConnectionTimeoutSeconds,
+			&i.TroubleshootingURL,
+			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.ExpandedDirectory,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+			&i.StartedAt,
+			&i.ReadyAt,
+			pq.Array(&i.Subsystems),
+			pq.Array(&i.DisplayApps),
+			&i.APIVersion,
+			&i.DisplayOrder,
+			&i.ParentID,
+			&i.APIKeyScope,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope
@@ -14710,67 +14771,6 @@ WHERE
 
 func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgent, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsInLatestBuildByWorkspaceID, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgent
-	for rows.Next() {
-		var i WorkspaceAgent
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Name,
-			&i.FirstConnectedAt,
-			&i.LastConnectedAt,
-			&i.DisconnectedAt,
-			&i.ResourceID,
-			&i.AuthToken,
-			&i.AuthInstanceID,
-			&i.Architecture,
-			&i.EnvironmentVariables,
-			&i.OperatingSystem,
-			&i.InstanceMetadata,
-			&i.ResourceMetadata,
-			&i.Directory,
-			&i.Version,
-			&i.LastConnectedReplicaID,
-			&i.ConnectionTimeoutSeconds,
-			&i.TroubleshootingURL,
-			&i.MOTDFile,
-			&i.LifecycleState,
-			&i.ExpandedDirectory,
-			&i.LogsLength,
-			&i.LogsOverflowed,
-			&i.StartedAt,
-			&i.ReadyAt,
-			pq.Array(&i.Subsystems),
-			pq.Array(&i.DisplayApps),
-			&i.APIVersion,
-			&i.DisplayOrder,
-			&i.ParentID,
-			&i.APIKeyScope,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspaceAgentsWithParentID = `-- name: GetWorkspaceAgentsWithParentID :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope FROM workspace_agents WHERE parent_id = $1 :: uuid
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentsWithParentID(ctx context.Context, dollar_1 uuid.UUID) ([]WorkspaceAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsWithParentID, dollar_1)
 	if err != nil {
 		return nil, err
 	}

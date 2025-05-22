@@ -3066,6 +3066,19 @@ func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, crea
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, parentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByParentID(ctx, parentID)
+}
+
 // GetWorkspaceAgentsByResourceIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
@@ -3098,19 +3111,6 @@ func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Conte
 	}
 
 	return q.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-}
-
-func (q *querier) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, parentID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
-		return nil, err
-	}
-
-	return q.db.GetWorkspaceAgentsWithParentID(ctx, parentID)
 }
 
 func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {

@@ -1761,6 +1761,13 @@ func (m queryMetricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentsByParentID(ctx context.Context, dollar_1 uuid.UUID) ([]database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsByParentID(ctx, dollar_1)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsByParentID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	agents, err := m.s.GetWorkspaceAgentsByResourceIDs(ctx, ids)
@@ -1787,13 +1794,6 @@ func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx cont
 	agents, err := m.s.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsInLatestBuildByWorkspaceID").Observe(time.Since(start).Seconds())
 	return agents, err
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentsWithParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentsWithParentID(ctx, parentID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsWithParentID").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
