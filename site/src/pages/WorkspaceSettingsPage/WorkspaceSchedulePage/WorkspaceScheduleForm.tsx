@@ -29,7 +29,7 @@ import {
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import type { ChangeEvent, FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
-import { timeZones } from "utils/timeZones";
+import { timeZones } from "utils/time";
 import * as Yup from "yup";
 
 export const Language = {

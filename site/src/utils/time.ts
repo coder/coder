@@ -1,15 +1,11 @@
 import {
-	type Duration,
-	add,
 	differenceInDays,
 	differenceInHours,
 	differenceInMinutes,
 	differenceInSeconds,
-	format,
 	formatDistanceToNow,
 	parseISO,
 } from "date-fns";
-import { utcToZonedTime } from "date-fns-tz";
 
 export type TimeUnit = "days" | "hours";
 
@@ -34,17 +30,6 @@ export function toDate(value: DateValue): Date {
 	return new Date(value);
 }
 
-// Date Format Constants
-export const DATE_FORMAT = {
-	FULL_DATE: "MMMM d, yyyy",
-	FULL_DATE_TIME: "MMMM d, yyyy 'at' h:mm a",
-	ISO_DATE: "yyyy-MM-dd",
-	ISO_DATE_TIME: "yyyy-MM-dd'T'HH:mm:ss.SSSxxx",
-	TIME: "h:mm a",
-	SHORT_DATE: "MMM d, yyyy",
-	WEEKDAY_DATE: "EEEE, MMMM d",
-};
-
 /**
  * Safely parses an ISO date string, returning a fallback value if invalid
  * @param dateString The ISO date string to parse
@@ -62,19 +47,6 @@ export function safeParseISO(dateString?: string, fallback = new Date()): Date {
 	} catch (e) {
 		return fallback;
 	}
-}
-
-/**
- * Formats a date according to the specified format
- * @param date Date to format
- * @param dateFormat Format to use (from DATE_FORMAT constant)
- * @returns Formatted date string
- */
-export function formatDate(
-	date: DateValue,
-	dateFormat = DATE_FORMAT.FULL_DATE,
-): string {
-	return format(toDate(date), dateFormat);
 }
 
 /**
@@ -149,16 +121,6 @@ export function daysAgo(count: number) {
 }
 
 /**
- * Adds a specified duration to a date
- * @param date The base date
- * @param duration The duration to add
- * @returns A new date with the duration added
- */
-export function addToDate(date: DateValue, duration: Duration): Date {
-	return add(toDate(date), duration);
-}
-
-/**
  * Gets the difference between two dates in the specified unit
  * @param dateLeft First date
  * @param dateRight Second date
@@ -187,18 +149,7 @@ export function getDateDifference(
 	}
 }
 
-/**
- * Formats a time with timezone consideration
- * @param date The date to format
- * @param timeZone The timezone to use
- * @param dateFormat The date format to apply
- * @returns A formatted date string in the specified timezone
- */
-export function formatTimeWithTimezone(
-	date: DateValue,
-	timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
-	dateFormat = DATE_FORMAT.FULL_DATE_TIME,
-): string {
-	const zonedDate = utcToZonedTime(toDate(date), timeZone);
-	return format(zonedDate, dateFormat);
-}
+export const timeZones = Intl.supportedValuesOf("timeZone");
+
+export const getPreferredTimezone = () =>
+	Intl.DateTimeFormat().resolvedOptions().timeZone;

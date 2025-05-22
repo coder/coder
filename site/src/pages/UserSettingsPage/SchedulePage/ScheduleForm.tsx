@@ -14,7 +14,7 @@ import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "utils/schedule";
-import { getPreferredTimezone, timeZones } from "utils/timeZones";
+import { getPreferredTimezone, timeZones } from "utils/time";
 import * as Yup from "yup";
 
 export interface ScheduleFormValues {

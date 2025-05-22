@@ -3,7 +3,7 @@ import { API } from "api/api";
 import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { MockTemplate } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
-import { timeZones } from "utils/timeZones";
+import { timeZones } from "utils/time";
 import {
 	Language,
 	WorkspaceScheduleForm,
