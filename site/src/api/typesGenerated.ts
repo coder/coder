@@ -1822,6 +1822,7 @@ export interface PrebuildsConfig {
 	readonly reconciliation_interval: number;
 	readonly reconciliation_backoff_interval: number;
 	readonly reconciliation_backoff_lookback: number;
+	readonly failure_hard_limit: number;
 }
 
 // From codersdk/presets.go
@@ -2139,7 +2140,9 @@ export type RBACAction =
 	| "application_connect"
 	| "assign"
 	| "create"
+	| "create_agent"
 	| "delete"
+	| "delete_agent"
 	| "read"
 	| "read_personal"
 	| "ssh"
@@ -2155,7 +2158,9 @@ export const RBACActions: RBACAction[] = [
 	"application_connect",
 	"assign",
 	"create",
+	"create_agent",
 	"delete",
+	"delete_agent",
 	"read",
 	"read_personal",
 	"ssh",

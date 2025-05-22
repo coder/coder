@@ -2704,6 +2704,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "wildcard_access_url": "string",
     "workspace_hostname_suffix": "string",
     "workspace_prebuilds": {
+      "failure_hard_limit": 0,
       "reconciliation_backoff_interval": 0,
       "reconciliation_backoff_lookback": 0,
       "reconciliation_interval": 0
@@ -3202,6 +3203,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "wildcard_access_url": "string",
   "workspace_hostname_suffix": "string",
   "workspace_prebuilds": {
+    "failure_hard_limit": 0,
     "reconciliation_backoff_interval": 0,
     "reconciliation_backoff_lookback": 0,
     "reconciliation_interval": 0
@@ -5264,6 +5266,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "failure_hard_limit": 0,
   "reconciliation_backoff_interval": 0,
   "reconciliation_backoff_lookback": 0,
   "reconciliation_interval": 0
@@ -5272,11 +5275,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                     |
-|-----------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                          |
-| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy. |
-| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                   |
+| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                       |
+|-----------------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `failure_hard_limit`              | integer | false    |              | Failure hard limit defines the maximum number of consecutive failed prebuild attempts allowed before a preset is considered to be in a hard limit state. When a preset hits this limit, no new prebuilds will be created until the limit is reset. FailureHardLimit is disabled when set to zero. |
+| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                                                                                                                                                            |
+| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
+| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
 
 ## codersdk.Preset
 
@@ -5916,7 +5920,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `application_connect` |
 | `assign`              |
 | `create`              |
+| `create_agent`        |
 | `delete`              |
+| `delete_agent`        |
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |

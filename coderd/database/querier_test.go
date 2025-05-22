@@ -4123,8 +4123,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
-		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		_ = tmpl1V1
+		createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4398,6 +4397,311 @@ func TestGetPresetsBackoff(t *testing.T) {
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
 		require.NoError(t, err)
 		require.Len(t, backoffs, 0)
+	})
+}
+
+func TestGetPresetsAtFailureLimit(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	now := dbtime.Now()
+	hourBefore := now.Add(-time.Hour)
+	orgID := uuid.New()
+	userID := uuid.New()
+
+	findPresetByTmplVersionID := func(hardLimitedPresets []database.GetPresetsAtFailureLimitRow, tmplVersionID uuid.UUID) *database.GetPresetsAtFailureLimitRow {
+		for _, preset := range hardLimitedPresets {
+			if preset.TemplateVersionID == tmplVersionID {
+				return &preset
+			}
+		}
+
+		return nil
+	}
+
+	testCases := []struct {
+		name string
+		// true - build is successful
+		// false - build is unsuccessful
+		buildSuccesses  []bool
+		hardLimit       int64
+		expHitHardLimit bool
+	}{
+		{
+			name:            "failed build",
+			buildSuccesses:  []bool{false},
+			hardLimit:       1,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "2 failed builds",
+			buildSuccesses:  []bool{false, false},
+			hardLimit:       1,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "successful build",
+			buildSuccesses:  []bool{true},
+			hardLimit:       1,
+			expHitHardLimit: false,
+		},
+		{
+			name:            "last build is failed",
+			buildSuccesses:  []bool{true, true, false},
+			hardLimit:       1,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "last build is successful",
+			buildSuccesses:  []bool{false, false, true},
+			hardLimit:       1,
+			expHitHardLimit: false,
+		},
+		{
+			name:            "last 3 builds are failed - hard limit is reached",
+			buildSuccesses:  []bool{true, true, false, false, false},
+			hardLimit:       3,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "1 out of 3 last build is successful - hard limit is NOT reached",
+			buildSuccesses:  []bool{false, false, true, false, false},
+			hardLimit:       3,
+			expHitHardLimit: false,
+		},
+		// hardLimit set to zero, implicitly disables the hard limit.
+		{
+			name:            "despite 5 failed builds, the hard limit is not reached because it's disabled.",
+			buildSuccesses:  []bool{false, false, false, false, false},
+			hardLimit:       0,
+			expHitHardLimit: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dbgen.Organization(t, db, database.Organization{
+				ID: orgID,
+			})
+			dbgen.User(t, db, database.User{
+				ID: userID,
+			})
+
+			tmpl := createTemplate(t, db, orgID, userID)
+			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+			for idx, buildSuccess := range tc.buildSuccesses {
+				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+					failedJob: !buildSuccess,
+					createdAt: hourBefore.Add(time.Duration(idx) * time.Second),
+				})
+			}
+
+			hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, tc.hardLimit)
+			require.NoError(t, err)
+
+			if !tc.expHitHardLimit {
+				require.Len(t, hardLimitedPresets, 0)
+				return
+			}
+
+			require.Len(t, hardLimitedPresets, 1)
+			hardLimitedPreset := hardLimitedPresets[0]
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmplV1.preset.ID)
+		})
+	}
+
+	t.Run("Ignore Inactive Version", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl := createTemplate(t, db, orgID, userID)
+		tmplV1 := createTmplVersionAndPreset(t, db, tmpl, uuid.New(), now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		// Active Version
+		tmplV2 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+		require.NoError(t, err)
+
+		require.Len(t, hardLimitedPresets, 1)
+		hardLimitedPreset := hardLimitedPresets[0]
+		require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl.ActiveVersionID)
+		require.Equal(t, hardLimitedPreset.PresetID, tmplV2.preset.ID)
+	})
+
+	t.Run("Multiple Templates", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl2 := createTemplate(t, db, orgID, userID)
+		tmpl2V1 := createTmplVersionAndPreset(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl2, tmpl2V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+
+		require.NoError(t, err)
+
+		require.Len(t, hardLimitedPresets, 2)
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl1V1.preset.ID)
+		}
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl2V1.preset.ID)
+		}
+	})
+
+	t.Run("Multiple Templates, Versions and Workspace Builds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl2 := createTemplate(t, db, orgID, userID)
+		tmpl2V1 := createTmplVersionAndPreset(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl2, tmpl2V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl2, tmpl2V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl3 := createTemplate(t, db, orgID, userID)
+		tmpl3V1 := createTmplVersionAndPreset(t, db, tmpl3, uuid.New(), now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl3, tmpl3V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl3V2 := createTmplVersionAndPreset(t, db, tmpl3, tmpl3.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl3, tmpl3V2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl3, tmpl3V2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		hardLimit := int64(2)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, hardLimit)
+		require.NoError(t, err)
+
+		require.Len(t, hardLimitedPresets, 3)
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl1V1.preset.ID)
+		}
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl2V1.preset.ID)
+		}
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl3.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl3.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl3V2.preset.ID)
+		}
+	})
+
+	t.Run("No Workspace Builds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+		require.NoError(t, err)
+		require.Nil(t, hardLimitedPresets)
+	})
+
+	t.Run("No Failed Workspace Builds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		successfulJobOpts := createPrebuiltWorkspaceOpts{}
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+		require.NoError(t, err)
+		require.Nil(t, hardLimitedPresets)
 	})
 }
 

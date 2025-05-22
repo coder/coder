@@ -66,7 +66,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 						<TableRow>
 							<TableHead>Name</TableHead>
 							<TableHead>Tags</TableHead>
-							<TableHead>Provisioners</TableHead>
+							<TableHead>Active Provisioners</TableHead>
 							<TableHead>Created</TableHead>
 						</TableRow>
 					</TableHeader>

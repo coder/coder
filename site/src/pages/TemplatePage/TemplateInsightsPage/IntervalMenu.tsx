@@ -1,7 +1,7 @@
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { Button } from "components/Button/Button";
+import { ChevronDownIcon } from "lucide-react";
 import { CheckIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 
@@ -41,7 +41,7 @@ export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 				variant="outline"
 			>
 				{insightsIntervals[value].label}
-				<ExpandMoreOutlined className="size-icon-xs ml-1" />
+				<ChevronDownIcon className="size-icon-xs ml-1" />
 			</Button>
 			<Menu
 				id="interval-menu"
