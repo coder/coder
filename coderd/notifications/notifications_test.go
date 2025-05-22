@@ -1250,6 +1250,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "PrebuildFailureLimitReached",
+			id:   notifications.PrebuildFailureLimitReached,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"org":              "cern",
+					"template":         "docker",
+					"template_version": "angry_torvalds",
+					"preset":           "particle-accelerator",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
