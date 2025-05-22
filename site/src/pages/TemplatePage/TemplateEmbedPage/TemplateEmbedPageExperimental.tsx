@@ -15,7 +15,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { FormSection, VerticalForm } from "components/Form/Form";
+import { FormSection } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useClipboard } from "hooks/useClipboard";
@@ -23,10 +23,12 @@ import {
 	Diagnostics,
 	DynamicParameter,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
+import { ExperimentalFormContext } from "pages/CreateWorkspacePage/ExperimentalFormContext";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	useCallback,
+	useContext,
 	useEffect,
 	useMemo,
 	useRef,
@@ -139,6 +141,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	error,
 	sendMessage,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
 	const [localParameters, setLocalParameters] = useState<
 		Record<string, string>
@@ -201,10 +204,21 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	return (
 		<>
 			<div className="flex items-start gap-12">
-				<div className="max-w-screen-md gap-12">
+				<div className="flex flex-col gap-5 max-w-screen-md">
+					{experimentalFormContext && (
+						<div>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={experimentalFormContext.toggleOptedOut}
+							>
+								Go back to the classic template embed flow
+							</Button>
+						</div>
+					)}
 					{Boolean(error) && <ErrorAlert error={error} />}
 					{diagnostics.length > 0 && <Diagnostics diagnostics={diagnostics} />}
-					<VerticalForm>
+					<div className="flex flex-col">
 						<FormSection
 							title="Creation mode"
 							description="By changing the mode to automatic, when the user clicks the button, the workspace will be created automatically instead of showing a form to the user."
@@ -247,7 +261,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 								})}
 							</div>
 						)}
-					</VerticalForm>
+					</div>
 				</div>
 
 				<ButtonPreview template={template} buttonValues={buttonValues} />
