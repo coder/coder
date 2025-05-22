@@ -143,6 +143,11 @@
 									"title": "JetBrains Gateway in an air-gapped environment",
 									"description": "Use JetBrains Gateway in an air-gapped offline environment",
 									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+								},
+								{
+									"title": "JetBrains Toolbox",
+									"description": "Access Coder workspaces through JetBrains Toolbox",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-toolbox.md"
 								}
 							]
 						},
