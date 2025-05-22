@@ -12,17 +12,16 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { addYears, formatDistanceToNow, isBefore, parseISO } from "date-fns";
 import { TrashIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
-dayjs.extend(relativeTime);
-
 const lastUsedOrNever = (lastUsed: string) => {
-	const t = dayjs(lastUsed);
-	const now = dayjs();
-	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
+	const t = parseISO(lastUsed);
+	const now = new Date();
+	return isBefore(now, addYears(t, 100))
+		? formatDistanceToNow(t, { addSuffix: true })
+		: "Never";
 };
 
 export interface TokensPageViewProps {
@@ -96,13 +95,17 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 													style={{ color: theme.palette.text.secondary }}
 													data-chromatic="ignore"
 												>
-													{dayjs(token.expires_at).fromNow()}
+													{formatDistanceToNow(parseISO(token.expires_at), {
+														addSuffix: true,
+													})}
 												</span>
 											</TableCell>
 
 											<TableCell>
 												<span style={{ color: theme.palette.text.secondary }}>
-													{dayjs(token.created_at).fromNow()}
+													{formatDistanceToNow(parseISO(token.created_at), {
+														addSuffix: true,
+													})}
 												</span>
 											</TableCell>
 

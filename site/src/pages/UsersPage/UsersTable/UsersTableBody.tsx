@@ -26,15 +26,11 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { TrashIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
-
-dayjs.extend(relativeTime);
 
 interface UsersTableBodyProps {
 	users: readonly TypesGen.User[] | undefined;

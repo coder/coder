@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import dayjs from "dayjs";
+import { add, sub } from "date-fns";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -29,7 +29,7 @@ const Wrapper: FC = () => {
 	);
 };
 
-const BASE_DEADLINE = dayjs().add(3, "hour");
+const BASE_DEADLINE = add(new Date(), { hours: 3 });
 
 const renderScheduleControls = async () => {
 	server.use(
@@ -45,7 +45,7 @@ const renderScheduleControls = async () => {
 	);
 	render(<Wrapper />);
 	await screen.findByTestId("schedule-controls");
-	expect(screen.getByText("Stop in 3 hours")).toBeInTheDocument();
+	expect(screen.getByText(/Stop in (about )?3 hours/)).toBeInTheDocument();
 };
 
 test("add 3 hours to deadline", async () => {
@@ -65,15 +65,17 @@ test("add 3 hours to deadline", async () => {
 	await screen.findByText(
 		"Workspace shutdown time has been successfully updated.",
 	);
-	expect(await screen.findByText("Stop in 6 hours")).toBeInTheDocument();
+	expect(
+		await screen.findByText(/Stop in (about )?6 hours/),
+	).toBeInTheDocument();
 
-	// Mocks are used here because the 'usedDeadline' is a dayjs object, which
-	// can't be directly compared.
+	// Mocks are used here because the 'usedDeadline' is a Date object, which
+	// can't be directly compared with the same object.
 	const usedWorkspaceId = updateDeadlineSpy.mock.calls[0][0];
 	const usedDeadline = updateDeadlineSpy.mock.calls[0][1];
 	expect(usedWorkspaceId).toEqual(MockWorkspace.id);
 	expect(usedDeadline.toISOString()).toEqual(
-		BASE_DEADLINE.add(3, "hour").toISOString(),
+		add(BASE_DEADLINE, { hours: 3 }).toISOString(),
 	);
 });
 
@@ -93,21 +95,23 @@ test("remove 2 hours to deadline", async () => {
 	await screen.findByText(
 		"Workspace shutdown time has been successfully updated.",
 	);
-	expect(await screen.findByText("Stop in an hour")).toBeInTheDocument();
+	expect(
+		await screen.findByText(/Stop in (about )?1 hour/),
+	).toBeInTheDocument();
 
-	// Mocks are used here because the 'usedDeadline' is a dayjs object, which
-	// can't be directly compared.
+	// Mocks are used here because the 'usedDeadline' is a Date object, which
+	// can't be directly compared with the same object.
 	const usedWorkspaceId = updateDeadlineSpy.mock.calls[0][0];
 	const usedDeadline = updateDeadlineSpy.mock.calls[0][1];
 	expect(usedWorkspaceId).toEqual(MockWorkspace.id);
 	expect(usedDeadline.toISOString()).toEqual(
-		BASE_DEADLINE.subtract(2, "hour").toISOString(),
+		sub(BASE_DEADLINE, { hours: 2 }).toISOString(),
 	);
 });
 
 test("rollback to previous deadline on error", async () => {
 	const user = userEvent.setup();
-	const initialScheduleMessage = "Stop in 3 hours";
+	const initialScheduleMessage = /Stop in (about )?3 hours/;
 	jest.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
 
 	await renderScheduleControls();

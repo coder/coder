@@ -7,8 +7,7 @@ import type {
 	WorkspaceBuild,
 } from "api/typesGenerated";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import formatDistanceToNow from "date-fns/formatDistanceToNow";
-import dayjs from "dayjs";
+import { formatDistanceToNow, parseISO } from "date-fns";
 import { TriangleAlertIcon } from "lucide-react";
 import { InfoIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -171,8 +170,8 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	// "now" will always change and invalidate the dependency array. Need to
 	// figure out if this effect really should run every render (possibly meaning
 	// no dependency array at all), or how to get the array stabilized (ideal)
-	const now = dayjs();
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
+	const now = new Date();
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (
 			workspace.latest_build.status !== "pending" ||
@@ -190,10 +189,8 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 			};
 		}
 
-		const t = Math.max(
-			0,
-			5000 - dayjs().diff(dayjs(workspace.latest_build.created_at)),
-		);
+		const createdAt = parseISO(workspace.latest_build.created_at);
+		const t = Math.max(0, 5000 - (now.getTime() - createdAt.getTime()));
 		const showTimer = setTimeout(() => {
 			setShowAlertPendingInQueue(true);
 		}, t);

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import dayjs from "dayjs";
+import { formatISO, sub } from "date-fns";
 import {
 	MockProvisionerJob,
 	MockStartingWorkspace,
@@ -22,7 +22,7 @@ const meta: Meta<typeof WorkspaceBuildProgress> = {
 				status: "starting",
 				job: {
 					...MockProvisionerJob,
-					started_at: dayjs().add(-5, "second").format(),
+					started_at: formatISO(sub(new Date(), { seconds: 5 })),
 					status: "running",
 				},
 			},

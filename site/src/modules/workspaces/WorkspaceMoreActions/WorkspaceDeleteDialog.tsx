@@ -7,7 +7,7 @@ import type {
 	Workspace,
 } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import dayjs from "dayjs";
+import { formatDistanceToNow, parseISO } from "date-fns";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { docs } from "utils/docs";
 
@@ -61,7 +61,22 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<p className="label">workspace</p>
 						</div>
 						<div css={{ textAlign: "right" }}>
-							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
+							<p className="info">
+								{(() => {
+									try {
+										if (typeof workspace.created_at === "string") {
+											const date = parseISO(workspace.created_at);
+											// Check if the date is valid
+											if (!Number.isNaN(date.getTime())) {
+												return formatDistanceToNow(date, { addSuffix: true });
+											}
+										}
+										return "a minute ago";
+									} catch (e) {
+										return "a minute ago";
+									}
+								})()}
+							</p>
 							<p className="label">created</p>
 						</div>
 					</div>

@@ -1,18 +1,9 @@
 import * as cronParser from "cron-parser";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import map from "lodash/map";
 import some from "lodash/some";
 import { extractTimezone, stripTimezone } from "utils/schedule";
 import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 import type { Autostop } from "./ttl";
-
-// REMARK: timezone plugin depends on UTC
-//
-// SEE: https://day.js.org/docs/en/timezone/timezone
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 export interface AutostartSchedule {
 	sunday: boolean;
@@ -43,21 +34,28 @@ export const emptySchedule = {
 	timezone: "",
 };
 
-export const defaultSchedule = (): AutostartSchedule => ({
-	sunday: false,
-	monday: true,
-	tuesday: true,
-	wednesday: true,
-	thursday: true,
-	friday: true,
-	saturday: false,
+export const defaultSchedule = (): AutostartSchedule => {
+	// Get the current browser timezone
+	const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-	startTime: "09:30",
-	timezone: dayjs.tz.guess(),
-});
+	return {
+		sunday: false,
+		monday: true,
+		tuesday: true,
+		wednesday: true,
+		thursday: true,
+		friday: true,
+		saturday: false,
+
+		startTime: "09:30",
+		timezone,
+	};
+};
 
 const transformSchedule = (schedule: string) => {
-	const timezone = extractTimezone(schedule, dayjs.tz.guess());
+	// Get the browser timezone as fallback
+	const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const timezone = extractTimezone(schedule, browserTimezone);
 
 	const expression = cronParser.parseExpression(stripTimezone(schedule));
 

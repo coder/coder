@@ -20,7 +20,6 @@
  * For example, `utils/delay` must be imported using `../utils/delay` instead.
  */
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
-import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
@@ -1555,7 +1554,7 @@ class ApiMethods {
 
 	putWorkspaceExtension = async (
 		workspaceId: string,
-		newDeadline: dayjs.Dayjs,
+		newDeadline: Date,
 	): Promise<void> => {
 		await this.axios.put(`/api/v2/workspaces/${workspaceId}/extend`, {
 			deadline: newDeadline,

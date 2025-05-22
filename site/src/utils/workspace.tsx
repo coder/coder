@@ -1,18 +1,17 @@
 import type { Theme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-import minMax from "dayjs/plugin/minMax";
-import utc from "dayjs/plugin/utc";
+import {
+	differenceInSeconds,
+	formatDistance,
+	isAfter,
+	parseISO,
+	sub,
+} from "date-fns";
 import { HourglassIcon } from "lucide-react";
 import { CircleAlertIcon, PlayIcon, SquareIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
-
-dayjs.extend(duration);
-dayjs.extend(utc);
-dayjs.extend(minMax);
 
 const DisplayWorkspaceBuildStatusLanguage = {
 	succeeded: "Succeeded",
@@ -94,9 +93,9 @@ const getWorkspaceBuildDurationInSeconds = (
 		return;
 	}
 
-	const startedAt = dayjs(build.job.started_at);
-	const completedAt = dayjs(build.job.completed_at);
-	return completedAt.diff(startedAt, "seconds");
+	const startedAt = parseISO(build.job.started_at);
+	const completedAt = parseISO(build.job.completed_at);
+	return differenceInSeconds(completedAt, startedAt);
 };
 
 export const displayWorkspaceBuildDuration = (
@@ -145,17 +144,6 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
 	const transition = workspace.latest_build.transition;
 	const status = workspace.latest_build.job.status;
 	return transition === "start" && status === "succeeded";
-};
-
-export const defaultWorkspaceExtension = (
-	__startDate?: dayjs.Dayjs,
-): TypesGen.PutExtendWorkspaceRequest => {
-	const now = __startDate ? dayjs(__startDate) : dayjs();
-	const fourHoursFromNow = now.add(4, "hours").utc();
-
-	return {
-		deadline: fourHoursFromNow.format(),
-	};
 };
 
 export const getDisplayWorkspaceTemplateName = (
@@ -318,18 +306,18 @@ export const getResourceIconPath = (resourceType: string): string => {
 };
 
 export const lastUsedMessage = (lastUsedAt: string | Date): string => {
-	const t = dayjs(lastUsedAt);
-	const now = dayjs();
-	let message = t.fromNow();
+	const t = typeof lastUsedAt === "string" ? parseISO(lastUsedAt) : lastUsedAt;
+	const now = new Date();
+	let message = formatDistance(t, now, { addSuffix: true });
 
-	if (t.isAfter(now.subtract(1, "hour"))) {
+	if (isAfter(t, sub(now, { hours: 1 }))) {
 		message = "Now";
-	} else if (t.isAfter(now.subtract(3, "day"))) {
-		message = t.fromNow();
-	} else if (t.isAfter(now.subtract(1, "month"))) {
-		message = t.fromNow();
-	} else if (t.isAfter(now.subtract(100, "year"))) {
-		message = t.fromNow();
+	} else if (isAfter(t, sub(now, { days: 3 }))) {
+		message = formatDistance(t, now, { addSuffix: true });
+	} else if (isAfter(t, sub(now, { months: 1 }))) {
+		message = formatDistance(t, now, { addSuffix: true });
+	} else if (isAfter(t, sub(now, { years: 100 }))) {
+		message = formatDistance(t, now, { addSuffix: true });
 	} else {
 		message = "Never";
 	}

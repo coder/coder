@@ -9,7 +9,6 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import dayjs from "dayjs";
 import {
 	scheduleChanged,
 	scheduleToAutostart,
@@ -103,7 +102,7 @@ const WorkspaceSchedulePage: FC = () => {
 						...getAutostop(workspace),
 					}}
 					isLoading={submitScheduleMutation.isLoading}
-					defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
+					defaultTTL={template.default_ttl_ms / (1000 * 60 * 60)}
 					onCancel={() => {
 						navigate(`/@${username}/${workspaceName}`);
 					}}

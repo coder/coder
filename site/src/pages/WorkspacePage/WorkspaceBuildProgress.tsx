@@ -2,12 +2,9 @@ import { css } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
-import dayjs, { type Dayjs } from "dayjs";
-import duration from "dayjs/plugin/duration";
+import { differenceInMilliseconds, parseISO } from "date-fns";
 import capitalize from "lodash/capitalize";
 import { type FC, useEffect, useState } from "react";
-
-dayjs.extend(duration);
 
 // ActiveTransition gets the build estimate for the workspace,
 // if it is in a transition state.
@@ -30,16 +27,13 @@ export const ActiveTransition = (
 };
 
 const estimateFinish = (
-	startedAt: Dayjs,
+	startedAt: Date,
 	p50: number,
 	p95: number,
 ): [number | undefined, string] => {
-	const sinceStart = dayjs().diff(startedAt);
+	const sinceStart = differenceInMilliseconds(new Date(), startedAt);
 	const secondsLeft = (est: number) => {
-		const max = Math.max(
-			Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
-			0,
-		);
+		const max = Math.max(Math.ceil(((1 - sinceStart / est) * est) / 1000), 0);
 		return Number.isNaN(max) ? 0 : max;
 	};
 
@@ -93,8 +87,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 				return;
 			}
 
+			// Make sure job.started_at is defined before passing to parseISO
 			const [est, text] = estimateFinish(
-				dayjs(job.started_at),
+				job.started_at ? parseISO(job.started_at) : new Date(),
 				transitionStats.P50,
 				transitionStats.P95,
 			);

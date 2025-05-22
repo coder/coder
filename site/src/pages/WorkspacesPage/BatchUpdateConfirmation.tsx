@@ -6,14 +6,11 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { formatDistance, isAfter, parseISO, sub } from "date-fns";
 import { MonitorDownIcon } from "lucide-react";
 import { ClockIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueries } from "react-query";
-
-dayjs.extend(relativeTime);
 
 type BatchUpdateConfirmationProps = {
 	checkedWorkspaces: readonly Workspace[];
@@ -425,9 +422,11 @@ const UsedBy: FC<UsedByProps> = ({ workspaces }) => {
 };
 
 const lastUsed = (time: string) => {
-	const now = dayjs();
-	const then = dayjs(time);
-	return then.isAfter(now.subtract(1, "hour")) ? "now" : then.fromNow();
+	const now = new Date();
+	const then = parseISO(time);
+	return isAfter(then, sub(now, { hours: 1 }))
+		? "now"
+		: formatDistance(then, now, { addSuffix: true });
 };
 
 const PersonIcon: FC = () => {

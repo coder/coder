@@ -1,35 +1,32 @@
 import { useTheme } from "@emotion/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { formatDistanceToNow, isAfter, parseISO, sub } from "date-fns";
 import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
 
-dayjs.extend(relativeTime);
-
 interface LastSeenProps
 	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
-	at: dayjs.ConfigType;
+	at: string | Date | number;
 	"data-chromatic"?: string; // prevents a type error in the stories
 }
 
 export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 	const theme = useTheme();
-	const t = dayjs(at);
-	const now = dayjs();
+	const t = typeof at === "string" ? parseISO(at) : new Date(at);
+	const now = new Date();
 
-	let message = t.fromNow();
+	let message = formatDistanceToNow(t, { addSuffix: true });
 	let color = theme.palette.text.secondary;
 
-	if (t.isAfter(now.subtract(1, "hour"))) {
+	if (isAfter(t, sub(now, { hours: 1 }))) {
 		// Since the agent reports on a 10m interval,
 		// the last_used_at can be inaccurate when recent.
 		message = "Now";
 		color = theme.roles.success.fill.solid;
-	} else if (t.isAfter(now.subtract(3, "day"))) {
+	} else if (isAfter(t, sub(now, { days: 3 }))) {
 		color = theme.experimental.l2.text;
-	} else if (t.isAfter(now.subtract(1, "month"))) {
+	} else if (isAfter(t, sub(now, { months: 1 }))) {
 		color = theme.roles.warning.fill.solid;
-	} else if (t.isAfter(now.subtract(100, "year"))) {
+	} else if (isAfter(t, sub(now, { years: 100 }))) {
 		color = theme.roles.error.fill.solid;
 	} else {
 		message = "Never";

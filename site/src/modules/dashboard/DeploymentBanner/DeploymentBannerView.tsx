@@ -14,7 +14,12 @@ import { RocketIcon } from "components/Icons/RocketIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
+import {
+	differenceInMinutes,
+	differenceInSeconds,
+	formatDistanceToNow,
+	parseISO,
+} from "date-fns";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { CloudDownloadIcon } from "lucide-react";
 import { CloudUploadIcon } from "lucide-react";
@@ -56,7 +61,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		if (!stats) {
 			return;
 		}
-		return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes");
+		return differenceInMinutes(
+			parseISO(stats.collected_at),
+			parseISO(stats.aggregated_from),
+		);
 	}, [stats]);
 
 	const [timeUntilRefresh, setTimeUntilRefresh] = useState(0);
@@ -65,9 +73,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			return;
 		}
 
-		let timeUntilRefresh = dayjs(stats.next_update_at).diff(
-			stats.collected_at,
-			"seconds",
+		let timeUntilRefresh = differenceInSeconds(
+			parseISO(stats.next_update_at),
+			parseISO(stats.collected_at),
 		);
 		setTimeUntilRefresh(timeUntilRefresh);
 		let canceled = false;
@@ -97,7 +105,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			// Storybook!
 			return "just now";
 		}
-		return dayjs().to(dayjs(stats.collected_at));
+		return formatDistanceToNow(parseISO(stats.collected_at), {
+			addSuffix: true,
+		});
 	}, [timeUntilRefresh, stats, fetchStats]);
 
 	const healthErrors = health ? getHealthErrors(health) : [];

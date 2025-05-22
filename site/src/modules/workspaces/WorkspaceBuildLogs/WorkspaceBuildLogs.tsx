@@ -2,7 +2,7 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
-import dayjs from "dayjs";
+import { differenceInSeconds, parseISO } from "date-fns";
 import { type FC, Fragment, type HTMLAttributes } from "react";
 import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
 
@@ -33,9 +33,9 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 		return;
 	}
 
-	const startedAt = dayjs(logs[0].created_at);
-	const completedAt = dayjs(logs[logs.length - 1].created_at);
-	return completedAt.diff(startedAt, "seconds");
+	const startedAt = parseISO(logs[0].created_at);
+	const completedAt = parseISO(logs[logs.length - 1].created_at);
+	return differenceInSeconds(completedAt, startedAt);
 };
 
 interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {

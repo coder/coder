@@ -11,7 +11,7 @@ import {
 import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import dayjs, { type Dayjs } from "dayjs";
+import { add, sub } from "date-fns";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
@@ -119,9 +119,9 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
 	const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
 	const deadlineUpdateTimeout = useRef<number>();
-	const lastStableDeadline = useRef<Dayjs>(deadline);
+	const lastStableDeadline = useRef<Date>(deadline);
 
-	const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {
+	const updateWorkspaceDeadlineQueryData = (deadline: Date) => {
 		queryClient.setQueryData(
 			workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
 			{
@@ -151,7 +151,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 		},
 	});
 
-	const handleDeadlineChange = (newDeadline: Dayjs) => {
+	const handleDeadlineChange = (newDeadline: Date) => {
 		clearTimeout(deadlineUpdateTimeout.current);
 		// Optimistic update
 		updateWorkspaceDeadlineQueryData(newDeadline);
@@ -173,10 +173,10 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	if (activityStatus === "connected") {
 		onClickScheduleIcon = () => setShowControlsAnyway((it) => !it);
 
-		const now = dayjs();
+		const now = new Date();
 		const noRequiredStopSoon =
 			!workspace.latest_build.max_deadline ||
-			dayjs(workspace.latest_build.max_deadline).isAfter(now.add(2, "hour"));
+			new Date(workspace.latest_build.max_deadline) > add(now, { hours: 2 });
 
 		// User has shown controls manually, or we should warn about a nearby required stop
 		if (!showControlsAnyway && noRequiredStopSoon) {
@@ -206,7 +206,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 					size="small"
 					css={styles.scheduleButton}
 					onClick={() => {
-						handleDeadlineChange(deadline.subtract(1, "h"));
+						handleDeadlineChange(sub(deadline, { hours: 1 }));
 					}}
 				>
 					<MinusIcon className="size-icon-xs" />
@@ -219,7 +219,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 					size="small"
 					css={styles.scheduleButton}
 					onClick={() => {
-						handleDeadlineChange(deadline.add(1, "h"));
+						handleDeadlineChange(add(deadline, { hours: 1 }));
 					}}
 				>
 					<PlusIcon className="size-icon-xs" />

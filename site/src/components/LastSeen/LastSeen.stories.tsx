@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import dayjs from "dayjs";
+import { sub } from "date-fns";
 import { LastSeen } from "./LastSeen";
 
 const meta: Meta<typeof LastSeen> = {
@@ -19,36 +19,36 @@ type Story = StoryObj<typeof LastSeen>;
 
 export const Now: Story = {
 	args: {
-		at: dayjs(),
+		at: new Date(),
 	},
 };
 
 export const OneDayAgo: Story = {
 	args: {
-		at: dayjs().subtract(1, "day"),
+		at: sub(new Date(), { days: 1 }),
 	},
 };
 
 export const OneWeekAgo: Story = {
 	args: {
-		at: dayjs().subtract(1, "week"),
+		at: sub(new Date(), { weeks: 1 }),
 	},
 };
 
 export const OneMonthAgo: Story = {
 	args: {
-		at: dayjs().subtract(1, "month"),
+		at: sub(new Date(), { months: 1 }),
 	},
 };
 
 export const OneYearAgo: Story = {
 	args: {
-		at: dayjs().subtract(1, "year"),
+		at: sub(new Date(), { years: 1 }),
 	},
 };
 
 export const Never: Story = {
 	args: {
-		at: dayjs().subtract(101, "year"),
+		at: sub(new Date(), { years: 101 }),
 	},
 };

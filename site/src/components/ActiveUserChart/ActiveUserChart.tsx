@@ -21,7 +21,7 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import dayjs from "dayjs";
+import { format, parseISO } from "date-fns";
 import type { FC } from "react";
 import { Line } from "react-chartjs-2";
 
@@ -48,7 +48,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 }) => {
 	const theme = useTheme();
 
-	const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
+	const labels = data.map((val) => format(parseISO(val.date), "yyyy-MM-dd"));
 	const chartData = data.map((val) => val.amount);
 
 	defaults.font.family = theme.typography.fontFamily as string;

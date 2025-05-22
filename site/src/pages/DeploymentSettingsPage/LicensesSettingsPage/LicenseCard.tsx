@@ -5,8 +5,7 @@ import type { GetLicensesResponse } from "api/api";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { compareAsc } from "date-fns";
-import dayjs from "dayjs";
+import { compareAsc, format, fromUnixTime } from "date-fns";
 import { type FC, useState } from "react";
 
 type LicenseCardProps = {
@@ -103,9 +102,10 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							<span css={styles.secondaryMaincolor}>Valid Until</span>
 						)}
 						<span css={styles.licenseExpires} className="license-expires">
-							{dayjs
-								.unix(license.claims.license_expires)
-								.format("MMMM D, YYYY")}
+							{format(
+								fromUnixTime(license.claims.license_expires),
+								"MMMM d, yyyy",
+							)}
 						</span>
 					</Stack>
 					<Stack spacing={2}>

@@ -22,12 +22,6 @@ import {
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
 import { formatDuration, intervalToDuration } from "date-fns";
-import dayjs from "dayjs";
-import advancedFormat from "dayjs/plugin/advancedFormat";
-import duration from "dayjs/plugin/duration";
-import relativeTime from "dayjs/plugin/relativeTime";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { type FormikTouched, useFormik } from "formik";
 import {
 	defaultSchedule,
@@ -37,14 +31,6 @@ import type { ChangeEvent, FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
 import * as Yup from "yup";
-
-// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
-//         sorted alphabetically.
-dayjs.extend(utc);
-dayjs.extend(advancedFormat);
-dayjs.extend(duration);
-dayjs.extend(relativeTime);
-dayjs.extend(timezone);
 
 export const Language = {
 	errorNoDayOfWeek:
@@ -160,15 +146,9 @@ export const validationSchema = Yup.object({
 			if (!parent.startTime) {
 				return true;
 			}
-			// Unfortunately, there's not a good API on dayjs at this time for
-			// evaluating a timezone. Attempt to parse today in the supplied timezone
-			// and return as valid if the function doesn't throw.
-			try {
-				dayjs.tz(dayjs(), value);
-				return true;
-			} catch (e) {
-				return false;
-			}
+
+			// Simple validation - just check if it's in the timeZones array
+			return timeZones.includes(value);
 		}),
 	ttl: Yup.number()
 		.min(0)
@@ -394,9 +374,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					<>
 						Set how many hours should elapse after the workspace started before
 						the workspace automatically shuts down. This will be extended by{" "}
-						{dayjs
-							.duration({ milliseconds: template.activity_bump_ms })
-							.humanize()}{" "}
+						{formatDuration(
+							intervalToDuration({
+								start: 0,
+								end: template.activity_bump_ms,
+							}),
+							{ delimiter: " and " },
+						)}{" "}
 						after last activity in the workspace was detected.
 					</>
 				}

@@ -3,22 +3,24 @@ import type { Template, Workspace } from "api/typesGenerated";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import cronParser from "cron-parser";
 import cronstrue from "cronstrue";
-import dayjs, { type Dayjs } from "dayjs";
-import duration from "dayjs/plugin/duration";
-import relativeTime from "dayjs/plugin/relativeTime";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
+import {
+	add,
+	addDays,
+	differenceInHours,
+	differenceInMilliseconds,
+	format,
+	formatDistance,
+	formatDuration,
+	isAfter,
+	isBefore,
+	isSameDay,
+	parseISO,
+} from "date-fns";
+import { utcToZonedTime } from "date-fns-tz";
 import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { isWorkspaceOn } from "./workspace";
-
-// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
-//         sorted alphabetically.
-dayjs.extend(utc);
-dayjs.extend(duration);
-dayjs.extend(relativeTime);
-dayjs.extend(timezone);
 /**
  * @fileoverview Client-side counterpart of the coderd/autostart/schedule Go
  * package. This package is a variation on crontab that uses minute, hour and
@@ -77,15 +79,19 @@ export const autostartDisplay = (schedule: string | undefined): string => {
 	return Language.manual;
 };
 
-const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
+const isShuttingDown = (workspace: Workspace, deadline?: Date): boolean => {
 	if (!deadline) {
 		if (!workspace.latest_build.deadline) {
 			return false;
 		}
-		deadline = dayjs(workspace.latest_build.deadline).utc();
+		deadline = workspace.latest_build.deadline
+			? workspace.latest_build.deadline
+				? parseISO(workspace.latest_build.deadline)
+				: new Date()
+			: new Date();
 	}
-	const now = dayjs().utc();
-	return isWorkspaceOn(workspace) && now.isAfter(deadline);
+	const now = new Date();
+	return isWorkspaceOn(workspace) && isAfter(now, deadline);
 };
 
 export const autostopDisplay = (
@@ -106,23 +112,38 @@ export const autostopDisplay = (
 		// represent the previously defined ttl. Thus, we always derive from the
 		// deadline as the source of truth.
 
-		const deadline = dayjs(workspace.latest_build.deadline).tz(
-			dayjs.tz.guess(),
+		const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		const deadline = utcToZonedTime(
+			workspace.latest_build.deadline
+				? parseISO(workspace.latest_build.deadline)
+				: new Date(),
+			userTimezone,
 		);
-		const now = dayjs(workspace.latest_build.deadline);
+		const now = new Date();
 
 		if (activityStatus === "connected") {
 			const hasMaxDeadline = Boolean(workspace.latest_build.max_deadline);
-			const maxDeadline = dayjs(workspace.latest_build.max_deadline);
-			if (hasMaxDeadline && maxDeadline.isBefore(now.add(2, "hour"))) {
+			const maxDeadline = workspace.latest_build.max_deadline
+				? workspace.latest_build.max_deadline
+					? parseISO(workspace.latest_build.max_deadline)
+					: new Date()
+				: null;
+			if (
+				hasMaxDeadline &&
+				maxDeadline &&
+				isBefore(maxDeadline, add(now, { hours: 2 }))
+			) {
 				return {
 					message: "Required to stop soon",
 					tooltip: (
 						<>
 							<HelpTooltipTitle>Upcoming stop required</HelpTooltipTitle>
 							This workspace will be required to stop by{" "}
-							{dayjs(workspace.latest_build.max_deadline).format(
-								"MMMM D [at] h:mm A",
+							{format(
+								workspace.latest_build.max_deadline
+									? parseISO(workspace.latest_build.max_deadline)
+									: new Date(),
+								"MMMM d 'at' h:mm a",
 							)}
 							. You can restart your workspace before then to avoid
 							interruption.
@@ -157,12 +178,12 @@ export const autostopDisplay = (
 			);
 		}
 		return {
-			message: `Stop ${deadline.fromNow()}`,
+			message: `Stop ${formatDistance(deadline, now, { addSuffix: true })}`,
 			tooltip: (
 				<span data-chromatic="ignore">
 					{title}
 					This workspace will be stopped on{" "}
-					{deadline.format("MMMM D [at] h:mm A")}
+					{format(deadline, "MMMM d 'at' h:mm a")}
 					{reason}
 				</span>
 			),
@@ -178,9 +199,11 @@ export const autostopDisplay = (
 	}
 	// The workspace has a ttl set, but is either in an unknown state or is
 	// not running. Therefore, we derive from workspace.ttl.
-	const duration = dayjs.duration(ttl, "milliseconds");
 	return {
-		message: `Stop ${duration.humanize()} ${Language.afterStart}`,
+		message: `Stop ${formatDuration({
+			hours: Math.floor(ttl / (1000 * 60 * 60)),
+			minutes: Math.floor((ttl % (1000 * 60 * 60)) / (1000 * 60)),
+		})} ${Language.afterStart}`,
 	};
 };
 
@@ -189,41 +212,46 @@ const isShutdownSoon = (workspace: Workspace): boolean => {
 	if (!deadline) {
 		return false;
 	}
-	const deadlineDate = new Date(deadline);
+	const deadlineDate = parseISO(deadline);
 	const now = new Date();
-	const diff = deadlineDate.getTime() - now.getTime();
+	const diff = differenceInMilliseconds(deadlineDate, now);
 	const oneHour = 1000 * 60 * 60;
 	return diff < oneHour;
 };
 
-export const deadlineExtensionMin = dayjs.duration(30, "minutes");
-export const deadlineExtensionMax = dayjs.duration(24, "hours");
+// Define the extension durations
+export const deadlineExtensionMin = 30 * 60 * 1000; // 30 minutes in milliseconds
+export const deadlineExtensionMax = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 /**
  * Depends on the time the workspace was last updated and a global constant.
  * @param ws workspace
  * @returns the latest datetime at which the workspace can be automatically shut down.
  */
-export function getMaxDeadline(ws: Workspace | undefined): dayjs.Dayjs {
+export function getMaxDeadline(ws: Workspace | undefined): Date {
 	// note: we count runtime from updated_at as started_at counts from the start of
 	// the workspace build process, which can take a while.
 	if (ws === undefined) {
 		throw Error("Cannot calculate max deadline because workspace is undefined");
 	}
-	const startedAt = dayjs(ws.latest_build.updated_at);
-	return startedAt.add(deadlineExtensionMax);
+	const startedAt = ws.latest_build.updated_at
+		? parseISO(ws.latest_build.updated_at)
+		: new Date();
+	return add(startedAt, { hours: 24 });
 }
 
 /**
  * Depends on the current time and a global constant.
  * @returns the earliest datetime at which the workspace can be automatically shut down.
  */
-export function getMinDeadline(): dayjs.Dayjs {
-	return dayjs().add(deadlineExtensionMin);
+export function getMinDeadline(): Date {
+	return add(new Date(), { minutes: 30 });
 }
 
-export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
-	dayjs(workspace.latest_build.deadline).utc();
+export const getDeadline = (workspace: Workspace): Date =>
+	workspace.latest_build.deadline
+		? parseISO(workspace.latest_build.deadline)
+		: new Date();
 
 /**
  * Get number of hours you can add or subtract to the current deadline before hitting the max or min deadline.
@@ -232,9 +260,9 @@ export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
  * @returns number, in hours
  */
 export const getMaxDeadlineChange = (
-	deadline: dayjs.Dayjs,
-	extremeDeadline: dayjs.Dayjs,
-): number => Math.abs(deadline.diff(extremeDeadline, "hours"));
+	deadline: Date,
+	extremeDeadline: Date,
+): number => Math.abs(differenceInHours(deadline, extremeDeadline));
 
 export const validTime = (time: string): boolean => {
 	return /^[0-9][0-9]:[0-9][0-9]$/.test(time);
@@ -272,29 +300,29 @@ export const quietHoursDisplay = (
 		tz,
 	});
 
-	const today = dayjs(now).tz(tz);
-	const day = dayjs(parsed.next().toDate()).tz(tz);
+	const today = utcToZonedTime(now || new Date(), tz);
+	const day = utcToZonedTime(parsed.next().toDate(), tz);
 
 	const formattedTime = new Intl.DateTimeFormat(browserLocale, {
 		hour: "numeric",
 		minute: "numeric",
 		timeZone: tz,
-	}).format(day.toDate());
+	}).format(day);
 
 	let display = formattedTime;
 
-	if (day.isSame(today, "day")) {
+	if (isSameDay(day, today)) {
 		display += " today";
-	} else if (day.isSame(today.add(1, "day"), "day")) {
+	} else if (isSameDay(day, addDays(today, 1))) {
 		display += " tomorrow";
 	} else {
 		// This case will rarely ever be hit, as we're dealing with only times and
 		// not dates, but it can be hit due to mismatched browser timezone to cron
 		// timezone or due to daylight savings changes.
-		display += ` on ${day.format("dddd, MMMM D")}`;
+		display += ` on ${format(day, "EEEE, MMMM d")}`;
 	}
 
-	display += ` (${day.from(today)}) in ${tz}`;
+	display += ` (${formatDistance(day, today, { addSuffix: true })}) in ${tz}`;
 
 	return display;
 };

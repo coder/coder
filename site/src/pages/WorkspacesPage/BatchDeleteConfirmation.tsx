@@ -4,13 +4,10 @@ import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { formatDistanceToNow, parseISO } from "date-fns";
 import { ClockIcon, UserIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { getResourceIconPath } from "utils/workspace";
-
-dayjs.extend(relativeTime);
 
 type BatchDeleteConfirmationProps = {
 	checkedWorkspaces: readonly Workspace[];
@@ -187,7 +184,9 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
 									<span
 										css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
 									>
-										{dayjs(workspace.last_used_at).fromNow()}
+										{formatDistanceToNow(parseISO(workspace.last_used_at), {
+											addSuffix: true,
+										})}
 									</span>
 									<ClockIcon className="size-icon-xs" />
 								</Stack>
@@ -209,7 +208,12 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
 				{mostRecent && (
 					<Stack direction="row" alignItems="center" spacing={1}>
 						<ClockIcon className="size-icon-xs" />
-						<span>Last used {dayjs(mostRecent.last_used_at).fromNow()}</span>
+						<span>
+							Last used{" "}
+							{formatDistanceToNow(parseISO(mostRecent.last_used_at), {
+								addSuffix: true,
+							})}
+						</span>
 					</Stack>
 				)}
 			</Stack>

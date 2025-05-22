@@ -11,7 +11,7 @@ import {
 } from "components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import dayjs from "dayjs";
+import { add, sub } from "date-fns";
 import uniqueId from "lodash/uniqueId";
 import type { ComponentProps } from "react";
 import {
@@ -64,13 +64,17 @@ const additionalWorkspaces: Record<string, Workspace> = {
 	today: createWorkspace(
 		"running",
 		true,
-		dayjs().subtract(3, "hour").toString(),
+		sub(new Date(), { hours: 3 }).toISOString(),
 	),
-	old: createWorkspace("running", true, dayjs().subtract(1, "week").toString()),
+	old: createWorkspace(
+		"running",
+		true,
+		sub(new Date(), { weeks: 1 }).toISOString(),
+	),
 	veryOld: createWorkspace(
 		"running",
 		true,
-		dayjs().subtract(1, "month").subtract(4, "day").toString(),
+		sub(sub(new Date(), { months: 1 }), { days: 4 }).toISOString(),
 	),
 };
 
@@ -78,15 +82,15 @@ const dormantWorkspaces: Record<string, Workspace> = {
 	dormantNoDelete: createWorkspace(
 		"stopped",
 		false,
-		dayjs().subtract(1, "month").toString(),
-		dayjs().subtract(1, "month").toString(),
+		sub(new Date(), { months: 1 }).toISOString(),
+		sub(new Date(), { months: 1 }).toISOString(),
 	),
 	dormantAutoDelete: createWorkspace(
 		"stopped",
 		false,
-		dayjs().subtract(1, "month").toString(),
-		dayjs().subtract(1, "month").toString(),
-		dayjs().add(29, "day").toString(),
+		sub(new Date(), { months: 1 }).toISOString(),
+		sub(new Date(), { months: 1 }).toISOString(),
+		add(new Date(), { days: 29 }).toISOString(),
 	),
 };
 

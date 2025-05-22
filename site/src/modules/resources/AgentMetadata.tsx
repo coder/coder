@@ -9,7 +9,7 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
+import { getYear, parseISO } from "date-fns";
 import {
 	type FC,
 	type HTMLAttributes,
@@ -164,7 +164,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 
 	const status: ItemStatus = (() => {
-		const year = dayjs(item.result.collected_at).year();
+		const year = getYear(parseISO(item.result.collected_at));
 		if (year <= 1970 || Number.isNaN(year)) {
 			return "loading";
 		}

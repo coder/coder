@@ -22,7 +22,7 @@ import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {
 	beforeEach(() => {
-		// Mocking the dayjs module within the createDayString file
+		// Mocking the createDayString function which now uses date-fns
 		const mock = jest.spyOn(CreateDayString, "createDayString");
 		mock.mockImplementation(() => "a minute ago");
 	});

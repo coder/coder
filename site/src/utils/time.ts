@@ -1,9 +1,4 @@
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-import DayJSRelativeTime from "dayjs/plugin/relativeTime";
-
-dayjs.extend(duration);
-dayjs.extend(DayJSRelativeTime);
+import { formatDistanceToNow } from "date-fns";
 
 export type TimeUnit = "days" | "hours";
 
@@ -38,7 +33,7 @@ export function durationInDays(duration: number): number {
 }
 
 export function relativeTime(date: Date) {
-	return dayjs(date).fromNow();
+	return formatDistanceToNow(date, { addSuffix: true });
 }
 
 export function daysAgo(count: number) {

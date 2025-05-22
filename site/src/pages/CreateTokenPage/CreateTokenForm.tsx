@@ -10,8 +10,7 @@ import {
 } from "components/Form/Form";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import { add, differenceInDays, format } from "date-fns";
 import type { FormikContextType } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,8 +22,6 @@ import {
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
 } from "./utils";
-
-dayjs.extend(utc);
 
 interface CreateTokenFormProps {
 	form: FormikContextType<CreateTokenData>;
@@ -84,10 +81,10 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				title="Expiration"
 				description={
 					form.values.lifetime
-						? `The token will expire on ${dayjs()
-								.add(form.values.lifetime, "days")
-								.utc()
-								.format("MMMM DD, YYYY")}`
+						? `The token will expire on ${format(
+								add(new Date(), { days: form.values.lifetime }),
+								"MMMM dd, yyyy",
+							)}`
 						: "Please set a token expiration."
 				}
 				classes={{ sectionInfo: classNames.sectionInfo }}
@@ -121,20 +118,26 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 							<TextField
 								type="date"
 								label="Expires on"
-								defaultValue={dayjs().add(expDays, "day").format("YYYY-MM-DD")}
+								defaultValue={format(
+									add(new Date(), { days: expDays }),
+									"yyyy-MM-dd",
+								)}
 								onChange={(event) => {
 									const lt = Math.ceil(
-										dayjs(event.target.value).diff(dayjs(), "day", true),
+										differenceInDays(new Date(event.target.value), new Date()),
 									);
 									setExpDays(lt);
 								}}
 								inputProps={{
 									"data-chromatic": "ignore",
-									min: dayjs().add(1, "day").format("YYYY-MM-DD"),
+									min: format(add(new Date(), { days: 1 }), "yyyy-MM-dd"),
 									max: maxTokenLifetime
-										? dayjs()
-												.add(maxTokenLifetime / NANO_HOUR / 24, "day")
-												.format("YYYY-MM-DD")
+										? format(
+												add(new Date(), {
+													days: maxTokenLifetime / NANO_HOUR / 24,
+												}),
+												"yyyy-MM-dd",
+											)
 										: undefined,
 									required: true,
 								}}

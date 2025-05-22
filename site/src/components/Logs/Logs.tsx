@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import dayjs from "dayjs";
+import { format, parseISO } from "date-fns";
 import type { FC } from "react";
 import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
@@ -23,7 +23,12 @@ export const Logs: FC<LogsProps> = ({
 					<LogLine key={line.id} level={line.level}>
 						{!hideTimestamps && (
 							<LogLinePrefix>
-								{dayjs(line.time).format("HH:mm:ss.SSS")}
+								{format(
+									typeof line.time === "string"
+										? parseISO(line.time)
+										: new Date(line.time),
+									"HH:mm:ss.SSS",
+								)}
 							</LogLinePrefix>
 						)}
 						<span>{line.output}</span>

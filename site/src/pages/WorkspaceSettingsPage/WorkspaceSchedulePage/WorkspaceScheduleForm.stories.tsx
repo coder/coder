@@ -1,9 +1,5 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
-import dayjs from "dayjs";
-import advancedFormat from "dayjs/plugin/advancedFormat";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import {
 	defaultSchedule,
 	emptySchedule,
@@ -11,10 +7,6 @@ import {
 import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { MockTemplate, mockApiError } from "testHelpers/entities";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
-
-dayjs.extend(advancedFormat);
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 const mockTemplate = {
 	...MockTemplate,

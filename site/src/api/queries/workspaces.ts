@@ -11,7 +11,6 @@ import type {
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "api/typesGenerated";
-import type { Dayjs } from "dayjs";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
@@ -154,9 +153,9 @@ export function workspaces(config: WorkspacesRequest = {}) {
 
 export const updateDeadline = (
 	workspace: Workspace,
-): UseMutationOptions<void, unknown, Dayjs> => {
+): UseMutationOptions<void, unknown, Date> => {
 	return {
-		mutationFn: (deadline: Dayjs) => {
+		mutationFn: (deadline: Date) => {
 			return API.putWorkspaceExtension(workspace.id, deadline);
 		},
 	};

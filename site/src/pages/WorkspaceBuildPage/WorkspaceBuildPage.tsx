@@ -1,6 +1,6 @@
 import { API } from "api/api";
 import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
-import dayjs from "dayjs";
+import { sub } from "date-fns";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -27,7 +27,7 @@ const WorkspaceBuildPage: FC = () => {
 		queryKey: ["builds", username, build?.workspace_id],
 		queryFn: () => {
 			return API.getWorkspaceBuilds(build?.workspace_id ?? "", {
-				since: dayjs().add(-30, "day").toISOString(),
+				since: sub(new Date(), { days: 30 }).toISOString(),
 			});
 		},
 		enabled: Boolean(build),
