@@ -830,6 +830,9 @@ func TestConvertResources(t *testing.T) {
 				}},
 				Prebuild: &proto.Prebuild{
 					Instances: 4,
+					CacheInvalidation: &proto.CacheInvalidation{
+						InvalidateAfterSecs: 86400,
+					},
 				},
 			}},
 		},

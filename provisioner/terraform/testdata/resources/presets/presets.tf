@@ -25,6 +25,9 @@ data "coder_workspace_preset" "MyFirstProject" {
   }
   prebuilds {
     instances = 4
+    cache_invalidation {
+      invalidate_after_secs = 86400
+    }
   }
 }
 

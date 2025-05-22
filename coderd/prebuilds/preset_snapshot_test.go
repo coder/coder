@@ -82,10 +82,7 @@ func TestNoPrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	validateState(t, prebuilds.ReconciliationState{ /*all zero values*/ }, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeCreate,
-		Create:     0,
-	}, *actions)
+	validateActions(t, nil, actions)
 }
 
 // A new template version with a preset with prebuilds configured should result in a new prebuild being created.
@@ -109,10 +106,12 @@ func TestNetNew(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Desired: 1,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeCreate,
-		Create:     1,
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeCreate,
+			Create:     1,
+		},
+	}, actions)
 }
 
 // A new template version is created with a preset with prebuilds configured; this outdates the older version and
@@ -149,10 +148,12 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeDelete,
+			DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
+		},
+	}, actions)
 
 	// WHEN: calculating the current preset's state.
 	ps, err = snapshot.FilterByPreset(current.presetID)
@@ -163,10 +164,12 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	actions, err = ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{Desired: 1}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeCreate,
-		Create:     1,
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeCreate,
+			Create:     1,
+		},
+	}, actions)
 }
 
 // Make sure that outdated prebuild will be deleted, even if deletion of another outdated prebuild is already in progress.
@@ -214,10 +217,12 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 		Deleting: 1,
 	}, *state)
 
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeDelete,
+			DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
+		},
+	}, actions)
 }
 
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
@@ -233,7 +238,7 @@ func TestInProgressActions(t *testing.T) {
 		desired    int32
 		running    int32
 		inProgress int32
-		checkFn    func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions)
+		checkFn    func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions)
 	}{
 		// With no running prebuilds and one starting, no creations/deletions should take place.
 		{
@@ -242,10 +247,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Desired: 1, Starting: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+					},
 				}, actions)
 			},
 		},
@@ -256,10 +263,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    1,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Starting: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+					},
 				}, actions)
 			},
 		},
@@ -271,10 +280,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Starting: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+					},
 				}, actions)
 			},
 		},
@@ -285,11 +296,13 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Desired: 1, Stopping: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
-					Create:     1,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
 				}, actions)
 			},
 		},
@@ -300,11 +313,13 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 3, Stopping: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
-					Create:     1,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
 				}, actions)
 			},
 		},
@@ -315,10 +330,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    3,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 3, Desired: 3, Stopping: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+					},
 				}, actions)
 			},
 		},
@@ -329,11 +346,13 @@ func TestInProgressActions(t *testing.T) {
 			desired:    1,
 			running:    0,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Desired: 1, Deleting: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
-					Create:     1,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
 				}, actions)
 			},
 		},
@@ -344,11 +363,13 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    1,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Deleting: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
-					Create:     1,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
 				}, actions)
 			},
 		},
@@ -359,10 +380,12 @@ func TestInProgressActions(t *testing.T) {
 			desired:    2,
 			running:    2,
 			inProgress: 1,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Deleting: 1}, state)
-				validateActions(t, prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeCreate,
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+					},
 				}, actions)
 			},
 		},
@@ -373,9 +396,9 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    1,
 			inProgress: 2,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 3, Starting: 2}, state)
-				validateActions(t, prebuilds.ReconciliationActions{ActionType: prebuilds.ActionTypeCreate, Create: 0}, actions)
+				validateActions(t, nil, actions)
 			},
 		},
 		// With 3 prebuilds desired, 5 running, and 2 deleting, no deletions should occur since the builds are in progress.
@@ -385,17 +408,20 @@ func TestInProgressActions(t *testing.T) {
 			desired:    3,
 			running:    5,
 			inProgress: 2,
-			checkFn: func(state prebuilds.ReconciliationState, actions prebuilds.ReconciliationActions) {
+			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				expectedState := prebuilds.ReconciliationState{Actual: 5, Desired: 3, Deleting: 2, Extraneous: 2}
-				expectedActions := prebuilds.ReconciliationActions{
-					ActionType: prebuilds.ActionTypeDelete,
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+					},
 				}
 
 				validateState(t, expectedState, state)
-				assert.EqualValuesf(t, expectedActions.ActionType, actions.ActionType, "'ActionType' did not match expectation")
-				assert.Len(t, actions.DeleteIDs, 2, "'deleteIDs' did not match expectation")
-				assert.EqualValuesf(t, expectedActions.Create, actions.Create, "'create' did not match expectation")
-				assert.EqualValuesf(t, expectedActions.BackoffUntil, actions.BackoffUntil, "'BackoffUntil' did not match expectation")
+				require.Equal(t, len(expectedActions), len(actions))
+				assert.EqualValuesf(t, expectedActions[0].ActionType, actions[0].ActionType, "'ActionType' did not match expectation")
+				assert.Len(t, actions[0].DeleteIDs, 2, "'deleteIDs' did not match expectation")
+				assert.EqualValuesf(t, expectedActions[0].Create, actions[0].Create, "'create' did not match expectation")
+				assert.EqualValuesf(t, expectedActions[0].BackoffUntil, actions[0].BackoffUntil, "'BackoffUntil' did not match expectation")
 			},
 		},
 	}
@@ -450,7 +476,7 @@ func TestInProgressActions(t *testing.T) {
 			state := ps.CalculateState()
 			actions, err := ps.CalculateActions(clock, backoffInterval)
 			require.NoError(t, err)
-			tc.checkFn(*state, *actions)
+			tc.checkFn(*state, actions)
 		})
 	}
 }
@@ -496,10 +522,187 @@ func TestExtraneous(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 2, Desired: 1, Extraneous: 1, Eligible: 2,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{older},
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeDelete,
+			DeleteIDs:  []uuid.UUID{older},
+		},
+	}, actions)
+}
+
+// A prebuild is considered Expired when it has exceeded their time-to-live (TTL)
+// specified in the preset's cache invalidation invalidate_after_secs parameter.
+func TestExpiredPrebuilds(t *testing.T) {
+	t.Parallel()
+	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
+
+	cases := []struct {
+		name    string
+		running int32
+		desired int32
+		expired int32
+		checkFn func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions)
+	}{
+		// With 2 running prebuilds, none of which are expired, and the desired count is met,
+		// no deletions or creations should occur.
+		{
+			name:    "no expired prebuilds - no actions taken",
+			running: 2,
+			desired: 2,
+			expired: 0,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 0}, state)
+				validateActions(t, nil, actions)
+			},
+		},
+		// With 2 running prebuilds, 1 of which is expired, the expired prebuild should be deleted,
+		// and one new prebuild should be created to maintain the desired count.
+		{
+			name:    "one expired prebuild – deleted and replaced",
+			running: 2,
+			desired: 2,
+			expired: 1,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 1, Desired: 2, Expired: 1}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
+		// With 2 running prebuilds, both expired, both should be deleted,
+		// and 2 new prebuilds created to match the desired count.
+		{
+			name:    "all prebuilds expired – all deleted and recreated",
+			running: 2,
+			desired: 2,
+			expired: 2,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 0, Desired: 2, Expired: 2}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID, runningPrebuilds[1].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     2,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
+		// With 4 running prebuilds, 2 of which are expired, and the desired count is 2,
+		// the expired prebuilds should be deleted. No new creations are needed
+		// since removing the expired ones brings actual = desired.
+		{
+			name:    "expired prebuilds deleted to reach desired count",
+			running: 4,
+			desired: 2,
+			expired: 2,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 2, Extraneous: 0}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID, runningPrebuilds[1].ID},
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
+		// With 4 running prebuilds (1 expired), and the desired count is 2,
+		// the first action should delete the expired one,
+		// and the second action should delete one additional (non-expired) prebuild
+		// to eliminate the remaining excess.
+		{
+			name:    "expired prebuild deleted first, then extraneous",
+			running: 4,
+			desired: 2,
+			expired: 1,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 3, Desired: 2, Expired: 1, Extraneous: 1}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					// First action correspond to deleting the expired prebuild,
+					// and the second action corresponds to deleting the extraneous prebuild
+					// corresponding to the oldest one after the expired prebuild
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[1].ID},
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN: a preset.
+			defaultPreset := preset(true, tc.desired, current)
+			presets := []database.GetTemplatePresetsWithPrebuildsRow{
+				defaultPreset,
+			}
+
+			// GIVEN: running prebuilt workspaces for the preset.
+			running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, tc.running)
+			expiredCount := 0
+			cacheInvalidationDuration := time.Duration(defaultPreset.InvalidateAfterSecs.Int32)
+			for range tc.running {
+				name, err := prebuilds.GenerateName()
+				require.NoError(t, err)
+				prebuildCreateAt := time.Now()
+				if int(tc.expired) > expiredCount {
+					// Update the prebuild workspace createdAt to exceed its TTL
+					prebuildCreateAt = prebuildCreateAt.Add(-cacheInvalidationDuration - 2*time.Second)
+					expiredCount++
+				}
+				running = append(running, database.GetRunningPrebuiltWorkspacesRow{
+					ID:                uuid.New(),
+					Name:              name,
+					TemplateID:        current.templateID,
+					TemplateVersionID: current.templateVersionID,
+					CurrentPresetID:   uuid.NullUUID{UUID: current.presetID, Valid: true},
+					Ready:             false,
+					CreatedAt:         prebuildCreateAt,
+				})
+			}
+
+			// WHEN: calculating the current preset's state.
+			snapshot := prebuilds.NewGlobalSnapshot(presets, running, nil, nil, nil)
+			ps, err := snapshot.FilterByPreset(current.presetID)
+			require.NoError(t, err)
+
+			// THEN: we should identify that this prebuild is expired.
+			state := ps.CalculateState()
+			actions, err := ps.CalculateActions(clock, backoffInterval)
+			require.NoError(t, err)
+			tc.checkFn(running, *state, actions)
+		})
+	}
 }
 
 // A template marked as deprecated will not have prebuilds running.
@@ -536,10 +739,12 @@ func TestDeprecated(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeDelete,
-		DeleteIDs:  []uuid.UUID{current.prebuiltWorkspaceID},
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeDelete,
+			DeleteIDs:  []uuid.UUID{current.prebuiltWorkspaceID},
+		},
+	}, actions)
 }
 
 // If the latest build failed, backoff exponentially with the given interval.
@@ -587,10 +792,12 @@ func TestLatestBuildFailed(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 0, Desired: 1,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType:   prebuilds.ActionTypeBackoff,
-		BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType:   prebuilds.ActionTypeBackoff,
+			BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+		},
+	}, actions)
 
 	// WHEN: calculating the other preset's state.
 	psOther, err := snapshot.FilterByPreset(other.presetID)
@@ -603,10 +810,12 @@ func TestLatestBuildFailed(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1, Desired: 1, Eligible: 1,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType:   prebuilds.ActionTypeCreate,
-		BackoffUntil: time.Time{},
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType:   prebuilds.ActionTypeCreate,
+			BackoffUntil: time.Time{},
+		},
+	}, actions)
 
 	// WHEN: the clock is advanced a backoff interval.
 	clock.Advance(backoffInterval + time.Microsecond)
@@ -620,11 +829,12 @@ func TestLatestBuildFailed(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 0, Desired: 1,
 	}, *state)
-	validateActions(t, prebuilds.ReconciliationActions{
-		ActionType: prebuilds.ActionTypeCreate,
-		Create:     1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
-
-	}, *actions)
+	validateActions(t, []*prebuilds.ReconciliationActions{
+		{
+			ActionType: prebuilds.ActionTypeCreate,
+			Create:     1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
+		},
+	}, actions)
 }
 
 func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
@@ -684,10 +894,12 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			Starting: 1,
 			Desired:  1,
 		}, *state)
-		validateActions(t, prebuilds.ReconciliationActions{
-			ActionType: prebuilds.ActionTypeCreate,
-			Create:     0,
-		}, *actions)
+		validateActions(t, []*prebuilds.ReconciliationActions{
+			{
+				ActionType: prebuilds.ActionTypeCreate,
+				Create:     0,
+			},
+		}, actions)
 	}
 
 	// One prebuild has to be created for preset 2. Make sure preset 1 doesn't block preset 2.
@@ -703,10 +915,12 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			Starting: 0,
 			Desired:  1,
 		}, *state)
-		validateActions(t, prebuilds.ReconciliationActions{
-			ActionType: prebuilds.ActionTypeCreate,
-			Create:     1,
-		}, *actions)
+		validateActions(t, []*prebuilds.ReconciliationActions{
+			{
+				ActionType: prebuilds.ActionTypeCreate,
+				Create:     1,
+			},
+		}, actions)
 	}
 }
 
@@ -723,6 +937,10 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 		},
 		Deleted:    false,
 		Deprecated: false,
+		InvalidateAfterSecs: sql.NullInt32{
+			Valid: true,
+			Int32: 2,
+		},
 	}
 
 	for _, mut := range muts {
@@ -758,6 +976,6 @@ func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState)
 
 // validateActions is a convenience func to make tests more readable; it exploits the fact that the default states for
 // prebuilds align with zero values.
-func validateActions(t *testing.T, expected, actual prebuilds.ReconciliationActions) {
+func validateActions(t *testing.T, expected, actual []*prebuilds.ReconciliationActions) {
 	require.Equal(t, expected, actual)
 }

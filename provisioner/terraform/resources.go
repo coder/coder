@@ -897,14 +897,21 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			)
 		}
 		var prebuildInstances int32
+		var cacheInvalidation *proto.CacheInvalidation
 		if len(preset.Prebuilds) > 0 {
 			prebuildInstances = int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].Instances)))
+			if len(preset.Prebuilds[0].CacheInvalidation) > 0 {
+				cacheInvalidation = &proto.CacheInvalidation{
+					InvalidateAfterSecs: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].CacheInvalidation[0].InvalidateAfterSecs))),
+				}
+			}
 		}
 		protoPreset := &proto.Preset{
 			Name:       preset.Name,
 			Parameters: presetParameters,
 			Prebuild: &proto.Prebuild{
-				Instances: prebuildInstances,
+				Instances:         prebuildInstances,
+				CacheInvalidation: cacheInvalidation,
 			},
 		}
 

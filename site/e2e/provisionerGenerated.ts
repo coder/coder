@@ -104,8 +104,18 @@ export interface RichParameterValue {
   value: string;
 }
 
+/**
+ * CacheInvalidation defines the policy for invalidating unclaimed prebuilds.
+ * If a prebuild remains unclaimed for longer than `invalidate_after_secs`,
+ * it is deleted and recreated to prevent staleness.
+ */
+export interface CacheInvalidation {
+  invalidateAfterSecs: number;
+}
+
 export interface Prebuild {
   instances: number;
+  cacheInvalidation: CacheInvalidation | undefined;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -544,10 +554,22 @@ export const RichParameterValue = {
   },
 };
 
+export const CacheInvalidation = {
+  encode(message: CacheInvalidation, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.invalidateAfterSecs !== 0) {
+      writer.uint32(8).int32(message.invalidateAfterSecs);
+    }
+    return writer;
+  },
+};
+
 export const Prebuild = {
   encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.instances !== 0) {
       writer.uint32(8).int32(message.instances);
+    }
+    if (message.cacheInvalidation !== undefined) {
+      CacheInvalidation.encode(message.cacheInvalidation, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },

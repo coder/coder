@@ -57,8 +57,16 @@ message RichParameterValue {
     string value = 2;
 }
 
+// CacheInvalidation defines the policy for invalidating unclaimed prebuilds.
+// If a prebuild remains unclaimed for longer than `invalidate_after_secs`,
+// it is deleted and recreated to prevent staleness.
+message CacheInvalidation {
+	int32 invalidate_after_secs = 1;
+}
+
 message Prebuild {
     int32 instances = 1;
+		CacheInvalidation cache_invalidation = 2;
 }
 
 // Preset represents a set of preset parameters for a template version.
