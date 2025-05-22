@@ -266,6 +266,45 @@ Before using Podman, please review the following documentation:
    > For more information around the requirements of rootless podman pods, see:
    > [How to run Podman inside of Kubernetes](https://www.redhat.com/sysadmin/podman-inside-kubernetes)
 
+### Rootless Podman on Bottlerocket nodes
+
+Rootless containers rely on Linux user-namespaces.
+[Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) disables them by default (`user.max_user_namespaces = 0`), so Podman commands will return an error until you raise the limit:
+
+```output
+cannot clone: Invalid argument
+user namespaces are not enabled in /proc/sys/user/max_user_namespaces
+```
+
+1. Add a `user.max_user_namespaces` value to your Bottlerocket user data to use rootless Podman on the node:
+
+  ```toml
+  [settings.kernel.sysctl]
+  "user.max_user_namespaces" = "65536"
+  ```
+
+1. Reboot the node.
+1. Verify that the value is more than `0`:
+
+  ```shell
+  sysctl -n user.max_user_namespaces
+  ```
+
+For Karpenter-managed Bottlerocket nodes, add the `user.max_user_namespaces` setting in your `EC2NodeClass`:
+
+```yaml
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: bottlerocket-rootless
+spec:
+  amiFamily: Bottlerocket # required for BR-style userData
+  # …
+  userData: |
+    [settings.kernel]
+    sysctl = { "user.max_user_namespaces" = "65536" }
+```
+
 ## Privileged sidecar container
 
 A
