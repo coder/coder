@@ -38,7 +38,7 @@ type API struct {
 	watcherDone       chan struct{}
 	updaterDone       chan struct{}
 	initialUpdateDone chan struct{}   // Closed after first update in updaterLoop.
-	refreshTrigger    chan chan error // Channel to trigger manual refresh.
+	updateTrigger     chan chan error // Channel to trigger manual refresh.
 	updateInterval    time.Duration   // Interval for periodic container updates.
 	logger            slog.Logger
 	watcher           watcher.Watcher
@@ -164,7 +164,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		watcherDone:             make(chan struct{}),
 		updaterDone:             make(chan struct{}),
 		initialUpdateDone:       make(chan struct{}),
-		refreshTrigger:          make(chan chan error),
+		updateTrigger:           make(chan chan error),
 		updateInterval:          defaultUpdateInterval,
 		logger:                  logger,
 		clock:                   quartz.NewReal(),
@@ -247,27 +247,12 @@ func (api *API) updaterLoop() {
 	defer api.logger.Debug(api.ctx, "updater loop stopped")
 	api.logger.Debug(api.ctx, "updater loop started")
 
-	// Ensure that only once instance of the updateContainers is running
-	// at a time. This is a workaround since quartz.Ticker does not
-	// allow us to know if the routine has completed.
-	sema := make(chan struct{}, 1)
-	sema <- struct{}{}
-
-	// Ensure only one updateContainers is running at a time, others are
-	// queued.
-	doUpdate := func() error {
-		select {
-		case <-api.ctx.Done():
-			return api.ctx.Err()
-		case <-sema:
-		}
-		defer func() { sema <- struct{}{} }()
-
-		return api.updateContainers(api.ctx)
-	}
-
+	// Perform an initial update to populate the container list, this
+	// gives us a guarantee that the API has loaded the initial state
+	// before returning any responses. This is useful for both tests
+	// and anyone looking to interact with the API.
 	api.logger.Debug(api.ctx, "performing initial containers update")
-	if err := doUpdate(); err != nil {
+	if err := api.updateContainers(api.ctx); err != nil {
 		api.logger.Error(api.ctx, "initial containers update failed", slog.Error(err))
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
@@ -276,17 +261,29 @@ func (api *API) updaterLoop() {
 	// Other services can wait on this if they need the first data to be available.
 	close(api.initialUpdateDone)
 
-	// Use a ticker func to ensure that doUpdate has run to completion
-	// when advancing time.
-	waiter := api.clock.TickerFunc(api.ctx, api.updateInterval, func() error {
-		err := doUpdate()
-		if err != nil {
-			api.logger.Error(api.ctx, "periodic containers update failed", slog.Error(err))
+	// We utilize a TickerFunc here instead of a regular Ticker so that
+	// we can guarantee execution of the updateContainers method after
+	// advancing the clock.
+	ticker := api.clock.TickerFunc(api.ctx, api.updateInterval, func() error {
+		done := make(chan error, 1)
+		defer close(done)
+
+		select {
+		case <-api.ctx.Done():
+			return api.ctx.Err()
+		case api.updateTrigger <- done:
+			err := <-done
+			if err != nil {
+				api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+			}
+		default:
+			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
 		}
-		return nil // Always nil, keep going.
-	})
+
+		return nil // Always nil to keep the ticker going.
+	}, "updaterLoop")
 	defer func() {
-		if err := waiter.Wait(); err != nil {
+		if err := ticker.Wait("updaterLoop"); err != nil && !errors.Is(err, context.Canceled) {
 			api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
 		}
 	}()
@@ -294,16 +291,9 @@ func (api *API) updaterLoop() {
 	for {
 		select {
 		case <-api.ctx.Done():
-			api.logger.Debug(api.ctx, "updater loop context canceled")
 			return
-		case ch := <-api.refreshTrigger:
-			api.logger.Debug(api.ctx, "manual containers update triggered")
-			err := doUpdate()
-			if err != nil {
-				api.logger.Error(api.ctx, "manual containers update failed", slog.Error(err))
-			}
-			ch <- err
-			close(ch)
+		case done := <-api.updateTrigger:
+			done <- api.updateContainers(api.ctx)
 		}
 	}
 }
@@ -506,17 +496,23 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 // refreshContainers triggers an immediate update of the container list
 // and waits for it to complete.
-func (api *API) refreshContainers(ctx context.Context) error {
+func (api *API) refreshContainers(ctx context.Context) (err error) {
+	defer func() {
+		if err != nil {
+			err = xerrors.Errorf("refresh containers failed: %w", err)
+		}
+	}()
+
 	done := make(chan error, 1)
 	select {
 	case <-api.ctx.Done():
-		return xerrors.Errorf("API closed, cannot send refresh trigger: %w", api.ctx.Err())
+		return xerrors.Errorf("API closed: %w", api.ctx.Err())
 	case <-ctx.Done():
 		return ctx.Err()
-	case api.refreshTrigger <- done:
+	case api.updateTrigger <- done:
 		select {
 		case <-api.ctx.Done():
-			return xerrors.Errorf("API closed, cannot wait for refresh: %w", api.ctx.Err())
+			return xerrors.Errorf("API closed: %w", api.ctx.Err())
 		case <-ctx.Done():
 			return ctx.Err()
 		case err := <-done:
