@@ -1341,6 +1341,60 @@ func TestCompleteJob(t *testing.T) {
 		})
 	})
 
+	t.Run("WorkspaceBuild_BadFormType", func(t *testing.T) {
+		t.Parallel()
+		srv, db, _, pd := setup(t, false, &overrides{})
+		jobID := uuid.New()
+		versionID := uuid.New()
+		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:             versionID,
+			JobID:          jobID,
+			OrganizationID: pd.OrganizationID,
+		})
+		require.NoError(t, err)
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             jobID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Input:          []byte(`{"template_version_id": "` + versionID.String() + `"}`),
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: pd.OrganizationID,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: pd.OrganizationID,
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateImport_{
+				TemplateImport: &proto.CompletedJob_TemplateImport{
+					StartResources: []*sdkproto.Resource{{
+						Name: "hello",
+						Type: "aws_instance",
+					}},
+					StopResources: []*sdkproto.Resource{},
+					RichParameters: []*sdkproto.RichParameter{
+						{
+							Name:     "parameter",
+							Type:     "string",
+							FormType: "random",
+						},
+					},
+					Plan: []byte("{}"),
+				},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "'form_type' not valid")
+	})
+
 	t.Run("TemplateImport_MissingGitAuth", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
