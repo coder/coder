@@ -280,6 +280,25 @@ func TestDevContainerAgentAPI(t *testing.T) {
 	t.Run("ListDevContainerAgents", func(t *testing.T) {
 		t.Parallel()
 
+		t.Run("Empty", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// When: We list dev container agents with no children
+			listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+			require.NoError(t, err)
+
+			// Then: We expect an empty list
+			require.Empty(t, listResp.Agents)
+		})
+
 		t.Run("Ok", func(t *testing.T) {
 			t.Parallel()
 
