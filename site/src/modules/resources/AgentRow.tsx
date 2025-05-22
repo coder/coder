@@ -15,6 +15,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
 	useCallback,
@@ -225,6 +226,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 			</header>
 
 			<div css={styles.content}>
+				{workspace.latest_app_status?.agent_id === agent.id && (
+					<section>
+						<h3 className="sr-only">App statuses</h3>
+						<AppStatuses workspace={workspace} agent={agent} />
+					</section>
+				)}
+
 				{agent.status === "connected" && (
 					<section css={styles.apps}>
 						{shouldDisplayApps && (

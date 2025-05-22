@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"runtime"
 	"testing"
 	"time"
 
@@ -89,6 +90,12 @@ func TestReinitializeAgent(t *testing.T) {
 		t.Skip("dbmem cannot currently claim a workspace")
 	}
 
+	if runtime.GOOS == "windows" {
+		t.Skip("test startup script is not supported on windows")
+	}
+
+	startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+
 	db, ps := dbtestutil.NewDB(t)
 	// GIVEN a live enterprise API with the prebuilds feature enabled
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -155,7 +162,7 @@ func TestReinitializeAgent(t *testing.T) {
 										Scripts: []*proto.Script{
 											{
 												RunOnStart: true,
-												Script:     fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name()), // Make reinitialization take long enough to assert that it happened
+												Script:     startupScript,
 											},
 										},
 										Auth: &proto.Agent_Token{

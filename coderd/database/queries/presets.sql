@@ -25,6 +25,11 @@ SELECT
 	unnest(@values :: TEXT[])
 RETURNING *;
 
+-- name: UpdatePresetPrebuildStatus :exec
+UPDATE template_version_presets
+SET prebuild_status = @status
+WHERE id = @preset_id;
+
 -- name: GetPresetsByTemplateVersionID :many
 SELECT
 	*

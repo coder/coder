@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
@@ -118,7 +118,9 @@ const WorkspaceProxyPage: FC = () => {
 									)}
 									{region.version && (
 										<Tooltip title="Version">
-											<Pill icon={<TagOutlined />}>{region.version}</Pill>
+											<Pill icon={<HashIcon className="size-icon-sm" />}>
+												{region.version}
+											</Pill>
 										</Tooltip>
 									)}
 									{region.derp_enabled && (

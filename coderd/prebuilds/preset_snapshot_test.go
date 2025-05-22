@@ -73,7 +73,7 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -98,7 +98,7 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -138,7 +138,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -442,7 +442,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -485,7 +485,7 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -525,7 +525,7 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -576,7 +576,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, backoffs)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, backoffs, nil)
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -669,7 +669,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, inProgress, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, inProgress, nil, nil)
 
 	// Nothing has to be created for preset 1.
 	{

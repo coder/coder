@@ -12,27 +12,33 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 cdroot
 
+# Ensure GITHUB_TOKEN is available
+if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+	if GITHUB_TOKEN="$(gh auth token 2>/dev/null)"; then
+		export GITHUB_TOKEN
+	else
+		echo "Error: GitHub token not found. Please run 'gh auth login' to authenticate." >&2
+		exit 1
+	fi
+fi
+
 if isdarwin; then
 	dependencies gsed gawk
 	sed() { gsed "$@"; }
 	awk() { gawk "$@"; }
 fi
 
-# From install.sh
 echo_latest_stable_version() {
-	# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c#gistcomment-2758860
+	# Extract redirect URL to determine latest stable tag
 	version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
 	version="${version#https://github.com/coder/coder/releases/tag/v}"
 	echo "v${version}"
 }
 
 echo_latest_mainline_version() {
-	# Fetch the releases from the GitHub API, sort by version number,
-	# and take the first result. Note that we're sorting by space-
-	# separated numbers and without utilizing the sort -V flag for the
-	# best compatibility.
+	# Use GitHub API to get latest release version, authenticated
 	echo "v$(
-		curl -fsSL https://api.github.com/repos/coder/coder/releases |
+		curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/repos/coder/coder/releases |
 			awk -F'"' '/"tag_name"/ {print $4}' |
 			tr -d v |
 			tr . ' ' |
@@ -42,7 +48,6 @@ echo_latest_mainline_version() {
 	)"
 }
 
-# For testing or including experiments from `main`.
 echo_latest_main_version() {
 	echo origin/main
 }
@@ -59,33 +64,29 @@ sparse_clone_codersdk() {
 }
 
 parse_all_experiments() {
-	# Go doc doesn't include inline array comments, so this parsing should be
-	# good enough. We remove all whitespaces so that we can extract a plain
-	# string that looks like {}, {ExpA}, or {ExpA,ExpB,}.
-	#
-	# Example: ExperimentsAll=Experiments{ExperimentNotifications,ExperimentAutoFillParameters,}
-	go doc -all -C "${dir}" ./codersdk ExperimentsAll |
+	# Try ExperimentsSafe first, then fall back to ExperimentsAll if needed
+	experiments_var="ExperimentsSafe"
+	experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
+
+	if [[ -z "${experiments_output}" ]]; then
+		# Fall back to ExperimentsAll if ExperimentsSafe is not found
+		experiments_var="ExperimentsAll"
+		experiments_output=$(go doc -all -C "${dir}" ./codersdk "${experiments_var}" 2>/dev/null || true)
+
+		if [[ -z "${experiments_output}" ]]; then
+			log "Warning: Neither ExperimentsSafe nor ExperimentsAll found in ${dir}"
+			return
+		fi
+	fi
+
+	echo "${experiments_output}" |
 		tr -d $'\n\t ' |
-		grep -E -o 'ExperimentsAll=Experiments\{[^}]*\}' |
+		grep -E -o "${experiments_var}=Experiments\{[^}]*\}" |
 		sed -e 's/.*{\(.*\)}.*/\1/' |
 		tr ',' '\n'
 }
 
 parse_experiments() {
-	# Extracts the experiment name and description from the Go doc output.
-	# The output is in the format:
-	#
-	# 	||Add new experiments here!
-	# 	ExperimentExample|example|This isn't used for anything.
-	# 	ExperimentAutoFillParameters|auto-fill-parameters|This should not be taken out of experiments until we have redesigned the feature.
-	# 	ExperimentMultiOrganization|multi-organization|Requires organization context for interactions, default org is assumed.
-	# 	ExperimentCustomRoles|custom-roles|Allows creating runtime custom roles.
-	# 	ExperimentNotifications|notifications|Sends notifications via SMTP and webhooks following certain events.
-	# 	ExperimentWorkspaceUsage|workspace-usage|Enables the new workspace usage tracking.
-	# 	||ExperimentTest is an experiment with
-	# 	||a preceding multi line comment!?
-	# 	ExperimentTest|test|
-	#
 	go doc -all -C "${1}" ./codersdk Experiment |
 		sed \
 			-e 's/\t\(Experiment[^ ]*\)\ \ *Experiment = "\([^"]*\)"\(.*\/\/ \(.*\)\)\?/\1|\2|\4/' \
@@ -104,6 +105,11 @@ for channel in mainline stable; do
 	log "Fetching experiments from ${channel}"
 
 	tag=$(echo_latest_"${channel}"_version)
+	if [[ -z "${tag}" || "${tag}" == "v" ]]; then
+		echo "Error: Failed to retrieve valid ${channel} version tag. Check your GitHub token or rate limit." >&2
+		exit 1
+	fi
+
 	dir="$(sparse_clone_codersdk "${workdir}" "${channel}" "${tag}")"
 
 	declare -A all_experiments=()
@@ -115,14 +121,12 @@ for channel in mainline stable; do
 		done
 	fi
 
-	# Track preceding/multiline comments.
 	maybe_desc=
 
 	while read -r line; do
 		line=${line//$'\n'/}
 		readarray -d '|' -t parts <<<"$line"
 
-		# Missing var/key, this is a comment or description.
 		if [[ -z ${parts[0]} ]]; then
 			maybe_desc+="${parts[2]//$'\n'/ }"
 			continue
@@ -133,24 +137,20 @@ for channel in mainline stable; do
 		desc="${parts[2]}"
 		desc=${desc//$'\n'/}
 
-		# If desc (trailing comment) is empty, use the preceding/multiline comment.
 		if [[ -z "${desc}" ]]; then
 			desc="${maybe_desc% }"
 		fi
 		maybe_desc=
 
-		# Skip experiments not listed in ExperimentsAll.
 		if [[ ! -v all_experiments[$var] ]]; then
-			log "Skipping ${var}, not listed in ExperimentsAll"
+			log "Skipping ${var}, not listed in experiments list"
 			continue
 		fi
 
-		# Don't overwrite desc, prefer first come, first served (i.e. mainline > stable).
 		if [[ ! -v experiments[$key] ]]; then
 			experiments[$key]="$desc"
 		fi
 
-		# Track the release channels where the experiment is available.
 		experiment_tags[$key]+="${channel}, "
 	done < <(parse_experiments "${dir}")
 done
@@ -170,8 +170,6 @@ table="$(
 	done
 )"
 
-# Use awk to print everything outside the BEING/END block and insert the
-# table in between.
 awk \
 	-v table="${table}" \
 	'BEGIN{include=1} /BEGIN: available-experimental-features/{print; print table; include=0} /END: available-experimental-features/{include=1} include' \
@@ -179,5 +177,4 @@ awk \
 	>"${dest}".tmp
 mv "${dest}".tmp "${dest}"
 
-# Format the file for a pretty table (target single file for speed).
 (cd site && pnpm exec prettier --cache --write ../"${dest}")

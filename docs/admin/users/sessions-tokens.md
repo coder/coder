@@ -61,7 +61,7 @@ behalf of other users. Use the API for earlier versions of Coder.
 #### CLI
 
 ```sh
-coder tokens create my-token --user <username>
+coder tokens create --name my-token --user <username>
 ```
 
 See the full CLI reference for

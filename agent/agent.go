@@ -1176,12 +1176,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
-				if containerAPI := a.containerAPI.Load(); containerAPI != nil {
-					// Inform the container API that the agent is ready.
-					// This allows us to start watching for changes to
-					// the devcontainer configuration files.
-					containerAPI.SignalReady()
-				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)

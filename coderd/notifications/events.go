@@ -42,6 +42,11 @@ var (
 	TemplateWorkspaceResourceReplaced   = uuid.MustParse("89d9745a-816e-4695-a17f-3d0a229e2b8d")
 )
 
+// Prebuilds-related events
+var (
+	PrebuildFailureLimitReached = uuid.MustParse("414d9331-c1fc-4761-b40c-d1f4702279eb")
+)
+
 // Notification-related events.
 var (
 	TemplateTestNotification = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")

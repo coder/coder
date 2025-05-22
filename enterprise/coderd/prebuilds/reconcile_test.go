@@ -654,6 +654,131 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionDelete, builds[0].Transition)
 }
 
+func TestSkippingHardLimitedPresets(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
+	testCases := []struct {
+		name           string
+		hardLimit      int64
+		isHardLimitHit bool
+	}{
+		{
+			name:           "hard limit is hit - skip creation of prebuilt workspace",
+			hardLimit:      1,
+			isHardLimitHit: true,
+		},
+		{
+			name:           "hard limit is not hit - try to create prebuilt workspace again",
+			hardLimit:      2,
+			isHardLimitHit: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			templateDeleted := false
+
+			clock := quartz.NewMock(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{
+				FailureHardLimit:              serpent.Int64(tc.hardLimit),
+				ReconciliationBackoffInterval: 0,
+			}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			fakeEnqueuer := newFakeEnqueuer()
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), fakeEnqueuer)
+
+			// Template admin to receive a notification.
+			templateAdmin := dbgen.User(t, db, database.User{
+				RBACRoles: []string{codersdk.RoleTemplateAdmin},
+			})
+
+			// Set up test environment with a template, version, and preset.
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+
+			// Create a failed prebuild workspace that counts toward the hard failure limit.
+			setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusFailed,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			// Verify initial state: one failed workspace exists.
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			workspaceCount := len(workspaces)
+			require.Equal(t, 1, workspaceCount)
+
+			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
+			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
+			clock.Advance(time.Nanosecond).MustWait(ctx)
+
+			// Trigger reconciliation to attempt creating a new prebuild.
+			// The outcome depends on whether the hard limit has been reached.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// These two additional calls to ReconcileAll should not trigger any notifications.
+			// A notification is only sent once.
+			require.NoError(t, controller.ReconcileAll(ctx))
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// Verify the final state after reconciliation.
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+			require.NoError(t, err)
+
+			if !tc.isHardLimitHit {
+				// When hard limit is not reached, a new workspace should be created.
+				require.Equal(t, 2, len(workspaces))
+				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus)
+				return
+			}
+
+			// When hard limit is reached, no new workspace should be created.
+			require.Equal(t, 1, len(workspaces))
+			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
+
+			// When hard limit is reached, a notification should be sent.
+			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
+				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
+					return false
+				}
+
+				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+					return false
+				}
+
+				return true
+			})
+			require.Len(t, matching, 1)
+		})
+	}
+}
+
 func TestRunLoop(t *testing.T) {
 	t.Parallel()
 

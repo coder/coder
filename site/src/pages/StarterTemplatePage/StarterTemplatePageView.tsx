@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -44,22 +44,17 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 			<PageHeader
 				actions={
 					<>
-						<Button
-							component="a"
-							target="_blank"
-							href={starterTemplate.url}
-							rel="noreferrer"
-							startIcon={<ExternalLinkIcon className="size-icon-sm" />}
-						>
-							View source code
+						<Button asChild variant="outline" size="sm">
+							<a target="_blank" href={starterTemplate.url} rel="noreferrer">
+								<ExternalLinkIcon />
+								View source code
+							</a>
 						</Button>
-						<Button
-							variant="contained"
-							component={Link}
-							to={`/templates/new?exampleId=${starterTemplate.id}`}
-							startIcon={<PlusIcon className="size-icon-sm" />}
-						>
-							Use template
+						<Button asChild size="sm">
+							<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
+								<PlusIcon />
+								Use template
+							</Link>
 						</Button>
 					</>
 				}

@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -10,6 +9,7 @@ import {
 	hasError,
 	isApiValidationError,
 } from "api/errors";
+import { Button } from "components/Button/Button";
 import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
@@ -267,9 +267,11 @@ const PresetMenu: FC<PresetMenuProps> = ({
 			<Button
 				onClick={() => setIsOpen(true)}
 				ref={anchorRef}
-				endIcon={<ChevronDownIcon className="size-4" />}
+				variant="outline"
+				className="h-9"
 			>
 				Filters
+				<ChevronDownIcon />
 			</Button>
 			<Menu
 				id="filter-menu"
