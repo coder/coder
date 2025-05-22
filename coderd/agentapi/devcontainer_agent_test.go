@@ -24,62 +24,68 @@ import (
 	"github.com/coder/quartz"
 )
 
-func devContainerAgentAPI(t *testing.T, log slog.Logger) (*agentapi.DevContainerAgentAPI, database.WorkspaceResource) {
-	db, _ := dbtestutil.NewDB(t)
-
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	template := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OrganizationID: org.ID,
-		TemplateID:     template.ID,
-		OwnerID:        user.ID,
-	})
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		Type: database.ProvisionerJobTypeWorkspaceBuild,
-	})
-	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		JobID:             job.ID,
-		WorkspaceID:       workspace.ID,
-		TemplateVersionID: templateVersion.ID,
-	})
-	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID: build.JobID,
-	})
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: resource.ID,
-	})
-
-	clock := quartz.NewMock(t)
-
-	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
-
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-
-	return &agentapi.DevContainerAgentAPI{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-		AgentID:        agent.ID,
-		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-			return agent, nil
-		},
-		Clock:    clock,
-		Database: dbauthz.New(db, auth, log, accessControlStore),
-	}, resource
-}
-
 func TestDevContainerAgentAPI(t *testing.T) {
 	t.Parallel()
+
+	newDatabaseWithOrg := func(t *testing.T) (database.Store, database.Organization) {
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		return db, org
+	}
+
+	newUserWithWorkspaceAgent := func(t *testing.T, db database.Store, org database.Organization) (database.User, database.WorkspaceAgent) {
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		return user, agent
+	}
+
+	newAgentAPI := func(t *testing.T, logger slog.Logger, db database.Store, clock quartz.Clock, user database.User, org database.Organization, agent database.WorkspaceAgent) *agentapi.DevContainerAgentAPI {
+		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+		accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		accessControlStore.Store(&acs)
+
+		return &agentapi.DevContainerAgentAPI{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			AgentID:        agent.ID,
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Clock:    clock,
+			Database: dbauthz.New(db, auth, logger, accessControlStore),
+		}
+	}
 
 	t.Run("CreateDevContainerAgent", func(t *testing.T) {
 		t.Parallel()
@@ -123,7 +129,11 @@ func TestDevContainerAgentAPI(t *testing.T) {
 
 				log := testutil.Logger(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
-				api, _ := devContainerAgentAPI(t, log)
+				clock := quartz.NewMock(t)
+
+				db, org := newDatabaseWithOrg(t)
+				user, agent := newUserWithWorkspaceAgent(t, db, org)
+				api := newAgentAPI(t, log, db, clock, user, org, agent)
 
 				createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
 					Name:            tt.agentName,
@@ -154,116 +164,226 @@ func TestDevContainerAgentAPI(t *testing.T) {
 	t.Run("DeleteDevContainerAgent", func(t *testing.T) {
 		t.Parallel()
 
-		log := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		api, res := devContainerAgentAPI(t, log)
+		t.Run("WhenOnlyOne", func(t *testing.T) {
+			t.Parallel()
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
 
-		// Given: A dev container agent.
-		agent := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
-			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
-			ResourceID:      res.ID,
-			Name:            "some-child-agent",
-			Directory:       "/workspaces/wibble",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Given: A dev container agent.
+			childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "some-child-agent",
+				Directory:       "/workspaces/wibble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			// When: We delete the dev container agent.
+			_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+				Id: childAgent.ID[:],
+			})
+			require.NoError(t, err)
+
+			// Then: It is deleted.
+			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgent.ID) //nolint:gocritic // this is a test.
+			require.ErrorIs(t, err, sql.ErrNoRows)
 		})
 
-		// When: We delete the dev container agent.
-		_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
-			Id: agent.ID[:],
+		t.Run("WhenOneOfMany", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Given: Multiple dev container agents.
+			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "child-agent-one",
+				Directory:       "/workspaces/wibble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			childAgentTwo := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "child-agent-two",
+				Directory:       "/workspaces/wobble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			// When: We delete one of the dev container agents.
+			_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+				Id: childAgentOne.ID[:],
+			})
+			require.NoError(t, err)
+
+			// Then: The correct one is deleted.
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID) //nolint:gocritic // this is a test.
+			require.ErrorIs(t, err, sql.ErrNoRows)
+
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentTwo.ID) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
 		})
-		require.NoError(t, err)
 
-		// Then: It is deleted.
-		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agent.ID) //nolint:gocritic // this is a test.
-		require.ErrorIs(t, err, sql.ErrNoRows)
-	})
+		t.Run("CannotDeleteOtherAgentsChild", func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("DeleteOneDevContainerAgentOfMany", func(t *testing.T) {
-		t.Parallel()
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
 
-		log := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		api, res := devContainerAgentAPI(t, log)
+			db, org := newDatabaseWithOrg(t)
 
-		// Given: Multiple dev container agents.
-		agentOne := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
-			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
-			ResourceID:      res.ID,
-			Name:            "child-agent-one",
-			Directory:       "/workspaces/wibble",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
+			userOne, agentOne := newUserWithWorkspaceAgent(t, db, org)
+			_ = newAgentAPI(t, log, db, clock, userOne, org, agentOne)
+
+			userTwo, agentTwo := newUserWithWorkspaceAgent(t, db, org)
+			apiTwo := newAgentAPI(t, log, db, clock, userTwo, org, agentTwo)
+
+			// Given: Both workspaces have child agents
+			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agentOne.ID},
+				ResourceID:      agentOne.ResourceID,
+				Name:            "child-agent-one",
+				Directory:       "/workspaces/wibble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			// When: An agent API attempts to delete an agent it doesn't own
+			_, err := apiTwo.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+				Id: childAgentOne.ID[:],
+			})
+
+			// Then: We expect it to fail and for the agent to still exist.
+			require.Error(t, err)
+
+			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID)
+			require.NoError(t, err)
 		})
-
-		agentTwo := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
-			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
-			ResourceID:      res.ID,
-			Name:            "child-agent-two",
-			Directory:       "/workspaces/wobble",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-		})
-
-		// When: We delete one of the dev container agents.
-		_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
-			Id: agentOne.ID[:],
-		})
-		require.NoError(t, err)
-
-		// Then: The correct one is deleted.
-		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentOne.ID) //nolint:gocritic // this is a test.
-		require.ErrorIs(t, err, sql.ErrNoRows)
-
-		_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentTwo.ID) //nolint:gocritic // this is a test.
-		require.NoError(t, err)
 	})
 
 	t.Run("ListDevContainerAgents", func(t *testing.T) {
 		t.Parallel()
 
-		log := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		api, res := devContainerAgentAPI(t, log)
+		t.Run("Ok", func(t *testing.T) {
+			t.Parallel()
 
-		// Given: Multiple dev container agents.
-		agentOne := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
-			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
-			ResourceID:      res.ID,
-			Name:            "child-agent-one",
-			Directory:       "/workspaces/wibble",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Given: Multiple dev container agents.
+			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "child-agent-one",
+				Directory:       "/workspaces/wibble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			childAgentTwo := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "child-agent-two",
+				Directory:       "/workspaces/wobble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			childAgents := []database.WorkspaceAgent{childAgentOne, childAgentTwo}
+			slices.SortFunc(childAgents, func(a, b database.WorkspaceAgent) int {
+				return cmp.Compare(a.ID.String(), b.ID.String())
+			})
+
+			// When: We list the dev container agents.
+			listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{}) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
+
+			listedChildAgents := listResp.Agents
+			slices.SortFunc(listedChildAgents, func(a, b *proto.ListDevContainerAgentsResponse_DevContainerAgent) int {
+				return cmp.Compare(string(a.Id), string(b.Id))
+			})
+
+			// Then: We expect to see all the agents listed.
+			require.Len(t, listedChildAgents, len(childAgents))
+			for i, listedAgent := range listedChildAgents {
+				require.Equal(t, childAgents[i].ID[:], listedAgent.Id)
+				require.Equal(t, childAgents[i].Name, listedAgent.Name)
+			}
 		})
 
-		agentTwo := dbgen.WorkspaceAgent(t, api.Database, database.WorkspaceAgent{
-			ParentID:        uuid.NullUUID{Valid: true, UUID: api.AgentID},
-			ResourceID:      res.ID,
-			Name:            "child-agent-two",
-			Directory:       "/workspaces/wobble",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
+		t.Run("DoesNotListOtherAgentsChildren", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+
+			// Create two users with their respective agents
+			userOne, agentOne := newUserWithWorkspaceAgent(t, db, org)
+			apiOne := newAgentAPI(t, log, db, clock, userOne, org, agentOne)
+
+			userTwo, agentTwo := newUserWithWorkspaceAgent(t, db, org)
+			apiTwo := newAgentAPI(t, log, db, clock, userTwo, org, agentTwo)
+
+			// Given: Both parent agents have child agents
+			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agentOne.ID},
+				ResourceID:      agentOne.ResourceID,
+				Name:            "agent-one-child",
+				Directory:       "/workspaces/wibble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			childAgentTwo := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agentTwo.ID},
+				ResourceID:      agentTwo.ResourceID,
+				Name:            "agent-two-child",
+				Directory:       "/workspaces/wobble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			// When: We list the dev container agents for the first user
+			listRespOne, err := apiOne.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+			require.NoError(t, err)
+
+			// Then: We should only see the first user's child agent
+			require.Len(t, listRespOne.Agents, 1)
+			require.Equal(t, childAgentOne.ID[:], listRespOne.Agents[0].Id)
+			require.Equal(t, childAgentOne.Name, listRespOne.Agents[0].Name)
+
+			// When: We list the dev container agents for the second user
+			listRespTwo, err := apiTwo.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+			require.NoError(t, err)
+
+			// Then: We should only see the second user's child agent
+			require.Len(t, listRespTwo.Agents, 1)
+			require.Equal(t, childAgentTwo.ID[:], listRespTwo.Agents[0].Id)
+			require.Equal(t, childAgentTwo.Name, listRespTwo.Agents[0].Name)
 		})
-
-		agents := []database.WorkspaceAgent{agentOne, agentTwo}
-		slices.SortFunc(agents, func(a, b database.WorkspaceAgent) int {
-			return cmp.Compare(a.ID.String(), b.ID.String())
-		})
-
-		// When: We list the dev container agents.
-		listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{}) //nolint:gocritic // this is a test.
-		require.NoError(t, err)
-
-		listedAgents := listResp.Agents
-		slices.SortFunc(listedAgents, func(a, b *proto.ListDevContainerAgentsResponse_DevContainerAgent) int {
-			return cmp.Compare(string(a.Id), string(b.Id))
-		})
-
-		// Then: We expect to see all the agents listed.
-		require.Len(t, listedAgents, len(agents))
-		for i, agent := range listedAgents {
-			require.Equal(t, agents[i].ID[:], agent.Id)
-			require.Equal(t, agents[i].Name, agent.Name)
-		}
 	})
 }
