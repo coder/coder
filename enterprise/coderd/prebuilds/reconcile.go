@@ -361,6 +361,8 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_name", ps.Preset.Name),
 	)
 
+	c.metrics.trackHardLimitedStatus(ps.Preset.OrganizationName, ps.Preset.TemplateName, ps.Preset.Name, ps.IsHardLimited)
+
 	// If the preset was previously hard-limited, log it and exit early.
 	if ps.Preset.PrebuildStatus == database.PrebuildStatusHardLimited {
 		logger.Warn(ctx, "skipping hard limited preset")

@@ -696,7 +696,8 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), fakeEnqueuer)
+			registry := prometheus.NewRegistry()
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
 
 			// Template admin to receive a notification.
 			templateAdmin := dbgen.User(t, db, database.User{
@@ -732,6 +733,17 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			workspaceCount := len(workspaces)
 			require.Equal(t, 1, workspaceCount)
 
+			// Verify initial state: metric is not set - meaning preset is not hard limited.
+			require.NoError(t, controller.ForceMetricsUpdate(ctx))
+			mf, err := registry.Gather()
+			require.NoError(t, err)
+			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
+
 			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
 			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
 			clock.Advance(time.Nanosecond).MustWait(ctx)
@@ -755,6 +767,18 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				// When hard limit is not reached, a new workspace should be created.
 				require.Equal(t, 2, len(workspaces))
 				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus)
+
+				// When hard limit is not reached, metric is set to 0.
+				mf, err = registry.Gather()
+				require.NoError(t, err)
+				metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+					"template_name": template.Name,
+					"preset_name":   preset.Name,
+					"org_name":      org.Name,
+				})
+				require.NotNil(t, metric)
+				require.NotNil(t, metric.GetGauge())
+				require.EqualValues(t, 0, metric.GetGauge().GetValue())
 				return
 			}
 
@@ -775,6 +799,18 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				return true
 			})
 			require.Len(t, matching, 1)
+
+			// When hard limit is reached, metric is set to 1.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
 		})
 	}
 }
