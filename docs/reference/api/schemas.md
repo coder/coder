@@ -8272,6 +8272,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -8482,6 +8483,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "command": "string",
       "display_name": "string",
       "external": true,
+      "group": "string",
       "health": "disabled",
       "healthcheck": {
         "interval": 0,
@@ -9017,6 +9019,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "command": "string",
   "display_name": "string",
   "external": true,
+  "group": "string",
   "health": "disabled",
   "healthcheck": {
     "interval": 0,
@@ -9056,6 +9059,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `command`        | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `display_name`   | string                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `group`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
 | `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `hidden`         | boolean                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -9239,6 +9243,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "command": "string",
               "display_name": "string",
               "external": true,
+              "group": "string",
               "health": "disabled",
               "healthcheck": {
                 "interval": 0,
@@ -9659,6 +9664,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "command": "string",
           "display_name": "string",
           "external": true,
+          "group": "string",
           "health": "disabled",
           "healthcheck": {
             "interval": 0,
@@ -9963,6 +9969,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "command": "string",
                     "display_name": "string",
                     "external": true,
+                    "group": "string",
                     "health": "disabled",
                     "healthcheck": {},
                     "hidden": true,
