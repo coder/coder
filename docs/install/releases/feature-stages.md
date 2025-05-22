@@ -10,7 +10,7 @@ If you encounter an issue with any Coder feature, please submit a
 ## Feature stages
 
 | Feature stage                          | Stable | Production-ready | Support               | Description                                                                                                                   |
-| -------------------------------------- | ------ | ---------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+|----------------------------------------|--------|------------------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------|
 | [Early Access](#early-access-features) | No     | No               | GitHub issues         | For staging only. Not feature-complete or stable. Disabled by default.                                                        |
 | [Beta](#beta)                          | No     | Not fully        | Docs, Discord, GitHub | Publicly available. In active development with minor bugs. Suitable for staging; optional for production. Not covered by SLA. |
 | [GA](#general-availability-ga)         | Yes    | Yes              | License-based         | Stable and tested. Enabled by default. Fully documented. Support based on license.                                            |
@@ -66,7 +66,7 @@ You can opt-out of a feature after you've enabled it.
 <!-- BEGIN: available-experimental-features -->
 
 | Feature Flag      | Name                       | Available in           |
-| ----------------- | -------------------------- | ---------------------- |
+|-------------------|----------------------------|------------------------|
 | `dev-containers`  | Dev Containers Integration | main, mainline, stable |
 | `securing-agents` | Securing AI Agents         | main, mainline, stable |
 
@@ -108,7 +108,7 @@ available in the documentation.
 <!-- BEGIN: beta-features -->
 
 | Feature Flag          | Name                | Available in           |
-| --------------------- | ------------------- | ---------------------- |
+|-----------------------|---------------------|------------------------|
 | `agentic-chat`        | AI Coding Agents    | main, mainline, stable |
 | `coder-desktop`       | Coder Desktop       | main, mainline, stable |
 | `workspace-prebuilds` | Prebuilt workspaces | main, mainline, stable |

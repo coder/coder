@@ -40,7 +40,7 @@ echo_latest_stable_version() {
 		echo "stable"
 		return
 	fi
-	
+
 	# Try to get latest stable version, fallback to "stable" if it fails
 	version=$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest 2>/dev/null || echo "error")
 	if [[ "${version}" == "error" || -z "${version}" ]]; then
@@ -48,7 +48,7 @@ echo_latest_stable_version() {
 		echo "stable"
 		return
 	fi
-	
+
 	version="${version#https://github.com/coder/coder/releases/tag/v}"
 	echo "v${version}"
 }
@@ -58,23 +58,23 @@ echo_latest_mainline_version() {
 		echo "mainline"
 		return
 	fi
-	
+
 	# Try to get the latest mainline version, fallback to "mainline" if it fails
 	local version
-	version=$(curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/repos/coder/coder/releases 2>/dev/null | 
+	version=$(curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/repos/coder/coder/releases 2>/dev/null |
 		awk -F'"' '/"tag_name"/ {print $4}' |
 		tr -d v |
 		tr . ' ' |
 		sort -k1,1nr -k2,2nr -k3,3nr |
 		head -n1 |
 		tr ' ' . || echo "")
-	
+
 	if [[ -z "${version}" ]]; then
 		log "Warning: Failed to fetch latest mainline version. Using 'mainline' as placeholder."
 		echo "mainline"
 		return
 	fi
-	
+
 	echo "v${version}"
 }
 
@@ -86,7 +86,7 @@ sparse_clone_codersdk() {
 		echo ""
 		return
 	fi
-	
+
 	# Always return success with a placeholder directory
 	echo "${1}/${2}"
 }
@@ -140,13 +140,13 @@ EOT
 extract_version_experiment_info() {
 	local dir=$1
 	local version=$2
-	
+
 	if [[ "${GH_AVAILABLE}" == "false" || -z "${dir}" ]]; then
 		# If GitHub isn't available, just set all features to the same version
 		extract_local_experiment_info | jq --arg version "${version}" '[.[] | . + {"versions": [$version]}]'
 		return
 	fi
-	
+
 	# For simplicity and stability, let's just use the local experiments
 	# and mark them as available in the specified version.
 	# This avoids the complex Go module replacement that can be error-prone
@@ -158,15 +158,15 @@ combine_experiment_info() {
 	local workdir=$1
 	local stable_version=$2
 	local mainline_version=$3
-	
+
 	# Extract information from different versions
 	local local_info stable_info mainline_info
 	local_info=$(extract_local_experiment_info)
-	
+
 	if [[ "${GH_AVAILABLE}" == "true" ]]; then
 		# Create sparse clones and extract info
 		local stable_dir mainline_dir
-		
+
 		stable_dir=$(sparse_clone_codersdk "${workdir}" "stable" "${stable_version}")
 		if [[ -n "${stable_dir}" ]]; then
 			stable_info=$(extract_version_experiment_info "${stable_dir}" "stable")
@@ -174,7 +174,7 @@ combine_experiment_info() {
 			# Fallback if sparse clone failed
 			stable_info=$(extract_local_experiment_info | jq '[.[] | . + {"versions": ["stable"]}]')
 		fi
-		
+
 		mainline_dir=$(sparse_clone_codersdk "${workdir}" "mainline" "${mainline_version}")
 		if [[ -n "${mainline_dir}" ]]; then
 			mainline_info=$(extract_version_experiment_info "${mainline_dir}" "mainline")
@@ -182,7 +182,7 @@ combine_experiment_info() {
 			# Fallback if sparse clone failed
 			mainline_info=$(extract_local_experiment_info | jq '[.[] | . + {"versions": ["mainline"]}]')
 		fi
-		
+
 		# Cleanup
 		rm -rf "${workdir}"
 	else
@@ -190,10 +190,10 @@ combine_experiment_info() {
 		stable_info=$(extract_local_experiment_info | jq '[.[] | . + {"versions": ["stable"]}]')
 		mainline_info=$(extract_local_experiment_info | jq '[.[] | . + {"versions": ["mainline"]}]')
 	fi
-	
+
 	# Add 'main' version to local info
 	local_info=$(echo "${local_info}" | jq '[.[] | . + {"versions": ["main"]}]')
-	
+
 	# Combine all info
 	echo '[]' | jq \
 		--argjson local "${local_info}" \
@@ -215,20 +215,20 @@ combine_experiment_info() {
 # Generate the early access features table
 generate_experiments_table() {
 	local experiment_info=$1
-	
+
 	echo "| Feature Flag | Name | Available in |"
 	echo "|-------------|------|--------------|"
-	
+
 	echo "${experiment_info}" | jq -r '.[] | select(.stage=="early access") | "| `\(.value)` | \(.description) | \(.versions | join(", ")) |"'
 }
 
 # Generate the beta features table
 generate_beta_table() {
 	local experiment_info=$1
-	
+
 	echo "| Feature Flag | Name | Available in |"
 	echo "|-------------|------|--------------|"
-	
+
 	echo "${experiment_info}" | jq -r '.[] | select(.stage=="beta") | "| `\(.value)` | \(.description) | \(.versions | join(", ")) |"'
 }
 
