@@ -18,7 +18,7 @@ import { useClipboard } from "hooks/useClipboard";
 import { DynamicParameter } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import React from "react";
+import type React from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
@@ -209,10 +209,10 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
       {isLoading ? (
         <Loader />
       ) : (
-        <div css={{ display: "flex", alignItems: "flex-start", gap: 48 }}>
-          <div css={{ flex: 1, maxWidth: 400 }}>
+        <div className="flex items-start gap-12">
+          <div className="flex-1 max-w-96">
             {wsError && (
-              <div css={{ marginBottom: 16, color: "red" }}>
+              <div className="mb-4 text-content-destructive">
                 <strong>Error: </strong> {wsError.message}
               </div>
             )}
