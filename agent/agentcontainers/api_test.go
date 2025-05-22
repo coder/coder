@@ -286,12 +286,13 @@ func TestAPI(t *testing.T) {
 					err := json.NewDecoder(rec.Body).Decode(got)
 					require.NoError(t, err, "unmarshal response failed")
 					require.ErrorContains(t, got, tc.expectedErr, "want error")
-				} else {
-					var got codersdk.WorkspaceAgentListContainersResponse
-					err := json.NewDecoder(rec.Body).Decode(&got)
-					require.NoError(t, err, "unmarshal response failed")
-					require.Equal(t, tc.expected, got, "want updated data")
+					return
 				}
+
+				var got codersdk.WorkspaceAgentListContainersResponse
+				err := json.NewDecoder(rec.Body).Decode(&got)
+				require.NoError(t, err, "unmarshal response failed")
+				require.Equal(t, tc.expected, got, "want updated data")
 			})
 		}
 	})
