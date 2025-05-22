@@ -1,7 +1,7 @@
 import { health } from "api/queries/debug";
 import { deploymentStats } from "api/queries/deployment";
 import { useAuthenticated } from "hooks";
-import { type FC, useEffect, useState } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useLocation } from "react-router-dom";
 import { DeploymentBannerView } from "./DeploymentBannerView";
@@ -20,17 +20,12 @@ export const DeploymentBanner: FC = () => {
 		enabled: permissions.viewDeploymentConfig,
 	});
 	const location = useLocation();
-	const [visible, setVisible] = useState(true);
-
-	useEffect(() => {
-		const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
-			regex.test(location.pathname),
-		);
-		setVisible(!isHidden);
-	}, [location.pathname]);
+	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
+		regex.test(location.pathname),
+	);
 
 	if (
-		!visible ||
+		isHidden ||
 		!permissions.viewDeploymentConfig ||
 		!deploymentStatsQuery.data
 	) {
