@@ -67,7 +67,9 @@ func devContainerAgentAPI(t *testing.T, log slog.Logger) (*agentapi.DevContainer
 	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 	return &agentapi.DevContainerAgentAPI{
-		AgentID: agent.ID,
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		AgentID:        agent.ID,
 		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 			return agent, nil
 		},

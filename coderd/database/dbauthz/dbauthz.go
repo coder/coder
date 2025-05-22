@@ -319,23 +319,27 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	subjectDevContainerAgentAPI = rbac.Subject{
-		Type:         rbac.SubjectTypeDevContainerAgentAPI,
-		FriendlyName: "Dev Container Agent API",
-		ID:           uuid.Nil.String(),
-		Roles: rbac.Roles([]rbac.Role{
-			{
-				Identifier:  rbac.RoleIdentifier{Name: "devcontaineragentapi"},
-				DisplayName: "Dev Container Agent API",
-				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
-				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
-			},
-		}),
-		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
+	subjectDevContainerAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeDevContainerAgentAPI,
+			FriendlyName: "Dev Container Agent API",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "devcontaineragentapi"},
+					DisplayName: "Dev Container Agent API",
+					Site:        []rbac.Permission{},
+					Org: map[string][]rbac.Permission{
+						orgID.String(): []rbac.Permission{},
+					},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+					}),
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
 
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
@@ -457,8 +461,8 @@ func AsResourceMonitor(ctx context.Context) context.Context {
 
 // AsDevContainerAgentAPI returns a context with an actor that has permissions required for
 // handling the lifecycle of dev container agents.
-func AsDevContainerAgentAPI(ctx context.Context) context.Context {
-	return As(ctx, subjectDevContainerAgentAPI)
+func AsDevContainerAgentAPI(ctx context.Context, userID uuid.UUID, orgID uuid.UUID) context.Context {
+	return As(ctx, subjectDevContainerAgentAPI(userID, orgID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

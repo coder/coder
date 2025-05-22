@@ -16,8 +16,10 @@ import (
 )
 
 type DevContainerAgentAPI struct {
-	AgentID uuid.UUID
-	AgentFn func(context.Context) (database.WorkspaceAgent, error)
+	OwnerID        uuid.UUID
+	OrganizationID uuid.UUID
+	AgentID        uuid.UUID
+	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
 
 	Log      slog.Logger
 	Clock    quartz.Clock
@@ -25,8 +27,8 @@ type DevContainerAgentAPI struct {
 }
 
 func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
-	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
-	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
+	//nolint:gocritic // This gives us only the permissions required to do the job.
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
 
 	parentAgent, err := a.AgentFn(ctx)
 	if err != nil {
@@ -79,8 +81,8 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 }
 
 func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*agentproto.DeleteDevContainerAgentResponse, error) {
-	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
-	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
+	//nolint:gocritic // This gives us only the permissions required to do the job.
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
 
 	devContainerAgentID, err := uuid.FromBytes(req.Id)
 	if err != nil {
@@ -95,8 +97,8 @@ func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req 
 }
 
 func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
-	//nolint:gocritic // We are the Dev Container Agent API, so this is safe.
-	ctx = dbauthz.AsDevContainerAgentAPI(ctx)
+	//nolint:gocritic // This gives us only the permissions required to do the job.
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
 
 	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, a.AgentID)
 	if err != nil {

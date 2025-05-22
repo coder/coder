@@ -60,9 +60,10 @@ type API struct {
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID     uuid.UUID
-	OwnerID     uuid.UUID
-	WorkspaceID uuid.UUID
+	AgentID        uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.UUID
+	OrganizationID uuid.UUID
 
 	Ctx                               context.Context
 	Log                               slog.Logger
@@ -195,11 +196,13 @@ func New(opts Options) *API {
 	}
 
 	api.DevContainerAgentAPI = &DevContainerAgentAPI{
-		AgentID:  opts.AgentID,
-		AgentFn:  api.agent,
-		Log:      opts.Log,
-		Clock:    opts.Clock,
-		Database: opts.Database,
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		AgentID:        opts.AgentID,
+		AgentFn:        api.agent,
+		Log:            opts.Log,
+		Clock:          opts.Clock,
+		Database:       opts.Database,
 	}
 
 	return api

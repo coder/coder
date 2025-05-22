@@ -135,6 +135,7 @@ var actorLogOrder = []rbac.SubjectType{
 	rbac.SubjectTypeJobReaper,
 	rbac.SubjectTypeNotifier,
 	rbac.SubjectTypePrebuildsOrchestrator,
+	rbac.SubjectTypeDevContainerAgentAPI,
 	rbac.SubjectTypeProvisionerd,
 	rbac.SubjectTypeResourceMonitor,
 	rbac.SubjectTypeSystemReadProvisionerDaemons,
