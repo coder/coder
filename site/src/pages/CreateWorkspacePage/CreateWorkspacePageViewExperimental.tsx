@@ -8,6 +8,7 @@ import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadg
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Pill } from "components/Pill/Pill";
+import { docs } from "utils/docs";
 import {
 	Select,
 	SelectContent,
@@ -19,7 +20,8 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CircleAlert, TriangleAlert, Undo2 } from "lucide-react";
+import { Link } from "components/Link/Link";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
@@ -337,7 +339,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</button>
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
-				<header className="flex flex-col items-start gap-2 mt-10">
+				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2">
 						<Avatar
 							variant="icon"
@@ -351,17 +353,23 @@ export const CreateWorkspacePageViewExperimental: FC<
 								: template.name}
 						</p>
 					</div>
-					<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+					<span className="flex flex-row items-center gap-3">
+						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+						{/* <FeatureStageBadge
+							contentType={"beta"}
+							labelText="Dynamic parameters"
+						/> */}
+					</span>
 
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 
 					{experimentalFormContext && (
 						<Button
 							size="sm"
-							variant="subtle"
+							variant="outline"
 							onClick={experimentalFormContext.toggleOptedOut}
 						>
-							Go back to the classic workspace creation flow
+							<Undo2 />Go back to the classic workspace creation flow
 						</Button>
 					)}
 				</header>
@@ -497,10 +505,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-9">
 							<hgroup>
-								<h2 className="text-xl font-semibold m-0">Parameters</h2>
+								<span className="flex flex-row items-center gap-2"><h2 className="text-xl font-semibold m-0">Parameters</h2>
+								<FeatureStageBadge
+									contentType={"beta"}
+									labelText="Dynamic parameters"
+								/></span>
 								<p className="text-sm text-content-secondary m-0">
 									These are the settings used by your template. Immutable
 									parameters cannot be modified once the workspace is created.
+									<Link href={docs("/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access")}>View docs</Link>
 								</p>
 							</hgroup>
 							{diagnostics.length > 0 && (
