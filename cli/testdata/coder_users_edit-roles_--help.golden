@@ -8,8 +8,7 @@ USAGE:
 OPTIONS:
       --roles string-array
           A list of roles to give to the user. This removes any existing roles
-          the user may have. The available roles are: auditor, member, owner,
-          template-admin, user-admin.
+          the user may have.
 
   -y, --yes bool
           Bypass prompts.
