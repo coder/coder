@@ -261,6 +261,18 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			return nil
 		}
 
+		membershipReconciler := StoreMembershipReconciler{
+			store:    db,
+			clock:    c.clock,
+			snapshot: snapshot,
+			userID:   prebuilds.SystemUserID,
+		}
+		err = membershipReconciler.ReconcileAll(ctx)
+		if err != nil {
+			logger.Warn(ctx, "reconciling prebuild membership", slog.Error(err))
+			return nil
+		}
+
 		var eg errgroup.Group
 		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
