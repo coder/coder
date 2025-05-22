@@ -268,6 +268,9 @@ importers:
       tailwindcss-animate:
         specifier: 1.0.7
         version: 1.0.7(tailwindcss@3.4.17(ts-node@10.9.2(@swc/core@1.3.38)(@types/node@20.17.16)(typescript@5.6.3)))
+      tzdata:
+        specifier: 1.0.40
+        version: 1.0.40
       ua-parser-js:
         specifier: 1.0.40
         version: 1.0.40
@@ -6067,6 +6070,9 @@ packages:
     resolution: {integrity: sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==, tarball: https://registry.npmjs.org/typescript/-/typescript-5.6.3.tgz}
     engines: {node: '>=14.17'}
     hasBin: true
+
+  tzdata@1.0.40:
+    resolution: {integrity: sha512-IsWNGfC5GrVPG4ejYJtf3tOlBdJYs0uNzv1a+vkdANHDq2kPg4oAN2UlCfpqrCwErPZVhI6MLA2gkeuXAVnpLg==, tarball: https://registry.npmjs.org/tzdata/-/tzdata-1.0.40.tgz}
 
   ua-parser-js@1.0.40:
     resolution: {integrity: sha512-z6PJ8Lml+v3ichVojCiB8toQJBuwR42ySM4ezjXIqXK3M0HczmKQ3LF4rhU55PfD99KEEXQG6yb7iOMyvYuHew==, tarball: https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-1.0.40.tgz}
@@ -13021,6 +13027,8 @@ snapshots:
       mime-types: 2.1.35
 
   typescript@5.6.3: {}
+
+  tzdata@1.0.40: {}
 
   ua-parser-js@1.0.40: {}
 

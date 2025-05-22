@@ -6,6 +6,7 @@ import {
 	formatDistanceToNow,
 	parseISO,
 } from "date-fns";
+import tzData from "tzdata";
 
 export type TimeUnit = "days" | "hours";
 
@@ -149,7 +150,7 @@ export function getDateDifference(
 	}
 }
 
-export const timeZones = Intl.supportedValuesOf("timeZone");
+export const timeZones = Object.keys(tzData.zones).sort();
 
 export const getPreferredTimezone = () =>
 	Intl.DateTimeFormat().resolvedOptions().timeZone;
