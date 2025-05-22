@@ -4,17 +4,15 @@ import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
-import type { WorkspaceApp } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import { type FC, useMemo } from "react";
+import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
-import { AppStatuses } from "./AppStatuses";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
@@ -108,14 +106,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
-
-	const hasAppStatus = useMemo(() => {
-		return selectedResource?.agents?.some((agent) => {
-			return agent.apps?.some((app) => {
-				return app.statuses?.length > 0;
-			});
-		});
-	}, [selectedResource]);
 
 	return (
 		<div
@@ -291,36 +281,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 									</div>
 								</div>
 							)}
-						</section>
-					)}
-
-					{selectedResource && hasAppStatus && (
-						<section className="border border-solid border-border rounded-lg bg-surface-primary">
-							<header className="p-4 border-0 border-b border-border border-solid flex items-center justify-between">
-								<h3 className="m-0 text-sm font-medium">Activity</h3>
-								<div className="text-content-secondary text-xs">
-									{
-										// Calculate total status count
-										selectedResource.agents
-											?.flatMap((agent) => agent.apps ?? [])
-											.reduce(
-												(count, app) => count + (app.statuses?.length ?? 0),
-												0,
-											)
-									}{" "}
-									Total
-								</div>
-							</header>
-
-							<AppStatuses
-								apps={
-									selectedResource.agents?.flatMap(
-										(agent) => agent.apps ?? [],
-									) as WorkspaceApp[]
-								}
-								workspace={workspace}
-								agents={selectedResource.agents || []}
-							/>
 						</section>
 					)}
 

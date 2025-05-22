@@ -13,8 +13,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { formatDistance, formatDistanceToNow } from "date-fns";
+import { formatDistance } from "date-fns";
 import {
+	ChevronDownIcon,
+	ChevronUpIcon,
 	CircleAlertIcon,
 	CircleCheckIcon,
 	ExternalLinkIcon,
@@ -23,7 +25,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 
 const getStatusColor = (state: APIWorkspaceAppStatus["state"]) => {
@@ -42,22 +44,23 @@ const getStatusColor = (state: APIWorkspaceAppStatus["state"]) => {
 const getStatusIcon = (
 	state: APIWorkspaceAppStatus["state"],
 	isLatest: boolean,
+	className?: string,
 ) => {
-	const className = cn(["size-[18px]", getStatusColor(state)]);
+	const iconClassName = cn(["size-[18px]", getStatusColor(state), className]);
 
 	switch (state) {
 		case "complete":
-			return <CircleCheckIcon className={className} />;
+			return <CircleCheckIcon className={iconClassName} />;
 		case "failure":
-			return <CircleAlertIcon className={className} />;
+			return <CircleAlertIcon className={iconClassName} />;
 		case "working":
 			return isLatest ? (
 				<Spinner size="sm" loading />
 			) : (
-				<HourglassIcon className={className} />
+				<HourglassIcon className={iconClassName} />
 			);
 		default:
-			return <TriangleAlertIcon className={className} />;
+			return <TriangleAlertIcon className={iconClassName} />;
 	}
 };
 
@@ -97,9 +100,8 @@ const formatURI = (uri: string) => {
 // --- Component Implementation ---
 
 export interface AppStatusesProps {
-	apps: WorkspaceApp[];
 	workspace: Workspace;
-	agents: ReadonlyArray<WorkspaceAgent>;
+	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
 }
@@ -111,109 +113,136 @@ interface StatusWithAppInfo extends APIWorkspaceAppStatus {
 }
 
 export const AppStatuses: FC<AppStatusesProps> = ({
-	apps,
 	workspace,
-	agents,
+	agent,
 	referenceDate,
 }) => {
-	// 1. Flatten all statuses and include the parent app object
-	const allStatuses: StatusWithAppInfo[] = apps.flatMap((app) =>
-		app.statuses.map((status) => ({
-			...status,
-			app: app, // Store the parent app object
-		})),
+	const [displayStatuses, setDisplayStatuses] = useState(false);
+	const allStatuses: StatusWithAppInfo[] = agent.apps.flatMap((app) =>
+		app.statuses
+			.map((status) => ({
+				...status,
+				app,
+			}))
+			.sort(
+				(a, b) =>
+					new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+			),
 	);
-
-	// 2. Sort statuses chronologically (newest first) - mutating the value is
-	// fine since it's not an outside parameter
-	allStatuses.sort(
-		(a, b) =>
-			new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-	);
-
-	// Determine the reference point for time calculation
-	const comparisonDate = referenceDate ?? new Date();
 
 	if (allStatuses.length === 0) {
 		return null;
 	}
 
+	const comparisonDate = referenceDate ?? new Date();
+	const latestStatus = allStatuses[0];
+	const otherStatuses = allStatuses.slice(1);
+
 	return (
-		<div className="flex flex-col">
-			{allStatuses.map((status, index) => {
-				const isLatest = index === 0;
-				const isFileURI = status.uri?.startsWith("file://");
-				const statusTime = new Date(status.created_at);
-				// Use formatDistance if referenceDate is provided, otherwise formatDistanceToNow
-				const formattedTimestamp = referenceDate
-					? formatDistance(statusTime, comparisonDate, { addSuffix: true })
-					: formatDistanceToNow(statusTime, { addSuffix: true });
+		<div className="flex flex-col border border-solid border-border rounded-lg">
+			<div
+				className={`
+					flex items-center justify-between px-4 py-3
+					border-0 [&:not(:last-child)]:border-b border-solid border-border
+				`}
+			>
+				<div className="flex flex-col">
+					<span className="text-sm font-medium text-content-primary flex items-center gap-2">
+						{getStatusIcon(latestStatus.state, true)}
+						{latestStatus.message}
+					</span>
+					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+						{formatDistance(new Date(latestStatus.created_at), comparisonDate, {
+							addSuffix: true,
+						})}
+					</span>
+				</div>
 
-				// Get the associated app for this status
-				const currentApp = status.app;
-				const agent = agents.find((agent) => agent.id === status.agent_id);
+				<div className="flex items-center gap-2">
+					{latestStatus.app && (
+						<AppLink
+							app={latestStatus.app}
+							agent={agent}
+							workspace={workspace}
+						/>
+					)}
 
-				// Determine if app link should be shown
-				const showAppLink =
-					isLatest ||
-					(index > 0 && status.app_id !== allStatuses[index - 1].app_id);
+					{latestStatus.uri &&
+						(latestStatus.uri.startsWith("file://") ? (
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger>
+										<span className="flex items-center gap-1">
+											<FileIcon className="size-icon-xs" />
+											{formatURI(latestStatus.uri)}
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>
+										This file is located in your workspace
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						) : (
+							<Button asChild variant="outline" size="sm">
+								<a href={latestStatus.uri} target="_blank" rel="noreferrer">
+									<ExternalLinkIcon />
+									{formatURI(latestStatus.uri)}
+								</a>
+							</Button>
+						))}
 
-				return (
-					<div
-						key={status.id}
-						className={`
-							flex items-center justify-between px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid border-border
-							${isLatest ? "" : "opacity-50 hover:opacity-100"}
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									onClick={() => {
+										setDisplayStatuses((display) => !display);
+									}}
+								>
+									{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								{displayStatuses ? "Hide statuses" : "Show statuses"}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</div>
+			</div>
+
+			{displayStatuses &&
+				otherStatuses.map((status) => {
+					const statusTime = new Date(status.created_at);
+					const formattedTimestamp = formatDistance(
+						statusTime,
+						comparisonDate,
+						{
+							addSuffix: true,
+						},
+					);
+
+					return (
+						<div
+							key={status.id}
+							className={`
+							flex items-center justify-between px-4 py-3
+							border-0 [&:not(:last-child)]:border-b border-solid border-border
 						`}
-					>
-						<div className="flex flex-col">
-							<span className="text-sm font-medium text-content-primary flex items-center gap-2">
-								{getStatusIcon(status.state, isLatest)}
-								{status.message}
-							</span>
-							<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
-								{formattedTimestamp}
-							</span>
-						</div>
-
-						{isLatest && (
-							<div className="flex items-center gap-2">
-								{currentApp && agent && showAppLink && (
-									<AppLink
-										app={currentApp}
-										agent={agent}
-										workspace={workspace}
-									/>
-								)}
-
-								{status.uri &&
-									(isFileURI ? (
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger>
-													<span className="flex items-center gap-1">
-														<FileIcon className="size-icon-xs" />
-														{formatURI(status.uri)}
-													</span>
-												</TooltipTrigger>
-												<TooltipContent>
-													This file is located in your workspace
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-									) : (
-										<Button asChild variant="outline" size="sm">
-											<a href={status.uri} target="_blank" rel="noreferrer">
-												<ExternalLinkIcon />
-												{formatURI(status.uri)}
-											</a>
-										</Button>
-									))}
+						>
+							<div className="flex items-center justify-between w-full text-content-secondary">
+								<span className="text-xs flex items-center gap-2">
+									{getStatusIcon(status.state, false, "size-icon-xs w-[18px]")}
+									{status.message}
+								</span>
+								<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
+									{formattedTimestamp}
+								</span>
 							</div>
-						)}
-					</div>
-				);
-			})}
+						</div>
+					);
+				})}
 		</div>
 	);
 };
