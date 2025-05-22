@@ -266,6 +266,24 @@ Before using Podman, please review the following documentation:
    > For more information around the requirements of rootless podman pods, see:
    > [How to run Podman inside of Kubernetes](https://www.redhat.com/sysadmin/podman-inside-kubernetes)
 
+### Bottlerocket
+To use rootless Podman on [Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) nodes requires enabling user namespaces on the node
+> [Github.com: Bottlerocket user namespace discussion](https://github.com/bottlerocket-os/bottlerocket/discussions/3318)
+
+You can set this in the user data on the node. If using EKS with Karpenter you can set it in the EC2NodeClass like this:
+
+```yaml
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  # ... 
+  userData: |
+    [settings.kernel]
+    sysctl = { "user.max_user_namespaces" = "65536" }
+```
+
 ## Privileged sidecar container
 
 A
