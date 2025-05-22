@@ -293,6 +293,8 @@ func (api *API) updaterLoop() {
 		case <-api.ctx.Done():
 			return
 		case done := <-api.updateTrigger:
+			// Note that although we pass api.ctx here, updateContainers
+			// has an internal timeout to prevent long blocking calls.
 			done <- api.updateContainers(api.ctx)
 		}
 	}
