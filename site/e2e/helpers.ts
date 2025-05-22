@@ -619,6 +619,7 @@ const createTemplateVersionTar = async (
 								slug: "example",
 								subdomain: false,
 								url: "",
+								group: "",
 								...app,
 							} as App;
 						});
