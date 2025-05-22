@@ -7,9 +7,9 @@ import type {
 	Workspace,
 } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { formatDistanceToNow, parseISO } from "date-fns";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { relativeTime } from "utils/time";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;
@@ -65,11 +65,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 								{(() => {
 									try {
 										if (typeof workspace.created_at === "string") {
-											const date = parseISO(workspace.created_at);
-											// Check if the date is valid
-											if (!Number.isNaN(date.getTime())) {
-												return formatDistanceToNow(date, { addSuffix: true });
-											}
+											return relativeTime(workspace.created_at);
 										}
 										return "a minute ago";
 									} catch (e) {

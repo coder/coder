@@ -12,6 +12,7 @@ import { HourglassIcon } from "lucide-react";
 import { CircleAlertIcon, PlayIcon, SquareIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
+import { type DateValue, toDate } from "./time";
 
 const DisplayWorkspaceBuildStatusLanguage = {
 	succeeded: "Succeeded",
@@ -305,8 +306,8 @@ export const getResourceIconPath = (resourceType: string): string => {
 	return BUILT_IN_ICON_PATHS[resourceType] ?? FALLBACK_ICON;
 };
 
-export const lastUsedMessage = (lastUsedAt: string | Date): string => {
-	const t = typeof lastUsedAt === "string" ? parseISO(lastUsedAt) : lastUsedAt;
+export const lastUsedMessage = (lastUsedAt: DateValue): string => {
+	const t = toDate(lastUsedAt);
 	const now = new Date();
 	let message = formatDistance(t, now, { addSuffix: true });
 

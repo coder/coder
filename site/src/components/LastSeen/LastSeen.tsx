@@ -1,20 +1,21 @@
 import { useTheme } from "@emotion/react";
-import { formatDistanceToNow, isAfter, parseISO, sub } from "date-fns";
+import { isAfter, sub } from "date-fns";
 import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
+import { relativeTime, toDate } from "utils/time";
 
 interface LastSeenProps
 	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
-	at: string | Date | number;
+	at: import("utils/time").DateValue;
 	"data-chromatic"?: string; // prevents a type error in the stories
 }
 
 export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 	const theme = useTheme();
-	const t = typeof at === "string" ? parseISO(at) : new Date(at);
+	const t = toDate(at);
 	const now = new Date();
 
-	let message = formatDistanceToNow(t, { addSuffix: true });
+	let message = relativeTime(t);
 	let color = theme.palette.text.secondary;
 
 	if (isAfter(t, sub(now, { hours: 1 }))) {

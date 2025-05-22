@@ -2,9 +2,9 @@ import { css } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
-import { differenceInMilliseconds, parseISO } from "date-fns";
 import capitalize from "lodash/capitalize";
 import { type FC, useEffect, useState } from "react";
+import { getDateDifference, safeParseISO } from "utils/time";
 
 // ActiveTransition gets the build estimate for the workspace,
 // if it is in a transition state.
@@ -31,7 +31,8 @@ const estimateFinish = (
 	p50: number,
 	p95: number,
 ): [number | undefined, string] => {
-	const sinceStart = differenceInMilliseconds(new Date(), startedAt);
+	const now = new Date();
+	const sinceStart = getDateDifference(now, startedAt, "seconds") * 1000; // Convert to ms
 	const secondsLeft = (est: number) => {
 		const max = Math.max(Math.ceil(((1 - sinceStart / est) * est) / 1000), 0);
 		return Number.isNaN(max) ? 0 : max;
@@ -87,9 +88,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 				return;
 			}
 
-			// Make sure job.started_at is defined before passing to parseISO
+			// Use safeParseISO to handle potential invalid dates
 			const [est, text] = estimateFinish(
-				job.started_at ? parseISO(job.started_at) : new Date(),
+				safeParseISO(job.started_at),
 				transitionStats.P50,
 				transitionStats.P95,
 			);
