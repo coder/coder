@@ -44,11 +44,13 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 		return nil, xerrors.Errorf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex.String())
 	}
 
+	createdAt := a.Clock.Now()
+
 	devContainerAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
-		CreatedAt:                a.Clock.Now(),
-		UpdatedAt:                a.Clock.Now(),
+		CreatedAt:                createdAt,
+		UpdatedAt:                createdAt,
 		Name:                     agentName,
 		ResourceID:               parentAgent.ResourceID,
 		AuthToken:                uuid.New(),
