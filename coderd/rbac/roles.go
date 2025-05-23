@@ -33,6 +33,8 @@ const (
 	orgUserAdmin            string = "organization-user-admin"
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
+
+	prebuildsOrchestrator string = "prebuilds-orchestrator"
 )
 
 func init() {
@@ -597,6 +599,9 @@ var assignRoles = map[string]map[string]bool{
 		customOrganizationRole:  true,
 	},
 	orgUserAdmin: {
+		orgMember: true,
+	},
+	prebuildsOrchestrator: {
 		orgMember: true,
 	},
 }

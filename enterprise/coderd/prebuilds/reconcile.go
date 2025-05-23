@@ -251,8 +251,8 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, db database.Store) error {
-		snapshot, err := c.SnapshotState(ctx, db)
+	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+		snapshot, err := c.SnapshotState(ctx, c.store)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
 		}
@@ -261,15 +261,17 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			return nil
 		}
 
+		// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
+		prebuildsMembershipCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 		membershipReconciler := StoreMembershipReconciler{
-			store:    db,
+			store:    c.store,
 			clock:    c.clock,
 			snapshot: snapshot,
 			userID:   prebuilds.SystemUserID,
 		}
-		err = membershipReconciler.ReconcileAll(ctx)
+		err = membershipReconciler.ReconcileAll(prebuildsMembershipCtx)
 		if err != nil {
-			logger.Warn(ctx, "reconciling prebuild membership", slog.Error(err))
+			logger.Warn(ctx, "reconcile prebuild membership", slog.Error(err))
 			return nil
 		}
 
