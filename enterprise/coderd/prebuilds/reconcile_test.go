@@ -815,6 +815,213 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 	}
 }
 
+func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
+	testCases := []struct {
+		name           string
+		hardLimit      int64
+		isHardLimitHit bool
+	}{
+		{
+			name:           "hard limit is hit - skip creation of prebuilt workspace",
+			hardLimit:      1,
+			isHardLimitHit: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{
+				FailureHardLimit:              serpent.Int64(tc.hardLimit),
+				ReconciliationBackoffInterval: 0,
+			}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			fakeEnqueuer := newFakeEnqueuer()
+			registry := prometheus.NewRegistry()
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
+
+			// Template admin to receive a notification.
+			templateAdmin := dbgen.User(t, db, database.User{
+				RBACRoles: []string{codersdk.RoleTemplateAdmin},
+			})
+
+			// Set up test environment with a template, version, and preset.
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, false)
+			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			preset := setupTestDBPreset(t, db, templateVersionID, 2, uuid.New().String())
+
+			// Create a successful prebuilt workspace.
+			successfulWorkspace, _ := setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusSucceeded,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			// Make sure that prebuilt workspaces created in such order: [successful, failed].
+			clock.Advance(time.Second).MustWait(ctx)
+
+			// Create a failed prebuilt workspace that counts toward the hard failure limit.
+			setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusFailed,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			getJobStatusMap := func(workspaces []database.WorkspaceTable) map[database.ProvisionerJobStatus]int {
+				jobStatusMap := make(map[database.ProvisionerJobStatus]int)
+				for _, workspace := range workspaces {
+					workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+						WorkspaceID: workspace.ID,
+					})
+					require.NoError(t, err)
+
+					for _, workspaceBuild := range workspaceBuilds {
+						job, err := db.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+						require.NoError(t, err)
+						jobStatusMap[job.JobStatus]++
+					}
+				}
+				return jobStatusMap
+			}
+
+			// Verify initial state: two workspaces exist, one successful, one failed.
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+			jobStatusMap := getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 2)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+
+			//Verify initial state: metric is not set - meaning preset is not hard limited.
+			require.NoError(t, controller.ForceMetricsUpdate(ctx))
+			mf, err := registry.Gather()
+			require.NoError(t, err)
+			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
+
+			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
+			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
+			clock.Advance(time.Nanosecond).MustWait(ctx)
+
+			// Trigger reconciliation to attempt creating a new prebuild.
+			// The outcome depends on whether the hard limit has been reached.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// These two additional calls to ReconcileAll should not trigger any notifications.
+			// A notification is only sent once.
+			require.NoError(t, controller.ReconcileAll(ctx))
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// Verify the final state after reconciliation.
+			// When hard limit is reached, no new workspace should be created.
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+			jobStatusMap = getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 2)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+
+			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+			require.NoError(t, err)
+			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
+
+			// When hard limit is reached, a notification should be sent.
+			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
+				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
+					return false
+				}
+
+				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+					return false
+				}
+
+				return true
+			})
+			require.Len(t, matching, 1)
+
+			// When hard limit is reached, metric is set to 1.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
+
+			// When: the template is deleted.
+			require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+				ID:        template.ID,
+				Deleted:   true,
+				UpdatedAt: dbtime.Now(),
+			}))
+
+			// Trigger reconciliation to make sure that successful, but outdated prebuilt workspace will be deleted.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+
+			jobStatusMap = getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 3)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+			// Pending job should be the job that deletes successful, but outdated prebuilt workspace.
+			// Prebuilt workspace MUST be deleted, despite the fact that preset is marked as hard limited.
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusPending])
+
+			workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+				WorkspaceID: successfulWorkspace.ID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaceBuilds))
+			// Make sure that successfully created, but outdated prebuilt workspace was scheduled for deletion.
+			require.Equal(t, database.WorkspaceTransitionDelete, workspaceBuilds[0].Transition)
+			require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[1].Transition)
+		})
+	}
+}
+
 func TestRunLoop(t *testing.T) {
 	t.Parallel()
 
