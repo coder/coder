@@ -1917,6 +1917,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
+  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1939,6 +1940,7 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
+| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
@@ -2702,6 +2704,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "wildcard_access_url": "string",
     "workspace_hostname_suffix": "string",
     "workspace_prebuilds": {
+      "failure_hard_limit": 0,
       "reconciliation_backoff_interval": 0,
       "reconciliation_backoff_lookback": 0,
       "reconciliation_interval": 0
@@ -3200,6 +3203,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "wildcard_access_url": "string",
   "workspace_hostname_suffix": "string",
   "workspace_prebuilds": {
+    "failure_hard_limit": 0,
     "reconciliation_backoff_interval": 0,
     "reconciliation_backoff_lookback": 0,
     "reconciliation_interval": 0
@@ -5259,6 +5263,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "failure_hard_limit": 0,
   "reconciliation_backoff_interval": 0,
   "reconciliation_backoff_lookback": 0,
   "reconciliation_interval": 0
@@ -5267,11 +5272,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                     |
-|-----------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                          |
-| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy. |
-| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                   |
+| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                       |
+|-----------------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `failure_hard_limit`              | integer | false    |              | Failure hard limit defines the maximum number of consecutive failed prebuild attempts allowed before a preset is considered to be in a hard limit state. When a preset hits this limit, no new prebuilds will be created until the limit is reset. FailureHardLimit is disabled when set to zero. |
+| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                                                                                                                                                            |
+| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
+| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
 
 ## codersdk.Preset
 
@@ -5518,7 +5524,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 
@@ -5545,6 +5552,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]`  | string                                                             | false    |              |             |
 | `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)         | false    |              |             |
 | `worker_id`         | string                                                             | false    |              |             |
+| `worker_name`       | string                                                             | false    |              |             |
 
 #### Enumerated Values
 
@@ -5909,7 +5917,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `application_connect` |
 | `assign`              |
 | `create`              |
+| `create_agent`        |
 | `delete`              |
+| `delete_agent`        |
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
@@ -7101,7 +7111,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -8241,7 +8252,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -8412,6 +8424,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -8448,6 +8461,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
+| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -9205,7 +9219,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -9928,7 +9943,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "property2": "string"
           },
           "type": "template_version_import",
-          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+          "worker_name": "string"
         },
         "matched_provisioners": {
           "available": 0,
@@ -10082,6 +10098,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_require_active_version": true,
+      "template_use_classic_parameter_flow": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }

@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { PreviewDiagnostics, PreviewParameter } from "api/typesGenerated";
+import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -20,6 +20,7 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -51,7 +52,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
-	diagnostics: PreviewDiagnostics;
+	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
@@ -113,6 +114,27 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
 
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+
+	// Only touched fields are sent to the websocket
+	// Autofilled parameters are marked as touched since they have been modified
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
+
+	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
+	// 1. The form parameter values are initialized from the websocket response when the form is mounted
+	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
+	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -123,6 +145,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					autofillParameters,
 				),
 			},
+			initialTouched,
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
 				rich_parameter_values:
@@ -139,10 +162,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 				onSubmit(request, owner);
 			},
 		});
-
-	const autofillByName = Object.fromEntries(
-		autofillParameters.map((param) => [param.name, param]),
-	);
 
 	useEffect(() => {
 		if (error) {
@@ -195,6 +214,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
 
+		const currentValues = form.values.rich_parameter_values ?? [];
+
+		const updates: Array<{
+			field: string;
+			fieldValue: TypesGen.WorkspaceBuildParameter;
+			parameter: PreviewParameter;
+			presetValue: string;
+		}> = [];
+
 		for (const presetParameter of selectedPreset.Parameters) {
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
@@ -202,32 +230,64 @@ export const CreateWorkspacePageViewExperimental: FC<
 			if (parameterIndex === -1) continue;
 
 			const parameterField = `rich_parameter_values.${parameterIndex}`;
+			const parameter = parameters[parameterIndex];
+			const currentValue = currentValues.find(
+				(p) => p.name === presetParameter.Name,
+			)?.value;
 
-			form.setFieldValue(parameterField, {
-				name: presetParameter.Name,
-				value: presetParameter.Value,
-			});
+			if (currentValue !== presetParameter.Value) {
+				updates.push({
+					field: parameterField,
+					fieldValue: {
+						name: presetParameter.Name,
+						value: presetParameter.Value,
+					},
+					parameter,
+					presetValue: presetParameter.Value,
+				});
+			}
+		}
+
+		if (updates.length > 0) {
+			for (const update of updates) {
+				form.setFieldValue(update.field, update.fieldValue);
+				form.setFieldTouched(update.parameter.name, true);
+			}
+
+			sendDynamicParamsRequest(
+				updates.map((update) => ({
+					parameter: update.parameter,
+					value: update.presetValue,
+				})),
+			);
 		}
 	}, [
 		presetOptions,
 		selectedPresetIndex,
 		presets,
 		form.setFieldValue,
+		form.setFieldTouched,
 		parameters,
+		form.values.rich_parameter_values,
 	]);
 
 	// send the last user modified parameter and all touched parameters to the websocket
 	const sendDynamicParamsRequest = (
-		parameter: PreviewParameter,
-		value: string,
+		parameters: Array<{ parameter: PreviewParameter; value: string }>,
 	) => {
 		const formInputs: Record<string, string> = {};
-		formInputs[parameter.name] = value;
-		const parameters = form.values.rich_parameter_values ?? [];
+		const formParameters = form.values.rich_parameter_values ?? [];
+
+		for (const { parameter, value } of parameters) {
+			formInputs[parameter.name] = value;
+		}
 
 		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (isTouched && fieldName !== parameter.name) {
-				const param = parameters.find((p) => p.name === fieldName);
+			if (
+				isTouched &&
+				!parameters.some((p) => p.parameter.name === fieldName)
+			) {
+				const param = formParameters.find((p) => p.name === fieldName);
 				if (param?.value) {
 					formInputs[fieldName] = param.value;
 				}
@@ -242,13 +302,27 @@ export const CreateWorkspacePageViewExperimental: FC<
 		parameterField: string,
 		value: string,
 	) => {
+		const currentFormValue = form.values.rich_parameter_values?.find(
+			(p) => p.name === parameter.name,
+		)?.value;
+
 		await form.setFieldValue(parameterField, {
 			name: parameter.name,
 			value,
 		});
-		form.setFieldTouched(parameter.name, true);
-		sendDynamicParamsRequest(parameter, value);
+
+		// Only send the request if the value has changed from the form value
+		if (currentFormValue !== value) {
+			form.setFieldTouched(parameter.name, true);
+			sendDynamicParamsRequest([{ parameter, value }]);
+		}
 	};
+
+	useSyncFormParameters({
+		parameters,
+		formValues: form.values.rich_parameter_values ?? [],
+		setFieldValue: form.setFieldValue,
+	});
 
 	return (
 		<>
@@ -416,6 +490,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</section>
 					)}
 
+					{parameters.length === 0 && diagnostics.length > 0 && (
+						<Diagnostics diagnostics={diagnostics} />
+					)}
+
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-9">
 							<hgroup>
@@ -516,7 +594,18 @@ export const CreateWorkspacePageViewExperimental: FC<
 					<div className="flex flex-row justify-end">
 						<Button
 							type="submit"
-							disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
+							disabled={
+								creatingWorkspace ||
+								!hasAllRequiredExternalAuth ||
+								diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								) ||
+								parameters.some((parameter) =>
+									parameter.diagnostics.some(
+										(diagnostic) => diagnostic.severity === "error",
+									),
+								)
+							}
 						>
 							<Spinner loading={creatingWorkspace} />
 							Create workspace

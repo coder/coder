@@ -124,7 +124,8 @@ of the template will be used.
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -295,6 +296,7 @@ of the template will be used.
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -405,7 +407,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -576,6 +579,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -712,7 +716,8 @@ of the template will be used.
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -883,6 +888,7 @@ of the template will be used.
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -996,7 +1002,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
             "property2": "string"
           },
           "type": "template_version_import",
-          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+          "worker_name": "string"
         },
         "matched_provisioners": {
           "available": 0,
@@ -1150,6 +1157,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_require_active_version": true,
+      "template_use_classic_parameter_flow": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }
@@ -1261,7 +1269,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1432,6 +1441,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1658,7 +1668,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1829,6 +1840,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }

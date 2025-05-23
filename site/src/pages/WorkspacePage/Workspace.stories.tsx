@@ -235,6 +235,10 @@ export const RunningWithAppStatuses: Story = {
 					available: 1,
 				},
 			},
+			latest_app_status: {
+				...Mocks.MockWorkspaceAppStatus,
+				agent_id: Mocks.MockWorkspaceAgent.id,
+			},
 		},
 		handleStart: action("start"),
 		handleStop: action("stop"),

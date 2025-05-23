@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import WS from "jest-websocket-mock";
 import { MockWorkspaceAgent } from "testHelpers/entities";
@@ -29,17 +29,23 @@ describe("useAgentLogs", () => {
 
 		// Send 3 logs
 		server.send(JSON.stringify(generateLogs(3)));
-		expect(result.current).toHaveLength(3);
+		await waitFor(() => {
+			expect(result.current).toHaveLength(3);
+		});
 
 		// Disable the hook
 		rerender({ enabled: false });
-		expect(result.current).toHaveLength(0);
+		await waitFor(() => {
+			expect(result.current).toHaveLength(0);
+		});
 
 		// Enable the hook again
 		rerender({ enabled: true });
 		await server.connected;
 		server.send(JSON.stringify(generateLogs(3)));
-		expect(result.current).toHaveLength(3);
+		await waitFor(() => {
+			expect(result.current).toHaveLength(3);
+		});
 	});
 });
 

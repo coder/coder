@@ -68,8 +68,8 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	require.Equal(t, -1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "public_key", preview.Parameters[0].Name)
-	require.True(t, preview.Parameters[0].Value.Valid())
-	require.Equal(t, sshKey.PublicKey, preview.Parameters[0].Value.Value.AsString())
+	require.True(t, preview.Parameters[0].Value.Valid)
+	require.Equal(t, sshKey.PublicKey, preview.Parameters[0].Value.Value)
 }
 
 func TestDynamicParametersWithTerraformValues(t *testing.T) {
@@ -103,8 +103,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 
 		require.Len(t, preview.Parameters, 1)
 		require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
-		require.True(t, preview.Parameters[0].Value.Valid())
-		require.Equal(t, "CL", preview.Parameters[0].Value.AsString())
+		require.True(t, preview.Parameters[0].Value.Valid)
+		require.Equal(t, "CL", preview.Parameters[0].Value.Value)
 	})
 
 	// OldProvisioners use the static parameters in the dynamic param flow
@@ -154,8 +154,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.Contains(t, preview.Diagnostics[0].Summary, "required metadata to support dynamic parameters")
 		require.Len(t, preview.Parameters, 1)
 		require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
-		require.True(t, preview.Parameters[0].Value.Valid())
-		require.Equal(t, defaultValue, preview.Parameters[0].Value.AsString())
+		require.True(t, preview.Parameters[0].Value.Valid)
+		require.Equal(t, defaultValue, preview.Parameters[0].Value.Value)
 
 		// Test some inputs
 		for _, exp := range []string{defaultValue, "GO", "Invalid", defaultValue} {
@@ -182,8 +182,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 				require.Len(t, preview.Parameters[0].Diagnostics, 0)
 			}
 			require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
-			require.True(t, preview.Parameters[0].Value.Valid())
-			require.Equal(t, exp, preview.Parameters[0].Value.AsString())
+			require.True(t, preview.Parameters[0].Value.Valid)
+			require.Equal(t, exp, preview.Parameters[0].Value.Value)
 		}
 	})
 

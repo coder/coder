@@ -561,7 +561,7 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
-const MockProvisionerKey: TypesGen.ProvisionerKey = {
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	id: "test-provisioner-key",
 	organization: MockOrganization.id,
 	created_at: "2022-05-17T17:39:01.382927298Z",
@@ -1410,6 +1410,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		MockTemplate.allow_user_cancel_workspace_jobs,
 	template_active_version_id: MockTemplate.active_version_id,
 	template_require_active_version: MockTemplate.require_active_version,
+	template_use_classic_parameter_flow: false,
 	outdated: false,
 	owner_id: MockUserOwner.id,
 	organization_id: MockOrganization.id,

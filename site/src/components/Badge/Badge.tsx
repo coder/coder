@@ -9,7 +9,6 @@ import { cn } from "utils/cn";
 
 const badgeVariants = cva(
 	`inline-flex items-center rounded-md border px-2 py-1 transition-colors
-	focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
 	[&_svg]:pointer-events-none [&_svg]:pr-0.5 [&_svg]:py-0.5 [&_svg]:mr-0.5`,
 	{
 		variants: {
@@ -30,11 +29,23 @@ const badgeVariants = cva(
 				none: "border-transparent",
 				solid: "border border-solid",
 			},
+			hover: {
+				false: null,
+				true: "no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+			},
 		},
+		compoundVariants: [
+			{
+				hover: true,
+				variant: "default",
+				class: "hover:bg-surface-tertiary",
+			},
+		],
 		defaultVariants: {
 			variant: "default",
 			size: "md",
 			border: "solid",
+			hover: false,
 		},
 	},
 );
@@ -46,14 +57,20 @@ export interface BadgeProps
 }
 
 export const Badge = forwardRef<HTMLDivElement, BadgeProps>(
-	({ className, variant, size, border, asChild = false, ...props }, ref) => {
+	(
+		{ className, variant, size, border, hover, asChild = false, ...props },
+		ref,
+	) => {
 		const Comp = asChild ? Slot : "div";
 
 		return (
 			<Comp
 				{...props}
 				ref={ref}
-				className={cn(badgeVariants({ variant, size, border }), className)}
+				className={cn(
+					badgeVariants({ variant, size, border, hover }),
+					className,
+				)}
 			/>
 		);
 	},

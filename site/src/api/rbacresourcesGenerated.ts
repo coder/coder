@@ -130,7 +130,9 @@ export const RBACResourceActions: Partial<
 		update: "update a provisioner daemon",
 	},
 	provisioner_jobs: {
+		create: "create provisioner jobs",
 		read: "read provisioner jobs",
+		update: "update provisioner jobs",
 	},
 	replicas: {
 		read: "read replicas",
@@ -171,7 +173,9 @@ export const RBACResourceActions: Partial<
 	workspace: {
 		application_connect: "connect to workspace apps via browser",
 		create: "create a new workspace",
+		create_agent: "create a new workspace agent",
 		delete: "delete workspace",
+		delete_agent: "delete an existing workspace agent",
 		read: "read workspace data to view on the UI",
 		ssh: "ssh into a given workspace",
 		start: "allows starting a workspace",
@@ -189,7 +193,9 @@ export const RBACResourceActions: Partial<
 	workspace_dormant: {
 		application_connect: "connect to workspace apps via browser",
 		create: "create a new workspace",
+		create_agent: "create a new workspace agent",
 		delete: "delete workspace",
+		delete_agent: "delete an existing workspace agent",
 		read: "read workspace data to view on the UI",
 		ssh: "ssh into a given workspace",
 		start: "allows starting a workspace",

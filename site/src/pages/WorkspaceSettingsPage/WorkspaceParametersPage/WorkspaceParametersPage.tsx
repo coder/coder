@@ -4,11 +4,11 @@ import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button as ShadcnButton } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +18,7 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
+import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
 	WorkspaceParametersForm,
@@ -112,15 +113,27 @@ export const WorkspaceParametersPageView: FC<
 	isSubmitting,
 	onCancel,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	return (
-		<>
-			<PageHeader css={{ paddingTop: 0 }}>
-				<PageHeaderTitle>Workspace parameters</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-10">
+			<header className="flex flex-col items-start gap-2">
+				<span className="flex flex-row justify-between items-center gap-2">
+					<h1 className="text-3xl m-0">Workspace parameters</h1>
+				</span>
+				{experimentalFormContext && (
+					<ShadcnButton
+						size="sm"
+						variant="outline"
+						onClick={experimentalFormContext.toggleOptedOut}
+					>
+						Try out the new workspace parameters ✨
+					</ShadcnButton>
+				)}
+			</header>
 
-			{submitError && !isApiValidationError(submitError) && (
+			{submitError && !isApiValidationError(submitError) ? (
 				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
-			)}
+			) : null}
 
 			{data ? (
 				data.templateVersionRichParameters.length > 0 ? (
@@ -161,7 +174,7 @@ export const WorkspaceParametersPageView: FC<
 			) : (
 				<Loader />
 			)}
-		</>
+		</div>
 	);
 };
 

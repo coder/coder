@@ -6288,6 +6288,71 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 	return items, nil
 }
 
+const getPresetsAtFailureLimit = `-- name: GetPresetsAtFailureLimit :many
+WITH filtered_builds AS (
+	-- Only select builds which are for prebuild creations
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	FROM template_version_presets tvp
+			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
+			INNER JOIN workspaces w ON wlb.workspace_id = w.id
+			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
+			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
+	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+		AND wlb.transition = 'start'::workspace_transition
+		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+),
+time_sorted_builds AS (
+	-- Group builds by preset, then sort each group by created_at.
+	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
+	FROM filtered_builds fb
+)
+SELECT
+	tsb.template_version_id,
+	tsb.preset_id
+FROM time_sorted_builds tsb
+WHERE tsb.rn <= $1::bigint
+	AND tsb.job_status = 'failed'::provisioner_job_status
+GROUP BY tsb.template_version_id, tsb.preset_id
+HAVING COUNT(*) = $1::bigint
+`
+
+type GetPresetsAtFailureLimitRow struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.UUID `db:"preset_id" json:"preset_id"`
+}
+
+// GetPresetsAtFailureLimit groups workspace builds by preset ID.
+// Each preset is associated with exactly one template version ID.
+// For each preset, the query checks the last hard_limit builds.
+// If all of them failed, the preset is considered to have hit the hard failure limit.
+// The query returns a list of preset IDs that have reached this failure threshold.
+// Only active template versions with configured presets are considered.
+// For each preset, check the last hard_limit builds.
+// If all of them failed, the preset is considered to have hit the hard failure limit.
+func (q *sqlQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]GetPresetsAtFailureLimitRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetsAtFailureLimit, hardLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPresetsAtFailureLimitRow
+	for rows.Next() {
+		var i GetPresetsAtFailureLimitRow
+		if err := rows.Scan(&i.TemplateVersionID, &i.PresetID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPresetsBackoff = `-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
@@ -6438,6 +6503,7 @@ const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuild
 SELECT
 		t.id                        AS template_id,
 		t.name                      AS template_name,
+		o.id                        AS organization_id,
 		o.name                      AS organization_name,
 		tv.id                       AS template_version_id,
 		tv.name                     AS template_version_name,
@@ -6445,6 +6511,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.prebuild_status,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
 FROM templates t
@@ -6457,17 +6524,19 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID          uuid.UUID     `db:"template_id" json:"template_id"`
-	TemplateName        string        `db:"template_name" json:"template_name"`
-	OrganizationName    string        `db:"organization_name" json:"organization_name"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName string        `db:"template_version_name" json:"template_version_name"`
-	UsingActiveVersion  bool          `db:"using_active_version" json:"using_active_version"`
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	Name                string        `db:"name" json:"name"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	Deleted             bool          `db:"deleted" json:"deleted"`
-	Deprecated          bool          `db:"deprecated" json:"deprecated"`
+	TemplateID          uuid.UUID      `db:"template_id" json:"template_id"`
+	TemplateName        string         `db:"template_name" json:"template_name"`
+	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
+	OrganizationName    string         `db:"organization_name" json:"organization_name"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName string         `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion  bool           `db:"using_active_version" json:"using_active_version"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	Name                string         `db:"name" json:"name"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	Deleted             bool           `db:"deleted" json:"deleted"`
+	Deprecated          bool           `db:"deprecated" json:"deprecated"`
 }
 
 // GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
@@ -6485,6 +6554,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		if err := rows.Scan(
 			&i.TemplateID,
 			&i.TemplateName,
+			&i.OrganizationID,
 			&i.OrganizationName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
@@ -6492,6 +6562,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.ID,
 			&i.Name,
 			&i.DesiredInstances,
+			&i.PrebuildStatus,
 			&i.Deleted,
 			&i.Deprecated,
 		); err != nil {
@@ -6509,21 +6580,22 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 }
 
 const getPresetByID = `-- name: GetPresetByID :one
-SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tv.template_id, tv.organization_id FROM
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = $1
 `
 
 type GetPresetByIDRow struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	Name                string        `db:"name" json:"name"`
-	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
-	TemplateID          uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID      uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                string         `db:"name" json:"name"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error) {
@@ -6536,6 +6608,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 		&i.CreatedAt,
 		&i.DesiredInstances,
 		&i.InvalidateAfterSecs,
+		&i.PrebuildStatus,
 		&i.TemplateID,
 		&i.OrganizationID,
 	)
@@ -6544,7 +6617,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -6562,6 +6635,7 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.CreatedAt,
 		&i.DesiredInstances,
 		&i.InvalidateAfterSecs,
+		&i.PrebuildStatus,
 	)
 	return i, err
 }
@@ -6643,7 +6717,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status
 FROM
 	template_version_presets
 WHERE
@@ -6666,6 +6740,7 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.CreatedAt,
 			&i.DesiredInstances,
 			&i.InvalidateAfterSecs,
+			&i.PrebuildStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -6696,7 +6771,7 @@ VALUES (
 	$4,
 	$5,
 	$6
-) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status
 `
 
 type InsertPresetParams struct {
@@ -6725,6 +6800,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		&i.CreatedAt,
 		&i.DesiredInstances,
 		&i.InvalidateAfterSecs,
+		&i.PrebuildStatus,
 	)
 	return i, err
 }
@@ -6771,6 +6847,22 @@ func (q *sqlQuerier) InsertPresetParameters(ctx context.Context, arg InsertPrese
 		return nil, err
 	}
 	return items, nil
+}
+
+const updatePresetPrebuildStatus = `-- name: UpdatePresetPrebuildStatus :exec
+UPDATE template_version_presets
+SET prebuild_status = $1
+WHERE id = $2
+`
+
+type UpdatePresetPrebuildStatusParams struct {
+	Status   PrebuildStatus `db:"status" json:"status"`
+	PresetID uuid.UUID      `db:"preset_id" json:"preset_id"`
+}
+
+func (q *sqlQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg UpdatePresetPrebuildStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updatePresetPrebuildStatus, arg.Status, arg.PresetID)
+	return err
 }
 
 const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
@@ -7384,60 +7476,6 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 	return i, err
 }
 
-const getHungProvisionerJobs = `-- name: GetHungProvisionerJobs :many
-SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
-FROM
-	provisioner_jobs
-WHERE
-	updated_at < $1
-	AND started_at IS NOT NULL
-	AND completed_at IS NULL
-`
-
-func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getHungProvisionerJobs, updatedAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProvisionerJob
-	for rows.Next() {
-		var i ProvisionerJob
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.StartedAt,
-			&i.CanceledAt,
-			&i.CompletedAt,
-			&i.Error,
-			&i.OrganizationID,
-			&i.InitiatorID,
-			&i.Provisioner,
-			&i.StorageMethod,
-			&i.Type,
-			&i.Input,
-			&i.WorkerID,
-			&i.FileID,
-			&i.Tags,
-			&i.ErrorCode,
-			&i.TraceMetadata,
-			&i.JobStatus,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
@@ -7449,6 +7487,46 @@ WHERE
 
 func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, getProvisionerJobByID, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+	)
+	return i, err
+}
+
+const getProvisionerJobByIDForUpdate = `-- name: GetProvisionerJobByIDForUpdate :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+SKIP LOCKED
+`
+
+// Gets a single provisioner job by ID for update.
+// This is used to securely reap jobs that have been hung/pending for a long time.
+func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDForUpdate, id)
 	var i ProvisionerJob
 	err := row.Scan(
 		&i.ID,
@@ -7730,7 +7808,9 @@ SELECT
 	COALESCE(t.display_name, '') AS template_display_name,
 	COALESCE(t.icon, '') AS template_icon,
 	w.id AS workspace_id,
-	COALESCE(w.name, '') AS workspace_name
+	COALESCE(w.name, '') AS workspace_name,
+	-- Include the name of the provisioner_daemon associated to the job
+	COALESCE(pd.name, '') AS worker_name
 FROM
 	provisioner_jobs pj
 LEFT JOIN
@@ -7755,6 +7835,9 @@ LEFT JOIN
 		t.id = tv.template_id
 		AND t.organization_id = pj.organization_id
 	)
+LEFT JOIN
+	-- Join to get the daemon name corresponding to the job's worker_id
+	provisioner_daemons pd ON pd.id = pj.worker_id
 WHERE
 	pj.organization_id = $1::uuid
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
@@ -7770,7 +7853,8 @@ GROUP BY
 	t.display_name,
 	t.icon,
 	w.id,
-	w.name
+	w.name,
+	pd.name
 ORDER BY
 	pj.created_at DESC
 LIMIT
@@ -7797,6 +7881,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
 	TemplateIcon        string         `db:"template_icon" json:"template_icon"`
 	WorkspaceID         uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
+	WorkerName          string         `db:"worker_name" json:"worker_name"`
 }
 
 func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
@@ -7844,6 +7929,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 			&i.TemplateIcon,
 			&i.WorkspaceID,
 			&i.WorkspaceName,
+			&i.WorkerName,
 		); err != nil {
 			return nil, err
 		}
@@ -7864,6 +7950,79 @@ SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error,
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+			&i.JobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+FROM
+	provisioner_jobs
+WHERE
+	(
+		-- If the job has not been started before @pending_since, reap it.
+		updated_at < $1
+		AND started_at IS NULL
+		AND completed_at IS NULL
+	)
+	OR
+	(
+		-- If the job has been started but not completed before @hung_since, reap it.
+		updated_at < $2
+		AND started_at IS NOT NULL
+		AND completed_at IS NULL
+	)
+ORDER BY random()
+LIMIT $3
+`
+
+type GetProvisionerJobsToBeReapedParams struct {
+	PendingSince time.Time `db:"pending_since" json:"pending_since"`
+	HungSince    time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+}
+
+// To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
+func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
 	if err != nil {
 		return nil, err
 	}
@@ -8109,6 +8268,40 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.CompletedAt,
 		arg.Error,
 		arg.ErrorCode,
+	)
+	return err
+}
+
+const updateProvisionerJobWithCompleteWithStartedAtByID = `-- name: UpdateProvisionerJobWithCompleteWithStartedAtByID :exec
+UPDATE
+	provisioner_jobs
+SET
+	updated_at = $2,
+	completed_at = $3,
+	error = $4,
+	error_code = $5,
+	started_at = $6
+WHERE
+	id = $1
+`
+
+type UpdateProvisionerJobWithCompleteWithStartedAtByIDParams struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
+	Error       sql.NullString `db:"error" json:"error"`
+	ErrorCode   sql.NullString `db:"error_code" json:"error_code"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCompleteWithStartedAtByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.CompletedAt,
+		arg.Error,
+		arg.ErrorCode,
+		arg.StartedAt,
 	)
 	return err
 }
@@ -18010,6 +18203,65 @@ type GetWorkspaceByOwnerIDAndNameParams struct {
 
 func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+		&i.DormantAt,
+		&i.DeletingAt,
+		&i.AutomaticUpdates,
+		&i.Favorite,
+		&i.NextStartAt,
+		&i.OwnerAvatarUrl,
+		&i.OwnerUsername,
+		&i.OrganizationName,
+		&i.OrganizationDisplayName,
+		&i.OrganizationIcon,
+		&i.OrganizationDescription,
+		&i.TemplateName,
+		&i.TemplateDisplayName,
+		&i.TemplateIcon,
+		&i.TemplateDescription,
+	)
+	return i, err
+}
+
+const getWorkspaceByResourceID = `-- name: GetWorkspaceByResourceID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+FROM
+	workspaces_expanded as workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = $1
+			)
+	)
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByResourceID, resourceID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

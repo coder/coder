@@ -1,99 +1,68 @@
-import type { Theme } from "@emotion/react";
-import { useTheme } from "@emotion/react";
-import AppsIcon from "@mui/icons-material/Apps";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
-import Warning from "@mui/icons-material/Warning";
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
-import { formatDistance, formatDistanceToNow } from "date-fns";
-import { ExternalLinkIcon } from "lucide-react";
-import { HourglassIcon } from "lucide-react";
-import { CircleHelpIcon } from "lucide-react";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { formatDistance } from "date-fns";
+import {
+	ChevronDownIcon,
+	ChevronUpIcon,
+	CircleAlertIcon,
+	CircleCheckIcon,
+	ExternalLinkIcon,
+	FileIcon,
+	HourglassIcon,
+	LayoutGridIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { FC } from "react";
+import { type FC, useState } from "react";
+import { cn } from "utils/cn";
 
-const getStatusColor = (
-	theme: Theme,
-	state: APIWorkspaceAppStatus["state"],
-) => {
+const getStatusColor = (state: APIWorkspaceAppStatus["state"]) => {
 	switch (state) {
 		case "complete":
-			return theme.palette.success.main;
+			return "text-content-success";
 		case "failure":
-			return theme.palette.error.main;
+			return "text-content-warning";
 		case "working":
-			return theme.palette.primary.main;
+			return "text-highlight-sky";
 		default:
-			// Assuming unknown state maps to warning/secondary visually
-			return theme.palette.text.secondary;
+			return "text-content-secondary";
 	}
 };
 
 const getStatusIcon = (
-	theme: Theme,
 	state: APIWorkspaceAppStatus["state"],
 	isLatest: boolean,
+	className?: string,
 ) => {
-	// Determine color: Use state color if latest, otherwise use disabled text color (grey)
-	const color = isLatest
-		? getStatusColor(theme, state)
-		: theme.palette.text.disabled;
+	const iconClassName = cn(["size-[18px]", getStatusColor(state), className]);
+
 	switch (state) {
 		case "complete":
-			return <CheckCircle sx={{ color, fontSize: 18 }} />;
+			return <CircleCheckIcon className={iconClassName} />;
 		case "failure":
-			return <ErrorIcon sx={{ color, fontSize: 18 }} />;
+			return <CircleAlertIcon className={iconClassName} />;
 		case "working":
-			// Use Hourglass for past "working" states, spinner for the current one
 			return isLatest ? (
-				<CircularProgress size={18} sx={{ color }} />
+				<Spinner size="sm" loading />
 			) : (
-				<HourglassIcon className="size-icon-sm" style={{ color }} />
+				<HourglassIcon className={iconClassName} />
 			);
 		default:
-			return <Warning sx={{ color, fontSize: 18 }} />;
+			return <TriangleAlertIcon className={iconClassName} />;
 	}
-};
-
-const commonStyles = {
-	fontSize: "12px",
-	lineHeight: "15px",
-	color: "text.disabled",
-	display: "inline-flex",
-	alignItems: "center",
-	gap: 0.5,
-	px: 0.75,
-	py: 0.25,
-	borderRadius: "6px",
-	bgcolor: "transparent",
-	minWidth: 0,
-	maxWidth: "fit-content",
-	overflow: "hidden",
-	textOverflow: "ellipsis",
-	whiteSpace: "nowrap",
-	textDecoration: "none",
-	transition: "all 0.15s ease-in-out",
-	"&:hover": {
-		textDecoration: "none",
-		bgcolor: "action.hover",
-		color: "text.secondary",
-	},
-	"& .MuiSvgIcon-root": {
-		// Consistent icon styling within links
-		fontSize: 11,
-		opacity: 0.7,
-		mt: "-1px", // Slight vertical alignment adjustment
-		flexShrink: 0,
-	},
 };
 
 const formatURI = (uri: string) => {
@@ -132,9 +101,8 @@ const formatURI = (uri: string) => {
 // --- Component Implementation ---
 
 export interface AppStatusesProps {
-	apps: WorkspaceApp[];
 	workspace: Workspace;
-	agents: ReadonlyArray<WorkspaceAgent>;
+	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
 }
@@ -146,203 +114,136 @@ interface StatusWithAppInfo extends APIWorkspaceAppStatus {
 }
 
 export const AppStatuses: FC<AppStatusesProps> = ({
-	apps,
 	workspace,
-	agents,
+	agent,
 	referenceDate,
 }) => {
-	const theme = useTheme();
-
-	// 1. Flatten all statuses and include the parent app object
-	const allStatuses: StatusWithAppInfo[] = apps.flatMap((app) =>
-		app.statuses.map((status) => ({
-			...status,
-			app: app, // Store the parent app object
-		})),
+	const [displayStatuses, setDisplayStatuses] = useState(false);
+	const allStatuses: StatusWithAppInfo[] = agent.apps.flatMap((app) =>
+		app.statuses
+			.map((status) => ({
+				...status,
+				app,
+			}))
+			.sort(
+				(a, b) =>
+					new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+			),
 	);
-
-	// 2. Sort statuses chronologically (newest first) - mutating the value is
-	// fine since it's not an outside parameter
-	allStatuses.sort(
-		(a, b) =>
-			new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-	);
-
-	// Determine the reference point for time calculation
-	const comparisonDate = referenceDate ?? new Date();
 
 	if (allStatuses.length === 0) {
 		return null;
 	}
 
+	const comparisonDate = referenceDate ?? new Date();
+	const latestStatus = allStatuses[0];
+	const otherStatuses = allStatuses.slice(1);
+
 	return (
-		<div
-			css={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}
-		>
-			{allStatuses.map((status, index) => {
-				const isLatest = index === 0;
-				const isFileURI = status.uri?.startsWith("file://");
-				const statusTime = new Date(status.created_at);
-				// Use formatDistance if referenceDate is provided, otherwise formatDistanceToNow
-				const formattedTimestamp = referenceDate
-					? formatDistance(statusTime, comparisonDate, { addSuffix: true })
-					: formatDistanceToNow(statusTime, { addSuffix: true });
+		<div className="flex flex-col border border-solid border-border rounded-lg">
+			<div
+				className={`
+					flex items-center justify-between px-4 py-3
+					border-0 [&:not(:last-child)]:border-b border-solid border-border
+				`}
+			>
+				<div className="flex flex-col">
+					<span className="text-sm font-medium text-content-primary flex items-center gap-2">
+						{getStatusIcon(latestStatus.state, true)}
+						{latestStatus.message}
+					</span>
+					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+						{formatDistance(new Date(latestStatus.created_at), comparisonDate, {
+							addSuffix: true,
+						})}
+					</span>
+				</div>
 
-				// Get the associated app for this status
-				const currentApp = status.app;
-				const agent = agents.find((agent) => agent.id === status.agent_id);
+				<div className="flex items-center gap-2">
+					{latestStatus.app && (
+						<AppLink
+							app={latestStatus.app}
+							agent={agent}
+							workspace={workspace}
+						/>
+					)}
 
-				// Determine if app link should be shown
-				const showAppLink =
-					isLatest ||
-					(index > 0 && status.app_id !== allStatuses[index - 1].app_id);
+					{latestStatus.uri &&
+						(latestStatus.uri.startsWith("file://") ? (
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger>
+										<span className="flex items-center gap-1">
+											<FileIcon className="size-icon-xs" />
+											{formatURI(latestStatus.uri)}
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>
+										This file is located in your workspace
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						) : (
+							<Button asChild variant="outline" size="sm">
+								<a href={latestStatus.uri} target="_blank" rel="noreferrer">
+									<ExternalLinkIcon />
+									{formatURI(latestStatus.uri)}
+								</a>
+							</Button>
+						))}
 
-				return (
-					<div
-						key={status.id}
-						css={{
-							display: "flex",
-							alignItems: "flex-start", // Align icon with the first line of text
-							gap: 12,
-							backgroundColor: theme.palette.background.paper,
-							borderRadius: 8,
-							padding: 12,
-							opacity: isLatest ? 1 : 0.65, // Apply opacity if not the latest
-							transition: "opacity 0.15s ease-in-out", // Add smooth transition
-							"&:hover": {
-								opacity: 1, // Restore opacity on hover for older items
-							},
-						}}
-					>
-						{/* Icon Column */}
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									onClick={() => {
+										setDisplayStatuses((display) => !display);
+									}}
+								>
+									{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								{displayStatuses ? "Hide statuses" : "Show statuses"}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</div>
+			</div>
+
+			{displayStatuses &&
+				otherStatuses.map((status) => {
+					const statusTime = new Date(status.created_at);
+					const formattedTimestamp = formatDistance(
+						statusTime,
+						comparisonDate,
+						{
+							addSuffix: true,
+						},
+					);
+
+					return (
 						<div
-							css={{
-								flexShrink: 0,
-								marginTop: 2,
-								display: "flex",
-								alignItems: "center",
-							}}
+							key={status.id}
+							className={`
+							flex items-center justify-between px-4 py-3
+							border-0 [&:not(:last-child)]:border-b border-solid border-border
+						`}
 						>
-							{getStatusIcon(theme, status.state, isLatest) || (
-								<CircleHelpIcon
-									className="size-icon-sm"
-									css={{ color: theme.palette.text.disabled }}
-								/>
-							)}
-						</div>
-
-						{/* Content Column */}
-						<div
-							css={{
-								display: "flex",
-								flexDirection: "column",
-								gap: 4,
-								minWidth: 0,
-								flex: 1,
-							}}
-						>
-							{/* Message */}
-							<div
-								css={{
-									fontSize: 14,
-									lineHeight: "20px",
-									color: theme.palette.text.primary,
-									fontWeight: 500,
-								}}
-							>
-								{status.message}
-							</div>
-
-							{/* Links Row */}
-							<div
-								css={{
-									display: "flex",
-									flexDirection: "column",
-									alignItems: "flex-start",
-									gap: 4,
-									marginTop: 4,
-									minWidth: 0,
-								}}
-							>
-								{/* Conditional App Link */}
-								{currentApp && agent && showAppLink && (
-									<AppLink
-										app={currentApp}
-										agent={agent}
-										workspace={workspace}
-									/>
-								)}
-
-								{/* Existing URI Link */}
-								{status.uri && (
-									<div css={{ display: "flex", minWidth: 0, width: "100%" }}>
-										{isFileURI ? (
-											<Tooltip title="This file is located in your workspace">
-												<div
-													css={{
-														...commonStyles,
-														"&:hover": {
-															bgcolor: "action.hover",
-															color: "text.secondary",
-														},
-													}}
-												>
-													<InsertDriveFile sx={{ mr: 0.5 }} />
-													{formatURI(status.uri)}
-												</div>
-											</Tooltip>
-										) : (
-											<Link
-												href={status.uri}
-												target="_blank"
-												rel="noopener"
-												sx={{
-													...commonStyles,
-													"&:hover": {
-														...commonStyles["&:hover"],
-														color: "text.primary", // Keep hover color
-													},
-												}}
-											>
-												<ExternalLinkIcon
-													className="size-icon-xs"
-													style={{ marginRight: "4px" }}
-												/>
-												<div
-													css={{
-														bgcolor: "transparent",
-														padding: 0,
-														color: "inherit",
-														fontSize: "inherit",
-														lineHeight: "inherit",
-														overflow: "hidden",
-														textOverflow: "ellipsis",
-														whiteSpace: "nowrap",
-														flexShrink: 1, // Allow text to shrink
-													}}
-												>
-													{formatURI(status.uri)}
-												</div>
-											</Link>
-										)}
-									</div>
-								)}
-							</div>
-
-							{/* Timestamp */}
-							<div
-								css={{
-									fontSize: 12,
-									color: theme.palette.text.secondary,
-									marginTop: 2,
-								}}
-							>
-								{formattedTimestamp}
+							<div className="flex items-center justify-between w-full text-content-secondary">
+								<span className="text-xs flex items-center gap-2">
+									{getStatusIcon(status.state, false, "size-icon-xs w-[18px]")}
+									{status.message}
+								</span>
+								<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
+									{formattedTimestamp}
+								</span>
 							</div>
 						</div>
-					</div>
-				);
-			})}
+					);
+				})}
 		</div>
 	);
 };
@@ -355,62 +256,18 @@ type AppLinkProps = {
 
 const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 	const link = useAppLink(app, { agent, workspace });
-	const theme = useTheme();
 
 	return (
-		<Tooltip title={`Open ${link.label}`} placement="top">
-			<Link
+		<Button asChild variant="outline" size="sm">
+			<a
 				href={link.href}
 				onClick={link.onClick}
 				target="_blank"
-				rel="noopener"
-				sx={{
-					...commonStyles,
-					position: "relative",
-					"& .MuiSvgIcon-root": {
-						fontSize: 14,
-						opacity: 0.7,
-						mr: 0.5,
-					},
-					"& img": {
-						opacity: 0.8,
-						marginRight: 0.5,
-					},
-					"&:hover": {
-						...commonStyles["&:hover"],
-						color: theme.palette.text.primary, // Keep consistent hover color
-						"& img": {
-							opacity: 1,
-						},
-						"& .MuiSvgIcon-root": {
-							opacity: 1,
-						},
-					},
-				}}
+				rel="noreferrer"
 			>
-				{app.icon ? (
-					<img
-						src={app.icon}
-						alt={`${link.label} icon`}
-						width={14}
-						height={14}
-						style={{ borderRadius: "3px" }}
-					/>
-				) : (
-					<AppsIcon />
-				)}
-				{/* Keep app name short */}
-				<span
-					css={{
-						lineHeight: 1,
-						textOverflow: "ellipsis",
-						overflow: "hidden",
-						whiteSpace: "nowrap",
-					}}
-				>
-					{link.label}
-				</span>
-			</Link>
-		</Tooltip>
+				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+				{link.label}
+			</a>
+		</Button>
 	);
 };

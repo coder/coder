@@ -82,10 +82,10 @@ const WorkspaceSchedulePage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
-const WorkspaceParametersPage = lazy(
+const WorkspaceParametersExperimentRouter = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
+			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
@@ -313,6 +313,12 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
+const ProvisionerKeysPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerKeysPage/OrganizationProvisionerKeysPage"
+		),
+);
 const ProvisionerJobsPage = lazy(
 	() =>
 		import(
@@ -449,6 +455,10 @@ export const router = createBrowserRouter(
 								path="provisioner-jobs"
 								element={<ProvisionerJobsPage />}
 							/>
+							<Route
+								path="provisioner-keys"
+								element={<ProvisionerKeysPage />}
+							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>
@@ -531,7 +541,10 @@ export const router = createBrowserRouter(
 						element={<WorkspaceSettingsLayout />}
 					>
 						<Route index element={<WorkspaceSettingsPage />} />
-						<Route path="parameters" element={<WorkspaceParametersPage />} />
+						<Route
+							path="parameters"
+							element={<WorkspaceParametersExperimentRouter />}
+						/>
 						<Route path="schedule" element={<WorkspaceSchedulePage />} />
 					</Route>
 

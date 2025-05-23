@@ -1,8 +1,7 @@
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
@@ -17,6 +16,7 @@ import {
 	startOfHour,
 	subDays,
 } from "date-fns";
+import { MoveRightIcon } from "lucide-react";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
 
@@ -54,11 +54,9 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger>
-				<Button>
+				<Button variant="outline">
 					<span>{format(value.startDate, "MMM d, Y")}</span>
-					<ArrowRightAltOutlined
-						css={{ width: 16, height: 16, marginLeft: 8, marginRight: 8 }}
-					/>
+					<MoveRightIcon />
 					<span>{format(value.endDate, "MMM d, Y")}</span>
 				</Button>
 			</PopoverTrigger>

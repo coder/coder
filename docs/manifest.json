@@ -143,6 +143,11 @@
 									"title": "JetBrains Gateway in an air-gapped environment",
 									"description": "Use JetBrains Gateway in an air-gapped offline environment",
 									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+								},
+								{
+									"title": "JetBrains Toolbox",
+									"description": "Access Coder workspaces through JetBrains Toolbox",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-toolbox.md"
 								}
 							]
 						},
@@ -506,7 +511,8 @@
 								{
 									"title": "Configure a template for dev containers",
 									"description": "How to use configure your template for dev containers",
-									"path": "./admin/templates/extending-templates/devcontainers.md"
+									"path": "./admin/templates/extending-templates/devcontainers.md",
+									"state": ["early access"]
 								},
 								{
 									"title": "Process Logging",
@@ -550,7 +556,7 @@
 					]
 				},
 				{
-					"title": "External Auth",
+					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
 					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"

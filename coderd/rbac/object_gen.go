@@ -234,7 +234,9 @@ var (
 
 	// ResourceProvisionerJobs
 	// Valid Actions
+	//  - "ActionCreate" :: create provisioner jobs
 	//  - "ActionRead" :: read provisioner jobs
+	//  - "ActionUpdate" :: update provisioner jobs
 	ResourceProvisionerJobs = Object{
 		Type: "provisioner_jobs",
 	}
@@ -306,7 +308,9 @@ var (
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
 	//  - "ActionCreate" :: create a new workspace
+	//  - "ActionCreateAgent" :: create a new workspace agent
 	//  - "ActionDelete" :: delete workspace
+	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
@@ -336,7 +340,9 @@ var (
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
 	//  - "ActionCreate" :: create a new workspace
+	//  - "ActionCreateAgent" :: create a new workspace agent
 	//  - "ActionDelete" :: delete workspace
+	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
@@ -404,7 +410,9 @@ func AllActions() []policy.Action {
 		policy.ActionApplicationConnect,
 		policy.ActionAssign,
 		policy.ActionCreate,
+		policy.ActionCreateAgent,
 		policy.ActionDelete,
+		policy.ActionDeleteAgent,
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,
