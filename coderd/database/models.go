@@ -1113,6 +1113,7 @@ type ParameterFormType string
 
 const (
 	ParameterFormTypeValue0      ParameterFormType = ""
+	ParameterFormTypeError       ParameterFormType = "error"
 	ParameterFormTypeRadio       ParameterFormType = "radio"
 	ParameterFormTypeDropdown    ParameterFormType = "dropdown"
 	ParameterFormTypeInput       ParameterFormType = "input"
@@ -1162,6 +1163,7 @@ func (ns NullParameterFormType) Value() (driver.Value, error) {
 func (e ParameterFormType) Valid() bool {
 	switch e {
 	case ParameterFormTypeValue0,
+		ParameterFormTypeError,
 		ParameterFormTypeRadio,
 		ParameterFormTypeDropdown,
 		ParameterFormTypeInput,
@@ -1179,6 +1181,7 @@ func (e ParameterFormType) Valid() bool {
 func AllParameterFormTypeValues() []ParameterFormType {
 	return []ParameterFormType{
 		ParameterFormTypeValue0,
+		ParameterFormTypeError,
 		ParameterFormTypeRadio,
 		ParameterFormTypeDropdown,
 		ParameterFormTypeInput,

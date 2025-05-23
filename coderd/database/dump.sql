@@ -134,6 +134,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 
 CREATE TYPE parameter_form_type AS ENUM (
     '',
+    'error',
     'radio',
     'dropdown',
     'input',
