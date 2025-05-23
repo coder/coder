@@ -34,7 +34,7 @@ func ProviderFormType(ft ParameterFormType) (provider.ParameterFormType, error) 
 	return provider.ParameterFormTypeDefault, xerrors.Errorf("unsupported form type: %s", ft)
 }
 
-func ProtoFormType(ft provider.ParameterFormType) (ParameterFormType, error) {
+func FormType(ft provider.ParameterFormType) (ParameterFormType, error) {
 	switch ft {
 	case provider.ParameterFormTypeDefault:
 		return ParameterFormType_DEFAULT, nil

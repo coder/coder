@@ -756,7 +756,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			defaultVal = *param.Default
 		}
 
-		pft, err := proto.ProtoFormType(param.FormType)
+		pft, err := proto.FormType(param.FormType)
 		if err != nil {
 			return nil, xerrors.Errorf("decode form_type for coder_parameter.%s: %w", resource.Name, err)
 		}

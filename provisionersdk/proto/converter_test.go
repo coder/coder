@@ -16,7 +16,7 @@ func TestProviderFormTypeEnum(t *testing.T) {
 	for _, p := range all {
 		t.Run(string(p), func(t *testing.T) {
 			t.Parallel()
-			_, err := proto.ProtoFormType(p)
+			_, err := proto.FormType(p)
 			require.NoError(t, err, "proto form type should be valid, add it to the proto file")
 		})
 	}

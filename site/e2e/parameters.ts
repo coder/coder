@@ -1,4 +1,4 @@
-import { ParameterFormType, RichParameter, } from "./provisionerGenerated";
+import { ParameterFormType, type RichParameter } from "./provisionerGenerated";
 
 // Rich parameters
 
