@@ -62,7 +62,7 @@ const ChatLanding: FC = () => {
 							textAlign: "center",
 						}}
 					>
-						Good evening, {user?.name.split(" ")[0]}
+						Good evening, {(user.name ?? user.username).split(" ")[0]}
 					</h1>
 					<p
 						css={{

@@ -1366,7 +1366,7 @@ export interface MinimalOrganization {
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
-	readonly avatar_url: string;
+	readonly avatar_url?: string;
 }
 
 // From netcheck/netcheck.go
@@ -1639,8 +1639,8 @@ export interface OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly username: string;
-	readonly name: string;
-	readonly avatar_url: string;
+	readonly name?: string;
+	readonly avatar_url?: string;
 	readonly email: string;
 	readonly global_roles: readonly SlimRole[];
 }
@@ -2253,11 +2253,11 @@ export interface RateLimitConfig {
 
 // From codersdk/users.go
 export interface ReducedUser extends MinimalUser {
-	readonly name: string;
+	readonly name?: string;
 	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;
-	readonly last_seen_at: string;
+	readonly last_seen_at?: string;
 	readonly status: UserStatus;
 	readonly login_type: LoginType;
 	readonly theme_preference?: string;
@@ -3609,7 +3609,7 @@ export interface WorkspaceBuild {
 	readonly workspace_name: string;
 	readonly workspace_owner_id: string;
 	readonly workspace_owner_name: string;
-	readonly workspace_owner_avatar_url: string;
+	readonly workspace_owner_avatar_url?: string;
 	readonly template_version_id: string;
 	readonly template_version_name: string;
 	readonly build_number: number;
