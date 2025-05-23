@@ -7,23 +7,6 @@ export type MockWebSocketPublisher = Readonly<{
 	publishOpen: (event: Event) => void;
 }>;
 
-export type CreateMockWebSocketOptions = Readonly<{
-	// The URL to use to initialize the mock socket. This should match the
-	// "real" URL that you would pass to the built-in WebSocket constructor.
-	url: string;
-
-	// The additional WebSocket protocols to use when initializing. This should
-	// match the real protocols that you would pass to the built-in WebSocket
-	// constructor.
-	protocols?: string | string[];
-
-	// Indicates whether the mock socket should stay open after calling the
-	// .close method, so that it can be reused for a new connection. Defaults to
-	// false (meaning that the socket becomes completely unusable the first time
-	// after .close is called).
-	persistAfterClose?: boolean;
-}>;
-
 export function createMockWebSocket(
 	url: string,
 	protocols?: string | string[],
