@@ -5,13 +5,7 @@ import { LastSeen } from "./LastSeen";
 const meta: Meta<typeof LastSeen> = {
 	title: "components/LastSeen",
 	component: LastSeen,
-	args: {
-		// We typically want this component to be excluded from Chromatic's snapshots,
-		// because it creates a lot of noise when a static dates roles over from eg.
-		// "2 months ago" to "3 months ago", but these stories use relative dates,
-		// and test specific cases that we want to be validated.
-		"data-chromatic": "",
-	},
+	args: {},
 };
 
 export default meta;
