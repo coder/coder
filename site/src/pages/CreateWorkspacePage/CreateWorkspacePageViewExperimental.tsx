@@ -70,7 +70,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Record<string, string>) => void;
+	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.User;
 	setOwner: (user: TypesGen.User) => void;
@@ -271,9 +271,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.values.rich_parameter_values,
 	]);
 
-	// send the last user modified parameter and all touched parameters to the websocket
+	// include any modified parameters and all touched parameters to the websocket request
 	const sendDynamicParamsRequest = (
 		parameters: Array<{ parameter: PreviewParameter; value: string }>,
+		ownerId?: string,
 	) => {
 		const formInputs: Record<string, string> = {};
 		const formParameters = form.values.rich_parameter_values ?? [];
@@ -294,7 +295,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 			}
 		}
 
-		sendMessage(formInputs);
+		sendMessage(formInputs, ownerId);
+	};
+
+	const handleOwnerChange = (user: TypesGen.User) => {
+		setOwner(user);
+		sendDynamicParamsRequest([], user.id);
 	};
 
 	const handleChange = async (
@@ -449,7 +455,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<UserAutocomplete
 											value={owner}
 											onChange={(user) => {
-												setOwner(user ?? defaultOwner);
+												handleOwnerChange(user ?? defaultOwner);
 											}}
 											size="medium"
 										/>
