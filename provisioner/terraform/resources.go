@@ -897,12 +897,12 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			)
 		}
 		var prebuildInstances int32
-		var cacheInvalidation *proto.CacheInvalidation
+		var expirationPolicy *proto.ExpirationPolicy
 		if len(preset.Prebuilds) > 0 {
 			prebuildInstances = int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].Instances)))
-			if len(preset.Prebuilds[0].CacheInvalidation) > 0 {
-				cacheInvalidation = &proto.CacheInvalidation{
-					InvalidateAfterSecs: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].CacheInvalidation[0].InvalidateAfterSecs))),
+			if len(preset.Prebuilds[0].ExpirationPolicy) > 0 {
+				expirationPolicy = &proto.ExpirationPolicy{
+					Ttl: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].ExpirationPolicy[0].TTL))),
 				}
 			}
 		}
@@ -910,8 +910,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Name:       preset.Name,
 			Parameters: presetParameters,
 			Prebuild: &proto.Prebuild{
-				Instances:         prebuildInstances,
-				CacheInvalidation: cacheInvalidation,
+				Instances:        prebuildInstances,
+				ExpirationPolicy: expirationPolicy,
 			},
 		}
 

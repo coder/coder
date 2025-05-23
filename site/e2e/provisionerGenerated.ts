@@ -105,17 +105,17 @@ export interface RichParameterValue {
 }
 
 /**
- * CacheInvalidation defines the policy for invalidating unclaimed prebuilds.
- * If a prebuild remains unclaimed for longer than `invalidate_after_secs`,
- * it is deleted and recreated to prevent staleness.
+ * ExpirationPolicy defines the policy for expiring unclaimed prebuilds.
+ * If a prebuild remains unclaimed for longer than `ttl`, it is deleted and
+ * recreated to prevent staleness.
  */
-export interface CacheInvalidation {
-  invalidateAfterSecs: number;
+export interface ExpirationPolicy {
+  ttl: number;
 }
 
 export interface Prebuild {
   instances: number;
-  cacheInvalidation: CacheInvalidation | undefined;
+  expirationPolicy: ExpirationPolicy | undefined;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -554,10 +554,10 @@ export const RichParameterValue = {
   },
 };
 
-export const CacheInvalidation = {
-  encode(message: CacheInvalidation, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.invalidateAfterSecs !== 0) {
-      writer.uint32(8).int32(message.invalidateAfterSecs);
+export const ExpirationPolicy = {
+  encode(message: ExpirationPolicy, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.ttl !== 0) {
+      writer.uint32(8).int32(message.ttl);
     }
     return writer;
   },
@@ -568,8 +568,8 @@ export const Prebuild = {
     if (message.instances !== 0) {
       writer.uint32(8).int32(message.instances);
     }
-    if (message.cacheInvalidation !== undefined) {
-      CacheInvalidation.encode(message.cacheInvalidation, writer.uint32(18).fork()).ldelim();
+    if (message.expirationPolicy !== undefined) {
+      ExpirationPolicy.encode(message.expirationPolicy, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },

@@ -670,14 +670,14 @@ func TestExpiredPrebuilds(t *testing.T) {
 			// GIVEN: running prebuilt workspaces for the preset.
 			running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, tc.running)
 			expiredCount := 0
-			cacheInvalidationDuration := time.Duration(defaultPreset.InvalidateAfterSecs.Int32)
+			ttlDuration := time.Duration(defaultPreset.Ttl.Int32)
 			for range tc.running {
 				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
 				prebuildCreateAt := time.Now()
 				if int(tc.expired) > expiredCount {
 					// Update the prebuild workspace createdAt to exceed its TTL
-					prebuildCreateAt = prebuildCreateAt.Add(-cacheInvalidationDuration - 2*time.Second)
+					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 2*time.Second)
 					expiredCount++
 				}
 				running = append(running, database.GetRunningPrebuiltWorkspacesRow{
@@ -937,7 +937,7 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 		},
 		Deleted:    false,
 		Deprecated: false,
-		InvalidateAfterSecs: sql.NullInt32{
+		Ttl: sql.NullInt32{
 			Valid: true,
 			Int32: 2,
 		},

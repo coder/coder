@@ -81,14 +81,14 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 }
 
 // filterExpiredWorkspaces splits running workspaces into expired and non-expired
-// based on the preset's InvalidateAfterSecs TTL. If TTL is missing or zero,
-// all workspaces are considered non-expired.
+// based on the preset's TTL.
+// If TTL is missing or zero, all workspaces are considered non-expired.
 func filterExpiredWorkspaces(preset database.GetTemplatePresetsWithPrebuildsRow, runningWorkspaces []database.GetRunningPrebuiltWorkspacesRow) (nonExpired []database.GetRunningPrebuiltWorkspacesRow, expired []database.GetRunningPrebuiltWorkspacesRow) {
-	if !preset.InvalidateAfterSecs.Valid {
+	if !preset.Ttl.Valid {
 		return runningWorkspaces, expired
 	}
 
-	ttl := time.Duration(preset.InvalidateAfterSecs.Int32) * time.Second
+	ttl := time.Duration(preset.Ttl.Int32) * time.Second
 	if ttl <= 0 {
 		return runningWorkspaces, expired
 	}
