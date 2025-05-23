@@ -1459,7 +1459,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				return xerrors.Errorf("parameter %q: %w", richParameter.Name, err)
 			}
 
-			dft := database.ParameterFormType(richParameter.FormType)
+			dft := database.ParameterFormType(pft)
 			if !dft.Valid() {
 				list := strings.Join(slice.ToStrings(database.AllParameterFormTypeValues()), ", ")
 				return xerrors.Errorf("parameter %q field 'form_type' not valid, currently supported: %s", richParameter.Name, list)
