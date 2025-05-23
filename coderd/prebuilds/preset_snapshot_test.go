@@ -23,6 +23,7 @@ type options struct {
 	presetName          string
 	prebuiltWorkspaceID uuid.UUID
 	workspaceName       string
+	ttl                 int32
 }
 
 // templateID is common across all option sets.
@@ -34,6 +35,7 @@ const (
 	optionSet0 = iota
 	optionSet1
 	optionSet2
+	optionSet3
 )
 
 var opts = map[uint]options{
@@ -60,6 +62,15 @@ var opts = map[uint]options{
 		presetName:          "my-preset",
 		prebuiltWorkspaceID: uuid.UUID{33},
 		workspaceName:       "prebuilds2",
+	},
+	optionSet3: {
+		templateID:          templateID,
+		templateVersionID:   uuid.UUID{31},
+		presetID:            uuid.UUID{32},
+		presetName:          "my-preset",
+		prebuiltWorkspaceID: uuid.UUID{33},
+		workspaceName:       "prebuilds2",
+		ttl:                 5, // seconds
 	},
 }
 
@@ -249,11 +260,7 @@ func TestInProgressActions(t *testing.T) {
 			inProgress: 1,
 			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Desired: 1, Starting: 1}, state)
-				validateActions(t, []*prebuilds.ReconciliationActions{
-					{
-						ActionType: prebuilds.ActionTypeCreate,
-					},
-				}, actions)
+				validateActions(t, nil, actions)
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur since we're approaching the correct state.
@@ -265,11 +272,7 @@ func TestInProgressActions(t *testing.T) {
 			inProgress: 1,
 			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 1, Desired: 2, Starting: 1}, state)
-				validateActions(t, []*prebuilds.ReconciliationActions{
-					{
-						ActionType: prebuilds.ActionTypeCreate,
-					},
-				}, actions)
+				validateActions(t, nil, actions)
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur
@@ -282,11 +285,7 @@ func TestInProgressActions(t *testing.T) {
 			inProgress: 1,
 			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Starting: 1}, state)
-				validateActions(t, []*prebuilds.ReconciliationActions{
-					{
-						ActionType: prebuilds.ActionTypeCreate,
-					},
-				}, actions)
+				validateActions(t, nil, actions)
 			},
 		},
 		// With one prebuild desired and one stopping, a new prebuild will be created.
@@ -332,11 +331,7 @@ func TestInProgressActions(t *testing.T) {
 			inProgress: 1,
 			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 3, Desired: 3, Stopping: 1}, state)
-				validateActions(t, []*prebuilds.ReconciliationActions{
-					{
-						ActionType: prebuilds.ActionTypeCreate,
-					},
-				}, actions)
+				validateActions(t, nil, actions)
 			},
 		},
 		// With one prebuild desired and one deleting, a new prebuild will be created.
@@ -382,11 +377,7 @@ func TestInProgressActions(t *testing.T) {
 			inProgress: 1,
 			checkFn: func(state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
 				validateState(t, prebuilds.ReconciliationState{Actual: 2, Desired: 2, Deleting: 1}, state)
-				validateActions(t, []*prebuilds.ReconciliationActions{
-					{
-						ActionType: prebuilds.ActionTypeCreate,
-					},
-				}, actions)
+				validateActions(t, nil, actions)
 			},
 		},
 		// With 3 prebuilds desired, 1 running, and 2 starting, no creations should occur since the builds are in progress.
@@ -534,7 +525,7 @@ func TestExtraneous(t *testing.T) {
 // specified in the preset's cache invalidation invalidate_after_secs parameter.
 func TestExpiredPrebuilds(t *testing.T) {
 	t.Parallel()
-	current := opts[optionSet0]
+	current := opts[optionSet3]
 	clock := quartz.NewMock(t)
 
 	cases := []struct {
@@ -676,8 +667,8 @@ func TestExpiredPrebuilds(t *testing.T) {
 				require.NoError(t, err)
 				prebuildCreateAt := time.Now()
 				if int(tc.expired) > expiredCount {
-					// Update the prebuild workspace createdAt to exceed its TTL
-					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 2*time.Second)
+					// Update the prebuild workspace createdAt to exceed its TTL (5 seconds)
+					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)
 					expiredCount++
 				}
 				running = append(running, database.GetRunningPrebuiltWorkspacesRow{
@@ -810,12 +801,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1, Desired: 1, Eligible: 1,
 	}, *state)
-	validateActions(t, []*prebuilds.ReconciliationActions{
-		{
-			ActionType:   prebuilds.ActionTypeCreate,
-			BackoffUntil: time.Time{},
-		},
-	}, actions)
+	validateActions(t, nil, actions)
 
 	// WHEN: the clock is advanced a backoff interval.
 	clock.Advance(backoffInterval + time.Microsecond)
@@ -894,12 +880,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			Starting: 1,
 			Desired:  1,
 		}, *state)
-		validateActions(t, []*prebuilds.ReconciliationActions{
-			{
-				ActionType: prebuilds.ActionTypeCreate,
-				Create:     0,
-			},
-		}, actions)
+		validateActions(t, nil, actions)
 	}
 
 	// One prebuild has to be created for preset 2. Make sure preset 1 doesn't block preset 2.
@@ -925,6 +906,13 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 }
 
 func preset(active bool, instances int32, opts options, muts ...func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+	ttl := sql.NullInt32{}
+	if opts.ttl > 0 {
+		ttl = sql.NullInt32{
+			Valid: true,
+			Int32: opts.ttl,
+		}
+	}
 	entry := database.GetTemplatePresetsWithPrebuildsRow{
 		TemplateID:         opts.templateID,
 		TemplateVersionID:  opts.templateVersionID,
@@ -937,10 +925,7 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 		},
 		Deleted:    false,
 		Deprecated: false,
-		Ttl: sql.NullInt32{
-			Valid: true,
-			Int32: 2,
-		},
+		Ttl:        ttl,
 	}
 
 	for _, mut := range muts {
