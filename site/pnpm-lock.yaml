@@ -145,12 +145,6 @@ importers:
       axios:
         specifier: 1.8.2
         version: 1.8.2
-      chart.js:
-        specifier: 4.4.0
-        version: 4.4.0
-      chartjs-adapter-date-fns:
-        specifier: 3.0.0
-        version: 3.0.0(chart.js@4.4.0)(date-fns@2.30.0)
       chroma-js:
         specifier: 2.4.2
         version: 2.4.2
@@ -208,9 +202,6 @@ importers:
       react:
         specifier: 18.3.1
         version: 18.3.1
-      react-chartjs-2:
-        specifier: 5.3.0
-        version: 5.3.0(chart.js@4.4.0)(react@18.3.1)
       react-color:
         specifier: 2.19.3
         version: 2.19.3(react@18.3.1)
@@ -1252,9 +1243,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==, tarball: https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.9.tgz}
-
-  '@kurkle/color@0.3.2':
-    resolution: {integrity: sha512-fuscdXJ9G1qb7W8VdHi+IwRqij3lBkosAm4ydQtEmbY58OzHXqQhvlxqEkoz0yssNVn38bcpRWgA9PP+OGoisw==, tarball: https://registry.npmjs.org/@kurkle/color/-/color-0.3.2.tgz}
 
   '@leeoniya/ufuzzy@1.0.10':
     resolution: {integrity: sha512-OR1yiyN8cKBn5UiHjKHUl0LcrTQt4vZPUpIf96qIIZVLxgd4xyASuRvTZ3tjbWvuyQAMgvKsq61Nwu131YyHnA==, tarball: https://registry.npmjs.org/@leeoniya/ufuzzy/-/ufuzzy-1.0.10.tgz}
@@ -3121,16 +3109,6 @@ packages:
 
   character-reference-invalid@2.0.1:
     resolution: {integrity: sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw==, tarball: https://registry.npmjs.org/character-reference-invalid/-/character-reference-invalid-2.0.1.tgz}
-
-  chart.js@4.4.0:
-    resolution: {integrity: sha512-vQEj6d+z0dcsKLlQvbKIMYFHd3t8W/7L2vfJIbYcfyPcRx92CsHqECpueN8qVGNlKyDcr5wBrYAYKnfu/9Q1hQ==, tarball: https://registry.npmjs.org/chart.js/-/chart.js-4.4.0.tgz}
-    engines: {pnpm: '>=7'}
-
-  chartjs-adapter-date-fns@3.0.0:
-    resolution: {integrity: sha512-Rs3iEB3Q5pJ973J93OBTpnP7qoGwvq3nUnoMdtxO+9aoJof7UFcRbWcIDteXuYd1fgAvct/32T9qaLyLuZVwCg==, tarball: https://registry.npmjs.org/chartjs-adapter-date-fns/-/chartjs-adapter-date-fns-3.0.0.tgz}
-    peerDependencies:
-      chart.js: '>=2.8.0'
-      date-fns: '>=2.0.0'
 
   check-error@2.1.1:
     resolution: {integrity: sha512-OAlb+T7V4Op9OwdkjmguYRqncdlx5JiofwOAUkmTF+jNdHwzTaTs4sRAGpzLF3oOz5xAyDGrPgeIDFQmDOTiJw==, tarball: https://registry.npmjs.org/check-error/-/check-error-2.1.1.tgz}
@@ -5306,12 +5284,6 @@ packages:
     resolution: {integrity: sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==, tarball: https://registry.npmjs.org/raw-body/-/raw-body-2.5.2.tgz}
     engines: {node: '>= 0.8'}
 
-  react-chartjs-2@5.3.0:
-    resolution: {integrity: sha512-UfZZFnDsERI3c3CZGxzvNJd02SHjaSJ8kgW1djn65H1KK8rehwTjyrRKOG3VTMG8wtHZ5rgAO5oTHtHi9GCCmw==, tarball: https://registry.npmjs.org/react-chartjs-2/-/react-chartjs-2-5.3.0.tgz}
-    peerDependencies:
-      chart.js: ^4.1.1
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   react-color@2.19.3:
     resolution: {integrity: sha512-LEeGE/ZzNLIsFWa1TMe8y5VYqr7bibneWmvJwm1pCn/eNmrabWDh659JSPn9BuaMpEfU83WTOJfnCcjDZwNQTA==, tarball: https://registry.npmjs.org/react-color/-/react-color-2.19.3.tgz}
     peerDependencies:
@@ -7362,8 +7334,6 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.0
     optional: true
 
-  '@kurkle/color@0.3.2': {}
-
   '@leeoniya/ufuzzy@1.0.10': {}
 
   '@mdx-js/react@3.0.1(@types/react@18.3.12)(react@18.3.1)':
@@ -9355,15 +9325,6 @@ snapshots:
   character-reference-invalid@1.1.4: {}
 
   character-reference-invalid@2.0.1: {}
-
-  chart.js@4.4.0:
-    dependencies:
-      '@kurkle/color': 0.3.2
-
-  chartjs-adapter-date-fns@3.0.0(chart.js@4.4.0)(date-fns@2.30.0):
-    dependencies:
-      chart.js: 4.4.0
-      date-fns: 2.30.0
 
   check-error@2.1.1: {}
 
@@ -12147,11 +12108,6 @@ snapshots:
       http-errors: 2.0.0
       iconv-lite: 0.4.24
       unpipe: 1.0.0
-
-  react-chartjs-2@5.3.0(chart.js@4.4.0)(react@18.3.1):
-    dependencies:
-      chart.js: 4.4.0
-      react: 18.3.1
 
   react-color@2.19.3(react@18.3.1):
     dependencies:

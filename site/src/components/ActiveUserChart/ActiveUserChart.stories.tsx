@@ -6,19 +6,51 @@ const meta: Meta<typeof ActiveUserChart> = {
 	component: ActiveUserChart,
 	args: {
 		data: [
-			{ date: "1/1/2024", amount: 5 },
-			{ date: "1/2/2024", amount: 6 },
-			{ date: "1/3/2024", amount: 7 },
-			{ date: "1/4/2024", amount: 8 },
-			{ date: "1/5/2024", amount: 9 },
-			{ date: "1/6/2024", amount: 10 },
-			{ date: "1/7/2024", amount: 11 },
+			{ date: "2024-01-01", amount: 5 },
+			{ date: "2024-01-02", amount: 6 },
+			{ date: "2024-01-03", amount: 7 },
+			{ date: "2024-01-04", amount: 8 },
+			{ date: "2024-01-05", amount: 9 },
+			{ date: "2024-01-06", amount: 10 },
+			{ date: "2024-01-07", amount: 11 },
 		],
 		interval: "day",
 	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: "400px" }}>
+				<Story />
+			</div>
+		),
+	],
 };
 
 export default meta;
 type Story = StoryObj<typeof ActiveUserChart>;
 
 export const Example: Story = {};
+
+export const WeeklyExample: Story = {
+	args: {
+		interval: "week",
+		data: [
+			{ date: "2024-01-01", amount: 12 },
+			{ date: "2024-01-08", amount: 15 },
+			{ date: "2024-01-15", amount: 18 },
+			{ date: "2024-01-22", amount: 22 },
+			{ date: "2024-01-29", amount: 25 },
+		],
+	},
+};
+
+export const ManyDataPoints: Story = {
+	args: {
+		data: Array.from({ length: 30 }).map((_, i) => {
+			const date = new Date(2024, 0, i + 1);
+			return {
+				date: date.toISOString().split("T")[0],
+				amount: 5 + Math.floor(Math.random() * 15),
+			};
+		}),
+	},
+};
