@@ -36,7 +36,7 @@ import (
 // @Param user path string true "Template version ID" format(uuid)
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
-// @Router /templateversions/{templateversion}/parameters [get]
+// @Router /templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)

@@ -57,7 +57,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
@@ -242,7 +242,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	files := echo.WithExtraFiles(map[string][]byte{
 		"main.tf": args.mainTF,
@@ -262,7 +262,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	if args.expectWebsocketError {
 		require.Errorf(t, err, "expected error forming websocket")
 	} else {
