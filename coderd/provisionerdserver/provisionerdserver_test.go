@@ -1384,7 +1384,7 @@ func TestCompleteJob(t *testing.T) {
 						{
 							Name:     "parameter",
 							Type:     "string",
-							FormType: "random",
+							FormType: -1,
 						},
 					},
 					Plan: []byte("{}"),
@@ -1392,7 +1392,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		require.ErrorContains(t, err, "'form_type' not valid")
+		require.ErrorContains(t, err, "unsupported form type")
 	})
 
 	t.Run("TemplateImport_MissingGitAuth", func(t *testing.T) {
