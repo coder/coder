@@ -57,7 +57,7 @@ export function safeParseISO(dateString?: string, fallback = new Date()): Date {
  * @returns Formatted relative time string
  */
 export function relativeTime(date: DateValue) {
-	return formatDistanceToNow(toDate(date));
+	return formatDistanceToNow(toDate(date), { addSuffix: true });
 }
 
 /**
