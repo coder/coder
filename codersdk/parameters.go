@@ -112,8 +112,9 @@ type PreviewParameterValidation struct {
 type DynamicParametersRequest struct {
 	// ID identifies the request. The response contains the same
 	// ID so that the client can match it to the request.
-	ID     int               `json:"id"`
-	Inputs map[string]string `json:"inputs"`
+	ID      int               `json:"id"`
+	Inputs  map[string]string `json:"inputs"`
+	OwnerID uuid.UUID         `json:"owner_id"`
 }
 
 type DynamicParametersResponse struct {
