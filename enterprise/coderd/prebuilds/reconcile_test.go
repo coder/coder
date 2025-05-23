@@ -824,14 +824,24 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 
 	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
 	testCases := []struct {
-		name           string
-		hardLimit      int64
-		isHardLimitHit bool
+		name                     string
+		hardLimit                int64
+		createNewTemplateVersion bool
+		deleteTemplate           bool
 	}{
 		{
-			name:           "hard limit is hit - skip creation of prebuilt workspace",
-			hardLimit:      1,
-			isHardLimitHit: true,
+			// hard limit is hit - but we allow deletion of prebuilt workspace because it's outdated (new template version was created)
+			name:                     "new template version is created",
+			hardLimit:                1,
+			createNewTemplateVersion: true,
+			deleteTemplate:           false,
+		},
+		{
+			// hard limit is hit - but we allow deletion of prebuilt workspace because template is deleted
+			name:                     "template is deleted",
+			hardLimit:                1,
+			createNewTemplateVersion: false,
+			deleteTemplate:           true,
 		},
 	}
 
@@ -988,12 +998,19 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			require.NotNil(t, metric.GetGauge())
 			require.EqualValues(t, 1, metric.GetGauge().GetValue())
 
-			// When: the template is deleted.
-			require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
-				ID:        template.ID,
-				Deleted:   true,
-				UpdatedAt: dbtime.Now(),
-			}))
+			if tc.createNewTemplateVersion {
+				// Create a new template version and mark it as active
+				// This marks the template version that we care about as inactive
+				setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			}
+
+			if tc.deleteTemplate {
+				require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+					ID:        template.ID,
+					Deleted:   true,
+					UpdatedAt: dbtime.Now(),
+				}))
+			}
 
 			// Trigger reconciliation to make sure that successful, but outdated prebuilt workspace will be deleted.
 			require.NoError(t, controller.ReconcileAll(ctx))
