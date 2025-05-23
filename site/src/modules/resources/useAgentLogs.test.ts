@@ -83,7 +83,7 @@ describe("useAgentLogs", () => {
 		const { hookResult, publisherResult, rerender } = mountHook();
 
 		// Verify that logs can be received after mount
-		const initialLogs = generateMockLogs(3);
+		const initialLogs = generateMockLogs(3, new Date("april 5, 1997"));
 		const initialEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(initialLogs),
 		});
@@ -102,7 +102,7 @@ describe("useAgentLogs", () => {
 		// Re-enable the hook (creating an entirely new connection), and send
 		// new logs
 		rerender({ enabled: true });
-		const newLogs = generateMockLogs(3);
+		const newLogs = generateMockLogs(3, new Date("october 3, 2005"));
 		const newEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(newLogs),
 		});
