@@ -724,7 +724,7 @@ func setupTunnel(t *testing.T, ctx context.Context, client *fakeClient, mClock *
 	require.NoError(t, err)
 	mgr.start()
 	// We're releasing the trap to allow the clock to advance the ticker.
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 	return tun, mgr
 }
 

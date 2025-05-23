@@ -828,7 +828,7 @@ func TestBasicResumeTokenController_Mainline(t *testing.T) {
 		RefreshIn: durationpb.New(100 * time.Second),
 		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
 	})
-	trp.MustWait(ctx).Release() // initial refresh done
+	trp.MustWait(ctx).MustRelease(ctx) // initial refresh done
 	token, ok := uut.Token()
 	require.True(t, ok)
 	require.Equal(t, "test token 1", token)
@@ -843,7 +843,7 @@ func TestBasicResumeTokenController_Mainline(t *testing.T) {
 	})
 	resetCall := trp.MustWait(ctx)
 	require.Equal(t, resetCall.Duration, 50*time.Second)
-	resetCall.Release()
+	resetCall.MustRelease(ctx)
 	w.MustWait(ctx)
 	token, ok = uut.Token()
 	require.True(t, ok)
@@ -903,7 +903,7 @@ func TestBasicResumeTokenController_NewWhileRefreshing(t *testing.T) {
 		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
 	})
 
-	trp.MustWait(ctx).Release()
+	trp.MustWait(ctx).MustRelease(ctx)
 
 	token, ok := uut.Token()
 	require.True(t, ok)
@@ -923,7 +923,7 @@ func TestBasicResumeTokenController_NewWhileRefreshing(t *testing.T) {
 	})
 	resetCall := trp.MustWait(ctx)
 	require.Equal(t, resetCall.Duration, 50*time.Second)
-	resetCall.Release()
+	resetCall.MustRelease(ctx)
 	w.MustWait(ctx)
 	token, ok = uut.Token()
 	require.True(t, ok)

@@ -276,8 +276,8 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
-	trap.MustWait(ctx).Release() // ensures ticker has been set
-	fetchTrap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx) // ensures ticker has been set
+	fetchTrap.MustWait(ctx).MustRelease(ctx)
 
 	// Advance to the first fetch
 	mClock.Advance(cfg.FetchInterval.Value()).MustWait(ctx)
