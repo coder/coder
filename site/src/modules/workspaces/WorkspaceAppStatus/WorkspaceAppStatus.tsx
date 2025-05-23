@@ -1,305 +1,54 @@
-import type { Theme } from "@emotion/react";
-import { useTheme } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
+	WorkspaceAppStatusState,
 } from "api/typesGenerated";
+import { Spinner } from "components/Spinner/Spinner";
 import {
-	CircleAlertIcon,
-	CircleCheckIcon,
-	ExternalLinkIcon,
-	FileIcon,
-	LayoutGridIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
-import { useAppLink } from "modules/apps/useAppLink";
-import type { FC } from "react";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { CircleAlertIcon, CircleCheckIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
-const formatURI = (uri: string) => {
-	try {
-		const url = new URL(uri);
-		return url.hostname + url.pathname;
-	} catch {
-		return uri;
-	}
-};
-
-const getStatusColor = (
-	theme: Theme,
-	state: APIWorkspaceAppStatus["state"],
-) => {
-	switch (state) {
-		case "complete":
-			return theme.palette.success.main;
-		case "failure":
-			return theme.palette.error.main;
-		case "working":
-			return theme.palette.primary.main;
-		default:
-			// Assuming unknown state maps to warning/secondary visually
-			return theme.palette.text.secondary;
-	}
-};
-
-const getStatusIcon = (theme: Theme, state: APIWorkspaceAppStatus["state"]) => {
-	const color = getStatusColor(theme, state);
-	switch (state) {
-		case "complete":
-			return <CircleCheckIcon className="size-icon-xs" style={{ color }} />;
-		case "failure":
-			return <CircleAlertIcon className="size-icon-xs" style={{ color }} />;
-		case "working":
-			return <CircularProgress size={16} sx={{ color }} />;
-		default:
-			return <TriangleAlertIcon className="size-icon-xs" style={{ color }} />;
-	}
+const iconByState: Record<WorkspaceAppStatusState, ReactNode> = {
+	complete: (
+		<CircleCheckIcon className="size-4 shrink-0 text-content-success" />
+	),
+	failure: <CircleAlertIcon className="size-4 shrink-0 text-content-warning" />,
+	working: <Spinner size="sm" className="shrink-0" loading />,
 };
 
 export const WorkspaceAppStatus = ({
-	workspace,
 	status,
-	agent,
-	app,
 }: {
-	workspace: Workspace;
-	status?: APIWorkspaceAppStatus | null;
-	app?: WorkspaceApp;
-	agent?: WorkspaceAgent;
+	status: APIWorkspaceAppStatus | null;
 }) => {
-	const theme = useTheme();
-	const commonStyles = useCommonStyles();
-
 	if (!status) {
 		return (
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 12,
-					minWidth: 0,
-					paddingRight: 16,
-				}}
-			>
-				<div
-					css={{
-						fontSize: "14px",
-						color: theme.palette.text.disabled,
-						flexShrink: 1,
-						minWidth: 0,
-					}}
-				>
-					―
-				</div>
-			</div>
+			<span className="text-content-disabled text-sm">
+				-<span className="sr-only">No activity</span>
+			</span>
 		);
 	}
-	const isFileURI = status.uri?.startsWith("file://");
 
 	return (
-		<div
-			css={{
-				display: "flex",
-				alignItems: "flex-start",
-				gap: 8,
-				minWidth: 0,
-				paddingRight: 16,
-			}}
-		>
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					flexShrink: 0,
-					marginTop: 2,
-				}}
-			>
-				{getStatusIcon(theme, status.state)}
-			</div>
-			<div
-				css={{
-					display: "flex",
-					flexDirection: "column",
-					gap: 6,
-					minWidth: 0,
-					flex: 1,
-				}}
-			>
-				<div
-					css={{
-						fontSize: "14px",
-						lineHeight: "20px",
-						color: "text.primary",
-						margin: 0,
-						display: "-webkit-box",
-						WebkitLineClamp: 2,
-						WebkitBoxOrient: "vertical",
-						overflow: "hidden",
-						textOverflow: "ellipsis",
-						maxWidth: "100%",
-					}}
-				>
-					{status.message}
-				</div>
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-					}}
-				>
-					{app && agent && (
-						<AppLink app={app} workspace={workspace} agent={agent} />
-					)}
-					{status.uri && (
-						<div
-							css={{
-								display: "flex",
-								minWidth: 0,
-							}}
-						>
-							{isFileURI ? (
-								<div
-									css={{
-										...commonStyles,
-									}}
-								>
-									<FileIcon
-										className="size-icon-xs"
-										css={{
-											opacity: 0.5,
-											marginRight: "0.25rem",
-										}}
-									/>
-									<span>{formatURI(status.uri)}</span>
-								</div>
-							) : (
-								<a
-									href={status.uri}
-									target="_blank"
-									rel="noopener noreferrer"
-									css={{
-										...commonStyles,
-										color: theme.palette.text.secondary,
-										"&:hover": {
-											...commonStyles["&:hover"],
-											color: theme.palette.text.primary,
-										},
-									}}
-								>
-									<ExternalLinkIcon
-										className="size-icon-xs"
-										css={{
-											opacity: 0.7,
-											flexShrink: 0,
-											marginRight: 2,
-										}}
-									/>
-									<span
-										css={{
-											backgroundColor: "transparent",
-											padding: 0,
-											color: "inherit",
-											fontSize: "inherit",
-											lineHeight: "inherit",
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											whiteSpace: "nowrap",
-										}}
-									>
-										{formatURI(status.uri)}
-									</span>
-								</a>
-							)}
+		<div className="flex flex-col">
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div className="flex items-center gap-2">
+							{iconByState[status.state]}
+							<span className="whitespace-nowrap max-w-72 overflow-hidden text-ellipsis text-sm text-content-primary font-medium">
+								{status.message}
+							</span>
 						</div>
-					)}
-				</div>
-			</div>
+					</TooltipTrigger>
+					<TooltipContent>{status.message}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+			<span className="first-letter:uppercase block pl-6">{status.state}</span>
 		</div>
 	);
-};
-
-type AppLinkProps = {
-	app: WorkspaceApp;
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-};
-
-const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
-	const theme = useTheme();
-	const commonStyles = useCommonStyles();
-	const link = useAppLink(app, { agent, workspace });
-
-	return (
-		<a
-			href={link.href}
-			onClick={link.onClick}
-			target="_blank"
-			rel="noopener noreferrer"
-			css={{
-				...commonStyles,
-				marginRight: 8,
-				position: "relative",
-				color: theme.palette.text.secondary,
-				"&:hover": {
-					...commonStyles["&:hover"],
-					color: theme.palette.text.primary,
-					"& img": {
-						opacity: 1,
-					},
-				},
-			}}
-		>
-			{app.icon ? (
-				<img
-					src={app.icon}
-					alt={`${app.display_name} icon`}
-					width={14}
-					height={14}
-					css={{
-						borderRadius: "3px",
-						opacity: 0.8,
-						marginRight: 4,
-					}}
-				/>
-			) : (
-				<LayoutGridIcon
-					className="size-icon-xs"
-					css={{
-						opacity: 0.7,
-					}}
-				/>
-			)}
-			<span>{app.display_name}</span>
-		</a>
-	);
-};
-
-const useCommonStyles = () => {
-	const theme = useTheme();
-
-	return {
-		fontSize: "12px",
-		lineHeight: "15px",
-		color: theme.palette.text.disabled,
-		display: "inline-flex",
-		alignItems: "center",
-		gap: 4,
-		padding: "2px 6px",
-		borderRadius: "6px",
-		bgcolor: "transparent",
-		minWidth: 0,
-		maxWidth: "fit-content",
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
-		textDecoration: "none",
-		transition: "all 0.15s ease-in-out",
-		"&:hover": {
-			textDecoration: "none",
-			backgroundColor: theme.palette.action.hover,
-			color: theme.palette.text.secondary,
-		},
-	};
 };
