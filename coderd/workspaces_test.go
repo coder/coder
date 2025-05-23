@@ -3531,7 +3531,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 
 		thirdParameterName     = "third_parameter"
 		thirdParameterType     = "list(string)"
-		thirdParameterFormType = "multi-select"
+		thirdParameterFormType = proto.ParameterFormType_MULTISELECT
 		thirdParameterDefault  = `["red"]`
 		thirdParameterOption   = "red"
 	)
@@ -3657,7 +3657,7 @@ func TestWorkspaceWithMultiSelectFailure(t *testing.T) {
 										Value: "red",
 									},
 								},
-								FormType: string(provider.ParameterFormTypeMultiSelect),
+								FormType: proto.ParameterFormType_MULTISELECT,
 							},
 						},
 					},
