@@ -1,5 +1,9 @@
-import type { FC } from "react";
-import { XAxis, YAxis, CartesianGrid, AreaChart, Area } from "recharts";
+import {
+	type ChartConfig,
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+} from "components/Chart/Chart";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -7,12 +11,8 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import {
-	ChartContainer,
-	ChartTooltip,
-	ChartTooltipContent,
-	type ChartConfig,
-} from "components/Chart/Chart";
+import type { FC } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 const chartConfig = {
 	amount: {

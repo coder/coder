@@ -14,7 +14,6 @@ const meta: Meta<typeof ActiveUserChart> = {
 			{ date: "2024-01-06", amount: 10 },
 			{ date: "2024-01-07", amount: 11 },
 		],
-		interval: "day",
 	},
 	decorators: [
 		(Story) => (
@@ -29,19 +28,6 @@ export default meta;
 type Story = StoryObj<typeof ActiveUserChart>;
 
 export const Example: Story = {};
-
-export const WeeklyExample: Story = {
-	args: {
-		interval: "week",
-		data: [
-			{ date: "2024-01-01", amount: 12 },
-			{ date: "2024-01-08", amount: 15 },
-			{ date: "2024-01-15", amount: 18 },
-			{ date: "2024-01-22", amount: 22 },
-			{ date: "2024-01-29", amount: 25 },
-		],
-	},
-};
 
 export const ManyDataPoints: Story = {
 	args: {
