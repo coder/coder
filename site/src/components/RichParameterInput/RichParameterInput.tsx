@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import type { InputBaseComponentProps } from "@mui/material/InputBase";
@@ -8,6 +7,7 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import type { TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
@@ -240,7 +240,9 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 					!hideSuggestion && (
 						<FormHelperText>
 							<Button
-								variant="text"
+								variant="subtle"
+								size="xs"
+								className="p-1 min-w-0"
 								css={styles.suggestion}
 								onClick={() => {
 									onChange(autofillValue);
