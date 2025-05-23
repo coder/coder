@@ -12,12 +12,12 @@ import type {
 } from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
+	Fragment,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
@@ -42,6 +42,14 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
+import {
+	DropdownMenu,
+	DropdownMenuTrigger,
+	DropdownMenuContent,
+	DropdownMenuItem,
+} from "components/DropdownMenu/DropdownMenu";
+import { AgentButton } from "./AgentButton";
+import { Folder } from "lucide-react";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -57,6 +65,10 @@ export interface AgentRowProps {
 	template: Template;
 	storybookAgentMetadata?: WorkspaceAgentMetadata[];
 }
+
+const isGroup = (name: string) => {
+	return name !== "" && !name.startsWith("__groupAfter");
+};
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
@@ -74,6 +86,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 }) => {
 	// Apps visibility
 	const visibleApps = agent.apps.filter((app) => !app.hidden);
+	let currentGroup = "";
+	let lastGroup = "";
+	const appGroups = Map.groupBy(visibleApps, (it) => {
+		if (lastGroup !== it.group && !it.group) {
+			currentGroup = `__groupAfter_${lastGroup}`;
+		}
+		lastGroup = it.group;
+		return it.group || currentGroup;
+	});
 	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
 	const shouldDisplayApps =
 		showApps &&
@@ -246,14 +267,42 @@ export const AgentRow: FC<AgentRowProps> = ({
 										displayApps={agent.display_apps}
 									/>
 								)}
-								{visibleApps.map((app) => (
-									<AppLink
-										key={app.slug}
-										app={app}
-										agent={agent}
-										workspace={workspace}
-									/>
-								))}
+								{[...appGroups].map(([name, apps]) =>
+									isGroup(name) ? (
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<AgentButton>
+													<Folder />
+													{name}
+												</AgentButton>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="start">
+												{apps.map((app) => (
+													<DropdownMenuItem>
+														<AppLink
+															grouped
+															key={app.slug}
+															app={app}
+															agent={agent}
+															workspace={workspace}
+														/>
+													</DropdownMenuItem>
+												))}
+											</DropdownMenuContent>
+										</DropdownMenu>
+									) : (
+										<Fragment key={name}>
+											{apps.map((app) => (
+												<AppLink
+													key={app.slug}
+													app={app}
+													agent={agent}
+													workspace={workspace}
+												/>
+											))}
+										</Fragment>
+									),
+								)}
 							</>
 						)}
 
@@ -322,7 +371,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map<Line>((l) => ({
+									logs={startupLogs.map((l) => ({
 										id: l.id,
 										level: l.level,
 										output: l.output,
