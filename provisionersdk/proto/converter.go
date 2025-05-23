@@ -10,8 +10,8 @@ func ProviderFormType(ft ParameterFormType) (provider.ParameterFormType, error) 
 	switch ft {
 	case ParameterFormType_DEFAULT:
 		return provider.ParameterFormTypeDefault, nil
-	//case ParameterFormType_ERROR:
-	//	return provider.ParameterFormTypeError, nil
+	case ParameterFormType_FORM_ERROR:
+		return provider.ParameterFormTypeError, nil
 	case ParameterFormType_RADIO:
 		return provider.ParameterFormTypeRadio, nil
 	case ParameterFormType_DROPDOWN:
@@ -38,6 +38,8 @@ func ProtoFormType(ft provider.ParameterFormType) (ParameterFormType, error) {
 	switch ft {
 	case provider.ParameterFormTypeDefault:
 		return ParameterFormType_DEFAULT, nil
+	case provider.ParameterFormTypeError:
+		return ParameterFormType_FORM_ERROR, nil
 	case provider.ParameterFormTypeRadio:
 		return ParameterFormType_RADIO, nil
 	case provider.ParameterFormTypeDropdown:
