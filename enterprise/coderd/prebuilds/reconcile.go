@@ -398,6 +398,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	}
 
 	fields := []any{
+		slog.F("preset_id", ps.Preset.ID),
 		slog.F("desired", state.Desired), slog.F("actual", state.Actual),
 		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
 		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
@@ -543,7 +544,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 	}
 
 	fields := []any{
-		slog.F("action_type", action.ActionType),
+		slog.F("preset_id", ps.Preset.ID), slog.F("action_type", action.ActionType),
 		slog.F("create_count", action.Create), slog.F("delete_count", len(action.DeleteIDs)),
 		slog.F("to_delete", action.DeleteIDs),
 	}
