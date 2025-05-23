@@ -365,16 +365,10 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		c.metrics.trackHardLimitedStatus(ps.Preset.OrganizationName, ps.Preset.TemplateName, ps.Preset.Name, ps.IsHardLimited)
 	}
 
-	// If the preset was previously hard-limited, log it and exit early.
-	if ps.Preset.PrebuildStatus == database.PrebuildStatusHardLimited {
-		logger.Warn(ctx, "skipping hard limited preset")
-		return nil
-	}
-
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
 	// - Send notifications to template admins
-	if ps.IsHardLimited {
+	if ps.Preset.PrebuildStatus != database.PrebuildStatusHardLimited && ps.IsHardLimited {
 		logger.Warn(ctx, "skipping hard limited preset")
 
 		err := c.store.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
@@ -388,10 +382,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
 		if err != nil {
 			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
-			return nil
 		}
-
-		return nil
 	}
 
 	state := ps.CalculateState()
@@ -454,6 +445,14 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 				slog.F("create_count", actions.Create), slog.F("desired_count", desired))
 
 			actions.Create = desired
+		}
+
+		if actions.Create > 0 {
+			// If the preset is hard-limited, log it and exit early.
+			if ps.Preset.PrebuildStatus == database.PrebuildStatusHardLimited || ps.IsHardLimited {
+				logger.Warn(ctx, "skipping hard limited preset")
+				return nil
+			}
 		}
 
 		var multiErr multierror.Error
