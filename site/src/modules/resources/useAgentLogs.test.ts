@@ -18,7 +18,7 @@ function generateMockLogs(count: number): WorkspaceAgentLog[] {
 	}));
 }
 
-// A mutable object holding the most recent mock WebSocket connection. This
+// A mutable object holding the most recent mock WebSocket publisher. The inner
 // value will change as the hook opens/closes new connections
 type PublisherResult = {
 	current: MockWebSocketPublisher;
