@@ -426,7 +426,7 @@ const lastUsed = (time: string) => {
 	const then = parseISO(time);
 	return isAfter(then, sub(now, { hours: 1 }))
 		? "now"
-		: formatDistance(then, now, { addSuffix: true });
+		: formatDistance(then, now);
 };
 
 const PersonIcon: FC = () => {

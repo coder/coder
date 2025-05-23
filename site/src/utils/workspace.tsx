@@ -309,16 +309,16 @@ export const getResourceIconPath = (resourceType: string): string => {
 export const lastUsedMessage = (lastUsedAt: DateValue): string => {
 	const t = toDate(lastUsedAt);
 	const now = new Date();
-	let message = formatDistance(t, now, { addSuffix: true });
+	let message = formatDistance(t, now);
 
 	if (isAfter(t, sub(now, { hours: 1 }))) {
 		message = "Now";
 	} else if (isAfter(t, sub(now, { days: 3 }))) {
-		message = formatDistance(t, now, { addSuffix: true });
+		message = formatDistance(t, now);
 	} else if (isAfter(t, sub(now, { months: 1 }))) {
-		message = formatDistance(t, now, { addSuffix: true });
+		message = formatDistance(t, now);
 	} else if (isAfter(t, sub(now, { years: 100 }))) {
-		message = formatDistance(t, now, { addSuffix: true });
+		message = formatDistance(t, now);
 	} else {
 		message = "Never";
 	}

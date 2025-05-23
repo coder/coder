@@ -45,7 +45,7 @@ const renderScheduleControls = async () => {
 	);
 	render(<Wrapper />);
 	await screen.findByTestId("schedule-controls");
-	expect(screen.getByText(/Stop in (about )?3 hours/)).toBeInTheDocument();
+	expect(screen.getByText(/Stop (about )?3 hours/)).toBeInTheDocument();
 };
 
 test("add 3 hours to deadline", async () => {
@@ -65,9 +65,7 @@ test("add 3 hours to deadline", async () => {
 	await screen.findByText(
 		"Workspace shutdown time has been successfully updated.",
 	);
-	expect(
-		await screen.findByText(/Stop in (about )?6 hours/),
-	).toBeInTheDocument();
+	expect(await screen.findByText(/Stop (about )?6 hours/)).toBeInTheDocument();
 
 	// Mocks are used here because the 'usedDeadline' is a Date object, which
 	// can't be directly compared with the same object.
@@ -95,9 +93,7 @@ test("remove 2 hours to deadline", async () => {
 	await screen.findByText(
 		"Workspace shutdown time has been successfully updated.",
 	);
-	expect(
-		await screen.findByText(/Stop in (about )?1 hour/),
-	).toBeInTheDocument();
+	expect(await screen.findByText(/Stop (about )?1 hour/)).toBeInTheDocument();
 
 	// Mocks are used here because the 'usedDeadline' is a Date object, which
 	// can't be directly compared with the same object.
@@ -111,7 +107,7 @@ test("remove 2 hours to deadline", async () => {
 
 test("rollback to previous deadline on error", async () => {
 	const user = userEvent.setup();
-	const initialScheduleMessage = /Stop in (about )?3 hours/;
+	const initialScheduleMessage = /Stop (about )?3 hours/;
 	jest.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
 
 	await renderScheduleControls();

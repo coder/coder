@@ -96,7 +96,7 @@ export const Connected: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		const screen = within(canvasElement);
-		const autostopText = "Stop in 8 hours";
+		const autostopText = "Stop about 8 hours";
 
 		await step("show controls", async () => {
 			await userEvent.click(screen.getByTestId("schedule-icon-button"));
@@ -133,7 +133,7 @@ export const ConnectedWithMaxDeadline: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		const screen = within(canvasElement);
-		const autostopText = "Stop in an hour";
+		const autostopText = "Stop about 1 hour";
 
 		await step("show controls", async () => {
 			await userEvent.click(screen.getByTestId("schedule-icon-button"));

@@ -5,5 +5,5 @@ import { formatDistance, parseISO } from "date-fns";
  * Broken into its own module for testing purposes
  */
 export function createDayString(time: string): string {
-	return formatDistance(parseISO(time), new Date(), { addSuffix: true });
+	return formatDistance(parseISO(time), new Date());
 }

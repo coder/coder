@@ -178,7 +178,7 @@ export const autostopDisplay = (
 			);
 		}
 		return {
-			message: `Stop ${formatDistance(deadline, now, { addSuffix: true })}`,
+			message: `Stop ${formatDistance(deadline, now)}`,
 			tooltip: (
 				<span data-chromatic="ignore">
 					{title}
@@ -322,7 +322,7 @@ export const quietHoursDisplay = (
 		display += ` on ${format(day, "EEEE, MMMM d")}`;
 	}
 
-	display += ` (${formatDistance(day, today, { addSuffix: true })}) in ${tz}`;
+	display += ` (${formatDistance(day, today)}) in ${tz}`;
 
 	return display;
 };

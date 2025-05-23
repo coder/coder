@@ -19,9 +19,7 @@ import type { FC, ReactNode } from "react";
 const lastUsedOrNever = (lastUsed: string) => {
 	const t = parseISO(lastUsed);
 	const now = new Date();
-	return isBefore(now, addYears(t, 100))
-		? formatDistanceToNow(t, { addSuffix: true })
-		: "Never";
+	return isBefore(now, addYears(t, 100)) ? formatDistanceToNow(t) : "Never";
 };
 
 export interface TokensPageViewProps {
