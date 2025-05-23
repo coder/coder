@@ -26,6 +26,18 @@ message RichParameterOption {
     string value = 3;
     string icon = 4;
 }
+enum ParameterFormType {
+	DEFAULT = 0;
+	RADIO = 1;
+	DROPDOWN = 2;
+	INPUT = 3;
+	TEXTAREA = 4;
+	SLIDER = 5;
+	CHECKBOX = 6;
+	SWITCH = 7;
+	TAGSELECT = 8;
+	MULTISELECT = 9;
+}
 
 // RichParameter represents a variable that is exposed.
 message RichParameter {
@@ -49,7 +61,7 @@ message RichParameter {
     string display_name = 15;
     int32 order = 16;
     bool ephemeral = 17;
-    string form_type = 18;
+    ParameterFormType form_type = 18;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
