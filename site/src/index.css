@@ -107,4 +107,9 @@
 		--removed-body-scroll-bar-size: 0 !important;
 		margin-right: 0 !important;
 	}
+
+	/* Prevent layout shift when modals open by maintaining scrollbar width */
+	html {
+		scrollbar-gutter: stable;
+	}
 }
