@@ -13,7 +13,7 @@ describe("AccountForm", () => {
 			// Given
 			const mockInitialValues: UpdateUserProfileRequest = {
 				username: MockUserMember.username,
-				name: MockUserMember.name,
+				name: MockUserMember.name ?? MockUserMember.username,
 			};
 
 			// When
@@ -44,7 +44,7 @@ describe("AccountForm", () => {
 			// Given
 			const mockInitialValues: UpdateUserProfileRequest = {
 				username: MockUserMember.username,
-				name: MockUserMember.name,
+				name: MockUserMember.name ?? MockUserMember.username,
 			};
 
 			// When
