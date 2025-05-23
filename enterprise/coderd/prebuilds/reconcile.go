@@ -271,8 +271,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		}
 		err = membershipReconciler.ReconcileAll(prebuildsMembershipCtx)
 		if err != nil {
-			logger.Warn(ctx, "reconcile prebuild membership", slog.Error(err))
-			return nil
+			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
 		var eg errgroup.Group
