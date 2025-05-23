@@ -2575,6 +2575,33 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Open dynamic parameters WebSocket by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/dynamic-parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `user`            | path | string(uuid) | true     | Template version ID |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get external auth by template version
 
 ### Code samples
@@ -2708,7 +2735,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Open dynamic parameters WebSocket by template version
+## Removed: Get parameters by template version
 
 ### Code samples
 
@@ -2724,14 +2751,13 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 | Name              | In   | Type         | Required | Description         |
 |-------------------|------|--------------|----------|---------------------|
-| `user`            | path | string(uuid) | true     | Template version ID |
 | `templateversion` | path | string(uuid) | true     | Template version ID |
 
 ### Responses
 
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -5880,6 +5880,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dynamic-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Open dynamic parameters WebSocket by template version",
+                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
@@ -5984,17 +6021,9 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Open dynamic parameters WebSocket by template version",
-                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "summary": "Removed: Get parameters by template version",
+                "operationId": "removed-get-parameters-by-template-version",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "format": "uuid",
@@ -6005,8 +6034,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
