@@ -3611,7 +3611,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	third := templateRichParameters[2]
 	require.Equal(t, thirdParameterName, third.Name)
 	require.Equal(t, thirdParameterType, third.Type)
-	require.Equal(t, thirdParameterFormType, third.FormType)
+	require.Equal(t, string(database.ParameterFormTypeMultiSelect), third.FormType)
 	require.Equal(t, thirdParameterDefault, third.DefaultValue)
 	require.Equal(t, thirdParameterOption, third.Options[0].Name)
 	require.Equal(t, thirdParameterOption, third.Options[0].Value)
