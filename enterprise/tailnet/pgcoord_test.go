@@ -286,7 +286,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	}
 
 	fCoord2.heartbeat()
-	afTrap.MustWait(ctx).Release() // heartbeat timeout started
+	afTrap.MustWait(ctx).MustRelease(ctx) // heartbeat timeout started
 
 	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
 	client.AssertEventuallyHasDERP(agent.ID, 12)
@@ -298,20 +298,20 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		id:    uuid.New(),
 	}
 	fCoord3.heartbeat()
-	rstTrap.MustWait(ctx).Release() // timeout gets reset
+	rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
 	fCoord3.agentNode(agent.ID, &agpl.Node{PreferredDERP: 13})
 	client.AssertEventuallyHasDERP(agent.ID, 13)
 
 	// fCoord2 sends in a second heartbeat, one period later (on time)
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
 	fCoord2.heartbeat()
-	rstTrap.MustWait(ctx).Release() // timeout gets reset
+	rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
 
 	// when the fCoord3 misses enough heartbeats, the real coordinator should send an update with the
 	// node from fCoord2 for the agent.
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
 	w := mClock.Advance(tailnet.HeartbeatPeriod)
-	rstTrap.MustWait(ctx).Release()
+	rstTrap.MustWait(ctx).MustRelease(ctx)
 	w.MustWait(ctx)
 	client.AssertEventuallyHasDERP(agent.ID, 12)
 
@@ -323,7 +323,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
 	fCoord3.heartbeat()
-	rstTrap.MustWait(ctx).Release() // timeout gets reset
+	rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
 	client.AssertEventuallyHasDERP(agent.ID, 13)
 
 	agent.UngracefulDisconnect(ctx)

@@ -257,7 +257,7 @@ func TestAPI(t *testing.T) {
 
 				// Make sure the ticker function has been registered
 				// before advancing the clock.
-				tickerTrap.MustWait(ctx).Release()
+				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
 
 				// Initial request returns the initial data.
@@ -911,7 +911,7 @@ func TestAPI(t *testing.T) {
 
 		// Make sure the ticker function has been registered
 		// before advancing any use of mClock.Advance.
-		tickerTrap.MustWait(ctx).Release()
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
 		tickerTrap.Close()
 
 		// Make sure the start loop has been called.
@@ -1007,7 +1007,7 @@ func TestAPI(t *testing.T) {
 
 		// Make sure the ticker function has been registered
 		// before advancing any use of mClock.Advance.
-		tickerTrap.MustWait(ctx).Release()
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
 		tickerTrap.Close()
 
 		// Call the list endpoint first to ensure config files are
