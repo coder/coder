@@ -32,7 +32,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/public_key/main.tf")
 	require.NoError(t, err)

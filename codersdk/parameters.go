@@ -115,7 +115,7 @@ type DynamicParametersRequest struct {
 	ID     int               `json:"id"`
 	Inputs map[string]string `json:"inputs"`
 	// OwnerID if uuid.Nil, it defaults to `codersdk.Me`
-	OwnerID uuid.UUID `json:"owner_id"`
+	OwnerID uuid.UUID `json:"owner_id" format:"uuid"`
 }
 
 type DynamicParametersResponse struct {
