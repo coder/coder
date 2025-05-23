@@ -21,6 +21,76 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ParameterFormType int32
+
+const (
+	ParameterFormType_DEFAULT     ParameterFormType = 0
+	ParameterFormType_RADIO       ParameterFormType = 1
+	ParameterFormType_DROPDOWN    ParameterFormType = 2
+	ParameterFormType_INPUT       ParameterFormType = 3
+	ParameterFormType_TEXTAREA    ParameterFormType = 4
+	ParameterFormType_SLIDER      ParameterFormType = 5
+	ParameterFormType_CHECKBOX    ParameterFormType = 6
+	ParameterFormType_SWITCH      ParameterFormType = 7
+	ParameterFormType_TAGSELECT   ParameterFormType = 8
+	ParameterFormType_MULTISELECT ParameterFormType = 9
+)
+
+// Enum value maps for ParameterFormType.
+var (
+	ParameterFormType_name = map[int32]string{
+		0: "DEFAULT",
+		1: "RADIO",
+		2: "DROPDOWN",
+		3: "INPUT",
+		4: "TEXTAREA",
+		5: "SLIDER",
+		6: "CHECKBOX",
+		7: "SWITCH",
+		8: "TAGSELECT",
+		9: "MULTISELECT",
+	}
+	ParameterFormType_value = map[string]int32{
+		"DEFAULT":     0,
+		"RADIO":       1,
+		"DROPDOWN":    2,
+		"INPUT":       3,
+		"TEXTAREA":    4,
+		"SLIDER":      5,
+		"CHECKBOX":    6,
+		"SWITCH":      7,
+		"TAGSELECT":   8,
+		"MULTISELECT": 9,
+	}
+)
+
+func (x ParameterFormType) Enum() *ParameterFormType {
+	p := new(ParameterFormType)
+	*p = x
+	return p
+}
+
+func (x ParameterFormType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ParameterFormType) Descriptor() protoreflect.EnumDescriptor {
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[0].Descriptor()
+}
+
+func (ParameterFormType) Type() protoreflect.EnumType {
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[0]
+}
+
+func (x ParameterFormType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ParameterFormType.Descriptor instead.
+func (ParameterFormType) EnumDescriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{0}
+}
+
 // LogLevel represents severity of the log.
 type LogLevel int32
 
@@ -61,11 +131,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[0].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[1].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[0]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[1]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -74,7 +144,7 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{0}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{1}
 }
 
 type AppSharingLevel int32
@@ -110,11 +180,11 @@ func (x AppSharingLevel) String() string {
 }
 
 func (AppSharingLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[1].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[2].Descriptor()
 }
 
 func (AppSharingLevel) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[1]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[2]
 }
 
 func (x AppSharingLevel) Number() protoreflect.EnumNumber {
@@ -123,7 +193,7 @@ func (x AppSharingLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AppSharingLevel.Descriptor instead.
 func (AppSharingLevel) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{1}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{2}
 }
 
 type AppOpenIn int32
@@ -160,11 +230,11 @@ func (x AppOpenIn) String() string {
 }
 
 func (AppOpenIn) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[2].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[3].Descriptor()
 }
 
 func (AppOpenIn) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[2]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[3]
 }
 
 func (x AppOpenIn) Number() protoreflect.EnumNumber {
@@ -173,7 +243,7 @@ func (x AppOpenIn) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AppOpenIn.Descriptor instead.
 func (AppOpenIn) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{2}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{3}
 }
 
 // WorkspaceTransition is the desired outcome of a build
@@ -210,11 +280,11 @@ func (x WorkspaceTransition) String() string {
 }
 
 func (WorkspaceTransition) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[3].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[4].Descriptor()
 }
 
 func (WorkspaceTransition) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[3]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[4]
 }
 
 func (x WorkspaceTransition) Number() protoreflect.EnumNumber {
@@ -223,7 +293,7 @@ func (x WorkspaceTransition) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WorkspaceTransition.Descriptor instead.
 func (WorkspaceTransition) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{3}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4}
 }
 
 type PrebuiltWorkspaceBuildStage int32
@@ -259,11 +329,11 @@ func (x PrebuiltWorkspaceBuildStage) String() string {
 }
 
 func (PrebuiltWorkspaceBuildStage) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[4].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[5].Descriptor()
 }
 
 func (PrebuiltWorkspaceBuildStage) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[4]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[5]
 }
 
 func (x PrebuiltWorkspaceBuildStage) Number() protoreflect.EnumNumber {
@@ -272,7 +342,7 @@ func (x PrebuiltWorkspaceBuildStage) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PrebuiltWorkspaceBuildStage.Descriptor instead.
 func (PrebuiltWorkspaceBuildStage) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
 }
 
 type TimingState int32
@@ -308,11 +378,11 @@ func (x TimingState) String() string {
 }
 
 func (TimingState) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[5].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[6].Descriptor()
 }
 
 func (TimingState) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[5]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[6]
 }
 
 func (x TimingState) Number() protoreflect.EnumNumber {
@@ -321,7 +391,7 @@ func (x TimingState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TimingState.Descriptor instead.
 func (TimingState) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6}
 }
 
 // Empty indicates a successful request/response.
@@ -543,10 +613,10 @@ type RichParameter struct {
 	ValidationMonotonic string                 `protobuf:"bytes,12,opt,name=validation_monotonic,json=validationMonotonic,proto3" json:"validation_monotonic,omitempty"`
 	Required            bool                   `protobuf:"varint,13,opt,name=required,proto3" json:"required,omitempty"`
 	// legacy_variable_name was removed (= 14)
-	DisplayName string `protobuf:"bytes,15,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Order       int32  `protobuf:"varint,16,opt,name=order,proto3" json:"order,omitempty"`
-	Ephemeral   bool   `protobuf:"varint,17,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
-	FormType    string `protobuf:"bytes,18,opt,name=form_type,json=formType,proto3" json:"form_type,omitempty"`
+	DisplayName string            `protobuf:"bytes,15,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Order       int32             `protobuf:"varint,16,opt,name=order,proto3" json:"order,omitempty"`
+	Ephemeral   bool              `protobuf:"varint,17,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
+	FormType    ParameterFormType `protobuf:"varint,18,opt,name=form_type,json=formType,proto3,enum=provisioner.ParameterFormType" json:"form_type,omitempty"`
 }
 
 func (x *RichParameter) Reset() {
@@ -693,11 +763,11 @@ func (x *RichParameter) GetEphemeral() bool {
 	return false
 }
 
-func (x *RichParameter) GetFormType() string {
+func (x *RichParameter) GetFormType() ParameterFormType {
 	if x != nil {
 		return x.FormType
 	}
-	return ""
+	return ParameterFormType_DEFAULT
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -3735,7 +3805,7 @@ var file_provisionersdk_proto_provisioner_proto_rawDesc = []byte{
 	0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61,
 	0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
 	0x12, 0x12, 0x0a, 0x04, 0x69, 0x63, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x69, 0x63, 0x6f, 0x6e, 0x22, 0x9b, 0x05, 0x0a, 0x0d, 0x52, 0x69, 0x63, 0x68, 0x50, 0x61, 0x72,
+	0x69, 0x63, 0x6f, 0x6e, 0x22, 0xbb, 0x05, 0x0a, 0x0d, 0x52, 0x69, 0x63, 0x68, 0x50, 0x61, 0x72,
 	0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65,
 	0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
@@ -3771,8 +3841,10 @@ var file_provisionersdk_proto_provisioner_proto_rawDesc = []byte{
 	0x14, 0x0a, 0x05, 0x6f, 0x72, 0x64, 0x65, 0x72, 0x18, 0x10, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05,
 	0x6f, 0x72, 0x64, 0x65, 0x72, 0x12, 0x1c, 0x0a, 0x09, 0x65, 0x70, 0x68, 0x65, 0x6d, 0x65, 0x72,
 	0x61, 0x6c, 0x18, 0x11, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x65, 0x70, 0x68, 0x65, 0x6d, 0x65,
-	0x72, 0x61, 0x6c, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x6f, 0x72, 0x6d, 0x5f, 0x74, 0x79, 0x70, 0x65,
-	0x18, 0x12, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x66, 0x6f, 0x72, 0x6d, 0x54, 0x79, 0x70, 0x65,
+	0x72, 0x61, 0x6c, 0x12, 0x3b, 0x0a, 0x09, 0x66, 0x6f, 0x72, 0x6d, 0x5f, 0x74, 0x79, 0x70, 0x65,
+	0x18, 0x12, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1e, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69,
+	0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x46, 0x6f,
+	0x72, 0x6d, 0x54, 0x79, 0x70, 0x65, 0x52, 0x08, 0x66, 0x6f, 0x72, 0x6d, 0x54, 0x79, 0x70, 0x65,
 	0x42, 0x11, 0x0a, 0x0f, 0x5f, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f,
 	0x6d, 0x69, 0x6e, 0x42, 0x11, 0x0a, 0x0f, 0x5f, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x69,
 	0x6f, 0x6e, 0x5f, 0x6d, 0x61, 0x78, 0x4a, 0x04, 0x08, 0x0e, 0x10, 0x0f, 0x52, 0x14, 0x6c, 0x65,
@@ -4260,38 +4332,48 @@ var file_provisionersdk_proto_provisioner_proto_rawDesc = []byte{
 	0x12, 0x32, 0x0a, 0x05, 0x61, 0x70, 0x70, 0x6c, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x1a, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x41, 0x70,
 	0x70, 0x6c, 0x79, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x48, 0x00, 0x52, 0x05, 0x61,
-	0x70, 0x70, 0x6c, 0x79, 0x42, 0x06, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x2a, 0x3f, 0x0a, 0x08,
-	0x4c, 0x6f, 0x67, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x12, 0x09, 0x0a, 0x05, 0x54, 0x52, 0x41, 0x43,
-	0x45, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x44, 0x45, 0x42, 0x55, 0x47, 0x10, 0x01, 0x12, 0x08,
-	0x0a, 0x04, 0x49, 0x4e, 0x46, 0x4f, 0x10, 0x02, 0x12, 0x08, 0x0a, 0x04, 0x57, 0x41, 0x52, 0x4e,
-	0x10, 0x03, 0x12, 0x09, 0x0a, 0x05, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x04, 0x2a, 0x3b, 0x0a,
-	0x0f, 0x41, 0x70, 0x70, 0x53, 0x68, 0x61, 0x72, 0x69, 0x6e, 0x67, 0x4c, 0x65, 0x76, 0x65, 0x6c,
-	0x12, 0x09, 0x0a, 0x05, 0x4f, 0x57, 0x4e, 0x45, 0x52, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x41,
-	0x55, 0x54, 0x48, 0x45, 0x4e, 0x54, 0x49, 0x43, 0x41, 0x54, 0x45, 0x44, 0x10, 0x01, 0x12, 0x0a,
-	0x0a, 0x06, 0x50, 0x55, 0x42, 0x4c, 0x49, 0x43, 0x10, 0x02, 0x2a, 0x35, 0x0a, 0x09, 0x41, 0x70,
-	0x70, 0x4f, 0x70, 0x65, 0x6e, 0x49, 0x6e, 0x12, 0x0e, 0x0a, 0x06, 0x57, 0x49, 0x4e, 0x44, 0x4f,
-	0x57, 0x10, 0x00, 0x1a, 0x02, 0x08, 0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x53, 0x4c, 0x49, 0x4d, 0x5f,
-	0x57, 0x49, 0x4e, 0x44, 0x4f, 0x57, 0x10, 0x01, 0x12, 0x07, 0x0a, 0x03, 0x54, 0x41, 0x42, 0x10,
-	0x02, 0x2a, 0x37, 0x0a, 0x13, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x54, 0x72,
-	0x61, 0x6e, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x09, 0x0a, 0x05, 0x53, 0x54, 0x41, 0x52,
-	0x54, 0x10, 0x00, 0x12, 0x08, 0x0a, 0x04, 0x53, 0x54, 0x4f, 0x50, 0x10, 0x01, 0x12, 0x0b, 0x0a,
-	0x07, 0x44, 0x45, 0x53, 0x54, 0x52, 0x4f, 0x59, 0x10, 0x02, 0x2a, 0x3e, 0x0a, 0x1b, 0x50, 0x72,
-	0x65, 0x62, 0x75, 0x69, 0x6c, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x42,
-	0x75, 0x69, 0x6c, 0x64, 0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x4e, 0x4f, 0x4e,
-	0x45, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x43, 0x52, 0x45, 0x41, 0x54, 0x45, 0x10, 0x01, 0x12,
-	0x09, 0x0a, 0x05, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x10, 0x02, 0x2a, 0x35, 0x0a, 0x0b, 0x54, 0x69,
-	0x6d, 0x69, 0x6e, 0x67, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x53, 0x54, 0x41,
-	0x52, 0x54, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45,
-	0x54, 0x45, 0x44, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10,
-	0x02, 0x32, 0x49, 0x0a, 0x0b, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72,
-	0x12, 0x3a, 0x0a, 0x07, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x14, 0x2e, 0x70, 0x72,
-	0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x15, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x28, 0x01, 0x30, 0x01, 0x42, 0x30, 0x5a, 0x2e,
-	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72,
-	0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x65, 0x72, 0x73, 0x64, 0x6b, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x70, 0x70, 0x6c, 0x79, 0x42, 0x06, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x2a, 0x98, 0x01, 0x0a,
+	0x11, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x46, 0x6f, 0x72, 0x6d, 0x54, 0x79,
+	0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x44, 0x45, 0x46, 0x41, 0x55, 0x4c, 0x54, 0x10, 0x00, 0x12,
+	0x09, 0x0a, 0x05, 0x52, 0x41, 0x44, 0x49, 0x4f, 0x10, 0x01, 0x12, 0x0c, 0x0a, 0x08, 0x44, 0x52,
+	0x4f, 0x50, 0x44, 0x4f, 0x57, 0x4e, 0x10, 0x02, 0x12, 0x09, 0x0a, 0x05, 0x49, 0x4e, 0x50, 0x55,
+	0x54, 0x10, 0x03, 0x12, 0x0c, 0x0a, 0x08, 0x54, 0x45, 0x58, 0x54, 0x41, 0x52, 0x45, 0x41, 0x10,
+	0x04, 0x12, 0x0a, 0x0a, 0x06, 0x53, 0x4c, 0x49, 0x44, 0x45, 0x52, 0x10, 0x05, 0x12, 0x0c, 0x0a,
+	0x08, 0x43, 0x48, 0x45, 0x43, 0x4b, 0x42, 0x4f, 0x58, 0x10, 0x06, 0x12, 0x0a, 0x0a, 0x06, 0x53,
+	0x57, 0x49, 0x54, 0x43, 0x48, 0x10, 0x07, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x41, 0x47, 0x53, 0x45,
+	0x4c, 0x45, 0x43, 0x54, 0x10, 0x08, 0x12, 0x0f, 0x0a, 0x0b, 0x4d, 0x55, 0x4c, 0x54, 0x49, 0x53,
+	0x45, 0x4c, 0x45, 0x43, 0x54, 0x10, 0x09, 0x2a, 0x3f, 0x0a, 0x08, 0x4c, 0x6f, 0x67, 0x4c, 0x65,
+	0x76, 0x65, 0x6c, 0x12, 0x09, 0x0a, 0x05, 0x54, 0x52, 0x41, 0x43, 0x45, 0x10, 0x00, 0x12, 0x09,
+	0x0a, 0x05, 0x44, 0x45, 0x42, 0x55, 0x47, 0x10, 0x01, 0x12, 0x08, 0x0a, 0x04, 0x49, 0x4e, 0x46,
+	0x4f, 0x10, 0x02, 0x12, 0x08, 0x0a, 0x04, 0x57, 0x41, 0x52, 0x4e, 0x10, 0x03, 0x12, 0x09, 0x0a,
+	0x05, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x04, 0x2a, 0x3b, 0x0a, 0x0f, 0x41, 0x70, 0x70, 0x53,
+	0x68, 0x61, 0x72, 0x69, 0x6e, 0x67, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x12, 0x09, 0x0a, 0x05, 0x4f,
+	0x57, 0x4e, 0x45, 0x52, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x41, 0x55, 0x54, 0x48, 0x45, 0x4e,
+	0x54, 0x49, 0x43, 0x41, 0x54, 0x45, 0x44, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x50, 0x55, 0x42,
+	0x4c, 0x49, 0x43, 0x10, 0x02, 0x2a, 0x35, 0x0a, 0x09, 0x41, 0x70, 0x70, 0x4f, 0x70, 0x65, 0x6e,
+	0x49, 0x6e, 0x12, 0x0e, 0x0a, 0x06, 0x57, 0x49, 0x4e, 0x44, 0x4f, 0x57, 0x10, 0x00, 0x1a, 0x02,
+	0x08, 0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x53, 0x4c, 0x49, 0x4d, 0x5f, 0x57, 0x49, 0x4e, 0x44, 0x4f,
+	0x57, 0x10, 0x01, 0x12, 0x07, 0x0a, 0x03, 0x54, 0x41, 0x42, 0x10, 0x02, 0x2a, 0x37, 0x0a, 0x13,
+	0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x69, 0x74,
+	0x69, 0x6f, 0x6e, 0x12, 0x09, 0x0a, 0x05, 0x53, 0x54, 0x41, 0x52, 0x54, 0x10, 0x00, 0x12, 0x08,
+	0x0a, 0x04, 0x53, 0x54, 0x4f, 0x50, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x44, 0x45, 0x53, 0x54,
+	0x52, 0x4f, 0x59, 0x10, 0x02, 0x2a, 0x3e, 0x0a, 0x1b, 0x50, 0x72, 0x65, 0x62, 0x75, 0x69, 0x6c,
+	0x74, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x42, 0x75, 0x69, 0x6c, 0x64, 0x53,
+	0x74, 0x61, 0x67, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0a,
+	0x0a, 0x06, 0x43, 0x52, 0x45, 0x41, 0x54, 0x45, 0x10, 0x01, 0x12, 0x09, 0x0a, 0x05, 0x43, 0x4c,
+	0x41, 0x49, 0x4d, 0x10, 0x02, 0x2a, 0x35, 0x0a, 0x0b, 0x54, 0x69, 0x6d, 0x69, 0x6e, 0x67, 0x53,
+	0x74, 0x61, 0x74, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x53, 0x54, 0x41, 0x52, 0x54, 0x45, 0x44, 0x10,
+	0x00, 0x12, 0x0d, 0x0a, 0x09, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10, 0x01,
+	0x12, 0x0a, 0x0a, 0x06, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10, 0x02, 0x32, 0x49, 0x0a, 0x0b,
+	0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x12, 0x3a, 0x0a, 0x07, 0x53,
+	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x14, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69,
+	0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x15, 0x2e, 0x70,
+	0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x28, 0x01, 0x30, 0x01, 0x42, 0x30, 0x5a, 0x2e, 0x67, 0x69, 0x74, 0x68, 0x75,
+	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65,
+	0x72, 0x2f, 0x76, 0x32, 0x2f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72,
+	0x73, 0x64, 0x6b, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -4306,123 +4388,125 @@ func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 	return file_provisionersdk_proto_provisioner_proto_rawDescData
 }
 
-var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
 var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_provisionersdk_proto_provisioner_proto_goTypes = []interface{}{
-	(LogLevel)(0),                        // 0: provisioner.LogLevel
-	(AppSharingLevel)(0),                 // 1: provisioner.AppSharingLevel
-	(AppOpenIn)(0),                       // 2: provisioner.AppOpenIn
-	(WorkspaceTransition)(0),             // 3: provisioner.WorkspaceTransition
-	(PrebuiltWorkspaceBuildStage)(0),     // 4: provisioner.PrebuiltWorkspaceBuildStage
-	(TimingState)(0),                     // 5: provisioner.TimingState
-	(*Empty)(nil),                        // 6: provisioner.Empty
-	(*TemplateVariable)(nil),             // 7: provisioner.TemplateVariable
-	(*RichParameterOption)(nil),          // 8: provisioner.RichParameterOption
-	(*RichParameter)(nil),                // 9: provisioner.RichParameter
-	(*RichParameterValue)(nil),           // 10: provisioner.RichParameterValue
-	(*Prebuild)(nil),                     // 11: provisioner.Prebuild
-	(*Preset)(nil),                       // 12: provisioner.Preset
-	(*PresetParameter)(nil),              // 13: provisioner.PresetParameter
-	(*ResourceReplacement)(nil),          // 14: provisioner.ResourceReplacement
-	(*VariableValue)(nil),                // 15: provisioner.VariableValue
-	(*Log)(nil),                          // 16: provisioner.Log
-	(*InstanceIdentityAuth)(nil),         // 17: provisioner.InstanceIdentityAuth
-	(*ExternalAuthProviderResource)(nil), // 18: provisioner.ExternalAuthProviderResource
-	(*ExternalAuthProvider)(nil),         // 19: provisioner.ExternalAuthProvider
-	(*Agent)(nil),                        // 20: provisioner.Agent
-	(*ResourcesMonitoring)(nil),          // 21: provisioner.ResourcesMonitoring
-	(*MemoryResourceMonitor)(nil),        // 22: provisioner.MemoryResourceMonitor
-	(*VolumeResourceMonitor)(nil),        // 23: provisioner.VolumeResourceMonitor
-	(*DisplayApps)(nil),                  // 24: provisioner.DisplayApps
-	(*Env)(nil),                          // 25: provisioner.Env
-	(*Script)(nil),                       // 26: provisioner.Script
-	(*Devcontainer)(nil),                 // 27: provisioner.Devcontainer
-	(*App)(nil),                          // 28: provisioner.App
-	(*Healthcheck)(nil),                  // 29: provisioner.Healthcheck
-	(*Resource)(nil),                     // 30: provisioner.Resource
-	(*Module)(nil),                       // 31: provisioner.Module
-	(*Role)(nil),                         // 32: provisioner.Role
-	(*RunningAgentAuthToken)(nil),        // 33: provisioner.RunningAgentAuthToken
-	(*Metadata)(nil),                     // 34: provisioner.Metadata
-	(*Config)(nil),                       // 35: provisioner.Config
-	(*ParseRequest)(nil),                 // 36: provisioner.ParseRequest
-	(*ParseComplete)(nil),                // 37: provisioner.ParseComplete
-	(*PlanRequest)(nil),                  // 38: provisioner.PlanRequest
-	(*PlanComplete)(nil),                 // 39: provisioner.PlanComplete
-	(*ApplyRequest)(nil),                 // 40: provisioner.ApplyRequest
-	(*ApplyComplete)(nil),                // 41: provisioner.ApplyComplete
-	(*Timing)(nil),                       // 42: provisioner.Timing
-	(*CancelRequest)(nil),                // 43: provisioner.CancelRequest
-	(*Request)(nil),                      // 44: provisioner.Request
-	(*Response)(nil),                     // 45: provisioner.Response
-	(*Agent_Metadata)(nil),               // 46: provisioner.Agent.Metadata
-	nil,                                  // 47: provisioner.Agent.EnvEntry
-	(*Resource_Metadata)(nil),            // 48: provisioner.Resource.Metadata
-	nil,                                  // 49: provisioner.ParseComplete.WorkspaceTagsEntry
-	(*timestamppb.Timestamp)(nil),        // 50: google.protobuf.Timestamp
+	(ParameterFormType)(0),               // 0: provisioner.ParameterFormType
+	(LogLevel)(0),                        // 1: provisioner.LogLevel
+	(AppSharingLevel)(0),                 // 2: provisioner.AppSharingLevel
+	(AppOpenIn)(0),                       // 3: provisioner.AppOpenIn
+	(WorkspaceTransition)(0),             // 4: provisioner.WorkspaceTransition
+	(PrebuiltWorkspaceBuildStage)(0),     // 5: provisioner.PrebuiltWorkspaceBuildStage
+	(TimingState)(0),                     // 6: provisioner.TimingState
+	(*Empty)(nil),                        // 7: provisioner.Empty
+	(*TemplateVariable)(nil),             // 8: provisioner.TemplateVariable
+	(*RichParameterOption)(nil),          // 9: provisioner.RichParameterOption
+	(*RichParameter)(nil),                // 10: provisioner.RichParameter
+	(*RichParameterValue)(nil),           // 11: provisioner.RichParameterValue
+	(*Prebuild)(nil),                     // 12: provisioner.Prebuild
+	(*Preset)(nil),                       // 13: provisioner.Preset
+	(*PresetParameter)(nil),              // 14: provisioner.PresetParameter
+	(*ResourceReplacement)(nil),          // 15: provisioner.ResourceReplacement
+	(*VariableValue)(nil),                // 16: provisioner.VariableValue
+	(*Log)(nil),                          // 17: provisioner.Log
+	(*InstanceIdentityAuth)(nil),         // 18: provisioner.InstanceIdentityAuth
+	(*ExternalAuthProviderResource)(nil), // 19: provisioner.ExternalAuthProviderResource
+	(*ExternalAuthProvider)(nil),         // 20: provisioner.ExternalAuthProvider
+	(*Agent)(nil),                        // 21: provisioner.Agent
+	(*ResourcesMonitoring)(nil),          // 22: provisioner.ResourcesMonitoring
+	(*MemoryResourceMonitor)(nil),        // 23: provisioner.MemoryResourceMonitor
+	(*VolumeResourceMonitor)(nil),        // 24: provisioner.VolumeResourceMonitor
+	(*DisplayApps)(nil),                  // 25: provisioner.DisplayApps
+	(*Env)(nil),                          // 26: provisioner.Env
+	(*Script)(nil),                       // 27: provisioner.Script
+	(*Devcontainer)(nil),                 // 28: provisioner.Devcontainer
+	(*App)(nil),                          // 29: provisioner.App
+	(*Healthcheck)(nil),                  // 30: provisioner.Healthcheck
+	(*Resource)(nil),                     // 31: provisioner.Resource
+	(*Module)(nil),                       // 32: provisioner.Module
+	(*Role)(nil),                         // 33: provisioner.Role
+	(*RunningAgentAuthToken)(nil),        // 34: provisioner.RunningAgentAuthToken
+	(*Metadata)(nil),                     // 35: provisioner.Metadata
+	(*Config)(nil),                       // 36: provisioner.Config
+	(*ParseRequest)(nil),                 // 37: provisioner.ParseRequest
+	(*ParseComplete)(nil),                // 38: provisioner.ParseComplete
+	(*PlanRequest)(nil),                  // 39: provisioner.PlanRequest
+	(*PlanComplete)(nil),                 // 40: provisioner.PlanComplete
+	(*ApplyRequest)(nil),                 // 41: provisioner.ApplyRequest
+	(*ApplyComplete)(nil),                // 42: provisioner.ApplyComplete
+	(*Timing)(nil),                       // 43: provisioner.Timing
+	(*CancelRequest)(nil),                // 44: provisioner.CancelRequest
+	(*Request)(nil),                      // 45: provisioner.Request
+	(*Response)(nil),                     // 46: provisioner.Response
+	(*Agent_Metadata)(nil),               // 47: provisioner.Agent.Metadata
+	nil,                                  // 48: provisioner.Agent.EnvEntry
+	(*Resource_Metadata)(nil),            // 49: provisioner.Resource.Metadata
+	nil,                                  // 50: provisioner.ParseComplete.WorkspaceTagsEntry
+	(*timestamppb.Timestamp)(nil),        // 51: google.protobuf.Timestamp
 }
 var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
-	8,  // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
-	13, // 1: provisioner.Preset.parameters:type_name -> provisioner.PresetParameter
-	11, // 2: provisioner.Preset.prebuild:type_name -> provisioner.Prebuild
-	0,  // 3: provisioner.Log.level:type_name -> provisioner.LogLevel
-	47, // 4: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
-	28, // 5: provisioner.Agent.apps:type_name -> provisioner.App
-	46, // 6: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
-	24, // 7: provisioner.Agent.display_apps:type_name -> provisioner.DisplayApps
-	26, // 8: provisioner.Agent.scripts:type_name -> provisioner.Script
-	25, // 9: provisioner.Agent.extra_envs:type_name -> provisioner.Env
-	21, // 10: provisioner.Agent.resources_monitoring:type_name -> provisioner.ResourcesMonitoring
-	27, // 11: provisioner.Agent.devcontainers:type_name -> provisioner.Devcontainer
-	22, // 12: provisioner.ResourcesMonitoring.memory:type_name -> provisioner.MemoryResourceMonitor
-	23, // 13: provisioner.ResourcesMonitoring.volumes:type_name -> provisioner.VolumeResourceMonitor
-	29, // 14: provisioner.App.healthcheck:type_name -> provisioner.Healthcheck
-	1,  // 15: provisioner.App.sharing_level:type_name -> provisioner.AppSharingLevel
-	2,  // 16: provisioner.App.open_in:type_name -> provisioner.AppOpenIn
-	20, // 17: provisioner.Resource.agents:type_name -> provisioner.Agent
-	48, // 18: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
-	3,  // 19: provisioner.Metadata.workspace_transition:type_name -> provisioner.WorkspaceTransition
-	32, // 20: provisioner.Metadata.workspace_owner_rbac_roles:type_name -> provisioner.Role
-	4,  // 21: provisioner.Metadata.prebuilt_workspace_build_stage:type_name -> provisioner.PrebuiltWorkspaceBuildStage
-	33, // 22: provisioner.Metadata.running_agent_auth_tokens:type_name -> provisioner.RunningAgentAuthToken
-	7,  // 23: provisioner.ParseComplete.template_variables:type_name -> provisioner.TemplateVariable
-	49, // 24: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
-	34, // 25: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
-	10, // 26: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
-	15, // 27: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
-	19, // 28: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
-	10, // 29: provisioner.PlanRequest.previous_parameter_values:type_name -> provisioner.RichParameterValue
-	30, // 30: provisioner.PlanComplete.resources:type_name -> provisioner.Resource
-	9,  // 31: provisioner.PlanComplete.parameters:type_name -> provisioner.RichParameter
-	18, // 32: provisioner.PlanComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	42, // 33: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
-	31, // 34: provisioner.PlanComplete.modules:type_name -> provisioner.Module
-	12, // 35: provisioner.PlanComplete.presets:type_name -> provisioner.Preset
-	14, // 36: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
-	34, // 37: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
-	30, // 38: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
-	9,  // 39: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
-	18, // 40: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	42, // 41: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
-	50, // 42: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
-	50, // 43: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
-	5,  // 44: provisioner.Timing.state:type_name -> provisioner.TimingState
-	35, // 45: provisioner.Request.config:type_name -> provisioner.Config
-	36, // 46: provisioner.Request.parse:type_name -> provisioner.ParseRequest
-	38, // 47: provisioner.Request.plan:type_name -> provisioner.PlanRequest
-	40, // 48: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
-	43, // 49: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
-	16, // 50: provisioner.Response.log:type_name -> provisioner.Log
-	37, // 51: provisioner.Response.parse:type_name -> provisioner.ParseComplete
-	39, // 52: provisioner.Response.plan:type_name -> provisioner.PlanComplete
-	41, // 53: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
-	44, // 54: provisioner.Provisioner.Session:input_type -> provisioner.Request
-	45, // 55: provisioner.Provisioner.Session:output_type -> provisioner.Response
-	55, // [55:56] is the sub-list for method output_type
-	54, // [54:55] is the sub-list for method input_type
-	54, // [54:54] is the sub-list for extension type_name
-	54, // [54:54] is the sub-list for extension extendee
-	0,  // [0:54] is the sub-list for field type_name
+	9,  // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
+	0,  // 1: provisioner.RichParameter.form_type:type_name -> provisioner.ParameterFormType
+	14, // 2: provisioner.Preset.parameters:type_name -> provisioner.PresetParameter
+	12, // 3: provisioner.Preset.prebuild:type_name -> provisioner.Prebuild
+	1,  // 4: provisioner.Log.level:type_name -> provisioner.LogLevel
+	48, // 5: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
+	29, // 6: provisioner.Agent.apps:type_name -> provisioner.App
+	47, // 7: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
+	25, // 8: provisioner.Agent.display_apps:type_name -> provisioner.DisplayApps
+	27, // 9: provisioner.Agent.scripts:type_name -> provisioner.Script
+	26, // 10: provisioner.Agent.extra_envs:type_name -> provisioner.Env
+	22, // 11: provisioner.Agent.resources_monitoring:type_name -> provisioner.ResourcesMonitoring
+	28, // 12: provisioner.Agent.devcontainers:type_name -> provisioner.Devcontainer
+	23, // 13: provisioner.ResourcesMonitoring.memory:type_name -> provisioner.MemoryResourceMonitor
+	24, // 14: provisioner.ResourcesMonitoring.volumes:type_name -> provisioner.VolumeResourceMonitor
+	30, // 15: provisioner.App.healthcheck:type_name -> provisioner.Healthcheck
+	2,  // 16: provisioner.App.sharing_level:type_name -> provisioner.AppSharingLevel
+	3,  // 17: provisioner.App.open_in:type_name -> provisioner.AppOpenIn
+	21, // 18: provisioner.Resource.agents:type_name -> provisioner.Agent
+	49, // 19: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
+	4,  // 20: provisioner.Metadata.workspace_transition:type_name -> provisioner.WorkspaceTransition
+	33, // 21: provisioner.Metadata.workspace_owner_rbac_roles:type_name -> provisioner.Role
+	5,  // 22: provisioner.Metadata.prebuilt_workspace_build_stage:type_name -> provisioner.PrebuiltWorkspaceBuildStage
+	34, // 23: provisioner.Metadata.running_agent_auth_tokens:type_name -> provisioner.RunningAgentAuthToken
+	8,  // 24: provisioner.ParseComplete.template_variables:type_name -> provisioner.TemplateVariable
+	50, // 25: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
+	35, // 26: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
+	11, // 27: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
+	16, // 28: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
+	20, // 29: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
+	11, // 30: provisioner.PlanRequest.previous_parameter_values:type_name -> provisioner.RichParameterValue
+	31, // 31: provisioner.PlanComplete.resources:type_name -> provisioner.Resource
+	10, // 32: provisioner.PlanComplete.parameters:type_name -> provisioner.RichParameter
+	19, // 33: provisioner.PlanComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	43, // 34: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
+	32, // 35: provisioner.PlanComplete.modules:type_name -> provisioner.Module
+	13, // 36: provisioner.PlanComplete.presets:type_name -> provisioner.Preset
+	15, // 37: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
+	35, // 38: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
+	31, // 39: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
+	10, // 40: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
+	19, // 41: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	43, // 42: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
+	51, // 43: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
+	51, // 44: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
+	6,  // 45: provisioner.Timing.state:type_name -> provisioner.TimingState
+	36, // 46: provisioner.Request.config:type_name -> provisioner.Config
+	37, // 47: provisioner.Request.parse:type_name -> provisioner.ParseRequest
+	39, // 48: provisioner.Request.plan:type_name -> provisioner.PlanRequest
+	41, // 49: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
+	44, // 50: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
+	17, // 51: provisioner.Response.log:type_name -> provisioner.Log
+	38, // 52: provisioner.Response.parse:type_name -> provisioner.ParseComplete
+	40, // 53: provisioner.Response.plan:type_name -> provisioner.PlanComplete
+	42, // 54: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
+	45, // 55: provisioner.Provisioner.Session:input_type -> provisioner.Request
+	46, // 56: provisioner.Provisioner.Session:output_type -> provisioner.Response
+	56, // [56:57] is the sub-list for method output_type
+	55, // [55:56] is the sub-list for method input_type
+	55, // [55:55] is the sub-list for extension type_name
+	55, // [55:55] is the sub-list for extension extendee
+	0,  // [0:55] is the sub-list for field type_name
 }
 
 func init() { file_provisionersdk_proto_provisioner_proto_init() }
@@ -4959,7 +5043,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_provisionersdk_proto_provisioner_proto_rawDesc,
-			NumEnums:      6,
+			NumEnums:      7,
 			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   1,
