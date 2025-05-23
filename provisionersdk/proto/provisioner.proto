@@ -28,7 +28,7 @@ message RichParameterOption {
 }
 enum ParameterFormType {
 	DEFAULT = 0;
-	ERROR = 1;
+	FORM_ERROR = 1;
 	RADIO = 2;
 	DROPDOWN = 3;
 	INPUT = 4;
