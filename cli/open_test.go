@@ -326,7 +326,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 				},
 			},
 		}, nil,
-	)
+	).AnyTimes()
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Directory = agentDir
@@ -501,7 +501,7 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 				},
 			},
 		}, nil,
-	)
+	).AnyTimes()
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Name = agentName
