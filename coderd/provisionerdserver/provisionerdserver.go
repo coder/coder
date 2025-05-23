@@ -1454,8 +1454,13 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				}
 			}
 
-			pft := database.ParameterFormType(richParameter.FormType)
-			if !pft.Valid() {
+			pft, err := sdkproto.ProviderFormType(richParameter.FormType)
+			if err != nil {
+				return xerrors.Errorf("parameter %q: %w", richParameter.Name, err)
+			}
+
+			dft := database.ParameterFormType(richParameter.FormType)
+			if !dft.Valid() {
 				list := strings.Join(slice.ToStrings(database.AllParameterFormTypeValues()), ", ")
 				return xerrors.Errorf("parameter %q field 'form_type' not valid, currently supported: %s", richParameter.Name, list)
 			}
@@ -1466,7 +1471,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
-				FormType:            pft,
+				FormType:            dft,
 				Mutable:             richParameter.Mutable,
 				DefaultValue:        richParameter.DefaultValue,
 				Icon:                richParameter.Icon,
