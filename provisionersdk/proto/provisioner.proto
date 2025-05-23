@@ -28,15 +28,16 @@ message RichParameterOption {
 }
 enum ParameterFormType {
 	DEFAULT = 0;
-	RADIO = 1;
-	DROPDOWN = 2;
-	INPUT = 3;
-	TEXTAREA = 4;
-	SLIDER = 5;
-	CHECKBOX = 6;
-	SWITCH = 7;
-	TAGSELECT = 8;
-	MULTISELECT = 9;
+	ERROR = 1;
+	RADIO = 2;
+	DROPDOWN = 3;
+	INPUT = 4;
+	TEXTAREA = 5;
+	SLIDER = 6;
+	CHECKBOX = 7;
+	SWITCH = 8;
+	TAGSELECT = 9;
+	MULTISELECT = 10;
 }
 
 // RichParameter represents a variable that is exposed.

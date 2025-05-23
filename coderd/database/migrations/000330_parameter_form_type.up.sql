@@ -1,4 +1,4 @@
-CREATE TYPE parameter_form_type AS ENUM ('', 'radio', 'dropdown', 'input', 'textarea', 'slider', 'checkbox', 'switch', 'tag-select', 'multi-select');
+CREATE TYPE parameter_form_type AS ENUM ('', 'error', 'radio', 'dropdown', 'input', 'textarea', 'slider', 'checkbox', 'switch', 'tag-select', 'multi-select');
 COMMENT ON TYPE parameter_form_type
 	IS 'Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. '
 	'Always include the empty string for using the default form type.';
