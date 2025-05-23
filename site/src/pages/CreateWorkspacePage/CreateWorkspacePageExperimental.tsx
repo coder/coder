@@ -90,16 +90,19 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		const request: DynamicParametersRequest = {
-			id: wsResponseId.current + 1,
-			inputs: formValues,
-		};
-		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
-			wsResponseId.current = wsResponseId.current + 1;
-		}
-	}, []);
+	const sendMessage = useEffectEvent(
+		(formValues: Record<string, string>, ownerId?: string) => {
+			const request: DynamicParametersRequest = {
+				id: wsResponseId.current + 1,
+				owner_id: ownerId ?? owner.id,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				wsResponseId.current = wsResponseId.current + 1;
+			}
+		},
+	);
 
 	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)
@@ -147,35 +150,31 @@ const CreateWorkspacePageExperimental: FC = () => {
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(
-			owner.id,
-			realizedVersionId,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
+		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
+			onMessage,
+			onError: (error) => {
+				if (ws.current === socket) {
+					setWsError(error);
+				}
 			},
-		);
+			onClose: () => {
+				if (ws.current === socket) {
+					setWsError(
+						new DetailedError(
+							"Websocket connection for dynamic parameters unexpectedly closed.",
+							"Refresh the page to reset the form.",
+						),
+					);
+				}
+			},
+		});
 
 		ws.current = socket;
 
 		return () => {
 			socket.close();
 		};
-	}, [owner.id, realizedVersionId, onMessage]);
+	}, [realizedVersionId, onMessage]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
