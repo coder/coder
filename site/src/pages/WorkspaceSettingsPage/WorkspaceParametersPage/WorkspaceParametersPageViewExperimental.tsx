@@ -190,7 +190,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 										onChange={(value) =>
 											handleChange(parameter, parameterField, value)
 										}
-										autofill={false}
 										disabled={isDisabled}
 										value={
 											form.values?.rich_parameter_values?.[index]?.value || ""
