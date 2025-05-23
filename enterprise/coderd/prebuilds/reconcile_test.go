@@ -924,7 +924,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
 			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
 
-			//Verify initial state: metric is not set - meaning preset is not hard limited.
+			// Verify initial state: metric is not set - meaning preset is not hard limited.
 			require.NoError(t, controller.ForceMetricsUpdate(ctx))
 			mf, err := registry.Gather()
 			require.NoError(t, err)
