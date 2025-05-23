@@ -24,8 +24,8 @@ jobs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
       go: ${{ steps.filter.outputs.go }}
-      ts: ${{ steps.filter.outputs.site }}
-      k8s: ${{ steps.filter.outputs.k8s }}
+      site: ${{ steps.filter.outpusite.site }}
+      k8s: ${{ steps.filter.outpusite.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
       db: ${{ steps.filter.outputs.db }}
       gomod: ${{ steps.filter.outputs.gomod }}
