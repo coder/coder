@@ -8,8 +8,8 @@
  */
 
 import {
-	createMockWebSocket,
 	type MockWebSocketPublisher,
+	createMockWebSocket,
 } from "testHelpers/websockets";
 import { type OneWayMessageEvent, OneWayWebSocket } from "./OneWayWebSocket";
 

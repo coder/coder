@@ -1,21 +1,32 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { MockWorkspaceAgent } from "testHelpers/entities";
-import { createUseAgentLogs } from "./useAgentLogs";
 import {
-	createMockWebSocket,
 	type MockWebSocketPublisher,
+	createMockWebSocket,
 } from "testHelpers/websockets";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { createUseAgentLogs } from "./useAgentLogs";
 
-function generateMockLogs(count: number): WorkspaceAgentLog[] {
-	return Array.from({ length: count }, (_, i) => ({
-		id: i,
-		created_at: new Date().toISOString(),
-		level: "info",
-		output: `Log ${i}`,
-		source_id: "",
-	}));
+const millisecondsInOneMinute = 60_000;
+
+function generateMockLogs(
+	logCount: number,
+	baseDate = new Date(),
+): readonly WorkspaceAgentLog[] {
+	return Array.from({ length: logCount }, (_, i) => {
+		// Make sure that the logs generated each have unique timestamps, so
+		// that we can test whether they're being sorted properly before being
+		// returned by the hook
+		const logDate = new Date(baseDate.getTime() + i * millisecondsInOneMinute);
+		return {
+			id: i,
+			created_at: logDate.toISOString(),
+			level: "info",
+			output: `Log ${i}`,
+			source_id: "",
+		};
+	});
 }
 
 // A mutable object holding the most recent mock WebSocket publisher. The inner
