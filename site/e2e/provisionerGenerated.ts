@@ -106,7 +106,7 @@ export interface RichParameterValue {
 
 /**
  * ExpirationPolicy defines the policy for expiring unclaimed prebuilds.
- * If a prebuild remains unclaimed for longer than `ttl`, it is deleted and
+ * If a prebuild remains unclaimed for longer than ttl seconds, it is deleted and
  * recreated to prevent staleness.
  */
 export interface ExpirationPolicy {
