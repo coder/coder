@@ -25,6 +25,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add previous parameter values to 'WorkspaceBuild' jobs. Provisioner passes
 //     the previous values for the `terraform apply` to enforce monotonicity
 //     in the terraform provider.
+//   - Add `form_type` field to parameters
 const (
 	CurrentMajor = 1
 	CurrentMinor = 6

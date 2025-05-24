@@ -19,6 +19,7 @@ const createTemplateVersionParameter = (
 		name: "first_parameter",
 		description: "This is first parameter.",
 		type: "string",
+		form_type: "input",
 		mutable: true,
 		default_value: "default string",
 		icon: "/icon/folder.svg",

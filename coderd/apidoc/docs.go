@@ -16086,6 +16086,9 @@ const docTemplate = `{
                 "ephemeral": {
                     "type": "boolean"
                 },
+                "form_type": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },

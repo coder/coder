@@ -9361,6 +9361,7 @@ func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		DisplayName:         arg.DisplayName,
 		Description:         arg.Description,
 		Type:                arg.Type,
+		FormType:            arg.FormType,
 		Mutable:             arg.Mutable,
 		DefaultValue:        arg.DefaultValue,
 		Icon:                arg.Icon,

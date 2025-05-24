@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
@@ -1453,12 +1454,24 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				}
 			}
 
+			pft, err := sdkproto.ProviderFormType(richParameter.FormType)
+			if err != nil {
+				return xerrors.Errorf("parameter %q: %w", richParameter.Name, err)
+			}
+
+			dft := database.ParameterFormType(pft)
+			if !dft.Valid() {
+				list := strings.Join(slice.ToStrings(database.AllParameterFormTypeValues()), ", ")
+				return xerrors.Errorf("parameter %q field 'form_type' not valid, currently supported: %s", richParameter.Name, list)
+			}
+
 			_, err = db.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
 				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
+				FormType:            dft,
 				Mutable:             richParameter.Mutable,
 				DefaultValue:        richParameter.DefaultValue,
 				Icon:                richParameter.Icon,
