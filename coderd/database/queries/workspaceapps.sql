@@ -30,10 +30,11 @@ INSERT INTO
         health,
         display_order,
         hidden,
-        open_in
+        open_in,
+        display_group
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *;
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *;
 
 -- name: UpdateWorkspaceAppHealthByID :exec
 UPDATE

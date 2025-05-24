@@ -25,9 +25,12 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add previous parameter values to 'WorkspaceBuild' jobs. Provisioner passes
 //     the previous values for the `terraform apply` to enforce monotonicity
 //     in the terraform provider.
+//
+// API v1.7:
+//   - Add `group` field to `App`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 6
+	CurrentMinor = 7
 )
 
 // CurrentVersion is the current provisionerd API version.

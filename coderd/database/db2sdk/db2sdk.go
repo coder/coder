@@ -508,6 +508,10 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		statuses := statusesByAppID[dbApp.ID]
+		group := ""
+		if dbApp.DisplayGroup.Valid {
+			group = dbApp.DisplayGroup.String
+		}
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,
@@ -525,6 +529,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:    group,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 			Statuses: WorkspaceAppStatuses(statuses),
