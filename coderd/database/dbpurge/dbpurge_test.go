@@ -279,10 +279,10 @@ func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struc
 		defer trapStop.Close()
 		defer trapNow.Close()
 		// Wait for the initial tick signified by a call to Now().
-		trapNow.MustWait(ctx).Release()
+		trapNow.MustWait(ctx).MustRelease(ctx)
 		// doTick runs here. Wait for the next
 		// ticker reset event that signifies it's completed.
-		trapReset.MustWait(ctx).Release()
+		trapReset.MustWait(ctx).MustRelease(ctx)
 		// Ensure that the next tick happens in 10 minutes from start.
 		d, w := clk.AdvanceNext()
 		if !assert.Equal(t, 10*time.Minute, d) {
@@ -290,7 +290,7 @@ func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struc
 		}
 		w.MustWait(ctx)
 		// Wait for the ticker stop event.
-		trapStop.MustWait(ctx).Release()
+		trapStop.MustWait(ctx).MustRelease(ctx)
 	}()
 
 	return ch

@@ -341,8 +341,8 @@ func TestBackpressure(t *testing.T) {
 
 	// Start the notifier.
 	mgr.Run(ctx)
-	syncTrap.MustWait(ctx).Release()
-	fetchTrap.MustWait(ctx).Release()
+	syncTrap.MustWait(ctx).MustRelease(ctx)
+	fetchTrap.MustWait(ctx).MustRelease(ctx)
 
 	// THEN:
 
