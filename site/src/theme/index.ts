@@ -6,6 +6,7 @@ import dark from "./dark";
 import type { NewTheme } from "./experimental";
 import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
+import purple from "./purple";
 import type { Roles } from "./roles";
 
 export interface Theme extends Omit<MuiTheme, "palette"> {
@@ -33,6 +34,7 @@ export const DEFAULT_THEME = "dark";
 const theme = {
 	dark,
 	light,
+	purple,
 } satisfies Record<string, Theme>;
 
 export default theme;
