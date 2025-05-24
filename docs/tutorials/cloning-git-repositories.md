@@ -26,13 +26,13 @@ documentation to help you:
 - [Self-managed git providers](../admin/external-auth.md#self-managed-git-providers)
 
 With the authentication in place, it is time to set up the template to use the
-[Git Clone module](https://registry.coder.com/modules/git-clone) from the
+[Git Clone module](https://registry.coder.com/modules/coder/git-clone) from the
 [Coder Registry](https://registry.coder.com/) by adding it to our template's
 Terraform configuration.
 
 ```tf
 module "git-clone" {
-  source   = "registry.coder.com/modules/git-clone/coder"
+  source   = "registry.coder.com/modules/coder/git-clone/coder"
   version  = "1.0.12"
   agent_id = coder_agent.example.id
   url      = "https://github.com/coder/coder"
@@ -56,7 +56,7 @@ data "coder_parameter" "git_repo" {
 }
 
 module "git-clone" {
-  source   = "registry.coder.com/modules/git-clone/coder"
+  source   = "registry.coder.com/modules/coder/git-clone/coder"
   version  = "1.0.12"
   agent_id = coder_agent.example.id
   url      = data.coder_parameter.git_repo.value
@@ -64,7 +64,7 @@ module "git-clone" {
 ```
 
 If you need more customization, you can read the
-[Git Clone module](https://registry.coder.com/modules/git-clone) documentation
+[Git Clone module](https://registry.coder.com/modules/coder/git-clone) documentation
 to learn more about the module.
 
 Don't forget to build and publish the template changes before creating a new
