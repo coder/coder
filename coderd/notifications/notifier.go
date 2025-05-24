@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"text/template"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -52,6 +54,7 @@ type notifier struct {
 	cfg   codersdk.NotificationsConfig
 	log   slog.Logger
 	store Store
+	ps    pubsub.Pubsub
 
 	stopOnce       sync.Once
 	outerCtx       context.Context
@@ -67,8 +70,17 @@ type notifier struct {
 	clock quartz.Clock
 }
 
-func newNotifier(outerCtx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
-	hr map[database.NotificationMethod]Handler, helpers template.FuncMap, metrics *Metrics, clock quartz.Clock,
+func newNotifier(
+	outerCtx context.Context,
+	cfg codersdk.NotificationsConfig,
+	id uuid.UUID,
+	log slog.Logger,
+	db Store,
+	ps pubsub.Pubsub,
+	hr map[database.NotificationMethod]Handler,
+	helpers template.FuncMap,
+	metrics *Metrics,
+	clock quartz.Clock,
 ) *notifier {
 	gracefulCtx, gracefulCancel := context.WithCancel(outerCtx)
 	return &notifier{
@@ -80,6 +92,7 @@ func newNotifier(outerCtx context.Context, cfg codersdk.NotificationsConfig, id 
 		gracefulCancel: gracefulCancel,
 		done:           make(chan any),
 		store:          db,
+		ps:             ps,
 		handlers:       hr,
 		helpers:        helpers,
 		metrics:        metrics,
@@ -96,30 +109,83 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 		n.log.Info(context.Background(), "gracefully stopped")
 	}()
 
-	// TODO: idea from Cian: instead of querying the database on a short interval, we could wait for pubsub notifications.
-	//		 if 100 notifications are enqueued, we shouldn't activate this routine for each one; so how to debounce these?
-	//		 PLUS we should also have an interval (but a longer one, maybe 1m) to account for retries (those will not get
-	//		 triggered by a code path, but rather by a timeout expiring which makes the message retryable)
+	// loopTick is used to synchronize the goroutine that processes messages with the ticker.
+	loopTick := make(chan chan struct{})
+	// loopDone is used to signal when the processing loop has exited due to
+	// graceful stop or otherwise.
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		for c := range loopTick {
+			n.log.Info(n.outerCtx, "processing messages")
+			// Check if notifier is not paused.
+			ok, err := n.ensureRunning(n.outerCtx)
+			if err != nil {
+				n.log.Warn(n.outerCtx, "failed to check notifier state", slog.Error(err))
+			}
+			if !ok { // Notifier is paused, skip processing.
+				close(c)
+				continue
+			}
 
-	// run the ticker with the graceful context, so we stop fetching after stop() is called
-	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
-		// Check if notifier is not paused.
-		ok, err := n.ensureRunning(n.outerCtx)
-		if err != nil {
-			n.log.Warn(n.outerCtx, "failed to check notifier state", slog.Error(err))
-		}
-
-		if ok {
 			err = n.process(n.outerCtx, success, failure)
 			if err != nil {
 				n.log.Error(n.outerCtx, "failed to process messages", slog.Error(err))
 			}
+			// Signal that we've finished processing one iteration.
+			close(c)
 		}
-		// we don't return any errors because we don't want to kill the loop because of them.
+	}()
+
+	// Keep track of how many notification_enqueued events seen this loop to avoid
+	// unnecessary database load.
+	var enqueueEventsThisLoop atomic.Int64
+
+	// Periodically trigger the processing loop.
+	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
+		// Reset the enqueue counter after each tick.
+		defer enqueueEventsThisLoop.Store(0)
+		c := make(chan struct{})
+		loopTick <- c
+		// Wait for the processing to finish before continuing. The ticker will
+		// compensate for the time it takes to process the messages.
+		<-c
 		return nil
 	}, "notifier", "fetchInterval")
 
-	_ = tick.Wait()
+	// Also signal the processing loop when a notification is enqueued.
+	if stopListen, err := n.ps.Subscribe(EventNotificationEnqueued, func(ctx context.Context, _ []byte) {
+		enqueued := enqueueEventsThisLoop.Add(1)
+		skipEarlyDispatch := enqueued > 1
+		n.log.Debug(n.outerCtx, "TODO REMOVE THIS got pubsub event", slog.F("count", enqueued), slog.F("skip_early_dispatch", skipEarlyDispatch), slog.F("event", EventNotificationEnqueued))
+		if skipEarlyDispatch {
+			// Avoid overloading the database. We will get to these in the next tick.
+			return
+		}
+		c := make(chan struct{})
+		select {
+		case <-n.gracefulCtx.Done():
+			return
+		// This is a no-op if the notifier is paused.
+		case loopTick <- c:
+			// We do not wait for the processing loop to finish here.
+		default:
+			// If the loop is busy, don't send a notification.
+			n.log.Debug(ctx, "notifier busy, skipping notification")
+			return
+		}
+	}); err != nil {
+		// Intentionally not making this a fatal error. The notifier will still run,
+		// albeit without notification events.
+		n.log.Error(n.outerCtx, "failed to subscribe to notification events", slog.Error(err))
+	} else {
+		defer stopListen()
+	}
+
+	_ = tick.Wait() // Block until the ticker exits. This will be after gracefulCtx is canceled.
+	close(loopTick) // Signal the processing goroutine to stop.
+	<-loopDone      // Wait for the processing goroutine to exit.
+
 	// only errors we can return are context errors.  Only return an error if the outer context
 	// was canceled, not if we were gracefully stopped.
 	if n.outerCtx.Err() != nil {

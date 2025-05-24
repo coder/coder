@@ -53,7 +53,7 @@ func TestBufferedUpdates(t *testing.T) {
 	}
 
 	mgr.WithHandlers(handlers)
-	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, ps, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := dbgen.User(t, store, database.User{})
@@ -110,7 +110,7 @@ func TestBuildPayload(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a set of helpers to be injected into the templates
@@ -145,7 +145,7 @@ func TestBuildPayload(t *testing.T) {
 			}
 		})
 
-	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, ps, helpers, logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification is enqueued

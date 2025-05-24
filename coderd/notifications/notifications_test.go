@@ -90,7 +90,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -171,7 +171,7 @@ func TestSMTPDispatch(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -236,7 +236,7 @@ func TestWebhookDispatch(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	const (
@@ -327,7 +327,7 @@ func TestBackpressure(t *testing.T) {
 		method:                           handler,
 		database.NotificationMethodInbox: handler,
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -478,7 +478,7 @@ func TestRetries(t *testing.T) {
 		method:                           handler,
 		database.NotificationMethodInbox: &fakeHandler{},
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -542,7 +542,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	mgr, err := notifications.NewManager(cfg, noopInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -667,7 +667,7 @@ func TestNotifierPaused(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// Pause the notifier.
@@ -1426,6 +1426,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				smtpEnqueuer, err := notifications.NewStoreEnqueuer(
 					notificationCfg,
 					*db,
+					pubsub,
 					defaultHelpers(),
 					logger.Named("enqueuer"),
 					quartz.NewReal(),
@@ -1551,6 +1552,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				httpEnqueuer, err := notifications.NewStoreEnqueuer(
 					defaultNotificationsConfig(database.NotificationMethodWebhook),
 					*db,
+					pubsub,
 					defaultHelpers(),
 					logger.Named("enqueuer"),
 					quartz.NewReal(),
@@ -1654,11 +1656,11 @@ func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 	user := createSampleUser(t, store)
 
@@ -1680,12 +1682,12 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: an enqueuer & a sample user
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 	user := createSampleUser(t, store)
 
@@ -1728,7 +1730,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 	user := createSampleUser(t, store)
 
@@ -1837,7 +1839,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 		_ = mgr.Stop(ctx)
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
@@ -1930,7 +1932,7 @@ func TestNotificationDuplicates(t *testing.T) {
 	mClock := quartz.NewMock(t)
 	mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
 	user := createSampleUser(t, store)
 
@@ -1956,12 +1958,12 @@ func TestNotificationDuplicates(t *testing.T) {
 func TestNotificationMethodCannotDefaultToInbox(t *testing.T) {
 	t.Parallel()
 
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodInbox)
 
-	_, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+	_, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
 	require.ErrorIs(t, err, notifications.InvalidDefaultNotificationMethodError{Method: string(database.NotificationMethodInbox)})
 }
 
@@ -2036,7 +2038,7 @@ func TestNotificationTargetMatrix(t *testing.T) {
 			mClock := quartz.NewMock(t)
 			mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
 
-			enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
+			enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), mClock)
 			require.NoError(t, err)
 			user := createSampleUser(t, store)
 
@@ -2057,7 +2059,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 
 		// nolint:gocritic // Unit test.
 		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-		store, _ := dbtestutil.NewDB(t)
+		store, pubsub := dbtestutil.NewDB(t)
 		logger := testutil.Logger(t)
 
 		// Given: Coder Inbox is enabled and SMTP/Webhook are disabled.
@@ -2066,7 +2068,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		cfg.SMTP = codersdk.NotificationsEmailConfig{}
 		cfg.Webhook = codersdk.NotificationsWebhookConfig{}
 
-		enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+		enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
 		require.NoError(t, err)
 		user := createSampleUser(t, store)
 
@@ -2082,7 +2084,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 
 		// nolint:gocritic // Unit test.
 		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-		store, _ := dbtestutil.NewDB(t)
+		store, pubsub := dbtestutil.NewDB(t)
 		logger := testutil.Logger(t)
 
 		// Given: Coder Inbox/Webhook are disabled and SMTP is enabled.
@@ -2090,7 +2092,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		cfg.Inbox.Enabled = false
 		cfg.Webhook = codersdk.NotificationsWebhookConfig{}
 
-		enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+		enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
 		require.NoError(t, err)
 		user := createSampleUser(t, store)
 
@@ -2106,7 +2108,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 
 		// nolint:gocritic // Unit test.
 		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-		store, _ := dbtestutil.NewDB(t)
+		store, pubsub := dbtestutil.NewDB(t)
 		logger := testutil.Logger(t)
 
 		// Given: Coder Inbox/SMTP are disabled and Webhook is enabled.
@@ -2114,7 +2116,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		cfg.Inbox.Enabled = false
 		cfg.SMTP = codersdk.NotificationsEmailConfig{}
 
-		enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
+		enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), quartz.NewMock(t))
 		require.NoError(t, err)
 		user := createSampleUser(t, store)
 
@@ -2124,6 +2126,71 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, enqueued, 1)
 	})
+}
+
+func TestNotificationEnqueuePubsubNotify(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	store, pubsub := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
+
+	const method = database.NotificationMethodWebhook
+	cfg := defaultNotificationsConfig(method)
+
+	// Tune the queue to fetch infrequently.
+	const fetchInterval = time.Minute
+	cfg.FetchInterval = serpent.Duration(fetchInterval)
+
+	mClock := quartz.NewMock(t)
+	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
+	defer fetchTrap.Close()
+
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(),
+		logger.Named("manager"), notifications.WithTestClock(mClock))
+	require.NoError(t, err)
+
+	handler := &chanHandler{calls: make(chan dispatchCall)}
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: handler,
+	})
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, pubsub, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	require.NoError(t, err)
+
+	user := createSampleUser(t, store)
+
+	// Given: the manager is running and the fetch interval is set to 1 minute.
+	mgr.Run(ctx)
+	fetchTrap.MustWait(ctx).Release()
+
+	// When: a number of notifications are enqueued
+	const numEnqueued = 10
+	for i := range numEnqueued {
+		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, fmt.Sprintf("test %d", i))
+		require.NoError(t, err)
+	}
+
+	// Then: we attempt to dispatch the notification immediately.
+	recvDone := make(chan struct{})
+	go func() {
+		defer close(recvDone)
+		for range numEnqueued {
+			call := testutil.TryReceive(ctx, t, handler.calls)
+			<-time.After(testutil.IntervalFast) // Simulate some processing time.
+			testutil.RequireSend(ctx, t, call.result, dispatchResult{
+				retryable: false,
+				err:       nil,
+			})
+		}
+	}()
+	_ = testutil.TryReceive(ctx, t, recvDone)
+	// TODO: this sometimes fails with
+	//     t.go:106: 2025-04-22 16:55:04.153 [warn]  manager: content canceled with pending updates in buffer, these messages will be sent again after lease expires  success_count=6  failure_count=0
 }
 
 type fakeHandler struct {
