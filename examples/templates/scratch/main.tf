@@ -40,10 +40,14 @@ resource "coder_env" "welcome_message" {
 }
 
 # Adds code-server
-# See all available modules at https://registry.coder.com
+# See all available modules at https://registry.coder.com/modules
 module "code-server" {
-  source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.2"
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/coder/code-server/coder"
+
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
+
   agent_id = coder_agent.main.id
 }
 
