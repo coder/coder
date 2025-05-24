@@ -1,4 +1,4 @@
-# JetBrains Gateway in an air-gapped environment
+# JetBrains IDEs in an air-gapped environment
 
 In networks that restrict access to the internet, you will need to leverage the
 JetBrains Client Installer to download and save the IDE clients locally. Please
@@ -161,4 +161,4 @@ respectively.
 
 ## Next steps
 
-- [Pre-install the JetBrains IDEs backend in your workspace](../../../admin/templates/extending-templates/jetbrains-gateway.md)
+- [Pre-install the JetBrains IDEs backend in your workspace](./jetbrains-preinstall.md)

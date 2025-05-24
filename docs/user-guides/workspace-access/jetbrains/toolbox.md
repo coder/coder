@@ -1,4 +1,4 @@
-# JetBrains Toolbox Integration
+# JetBrains Toolbox Integration (beta)
 
 JetBrains Toolbox helps you manage JetBrains products and includes remote development capabilities for connecting to Coder workspaces.
 
@@ -38,7 +38,7 @@ For more details, see the [coder-jetbrains-toolbox repository](https://github.co
 
 ## Configure internal certificates
 
-To connect to a Coder deployment that uses internal certificates, configure the certificates directly in JetBrains Toolbox:
+To connect to a Coder deployment that uses internal certificates, configure the certificates directly in the Coder plugin settings in JetBrains Toolbox:
 
 1. Click the settings icon (⚙) in the lower left corner of JetBrains Toolbox.
 1. Select **Settings**.

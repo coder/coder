@@ -136,18 +136,19 @@
 						},
 						{
 							"title": "JetBrains IDEs",
-							"description": "Use JetBrains IDEs with Gateway",
+							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Gateway in an air-gapped environment",
-									"description": "Use JetBrains Gateway in an air-gapped offline environment",
-									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+									"title": "JetBrains Gateway",
+									"description": "Use JetBrains Gateway to connect to Coder workspaces",
+									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
 								},
 								{
 									"title": "JetBrains Toolbox",
-									"description": "Access Coder workspaces through JetBrains Toolbox",
-									"path": "./user-guides/workspace-access/jetbrains/jetbrains-toolbox.md"
+									"description": "Access Coder workspaces from JetBrains Toolbox",
+									"path": "./user-guides/workspace-access/jetbrains/toolbox.md",
+									"state": ["beta"]
 								}
 							]
 						},
@@ -489,9 +490,14 @@
 									"path": "./admin/templates/extending-templates/web-ides.md"
 								},
 								{
-									"title": "Pre-install JetBrains Gateway",
-									"description": "Pre-install JetBrains Gateway in a template for faster IDE startup",
-									"path": "./admin/templates/extending-templates/jetbrains-gateway.md"
+									"title": "Pre-install JetBrains IDEs",
+									"description": "Pre-install JetBrains IDEs in a template for faster IDE startup",
+									"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
+								},
+								{
+									"title": "JetBrains IDEs in Air-Gapped Deployments",
+									"description": "Configure JetBrains IDEs for air-gapped deployments",
+									"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 								},
 								{
 									"title": "Docker in Workspaces",
@@ -911,6 +917,16 @@
 					"title": "Use NGINX as a Reverse Proxy",
 					"description": "Learn how to use NGINX as a reverse proxy",
 					"path": "./tutorials/reverse-proxy-nginx.md"
+				},
+				{
+					"title": "Pre-install JetBrains IDEs in Workspaces",
+					"description": "Pre-install JetBrains IDEs in workspaces",
+					"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
+				},
+				{
+					"title": "Use JetBrains IDEs in Air-Gapped Deployments",
+					"description": "Configure JetBrains IDEs for air-gapped deployments",
+					"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 				},
 				{
 					"title": "FAQs",

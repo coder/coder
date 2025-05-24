@@ -1,9 +1,9 @@
-# Pre-install JetBrains Gateway in a template
+# Pre-install JetBrains IDEs in your template
 
-For a faster JetBrains Gateway experience, pre-install the IDEs backend in your template.
+For a faster first time connection with JetBrains IDEs, pre-install the IDEs backend in your template.
 
 > [!NOTE]
-> This guide only talks about installing the IDEs backend. For a complete guide on setting up JetBrains Gateway with client IDEs, refer to the [JetBrains Gateway air-gapped guide](../../../user-guides/workspace-access/jetbrains/jetbrains-airgapped.md).
+> This guide only talks about installing the IDEs backend. For a complete guide on setting up JetBrains Gateway with client IDEs, refer to the [JetBrains Gateway air-gapped guide](./jetbrains-airgapped.md).
 
 ## Install the Client Downloader
 
@@ -40,7 +40,7 @@ Add the following command to your template's `startup_script`:
 
 ## Configure JetBrains Gateway Module
 
-If you are using our [jetbrains-gateway](https://registry.coder.com/modules/jetbrains-gateway) module, you can configure it by adding the following snippet to your template:
+If you are using our [jetbrains-gateway](https://registry.coder.com/modules/coder/jetbrains-gateway) module, you can configure it by adding the following snippet to your template:
 
 ```tf
 module "jetbrains_gateway" {
@@ -116,4 +116,4 @@ RUN mkdir -p ~/JetBrains \
 
 ## Next steps
 
-- [Pre-install the Client IDEs](../../../user-guides/workspace-access/jetbrains/jetbrains-airgapped.md#1-deploy-the-server-and-install-the-client-downloader)
+- [Pre-install the Client IDEs](./jetbrains-airgapped.md#1-deploy-the-server-and-install-the-client-downloader)
