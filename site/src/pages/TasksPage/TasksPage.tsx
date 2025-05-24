@@ -1,7 +1,9 @@
+import { API } from "api/api";
+import { templates } from "api/queries/templates";
+import { disabledRefetchOptions } from "api/queries/util";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
-import { SelectOption } from "components/Combobox/Combobox.stories";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -12,9 +14,7 @@ import {
 import {
 	Select,
 	SelectContent,
-	SelectGroup,
 	SelectItem,
-	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
@@ -27,9 +27,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import { Textarea } from "components/Textarea/Textarea";
-import { CircleCheckIcon, ExternalLinkIcon } from "lucide-react";
+import { CircleCheckIcon, ExternalLinkIcon, SendIcon } from "lucide-react";
 import type { FC } from "react";
+import { useQuery } from "react-query";
+
+// This is how we identify AI templates
+const AI_PROMPT_PARAMETER = "AI Prompt";
 
 const TasksPage: FC = () => {
 	return (
@@ -46,26 +49,7 @@ const TasksPage: FC = () => {
 				<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 			</PageHeader>
 
-			<div className="border border-border border-solid rounded-lg p-4">
-				<textarea
-					placeholder="Write a task description..."
-					className="resize-none w-full h-full bg-transparent rounded-lg block border-0 outline-none"
-					rows={5}
-				/>
-				<Select value="apple">
-					<SelectTrigger className="w-52 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
-						<SelectValue placeholder="Select a template" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="apple">
-							<span className="overflow-hidden text-ellipsis block">
-								Code Coder with Claude
-							</span>
-						</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
-
+			<TaskForm />
 			<Table className="mt-4">
 				<TableHeader>
 					<TableRow>
@@ -165,3 +149,57 @@ const TasksPage: FC = () => {
 };
 
 export default TasksPage;
+
+const TaskForm: FC = () => {
+	const { data: templates, isLoading } = useQuery({
+		queryKey: ["templates", "ai"],
+		queryFn: fetchAITemplates,
+		...disabledRefetchOptions,
+	});
+
+	return (
+		<form className="border border-border border-solid rounded-lg p-4">
+			<textarea
+				name="prompt"
+				placeholder="Write a task description..."
+				className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
+						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
+			/>
+			<div className="flex items-center justify-between">
+				<Select name="templateID" disabled={isLoading}>
+					<SelectTrigger className="w-52 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
+						<SelectValue placeholder="Select a template" />
+					</SelectTrigger>
+					<SelectContent>
+						{templates?.map((template) => {
+							return (
+								<SelectItem value={template.id} key={template.id}>
+									<span className="overflow-hidden text-ellipsis block">
+										{template.display_name ?? template.name}
+									</span>
+								</SelectItem>
+							);
+						})}
+					</SelectContent>
+				</Select>
+
+				<Button size="sm" type="submit" disabled={isLoading}>
+					<SendIcon />
+					Run task
+				</Button>
+			</div>
+		</form>
+	);
+};
+
+async function fetchAITemplates() {
+	const templates = await API.getTemplates();
+	const parameters = await Promise.all(
+		templates.map(async (template) =>
+			API.getTemplateVersionRichParameters(template.active_version_id),
+		),
+	);
+	return templates.filter((template, index) => {
+		return parameters[index].some((p) => p.name === AI_PROMPT_PARAMETER);
+	});
+}
