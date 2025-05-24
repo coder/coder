@@ -361,17 +361,22 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_name", ps.Preset.Name),
 	)
 
-	// If the preset was previously hard-limited, log it and exit early.
-	if ps.Preset.PrebuildStatus == database.PrebuildStatusHardLimited {
-		logger.Warn(ctx, "skipping hard limited preset")
-		return nil
-	}
+	// Report a preset as hard-limited only if all the following conditions are met:
+	// - The preset is marked as hard-limited
+	// - The preset is using the active version of its template, and the template has not been deleted
+	//
+	// The second condition is important because a hard-limited preset that has become outdated is no longer relevant.
+	// Its associated prebuilt workspaces were likely deleted, and it's not meaningful to continue reporting it
+	// as hard-limited to the admin.
+	reportAsHardLimited := ps.IsHardLimited && ps.Preset.UsingActiveVersion && !ps.Preset.Deleted
+	c.metrics.trackHardLimitedStatus(ps.Preset.OrganizationName, ps.Preset.TemplateName, ps.Preset.Name, reportAsHardLimited)
 
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
 	// - Send notifications to template admins
-	if ps.IsHardLimited {
-		logger.Warn(ctx, "skipping hard limited preset")
+	// - Continue execution, we disallow only creation operation for hard-limited presets. Deletion is allowed.
+	if ps.Preset.PrebuildStatus != database.PrebuildStatusHardLimited && ps.IsHardLimited {
+		logger.Warn(ctx, "preset is hard limited, notifying template admins")
 
 		err := c.store.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
 			Status:   database.PrebuildStatusHardLimited,
@@ -384,10 +389,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
 		if err != nil {
 			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
-			return nil
 		}
-
-		return nil
 	}
 
 	state := ps.CalculateState()
@@ -450,6 +452,13 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 				slog.F("create_count", actions.Create), slog.F("desired_count", desired))
 
 			actions.Create = desired
+		}
+
+		// If preset is hard-limited, and it's a create operation, log it and exit early.
+		// Creation operation is disallowed for hard-limited preset.
+		if ps.IsHardLimited && actions.Create > 0 {
+			logger.Warn(ctx, "skipping hard limited preset for create operation")
+			return nil
 		}
 
 		var multiErr multierror.Error
