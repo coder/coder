@@ -830,6 +830,9 @@ func TestConvertResources(t *testing.T) {
 				}},
 				Prebuild: &proto.Prebuild{
 					Instances: 4,
+					ExpirationPolicy: &proto.ExpirationPolicy{
+						Ttl: 86400,
+					},
 				},
 			}},
 		},

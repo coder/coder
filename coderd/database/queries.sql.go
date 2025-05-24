@@ -6511,6 +6511,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.invalidate_after_secs 	AS ttl,
 		tvp.prebuild_status,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
@@ -6534,6 +6535,7 @@ type GetTemplatePresetsWithPrebuildsRow struct {
 	ID                  uuid.UUID      `db:"id" json:"id"`
 	Name                string         `db:"name" json:"name"`
 	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	Ttl                 sql.NullInt32  `db:"ttl" json:"ttl"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	Deleted             bool           `db:"deleted" json:"deleted"`
 	Deprecated          bool           `db:"deprecated" json:"deprecated"`
@@ -6562,6 +6564,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.ID,
 			&i.Name,
 			&i.DesiredInstances,
+			&i.Ttl,
 			&i.PrebuildStatus,
 			&i.Deleted,
 			&i.Deprecated,
