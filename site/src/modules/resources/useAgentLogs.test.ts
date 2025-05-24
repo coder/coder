@@ -1,60 +1,114 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
-import WS from "jest-websocket-mock";
 import { MockWorkspaceAgent } from "testHelpers/entities";
-import { useAgentLogs } from "./useAgentLogs";
+import {
+	type MockWebSocketPublisher,
+	createMockWebSocket,
+} from "testHelpers/websockets";
+import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { createUseAgentLogs } from "./useAgentLogs";
 
-/**
- * TODO: WS does not support multiple tests running at once in isolation so we
- * have one single test that test the most common scenario.
- * Issue: https://github.com/romgain/jest-websocket-mock/issues/172
- */
+const millisecondsInOneMinute = 60_000;
 
-describe("useAgentLogs", () => {
-	afterEach(() => {
-		WS.clean();
+function generateMockLogs(
+	logCount: number,
+	baseDate = new Date(),
+): readonly WorkspaceAgentLog[] {
+	return Array.from({ length: logCount }, (_, i) => {
+		// Make sure that the logs generated each have unique timestamps, so
+		// that we can test whether they're being sorted properly before being
+		// returned by the hook
+		const logDate = new Date(baseDate.getTime() + i * millisecondsInOneMinute);
+		return {
+			id: i,
+			created_at: logDate.toISOString(),
+			level: "info",
+			output: `Log ${i}`,
+			source_id: "",
+		};
+	});
+}
+
+// A mutable object holding the most recent mock WebSocket publisher. The inner
+// value will change as the hook opens/closes new connections
+type PublisherResult = {
+	current: MockWebSocketPublisher;
+};
+
+type MountHookResult = Readonly<{
+	// Note: the value of `current` should be readonly, but the `current`
+	// property itself should be mutable
+	hookResult: {
+		current: readonly WorkspaceAgentLog[];
+	};
+	rerender: (props: { enabled: boolean }) => void;
+	publisherResult: PublisherResult;
+}>;
+
+function mountHook(): MountHookResult {
+	// Have to cheat the types a little bit to avoid a chicken-and-the-egg
+	// scenario. publisherResult will be initialized with an undefined current
+	// value, but it'll be guaranteed not to be undefined by the time this
+	// function returns.
+	const publisherResult: Partial<PublisherResult> = { current: undefined };
+	const useAgentLogs = createUseAgentLogs((agentId, params) => {
+		return new OneWayWebSocket({
+			apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
+			searchParams: new URLSearchParams({
+				follow: "true",
+				after: params?.after?.toString() || "0",
+			}),
+			websocketInit: (url) => {
+				const [mockSocket, mockPublisher] = createMockWebSocket(url);
+				publisherResult.current = mockPublisher;
+				return mockSocket;
+			},
+		});
 	});
 
-	it("clear logs when disabled to avoid duplicates", async () => {
-		const server = new WS(
-			`ws://localhost/api/v2/workspaceagents/${
-				MockWorkspaceAgent.id
-			}/logs?follow&after=0`,
-		);
-		const { result, rerender } = renderHook(
-			({ enabled }) => useAgentLogs(MockWorkspaceAgent, enabled),
-			{ initialProps: { enabled: true } },
-		);
-		await server.connected;
+	const { result, rerender } = renderHook(
+		({ enabled }) => useAgentLogs(MockWorkspaceAgent, enabled),
+		{ initialProps: { enabled: true } },
+	);
 
-		// Send 3 logs
-		server.send(JSON.stringify(generateLogs(3)));
+	return {
+		rerender,
+		hookResult: result,
+		publisherResult: publisherResult as PublisherResult,
+	};
+}
+
+describe("useAgentLogs", () => {
+	it("clears logs when hook becomes disabled (protection to avoid duplicate logs when hook goes back to being re-enabled)", async () => {
+		const { hookResult, publisherResult, rerender } = mountHook();
+
+		// Verify that logs can be received after mount
+		const initialLogs = generateMockLogs(3, new Date("april 5, 1997"));
+		const initialEvent = new MessageEvent<string>("message", {
+			data: JSON.stringify(initialLogs),
+		});
+		publisherResult.current.publishMessage(initialEvent);
 		await waitFor(() => {
-			expect(result.current).toHaveLength(3);
+			// Using expect.arrayContaining to account for the fact that we're
+			// not guaranteed to receive WebSocket events in order
+			expect(hookResult.current).toEqual(expect.arrayContaining(initialLogs));
 		});
 
-		// Disable the hook
+		// Disable the hook (and have the hook close the connection behind the
+		// scenes)
 		rerender({ enabled: false });
-		await waitFor(() => {
-			expect(result.current).toHaveLength(0);
-		});
+		await waitFor(() => expect(hookResult.current).toHaveLength(0));
 
-		// Enable the hook again
+		// Re-enable the hook (creating an entirely new connection), and send
+		// new logs
 		rerender({ enabled: true });
-		await server.connected;
-		server.send(JSON.stringify(generateLogs(3)));
+		const newLogs = generateMockLogs(3, new Date("october 3, 2005"));
+		const newEvent = new MessageEvent<string>("message", {
+			data: JSON.stringify(newLogs),
+		});
+		publisherResult.current.publishMessage(newEvent);
 		await waitFor(() => {
-			expect(result.current).toHaveLength(3);
+			expect(hookResult.current).toEqual(expect.arrayContaining(newLogs));
 		});
 	});
 });
-
-function generateLogs(count: number): WorkspaceAgentLog[] {
-	return Array.from({ length: count }, (_, i) => ({
-		id: i,
-		created_at: new Date().toISOString(),
-		level: "info",
-		output: `Log ${i}`,
-		source_id: "",
-	}));
-}
