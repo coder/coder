@@ -12,7 +12,14 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { CircleHelp, Undo2 } from "lucide-react";
 import type { FC } from "react";
 import {
 	useCallback,
@@ -161,7 +168,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
+		<div className="flex flex-col gap-6 max-w-screen-md">
 			<Helmet>
 				<title>{pageTitle(workspace.name, "Parameters")}</title>
 			</Helmet>
@@ -169,7 +176,31 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			<header className="flex flex-col items-start gap-2">
 				<span className="flex flex-row items-center gap-2">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
-					<FeatureStageBadge contentType={"beta"} />
+					<FeatureStageBadge
+						className="mt-1"
+						contentType={"beta"}
+						labelText="Dynamic parameters"
+					/>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<CircleHelp className="size-icon-xs text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs text-sm">
+								Dynamic Parameters enhances Coder's existing parameter system
+								with real-time validation, conditional parameter behavior, and
+								richer input types.
+								<br />
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+									)}
+								>
+									View docs
+								</Link>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</span>
 				{experimentalFormContext && (
 					<Button
@@ -177,7 +208,8 @@ const WorkspaceParametersPageExperimental: FC = () => {
 						variant="outline"
 						onClick={experimentalFormContext.toggleOptedOut}
 					>
-						Go back to the classic workspace parameters view
+						<Undo2 />
+						Use the classic workspace parameters
 					</Button>
 				)}
 			</header>
