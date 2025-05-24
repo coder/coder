@@ -103,30 +103,38 @@ resource "coder_agent" "main" {
   }
 }
 
+# https://registry.coder.com/modules/coder/git-clone
 module "git-clone" {
-  source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "1.0.2"
+  source = "registry.coder.com/coder/git-clone/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version  = "~> 1.0"
   agent_id = local.agent_id
   url      = data.coder_parameter.git_repo.value
   base_dir = local.repo_base_dir
 }
 
+# https://registry.coder.com/modules/coder/code-server
 module "code-server" {
-  source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.2"
+  source = "registry.coder.com/coder/code-server/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version  = "~> 1.0"
   agent_id = local.agent_id
   folder   = local.repo_base_dir
 }
 
+# https://registry.coder.com/modules/coder/filebrowser
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
-  version  = "1.0.2"
+  source = "registry.coder.com/coder/filebrowser/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version  = "~> 1.0"
   agent_id = local.agent_id
 }
 
+# https://registry.coder.com/modules/coder/coder-login
 module "coder-login" {
-  source   = "registry.coder.com/modules/coder-login/coder"
-  version  = "1.0.2"
+  source = "registry.coder.com/coder/coder-login/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version  = "~> 1.0"
   agent_id = local.agent_id
 }
 
@@ -307,4 +315,3 @@ resource "coder_metadata" "info" {
     value = substr(incus_cached_image.image.fingerprint, 0, 12)
   }
 }
-
