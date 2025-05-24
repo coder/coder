@@ -1122,6 +1122,7 @@ func New(options *Options) *API {
 				})
 			})
 		})
+
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1149,6 +1150,13 @@ func New(options *Options) *API {
 				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
 				r.Get("/{jobID}/matched-provisioners", api.templateVersionDryRunMatchedProvisioners)
 				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
+			})
+
+			r.Group(func(r chi.Router) {
+				r.Use(
+					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
+				)
+				r.Get("/dynamic-parameters", api.templateVersionDynamicParameters)
 			})
 		})
 		r.Route("/users", func(r chi.Router) {
@@ -1209,19 +1217,6 @@ func New(options *Options) *API {
 
 					r.Group(func(r chi.Router) {
 						r.Use(httpmw.ExtractUserParam(options.Database))
-
-						// Similarly to creating a workspace, evaluating parameters for a
-						// new workspace should also match the authz story of
-						// postWorkspacesByOrganization
-						// TODO: Do not require site wide read user permission. Make this work
-						//   with org member permissions.
-						r.Route("/templateversions/{templateversion}", func(r chi.Router) {
-							r.Use(
-								httpmw.ExtractTemplateVersionParam(options.Database),
-								httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
-							)
-							r.Get("/parameters", api.templateVersionDynamicParameters)
-						})
 
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)

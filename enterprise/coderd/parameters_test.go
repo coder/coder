@@ -59,7 +59,7 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
