@@ -405,6 +405,10 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []str
 	hostPortContainers := make(map[int][]string)
 
 	for _, in := range ins {
+		if in.Config.Labels == nil {
+			// prevent nil maps
+			in.Config.Labels = make(map[string]string)
+		}
 		out := codersdk.WorkspaceAgentContainer{
 			CreatedAt: in.Created,
 			// Remove the leading slash from the container name

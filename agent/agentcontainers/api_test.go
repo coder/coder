@@ -306,12 +306,14 @@ func TestAPI(t *testing.T) {
 				agentcontainers.DevcontainerLocalFolderLabel: "/workspace",
 				agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
 			},
+			Volumes: map[string]string{},
 		}
 
 		missingFolderContainer := codersdk.WorkspaceAgentContainer{
 			ID:           "missing-folder-container",
 			FriendlyName: "missing-folder-container",
 			Labels:       map[string]string{},
+			Volumes:      map[string]string{},
 		}
 
 		tests := []struct {
@@ -500,12 +502,14 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/runtime1",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/runtime1/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 							{
 								ID:           "not-a-devcontainer",
 								FriendlyName: "not-a-devcontainer",
 								Running:      true,
 								Labels:       map[string]string{},
+								Volumes:      map[string]string{},
 							},
 						},
 					},
@@ -533,6 +537,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/known1",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/known1/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 							{
 								ID:           "runtime-container-1",
@@ -542,6 +547,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/runtime1",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/runtime1/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 						},
 					},
@@ -579,6 +585,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/running",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/running/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 							{
 								ID:           "non-running-container",
@@ -588,6 +595,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/non-running",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/non-running/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 						},
 					},
@@ -621,6 +629,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/known2",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/known2/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 						},
 					},
@@ -656,6 +665,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/project/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 							{
 								ID:           "project2-container",
@@ -665,6 +675,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/home/user/project",
 									agentcontainers.DevcontainerConfigFileLabel:  "/home/user/project/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 							{
 								ID:           "project3-container",
@@ -674,6 +685,7 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerLocalFolderLabel: "/var/lib/project",
 									agentcontainers.DevcontainerConfigFileLabel:  "/var/lib/project/.devcontainer/devcontainer.json",
 								},
+								Volumes: map[string]string{},
 							},
 						},
 					},
@@ -878,6 +890,7 @@ func TestAPI(t *testing.T) {
 				agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
 				agentcontainers.DevcontainerConfigFileLabel:  configPath,
 			},
+			Volumes: map[string]string{},
 		}
 
 		mClock := quartz.NewMock(t)

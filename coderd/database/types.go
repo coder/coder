@@ -78,6 +78,10 @@ type ExternalAuthProvider struct {
 type StringMap map[string]string
 
 func (m *StringMap) Scan(src interface{}) error {
+	if m == nil {
+		// Never return a nil map, always return an empty one.
+		*m = make(map[string]string)
+	}
 	if src == nil {
 		return nil
 	}
@@ -100,6 +104,10 @@ func (m StringMap) Value() (driver.Value, error) {
 type StringMapOfInt map[string]int64
 
 func (m *StringMapOfInt) Scan(src interface{}) error {
+	if m == nil {
+		// Never return a nil map, always return an empty one.
+		*m = make(map[string]int64)
+	}
 	if src == nil {
 		return nil
 	}
