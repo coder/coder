@@ -10,7 +10,7 @@ import { useAgentLogs } from "./useAgentLogs";
  * Issue: https://github.com/romgain/jest-websocket-mock/issues/172
  */
 
-describe("useAgentLogs", () => {
+describe.skip("useAgentLogs", () => {
 	afterEach(() => {
 		WS.clean();
 	});
