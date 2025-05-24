@@ -13,7 +13,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { formatDistance } from "date-fns";
+import { timeFromNow } from "utils/time";
+
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
@@ -153,9 +154,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						{latestStatus.message}
 					</span>
 					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
-						{formatDistance(new Date(latestStatus.created_at), comparisonDate, {
-							addSuffix: true,
-						})}
+						{timeFromNow(new Date(latestStatus.created_at), comparisonDate)}
 					</span>
 				</div>
 
@@ -216,13 +215,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			{displayStatuses &&
 				otherStatuses.map((status) => {
 					const statusTime = new Date(status.created_at);
-					const formattedTimestamp = formatDistance(
-						statusTime,
-						comparisonDate,
-						{
-							addSuffix: true,
-						},
-					);
+					const formattedTimestamp = timeFromNow(statusTime, comparisonDate);
 
 					return (
 						<div

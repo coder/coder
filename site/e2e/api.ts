@@ -2,7 +2,10 @@ import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { API, type DeploymentConfig } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
-import { formatDuration, intervalToDuration } from "date-fns";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+
+dayjs.extend(duration);
 import { coderPort, defaultPassword } from "./constants";
 import { type LoginOptions, findSessionToken, randomName } from "./helpers";
 
@@ -295,13 +298,7 @@ export async function verifyConfigFlagDuration(
 	);
 	//
 	await expect(configOption).toHaveText(
-		formatDuration(
-			// intervalToDuration takes ms, so convert nanoseconds to ms
-			intervalToDuration({
-				start: 0,
-				end: (opt.value as number) / 1e6,
-			}),
-		),
+		dayjs.duration((opt.value as number) / 1e6).humanize(),
 	);
 }
 

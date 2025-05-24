@@ -35,14 +35,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import {
-	addHours,
-	addWeeks,
-	format,
-	startOfDay,
-	startOfHour,
-	subDays,
-} from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { CircleCheck as CircleCheckIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
@@ -57,6 +49,13 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { getLatencyColor } from "utils/latency";
+import {
+	addTime,
+	formatDateTime,
+	startOfDay,
+	startOfHour,
+	subtractTime,
+} from "utils/time";
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
@@ -138,7 +137,7 @@ export default function TemplateInsightsPage() {
 const getDefaultInterval = (template: Template) => {
 	const now = new Date();
 	const templateCreateDate = new Date(template.created_at);
-	const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
+	const hasFiveWeeksOrMore = addTime(templateCreateDate, 5, "week") < now;
 	return hasFiveWeeksOrMore ? "week" : "day";
 };
 
@@ -162,9 +161,9 @@ const getDateRange = (
 		// instantiation.
 		const today = new Date();
 		return {
-			startDate: startOfDay(subDays(today, 6)),
+			startDate: startOfDay(subtractTime(today, 6, "day")),
 			// Add one hour to endDate to include real-time data for today.
-			endDate: addHours(startOfHour(today), 1),
+			endDate: addTime(startOfHour(today), 1, "hour"),
 		};
 	}
 
@@ -910,7 +909,7 @@ function formatTime(seconds: number): string {
 }
 
 function toISOLocal(d: Date, offset: number) {
-	return format(d, `yyyy-MM-dd'T'HH:mm:ss${formatOffset(offset)}`);
+	return formatDateTime(d, `YYYY-MM-DD[T]HH:mm:ss${formatOffset(offset)}`);
 }
 
 function formatOffset(offset: number): string {
