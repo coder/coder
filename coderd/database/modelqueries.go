@@ -294,6 +294,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.NextStartAt,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
+			&i.OwnerName,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,

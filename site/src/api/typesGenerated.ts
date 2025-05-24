@@ -3608,7 +3608,8 @@ export interface WorkspaceBuild {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly workspace_owner_id: string;
-	readonly workspace_owner_name: string;
+	readonly workspace_owner_name?: string;
+	readonly workspace_owner_username: string;
 	readonly workspace_owner_avatar_url?: string;
 	readonly template_version_id: string;
 	readonly template_version_name: string;

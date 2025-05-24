@@ -1507,6 +1507,7 @@ COMMENT ON COLUMN template_versions.message IS 'Message describing the changes i
 CREATE VIEW visible_users AS
  SELECT users.id,
     users.username,
+    users.name,
     users.avatar_url
    FROM users;
 
@@ -2243,6 +2244,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
+    visible_users.name AS owner_name,
     organizations.name AS organization_name,
     organizations.display_name AS organization_display_name,
     organizations.icon AS organization_icon,

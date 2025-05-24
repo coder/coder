@@ -3443,6 +3443,7 @@ type UserStatusChange struct {
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
+	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
@@ -3475,6 +3476,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OwnerName               string           `db:"owner_name" json:"owner_name"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
