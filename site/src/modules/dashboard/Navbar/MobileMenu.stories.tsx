@@ -28,6 +28,7 @@ const meta: Meta<typeof MobileMenu> = {
 				preferredWildcardHostname: "",
 				proxy: MockPrimaryWorkspaceProxy,
 			},
+			latenciesLoaded: true,
 			isLoading: false,
 			isFetched: true,
 			setProxy: fn(),

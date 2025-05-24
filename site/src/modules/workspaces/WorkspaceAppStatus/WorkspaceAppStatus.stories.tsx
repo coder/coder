@@ -16,6 +16,7 @@ const meta: Meta<typeof WorkspaceAppStatus> = {
 					proxyLatencies: MockProxyLatencies,
 					proxy: getPreferredProxy([], undefined),
 					proxies: [],
+					latenciesLoaded: true,
 					isLoading: false,
 					isFetched: true,
 					clearProxy: () => {
