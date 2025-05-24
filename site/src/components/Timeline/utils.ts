@@ -12,7 +12,7 @@ export const createDisplayDate = (
 		return dayjs(date).calendar(dayjs(base), {
 			sameDay: "[Today]",
 			lastDay: "[Yesterday]",
-			lastWeek: "dddd",
+			lastWeek: "[last] dddd",
 			sameElse: "MM/DD/YYYY",
 		});
 	}

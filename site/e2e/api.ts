@@ -4,8 +4,10 @@ import { API, type DeploymentConfig } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
+import relativeTime from "dayjs/plugin/relativeTime";
 
 dayjs.extend(duration);
+dayjs.extend(relativeTime);
 import { coderPort, defaultPassword } from "./constants";
 import { type LoginOptions, findSessionToken, randomName } from "./helpers";
 
