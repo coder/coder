@@ -51,7 +51,11 @@ type DRPCAgentClient24 interface {
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }
 
-// DRPCAgentClient25 is the Agent API at v2.5.
+// DRPCAgentClient25 is the Agent API at v2.5. It adds the CreateDevContainerAgent,
+// DeleteDevContainerAgent and ListDevContainerAgents RPCs.
 type DRPCAgentClient25 interface {
 	DRPCAgentClient24
+	CreateDevContainerAgent(ctx context.Context, in *CreateDevContainerAgentRequest) (*CreateDevContainerAgentResponse, error)
+	DeleteDevContainerAgent(ctx context.Context, in *DeleteDevContainerAgentRequest) (*DeleteDevContainerAgentResponse, error)
+	ListDevContainerAgents(ctx context.Context, in *ListDevContainerAgentsRequest) (*ListDevContainerAgentsResponse, error)
 }

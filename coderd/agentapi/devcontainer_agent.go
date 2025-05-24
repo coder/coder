@@ -1,0 +1,118 @@
+package agentapi
+
+import (
+	"context"
+
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/provisioner"
+	"github.com/coder/quartz"
+)
+
+type DevContainerAgentAPI struct {
+	OwnerID        uuid.UUID
+	OrganizationID uuid.UUID
+	AgentID        uuid.UUID
+	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
+
+	Log      slog.Logger
+	Clock    quartz.Clock
+	Database database.Store
+}
+
+func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
+	//nolint:gocritic // This gives us only the permissions required to do the job.
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
+
+	parentAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get parent agent: %w", err)
+	}
+
+	// NOTE(DanielleMaywood):
+	// This allows duplicate agent names to make it through.
+	// It would be nice if this was enforced at the database level.
+	agentName := req.Name
+	if agentName == "" {
+		return nil, xerrors.Errorf("agent name cannot be empty")
+	}
+	if !provisioner.AgentNameRegex.MatchString(agentName) {
+		return nil, xerrors.Errorf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex.String())
+	}
+
+	createdAt := a.Clock.Now()
+
+	devContainerAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		ID:                       uuid.New(),
+		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
+		CreatedAt:                createdAt,
+		UpdatedAt:                createdAt,
+		Name:                     agentName,
+		ResourceID:               parentAgent.ResourceID,
+		AuthToken:                uuid.New(),
+		AuthInstanceID:           parentAgent.AuthInstanceID,
+		Architecture:             req.Architecture,
+		EnvironmentVariables:     pqtype.NullRawMessage{},
+		OperatingSystem:          req.OperatingSystem,
+		Directory:                req.Directory,
+		InstanceMetadata:         pqtype.NullRawMessage{},
+		ResourceMetadata:         pqtype.NullRawMessage{},
+		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       parentAgent.TroubleshootingURL,
+		MOTDFile:                 "",
+		DisplayApps:              []database.DisplayApp{},
+		DisplayOrder:             0,
+		APIKeyScope:              parentAgent.APIKeyScope,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert dev container agent: %w", err)
+	}
+
+	return &agentproto.CreateDevContainerAgentResponse{
+		Id:        devContainerAgent.ID[:],
+		AuthToken: devContainerAgent.AuthToken[:],
+	}, nil
+}
+
+func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*agentproto.DeleteDevContainerAgentResponse, error) {
+	//nolint:gocritic // This gives us only the permissions required to do the job.
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
+
+	devContainerAgentID, err := uuid.FromBytes(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := a.Database.DeleteWorkspaceAgentByID(ctx, devContainerAgentID); err != nil {
+		return nil, err
+	}
+
+	return &agentproto.DeleteDevContainerAgentResponse{}, nil
+}
+
+func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
+	//nolint:gocritic // This gives us only the permissions required to do the job.
+	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
+
+	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, a.AgentID)
+	if err != nil {
+		return nil, err
+	}
+
+	agents := make([]*agentproto.ListDevContainerAgentsResponse_DevContainerAgent, len(workspaceAgents))
+
+	for i, agent := range workspaceAgents {
+		agents[i] = &agentproto.ListDevContainerAgentsResponse_DevContainerAgent{
+			Name: agent.Name,
+			Id:   agent.ID[:],
+		}
+	}
+
+	return &agentproto.ListDevContainerAgentsResponse{Agents: agents}, nil
+}
