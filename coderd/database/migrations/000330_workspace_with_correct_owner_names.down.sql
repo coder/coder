@@ -33,15 +33,6 @@ FROM (
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
 
--- Recreate `visible_users` as described in dump.sql
-DROP VIEW visible_users;
-
-CREATE VIEW visible_users AS
-SELECT users.id, users.username, users.avatar_url
-FROM users;
-
-COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
-
 -- Recreate `workspace_build_with_user` as described in dump.sql
 DROP VIEW workspace_build_with_user;
 
@@ -239,3 +230,12 @@ FROM (
     );
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+
+-- Recreate `visible_users` as described in dump.sql
+DROP VIEW visible_users;
+
+CREATE VIEW visible_users AS
+SELECT users.id, users.username, users.avatar_url
+FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
