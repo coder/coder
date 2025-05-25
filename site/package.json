@@ -190,11 +190,7 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": [
-		"chrome 110",
-		"firefox 111",
-		"safari 16.0"
-	],
+	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
