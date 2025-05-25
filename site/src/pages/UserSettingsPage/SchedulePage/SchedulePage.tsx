@@ -2,6 +2,7 @@ import {
 	updateUserQuietHoursSchedule,
 	userQuietHoursSchedule,
 } from "api/queries/settings";
+import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -10,7 +11,6 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
-import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
 
 const SchedulePage: FC = () => {
 	const { user: me } = useAuthenticated();

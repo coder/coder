@@ -5,6 +5,7 @@ import {
 	templateVersionLogs,
 	templateVersionVariables,
 } from "api/queries/templates";
+import type { Template, TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -14,7 +15,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
-import type { Template, TemplateVersion } from "api/typesGenerated";
 
 export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
 	onCreateTemplate,
