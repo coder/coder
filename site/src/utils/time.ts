@@ -3,6 +3,7 @@ import duration from "dayjs/plugin/duration";
 import relativeTimePlugin from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
+import humanizeDuration from "humanize-duration";
 
 // Load required plugins
 dayjs.extend(duration);
@@ -49,7 +50,11 @@ export function formatDateTime(
 
 // Duration functions
 export function humanDuration(durationInMs: number) {
-	return dayjs.duration(durationInMs).humanize();
+	return humanizeDuration(durationInMs, {
+		conjunction: " and ",
+		serialComma: false,
+		round: true,
+	});
 }
 
 export function durationInHours(durationMs: number): number {
