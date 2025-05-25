@@ -63,7 +63,7 @@ const CreateWorkspacePage: FC = () => {
 	);
 	const templateVersionPresetsQuery = useQuery({
 		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: templateQuery.data !== undefined,
+		enabled: !!templateQuery.data,
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
@@ -245,7 +245,7 @@ const useExternalAuth = (versionId: string | undefined) => {
 		setExternalAuthPollingState("polling");
 	}, []);
 
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
+	const { data: externalAuth, isPending: isLoadingExternalAuth } = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
 		enabled: !!versionId,
 		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
