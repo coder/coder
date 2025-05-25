@@ -27,12 +27,10 @@ import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
-export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
-	"workspace",
-	owner,
-	name,
-	"settings",
-];
+export const workspaceByOwnerAndNameKey = (
+	ownerUsername: string,
+	name: string,
+) => ["workspace", ownerUsername, name, "settings"];
 
 export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	return {
@@ -281,7 +279,7 @@ const updateWorkspaceBuild = async (
 	queryClient: QueryClient,
 ) => {
 	const workspaceKey = workspaceByOwnerAndNameKey(
-		build.workspace_owner_name,
+		build.workspace_owner_username,
 		build.workspace_name,
 	);
 	const previousData = queryClient.getQueryData<Workspace>(workspaceKey);
