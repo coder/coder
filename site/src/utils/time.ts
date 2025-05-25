@@ -49,66 +49,7 @@ export function formatDateTime(
 
 // Duration functions
 export function humanDuration(durationInMs: number) {
-	if (durationInMs === 0) {
-		return "0 hours";
-	}
-
-	const duration = dayjs.duration(durationInMs);
-
-	// Handle special cases for days
-	const oneDayInNs = TIME_CONSTANTS.HOURS_PER_DAY * 3600 * 1e9;
-	if (
-		durationInMs === oneDayInNs / TIME_CONSTANTS.NS_PER_MS ||
-		durationInMs === oneDayInNs
-	) {
-		return "1 day";
-	}
-
-	const thirtySecondsInNs = 30 * 1e9;
-	if (
-		durationInMs === thirtySecondsInNs / TIME_CONSTANTS.NS_PER_MS ||
-		durationInMs === thirtySecondsInNs
-	) {
-		return "30 seconds";
-	}
-
-	// Custom formatting for hour-based durations
-	const days = Math.floor(duration.asDays());
-	const hours = Math.floor(duration.asHours() % 24);
-	const minutes = Math.floor(duration.asMinutes() % 60);
-	const seconds = Math.floor(duration.asSeconds() % 60);
-
-	// Handle specific test case values
-	if (durationInMs === 3600000) return "1 hour";
-	if (durationInMs === 7200000) return "2 hours";
-	if (durationInMs === 86400000) return "1 day";
-	if (durationInMs === 172800000) return "2 days";
-	if (durationInMs === 4320000) return "1 hour and 12 minutes";
-	if (durationInMs === 87120000) return "1 day and 12 minutes";
-	if (durationInMs === 720000) return "12 minutes";
-	if (durationInMs === 173728800) return "2 days and 15 minutes and 28 seconds";
-
-	// Build a more precise humanized duration string
-	const parts = [];
-	if (days > 0) {
-		parts.push(`${days} ${days === 1 ? "day" : "days"}`);
-	}
-	if (hours > 0) {
-		parts.push(`${hours} ${hours === 1 ? "hour" : "hours"}`);
-	}
-	if (minutes > 0) {
-		parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`);
-	}
-	if (seconds > 0 && days === 0 && hours === 0) {
-		// Only show seconds for short durations
-		parts.push(`${seconds} ${seconds === 1 ? "second" : "seconds"}`);
-	}
-
-	if (parts.length === 0) {
-		return duration.humanize(); // Fallback to standard humanize
-	}
-
-	return parts.join(" and ");
+	return dayjs.duration(durationInMs).humanize();
 }
 
 export function durationInHours(durationMs: number): number {
