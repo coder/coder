@@ -136,12 +136,11 @@ export function relativeTimeWithoutSuffix(date: DateTimeInput) {
 	return dayjs(date).fromNow(true);
 }
 
-export function timeFromNow(
+export function timeFrom(
 	date: DateTimeInput,
-	referenceDate?: DateTimeInput,
+	referenceDate: DateTimeInput = new Date(),
 ) {
-	const reference = referenceDate ? dayjs(referenceDate) : dayjs();
-	return reference.from(dayjs(date));
+	return dayjs(date).from(dayjs(referenceDate));
 }
 
 // Time manipulation functions

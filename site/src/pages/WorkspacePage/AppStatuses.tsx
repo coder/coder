@@ -13,7 +13,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { timeFromNow } from "utils/time";
+import { timeFrom } from "utils/time";
 
 import {
 	ChevronDownIcon,
@@ -154,7 +154,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						{latestStatus.message}
 					</span>
 					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
-						{timeFromNow(new Date(latestStatus.created_at), comparisonDate)}
+						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
 					</span>
 				</div>
 
@@ -215,7 +215,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			{displayStatuses &&
 				otherStatuses.map((status) => {
 					const statusTime = new Date(status.created_at);
-					const formattedTimestamp = timeFromNow(statusTime, comparisonDate);
+					const formattedTimestamp = timeFrom(statusTime, comparisonDate);
 
 					return (
 						<div
