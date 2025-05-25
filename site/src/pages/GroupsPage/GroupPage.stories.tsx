@@ -99,7 +99,8 @@ export const MembersError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+		const combobox = await canvas.findByRole("combobox");
+		await userEvent.click(combobox);
 	},
 };
 
@@ -116,7 +117,8 @@ export const NoMembers: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+		const combobox = await canvas.findByRole("combobox");
+		await userEvent.click(combobox);
 	},
 };
 
