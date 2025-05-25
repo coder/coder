@@ -18,7 +18,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 }) => {
 	const tokenName = token?.token_name;
 
-	const { mutate: deleteToken, isLoading: isDeleting } =
+	const { mutate: deleteToken, isPending: isDeleting } =
 		useDeleteToken(queryKey);
 
 	const onDeleteSuccess = () => {

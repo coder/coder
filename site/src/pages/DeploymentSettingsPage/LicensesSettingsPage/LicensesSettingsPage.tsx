@@ -37,11 +37,12 @@ const LicensesSettingsPage: FC = () => {
 		}
 	}, [entitlementsQuery.error]);
 
-	const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
-		useMutation(API.removeLicense, {
+	const { mutate: removeLicenseApi, isPending: isRemovingLicense } =
+		useMutation({
+			mutationFn: API.removeLicense,
 			onSuccess: () => {
 				displaySuccess("Successfully removed license");
-				void queryClient.invalidateQueries(["licenses"]);
+				void queryClient.invalidateQueries({ queryKey: ["licenses"] });
 			},
 			onError: () => {
 				displayError("Failed to remove license");
@@ -77,7 +78,7 @@ const LicensesSettingsPage: FC = () => {
 			<LicensesSettingsPageView
 				showConfetti={confettiOn}
 				isLoading={isLoading}
-				isRefreshing={refreshEntitlementsMutation.isLoading}
+				isRefreshing={refreshEntitlementsMutation.isPending}
 				userLimitActual={entitlementsQuery.data?.features.user_limit.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit.limit}
 				licenses={licenses}

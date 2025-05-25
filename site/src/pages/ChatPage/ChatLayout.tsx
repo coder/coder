@@ -170,7 +170,7 @@ export const ChatLayout: FC = () => {
 						variant="outline"
 						size="sm"
 						onClick={handleNewChat}
-						disabled={createChatMutation.isLoading}
+						disabled={createChatMutation.isPending}
 					>
 						<PlusIcon />
 						New Chat

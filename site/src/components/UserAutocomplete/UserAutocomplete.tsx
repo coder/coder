@@ -15,7 +15,7 @@ import {
 	type FC,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
 
 // The common properties between users and org members that we need.
@@ -45,7 +45,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 			limit: 25,
 		}),
 		enabled: filter !== undefined,
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	return (
 		<InnerAutocomplete<User>
@@ -72,7 +72,7 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 	const membersQuery = useQuery({
 		...organizationMembers(organizationId),
 		enabled: filter !== undefined,
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	return (
 		<InnerAutocomplete<OrganizationMemberWithUserData>

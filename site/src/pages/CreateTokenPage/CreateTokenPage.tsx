@@ -24,11 +24,11 @@ const CreateTokenPage: FC = () => {
 
 	const {
 		mutate: saveToken,
-		isLoading: isCreating,
+		isPending: isCreating,
 		isError: creationFailed,
 		isSuccess: creationSuccessful,
 		data: newToken,
-	} = useMutation(API.createToken);
+	} = useMutation({ mutationFn: API.createToken });
 	const {
 		data: tokenConfig,
 		isLoading: fetchingTokenConfig,

@@ -222,7 +222,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse.diagnostics}
-					isSubmitting={updateParameters.isLoading}
+					isSubmitting={updateParameters.isPending}
 					onSubmit={handleSubmit}
 					onCancel={() =>
 						navigate(`/@${workspace.owner_name}/${workspace.name}`)

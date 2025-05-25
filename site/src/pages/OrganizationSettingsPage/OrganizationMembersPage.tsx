@@ -98,8 +98,8 @@ const OrganizationMembersPage: FC = () => {
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
-				isAddingMember={addMemberMutation.isLoading}
-				isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
+				isAddingMember={addMemberMutation.isPending}
+				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}

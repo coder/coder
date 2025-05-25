@@ -10,6 +10,7 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
+import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
 
 const SchedulePage: FC = () => {
 	const { user: me } = useAuthenticated();
@@ -25,7 +26,7 @@ const SchedulePage: FC = () => {
 	const {
 		mutate: onSubmit,
 		error: submitError,
-		isLoading: mutationLoading,
+		isPending: mutationLoading,
 	} = useMutation(updateUserQuietHoursSchedule(me.id, queryClient));
 
 	if (isLoading) {
@@ -44,7 +45,7 @@ const SchedulePage: FC = () => {
 		>
 			<ScheduleForm
 				isLoading={mutationLoading}
-				initialValues={quietHoursSchedule}
+				initialValues={quietHoursSchedule as UserQuietHoursScheduleResponse}
 				submitError={submitError}
 				onSubmit={(values) => {
 					onSubmit(values, {

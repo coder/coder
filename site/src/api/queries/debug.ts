@@ -13,7 +13,7 @@ export const health = () => ({
 export const refreshHealth = (queryClient: QueryClient) => {
 	return {
 		mutationFn: async () => {
-			await queryClient.cancelQueries(HEALTH_QUERY_KEY);
+			await queryClient.cancelQueries({ queryKey: HEALTH_QUERY_KEY });
 			const newHealthData = await API.getHealth(true);
 			queryClient.setQueryData(HEALTH_QUERY_KEY, newHealthData);
 		},
@@ -38,7 +38,7 @@ export const updateHealthSettings = (
 	return {
 		mutationFn: API.updateHealthSettings,
 		onSuccess: async (_, newSettings) => {
-			await queryClient.invalidateQueries(HEALTH_QUERY_KEY);
+			await queryClient.invalidateQueries({ queryKey: HEALTH_QUERY_KEY });
 			queryClient.setQueryData(HEALTH_QUERY_SETTINGS_KEY, newSettings);
 		},
 	};

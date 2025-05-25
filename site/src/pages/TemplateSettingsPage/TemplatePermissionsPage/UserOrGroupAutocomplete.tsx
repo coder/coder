@@ -7,7 +7,7 @@ import type { Group, ReducedUser } from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
 import { type ChangeEvent, type FC, useState } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
 import { getGroupSubtitle } from "utils/groups";
 
@@ -36,7 +36,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			limit: 25,
 		}),
 		enabled: autoComplete.open,
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	const options = aclAvailableQuery.data
 		? [
