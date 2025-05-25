@@ -114,22 +114,7 @@ function withQuery(Story, { parameters }) {
 
 	if (parameters.queries) {
 		for (const query of parameters.queries) {
-			if (query.isError) {
-				// Based on `setQueryData`, but modified to set the result as an error.
-				const cache = queryClient.getQueryCache();
-				const defaultedOptions = queryClient.defaultQueryOptions({
-					queryKey: query.key,
-					placeholderData: query.data,
-				});
-				// Adds an uninitialized response to the cache, which we can now mutate.
-				const cachedQuery = cache.build(queryClient, defaultedOptions);
-				// Setting `manual` prevents retries.
-				cachedQuery.setData(undefined, { manual: true });
-				// Set the `error` value and the appropriate status.
-				cachedQuery.setState({ error: query.data, status: "error" });
-			} else {
-				queryClient.setQueryData(query.key, query.data);
-			}
+			queryClient.setQueryData(query.key, query.data);
 		}
 	}
 
