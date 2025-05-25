@@ -8,6 +8,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
+import { humanDuration } from "utils/time";
 import { coderPort, defaultPassword } from "./constants";
 import { type LoginOptions, findSessionToken, randomName } from "./helpers";
 
@@ -295,13 +296,15 @@ export async function verifyConfigFlagDuration(
 	flag: string,
 ) {
 	const opt = findConfigOption(config, flag);
+	if (typeof opt.value !== "number") {
+		throw new Error(
+			`Option with env ${flag} should be a number, but got ${typeof opt.value}.`,
+		);
+	}
 	const configOption = page.locator(
 		`div.options-table .option-${flag} .option-value-string`,
 	);
-	//
-	await expect(configOption).toHaveText(
-		dayjs.duration((opt.value as number) / 1e6).humanize(),
-	);
+	await expect(configOption).toHaveText(humanDuration(opt.value / 1e6));
 }
 
 export function findConfigOption(

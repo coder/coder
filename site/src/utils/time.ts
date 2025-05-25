@@ -54,6 +54,7 @@ export function humanDuration(durationInMs: number) {
 		conjunction: " and ",
 		serialComma: false,
 		round: true,
+		units: ["y", "mo", "w", "d", "h", "m", "s", "ms"],
 	});
 }
 
