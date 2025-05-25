@@ -84,7 +84,7 @@ import {
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
-export interface WorkspacesTableProps {
+interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;

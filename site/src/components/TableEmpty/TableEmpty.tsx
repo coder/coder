@@ -6,7 +6,7 @@ import {
 } from "components/EmptyState/EmptyState";
 import type { FC } from "react";
 
-export type TableEmptyProps = EmptyStateProps;
+type TableEmptyProps = EmptyStateProps;
 
 export const TableEmpty: FC<TableEmptyProps> = (props) => {
 	return (

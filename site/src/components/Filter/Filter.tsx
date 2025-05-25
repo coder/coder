@@ -18,7 +18,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import type { useSearchParams } from "react-router-dom";
 
-export type PresetFilter = {
+type PresetFilter = {
 	name: string;
 	query: string;
 };

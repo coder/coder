@@ -31,7 +31,7 @@ export const Language = {
 	activeVersionHelpBody: "Review the documentation",
 };
 
-export type PublishTemplateVersionDialogProps = DialogProps & {
+type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;
 	isPublishing: boolean;
 	publishingError?: unknown;

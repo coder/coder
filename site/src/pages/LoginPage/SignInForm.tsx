@@ -50,7 +50,7 @@ const styles = {
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface SignInFormProps {
+interface SignInFormProps {
 	isSigningIn: boolean;
 	redirectTo: string;
 	error?: unknown;

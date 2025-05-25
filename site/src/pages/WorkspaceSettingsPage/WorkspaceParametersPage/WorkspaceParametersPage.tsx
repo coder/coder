@@ -92,7 +92,7 @@ const WorkspaceParametersPage: FC = () => {
 	);
 };
 
-export type WorkspaceParametersPageViewProps = {
+type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	canChangeVersions: boolean;
 	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;

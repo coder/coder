@@ -16,7 +16,8 @@ import {
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
 import { docs } from "utils/docs";
-export type WorkspaceParametersPageViewExperimentalProps = {
+
+type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];

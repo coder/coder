@@ -355,7 +355,7 @@ export const agentLogs = (agentId: string) => {
 };
 
 // workspace usage options
-export interface WorkspaceUsageOptions {
+interface WorkspaceUsageOptions {
 	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;

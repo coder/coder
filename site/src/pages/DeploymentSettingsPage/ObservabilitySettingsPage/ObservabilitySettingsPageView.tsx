@@ -22,7 +22,7 @@ import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import OptionsTable from "../OptionsTable";
 
-export type ObservabilitySettingsPageViewProps = {
+type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
 	isPremium: boolean;

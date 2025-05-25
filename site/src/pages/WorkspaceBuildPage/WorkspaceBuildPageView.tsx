@@ -48,7 +48,7 @@ const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
 	);
 };
 
-export interface WorkspaceBuildPageViewProps {
+interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
 	build: WorkspaceBuild | undefined;
 	buildError?: unknown;

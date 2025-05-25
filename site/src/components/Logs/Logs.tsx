@@ -5,7 +5,7 @@ import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 
-export interface LogsProps {
+interface LogsProps {
 	lines: Line[];
 	hideTimestamps?: boolean;
 	className?: string;

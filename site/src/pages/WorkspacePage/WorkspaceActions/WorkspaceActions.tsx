@@ -25,7 +25,7 @@ import {
 import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
 
-export interface WorkspaceActionsProps {
+interface WorkspaceActionsProps {
 	workspace: Workspace;
 	isUpdating: boolean;
 	isRestarting: boolean;

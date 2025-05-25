@@ -4,7 +4,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 
-export interface SelectedTemplateProps {
+interface SelectedTemplateProps {
 	template: Template | TemplateExample;
 }
 

@@ -22,7 +22,7 @@ import {
 } from "utils/richParameters";
 import * as Yup from "yup";
 
-export type UpdateBuildParametersDialogProps = DialogProps & {
+type UpdateBuildParametersDialogProps = DialogProps & {
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 	missedParameters: TemplateVersionParameter[];
