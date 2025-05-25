@@ -55,6 +55,7 @@ export function humanDuration(durationInMs: number) {
 		serialComma: false,
 		round: true,
 		units: ["y", "mo", "w", "d", "h", "m", "s", "ms"],
+		largest: 3,
 	});
 }
 
