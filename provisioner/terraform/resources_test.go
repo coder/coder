@@ -786,6 +786,7 @@ func TestConvertResources(t *testing.T) {
 					Name:                     "dev",
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
+					ApiKeyScope:              "all",
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
