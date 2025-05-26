@@ -65,11 +65,11 @@ var opts = map[uint]options{
 	},
 	optionSet3: {
 		templateID:          templateID,
-		templateVersionID:   uuid.UUID{31},
-		presetID:            uuid.UUID{32},
+		templateVersionID:   uuid.UUID{41},
+		presetID:            uuid.UUID{42},
 		presetName:          "my-preset",
-		prebuiltWorkspaceID: uuid.UUID{33},
-		workspaceName:       "prebuilds2",
+		prebuiltWorkspaceID: uuid.UUID{43},
+		workspaceName:       "prebuilds3",
 		ttl:                 5, // seconds
 	},
 }
