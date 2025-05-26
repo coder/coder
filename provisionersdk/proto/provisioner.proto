@@ -57,8 +57,16 @@ message RichParameterValue {
     string value = 2;
 }
 
+// ExpirationPolicy defines the policy for expiring unclaimed prebuilds.
+// If a prebuild remains unclaimed for longer than ttl seconds, it is deleted and
+// recreated to prevent staleness.
+message ExpirationPolicy {
+	int32 ttl = 1;
+}
+
 message Prebuild {
     int32 instances = 1;
+	ExpirationPolicy expiration_policy = 2;
 }
 
 // Preset represents a set of preset parameters for a template version.

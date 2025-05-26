@@ -35,6 +35,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.invalidate_after_secs 	AS ttl,
 		tvp.prebuild_status,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
