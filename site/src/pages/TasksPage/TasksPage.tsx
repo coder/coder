@@ -45,6 +45,8 @@ import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/Worksp
 import type { FC, PropsWithChildren, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { relativeTime } from "utils/time";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 const TasksPage: FC = () => {
 	const {
@@ -53,7 +55,7 @@ const TasksPage: FC = () => {
 		refetch,
 	} = useQuery({
 		queryKey: ["templates", "ai"],
-		queryFn: fetchAITemplates,
+		queryFn: data.fetchAITemplates,
 		...disabledRefetchOptions,
 	});
 
@@ -61,16 +63,16 @@ const TasksPage: FC = () => {
 
 	if (error) {
 		const message = getErrorMessage(error, "Error loading AI templates");
-		const detail = getErrorDetail(error);
+		const detail = getErrorDetail(error) ?? "Please, try again";
 
 		content = (
-			<div className="rounded border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
-				<div className="flex flex-col items-center gap-2">
-					<h3 className="m-0 font-medium text-content-primary">{message}</h3>
-					{detail && (
-						<span className="text-content-secondary text-sm">{detail}</span>
-					)}
-					<Button onClick={() => refetch()}>
+			<div className="border border-solid rounded-lg w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						{message}
+					</h3>
+					<span className="text-content-secondary text-sm">{detail}</span>
+					<Button size="sm" onClick={() => refetch()} className="mt-4">
 						<RotateCcwIcon />
 						Try again
 					</Button>
@@ -80,15 +82,15 @@ const TasksPage: FC = () => {
 	} else if (templates) {
 		content =
 			templates.length === 0 ? (
-				<div className="rounded border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
-					<div className="flex flex-col items-center gap-2">
-						<h3 className="m-0 font-medium text-content-primary">
+				<div className="rounded-lg border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
+					<div className="flex flex-col items-center">
+						<h3 className="m-0 font-medium text-content-primary text-base">
 							No AI templates found
 						</h3>
 						<span className="text-content-secondary text-sm">
 							Create an AI template to get started
 						</span>
-						<Button variant="outline">
+						<Button size="sm" className="mt-4">
 							<ExternalLinkIcon />
 							Read the docs
 						</Button>
@@ -102,28 +104,41 @@ const TasksPage: FC = () => {
 			);
 	} else {
 		content = (
-			<div className="flex items-center justify-center w-full min-h-80">
-				<Spinner loading />
+			<div className="rounded-lg border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<Spinner loading className="mb-4" />
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Loading AI templates
+					</h3>
+					<span className="text-content-secondary text-sm">
+						This might take a few minutes
+					</span>
+				</div>
 			</div>
 		);
 	}
 
 	return (
-		<Margins>
-			<PageHeader
-				actions={
-					<Button variant="outline">
-						<ExternalLinkIcon />
-						Read the docs
-					</Button>
-				}
-			>
-				<PageHeaderTitle>Tasks</PageHeaderTitle>
-				<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
-			</PageHeader>
+		<>
+			<Helmet>
+				<title>{pageTitle("AI Tasks")}</title>
+			</Helmet>
+			<Margins>
+				<PageHeader
+					actions={
+						<Button variant="outline">
+							<ExternalLinkIcon />
+							Read the docs
+						</Button>
+					}
+				>
+					<PageHeaderTitle>Tasks</PageHeaderTitle>
+					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
+				</PageHeader>
 
-			{content}
-		</Margins>
+				{content}
+			</Margins>
+		</>
 	);
 };
 
@@ -178,27 +193,29 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 		refetch,
 	} = useQuery({
 		queryKey: ["tasks"],
-		queryFn: () => fetchTasks(templates),
+		queryFn: () => data.fetchTasks(templates),
 	});
 
 	let body: ReactNode = null;
 
 	if (error) {
 		const message = getErrorMessage(error, "Error loading tasks");
-		const detail = getErrorDetail(error);
+		const detail = getErrorDetail(error) ?? "Please, try again";
 
 		body = (
 			<TableRow>
 				<TableCell colSpan={4} className="text-center">
-					<div className="flex flex-col items-center gap-2">
-						<h3 className="m-0 font-medium text-content-primary">{message}</h3>
-						{detail && (
+					<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
+						<div className="flex flex-col items-center">
+							<h3 className="m-0 font-medium text-content-primary text-base">
+								{message}
+							</h3>
 							<span className="text-content-secondary text-sm">{detail}</span>
-						)}
-						<Button onClick={() => refetch()}>
-							<RotateCcwIcon />
-							Try again
-						</Button>
+							<Button size="sm" onClick={() => refetch()} className="mt-4">
+								<RotateCcwIcon />
+								Try again
+							</Button>
+						</div>
 					</div>
 				</TableCell>
 			</TableRow>
@@ -208,13 +225,15 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 			tasks.length === 0 ? (
 				<TableRow>
 					<TableCell colSpan={4} className="text-center">
-						<div className="flex flex-col items-center gap-2">
-							<h3 className="m-0 font-medium text-content-primary">
-								No tasks found
-							</h3>
-							<span className="text-content-secondary text-sm">
-								Use the form above to run a task
-							</span>
+						<div className="w-full min-h-80 p-4 flex items-center justify-center">
+							<div className="flex flex-col items-center">
+								<h3 className="m-0 font-medium text-content-primary text-base">
+									No tasks found
+								</h3>
+								<span className="text-content-secondary text-sm">
+									Use the form above to run a task
+								</span>
+							</div>
 						</div>
 					</TableCell>
 				</TableRow>
@@ -227,7 +246,6 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 						.flatMap((r) => r.agents)
 						.find((a) => a?.id === status?.agent_id);
 					const app = agent?.apps.find((a) => a.id === status?.app_id);
-					console.log("TT ->>>", workspace.latest_build.resources);
 
 					return (
 						<TableRow key={workspace.id}>
@@ -255,7 +273,11 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 							<TableCell>
 								<AvatarData
 									title={workspace.owner_name}
-									subtitle={relativeTime(new Date(workspace.created_at))}
+									subtitle={
+										<span className="block first-letter:uppercase">
+											{relativeTime(new Date(workspace.created_at))}
+										</span>
+									}
 									src={workspace.owner_avatar_url}
 								/>
 							</TableCell>
@@ -271,8 +293,18 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 	} else {
 		body = (
 			<TableRow>
-				<TableCell colSpan={4} className="text-center">
-					<Spinner loading />
+				<TableCell colSpan={4}>
+					<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
+						<div className="flex flex-col items-center">
+							<Spinner loading className="mb-4" />
+							<h3 className="m-0 font-medium text-content-primary text-base">
+								Loading tasks
+							</h3>
+							<span className="text-content-secondary text-sm">
+								This might take a few minutes
+							</span>
+						</div>
+					</div>
 				</TableCell>
 			</TableRow>
 		);
@@ -358,64 +390,69 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 	);
 };
 
-// TODO: This function is currently inefficient because it fetches all templates
-// and their parameters individually, resulting in many API calls and slow
-// performance. After confirming the requirements, consider adding a backend
-// endpoint that returns only AI templates (those with an "AI Prompt" parameter)
-// in a single request.
-async function fetchAITemplates() {
-	const templates = await API.getTemplates();
-	const parameters = await Promise.all(
-		templates.map(async (template) =>
-			API.getTemplateVersionRichParameters(template.active_version_id),
-		),
-	);
-	return templates.filter((_template, index) => {
-		return parameters[index].some((p) => p.name === "AI Prompt");
-	});
-}
-
 type Task = {
 	workspace: Workspace;
 	prompt: string;
 };
 
-// TODO: This function is inefficient because it fetches workspaces for each
-// template individually and its build parameters resulting in excessive API
-// calls and slow performance. Consider implementing a backend endpoint that
-// returns all AI-related workspaces in a single request to improve efficiency.
-async function fetchTasks(aiTemplates: Template[]) {
-	const workspaces = await Promise.all(
-		aiTemplates.map((template) => {
-			return API.getWorkspaces({ q: `template:${template.name}`, limit: 100 });
-		}),
-	).then((results) =>
-		results
-			.flatMap((r) => r.workspaces)
-			.toSorted((a, b) => {
-				return (
-					new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-				);
+export const data = {
+	// TODO: This function is currently inefficient because it fetches all templates
+	// and their parameters individually, resulting in many API calls and slow
+	// performance. After confirming the requirements, consider adding a backend
+	// endpoint that returns only AI templates (those with an "AI Prompt" parameter)
+	// in a single request.
+	async fetchAITemplates() {
+		const templates = await API.getTemplates();
+		const parameters = await Promise.all(
+			templates.map(async (template) =>
+				API.getTemplateVersionRichParameters(template.active_version_id),
+			),
+		);
+		return templates.filter((_template, index) => {
+			return parameters[index].some((p) => p.name === "AI Prompt");
+		});
+	},
+
+	// TODO: This function is inefficient because it fetches workspaces for each
+	// template individually and its build parameters resulting in excessive API
+	// calls and slow performance. Consider implementing a backend endpoint that
+	// returns all AI-related workspaces in a single request to improve efficiency.
+	async fetchTasks(aiTemplates: Template[]) {
+		const workspaces = await Promise.all(
+			aiTemplates.map((template) => {
+				return API.getWorkspaces({
+					q: `template:${template.name}`,
+					limit: 100,
+				});
 			}),
-	);
+		).then((results) =>
+			results
+				.flatMap((r) => r.workspaces)
+				.toSorted((a, b) => {
+					return (
+						new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+					);
+				}),
+		);
 
-	return Promise.all(
-		workspaces.map(async (workspace) => {
-			const parameters = await API.getWorkspaceBuildParameters(
-				workspace.latest_build.id,
-			);
-			const prompt = parameters.find((p) => p.name === "AI Prompt")?.value;
+		return Promise.all(
+			workspaces.map(async (workspace) => {
+				const parameters = await API.getWorkspaceBuildParameters(
+					workspace.latest_build.id,
+				);
+				const prompt = parameters.find((p) => p.name === "AI Prompt")?.value;
 
-			if (!prompt) {
-				return;
-			}
+				if (!prompt) {
+					return;
+				}
 
-			return {
-				workspace,
-				prompt,
-			} satisfies Task;
-		}),
-	).then((tasks) => tasks.filter((t) => t !== undefined));
-}
+				return {
+					workspace,
+					prompt,
+				} satisfies Task;
+			}),
+		).then((tasks) => tasks.filter((t) => t !== undefined));
+	},
+};
 
 export default TasksPage;
