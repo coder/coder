@@ -12,6 +12,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
@@ -62,6 +63,7 @@
         ],
         "before": null,
         "after": {
+          "api_key_scope": "all",
           "arch": "arm64",
           "auth": "token",
           "connection_timeout": 120,
@@ -134,6 +136,7 @@
               "description": null,
               "display_name": null,
               "ephemeral": false,
+              "form_type": "radio",
               "icon": null,
               "id": "8bdcc469-97c7-4efc-88a6-7ab7ecfefad5",
               "mutable": false,
@@ -154,6 +157,7 @@
               ],
               "optional": false,
               "order": null,
+              "styling": "{}",
               "type": "string",
               "validation": [],
               "value": ""
@@ -178,6 +182,7 @@
               "description": null,
               "display_name": null,
               "ephemeral": false,
+              "form_type": "input",
               "icon": null,
               "id": "ba77a692-d2c2-40eb-85ce-9c797235da62",
               "mutable": false,
@@ -185,6 +190,7 @@
               "option": null,
               "optional": true,
               "order": null,
+              "styling": "{}",
               "type": "number",
               "validation": [],
               "value": "4"
@@ -205,6 +211,7 @@
               "description": null,
               "display_name": null,
               "ephemeral": false,
+              "form_type": "input",
               "icon": null,
               "id": "89e0468f-9958-4032-a8b9-b25236158608",
               "mutable": false,
@@ -212,6 +219,7 @@
               "option": null,
               "optional": true,
               "order": null,
+              "styling": "{}",
               "type": "number",
               "validation": [
                 {
@@ -244,6 +252,7 @@
               "description": null,
               "display_name": null,
               "ephemeral": false,
+              "form_type": "input",
               "icon": null,
               "id": "dac2ff5a-a18b-4495-97b6-80981a54e006",
               "mutable": false,
@@ -251,6 +260,7 @@
               "option": null,
               "optional": true,
               "order": null,
+              "styling": "{}",
               "type": "number",
               "validation": [
                 {
@@ -283,6 +293,7 @@
               "description": null,
               "display_name": null,
               "ephemeral": false,
+              "form_type": "input",
               "icon": null,
               "id": "963de99d-dcc0-4ab9-923f-8a0f061333dc",
               "mutable": false,
@@ -290,6 +301,7 @@
               "option": null,
               "optional": true,
               "order": null,
+              "styling": "{}",
               "type": "number",
               "validation": [
                 {
@@ -322,6 +334,7 @@
               "description": "blah blah",
               "display_name": null,
               "ephemeral": false,
+              "form_type": "input",
               "icon": null,
               "id": "9c99eaa2-360f-4bf7-969b-5e270ff8c75d",
               "mutable": false,
@@ -329,6 +342,7 @@
               "option": null,
               "optional": true,
               "order": null,
+              "styling": "{}",
               "type": "string",
               "validation": [],
               "value": "ok"
@@ -353,6 +367,7 @@
                   "description": "First parameter from module",
                   "display_name": null,
                   "ephemeral": false,
+                  "form_type": "input",
                   "icon": null,
                   "id": "baa03cd7-17f5-4422-8280-162d963a48bc",
                   "mutable": true,
@@ -360,6 +375,7 @@
                   "option": null,
                   "optional": true,
                   "order": null,
+                  "styling": "{}",
                   "type": "string",
                   "validation": [],
                   "value": "abcdef"
@@ -380,6 +396,7 @@
                   "description": "Second parameter from module",
                   "display_name": null,
                   "ephemeral": false,
+                  "form_type": "input",
                   "icon": null,
                   "id": "4c0ed40f-0047-4da0-b0a1-9af7b67524b4",
                   "mutable": true,
@@ -387,6 +404,7 @@
                   "option": null,
                   "optional": true,
                   "order": null,
+                  "styling": "{}",
                   "type": "string",
                   "validation": [],
                   "value": "ghijkl"
@@ -412,6 +430,7 @@
                       "description": "First parameter from child module",
                       "display_name": null,
                       "ephemeral": false,
+                      "form_type": "input",
                       "icon": null,
                       "id": "f48b69fc-317e-426e-8195-dfbed685b3f5",
                       "mutable": true,
@@ -419,6 +438,7 @@
                       "option": null,
                       "optional": true,
                       "order": null,
+                      "styling": "{}",
                       "type": "string",
                       "validation": [],
                       "value": "abcdef"
@@ -439,6 +459,7 @@
                       "description": "Second parameter from child module",
                       "display_name": null,
                       "ephemeral": false,
+                      "form_type": "input",
                       "icon": null,
                       "id": "c6d10437-e74d-4a34-8da7-5125234d7dd4",
                       "mutable": true,
@@ -446,6 +467,7 @@
                       "option": null,
                       "optional": true,
                       "order": null,
+                      "styling": "{}",
                       "type": "string",
                       "validation": [],
                       "value": "ghijkl"
