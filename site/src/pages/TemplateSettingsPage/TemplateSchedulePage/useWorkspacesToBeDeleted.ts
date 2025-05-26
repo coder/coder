@@ -1,6 +1,6 @@
 import { workspaces } from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
-import { compareAsc } from "date-fns";
+import dayjs from "dayjs";
 import { useQuery } from "react-query";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 
@@ -29,7 +29,10 @@ export const useWorkspacesToGoDormant = (
 				formValues.time_til_dormant_ms,
 		);
 
-		if (compareAsc(proposedLocking, fromDate) < 1) {
+		if (
+			dayjs(proposedLocking).isBefore(dayjs(fromDate)) ||
+			dayjs(proposedLocking).isSame(dayjs(fromDate))
+		) {
 			return workspace;
 		}
 	});
@@ -56,7 +59,10 @@ export const useWorkspacesToBeDeleted = (
 				formValues.time_til_dormant_autodelete_ms,
 		);
 
-		if (compareAsc(proposedLocking, fromDate) < 1) {
+		if (
+			dayjs(proposedLocking).isBefore(dayjs(fromDate)) ||
+			dayjs(proposedLocking).isSame(dayjs(fromDate))
+		) {
 			return workspace;
 		}
 	});

@@ -21,13 +21,8 @@ import {
 	StackLabel,
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
-import { formatDuration, intervalToDuration } from "date-fns";
 import dayjs from "dayjs";
-import advancedFormat from "dayjs/plugin/advancedFormat";
-import duration from "dayjs/plugin/duration";
-import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { type FormikTouched, useFormik } from "formik";
 import {
 	defaultSchedule,
@@ -35,15 +30,11 @@ import {
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import type { ChangeEvent, FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
+import { humanDuration } from "utils/time";
 import { timeZones } from "utils/timeZones";
 import * as Yup from "yup";
 
-// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
-//         sorted alphabetically.
-dayjs.extend(utc);
-dayjs.extend(advancedFormat);
-dayjs.extend(duration);
-dayjs.extend(relativeTime);
+// Need dayjs.tz functions for timezone validation
 dayjs.extend(timezone);
 
 export const Language = {
@@ -163,6 +154,7 @@ export const validationSchema = Yup.object({
 			// Unfortunately, there's not a good API on dayjs at this time for
 			// evaluating a timezone. Attempt to parse today in the supplied timezone
 			// and return as valid if the function doesn't throw.
+			// Need to use dayjs.tz directly here as our utility functions don't expose validation
 			try {
 				dayjs.tz(dayjs(), value);
 				return true;
@@ -394,10 +386,8 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					<>
 						Set how many hours should elapse after the workspace started before
 						the workspace automatically shuts down. This will be extended by{" "}
-						{dayjs
-							.duration({ milliseconds: template.activity_bump_ms })
-							.humanize()}{" "}
-						after last activity in the workspace was detected.
+						{humanDuration(template.activity_bump_ms)} after last activity in
+						the workspace was detected.
 					</>
 				}
 			>
@@ -471,10 +461,7 @@ export const ttlShutdownAt = (formTTL: number): string => {
 	}
 
 	try {
-		return `Your workspace will shut down ${formatDuration(
-			intervalToDuration({ start: 0, end: formTTL * 60 * 60 * 1000 }),
-			{ delimiter: " and " },
-		)} after its next start.`;
+		return `Your workspace will shut down ${humanDuration(formTTL * 60 * 60 * 1000)} after its next start.`;
 	} catch (e) {
 		if (e instanceof RangeError) {
 			return Language.errorTtlMax;
