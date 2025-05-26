@@ -38,8 +38,8 @@ import {
 } from "./permissions";
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
-export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
+type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePageExperimental: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =

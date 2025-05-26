@@ -16,7 +16,7 @@ import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 
-export interface StarterTemplatePageViewProps {
+interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
 	error?: unknown;
 }

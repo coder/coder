@@ -61,7 +61,7 @@ import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-export interface CreateWorkspacePageViewExperimentalProps {
+interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
 	creatingWorkspace: boolean;
 	defaultName?: string | null;

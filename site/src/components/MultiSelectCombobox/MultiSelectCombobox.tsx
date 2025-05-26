@@ -97,7 +97,7 @@ interface MultiSelectComboboxProps {
 	hideClearAllButton?: boolean;
 }
 
-export interface MultiSelectComboboxRef {
+interface MultiSelectComboboxRef {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;

@@ -172,7 +172,7 @@ type CopiedTemplateForm = { copiedTemplate: Template };
 type StarterTemplateForm = { starterTemplate: TemplateExample };
 type UploadTemplateForm = { upload: TemplateUploadProps };
 
-export type CreateTemplateFormProps = (
+type CreateTemplateFormProps = (
 	| CopiedTemplateForm
 	| StarterTemplateForm
 	| UploadTemplateForm

@@ -10,7 +10,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { type ComponentProps, type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
-export type OrganizationAutocompleteProps = {
+type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
 	label?: string;
 	className?: string;

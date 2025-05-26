@@ -24,7 +24,7 @@ const TIME_CONSTANTS = {
 };
 
 export type TimeUnit = "days" | "hours";
-export type DateTimeInput = Date | string | number | Dayjs | null | undefined;
+type DateTimeInput = Date | string | number | Dayjs | null | undefined;
 
 // Standard format strings
 // https://day.js.org/docs/en/display/format

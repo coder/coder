@@ -62,7 +62,7 @@ import {
 } from "utils/portForward";
 import * as Yup from "yup";
 
-export interface PortForwardButtonProps {
+interface PortForwardButtonProps {
 	host: string;
 	username: string;
 	workspaceName: string;

@@ -31,7 +31,7 @@ const Language = {
 	subtitle: "View events in your audit log.",
 };
 
-export interface AuditPageViewProps {
+interface AuditPageViewProps {
 	auditLogs?: readonly AuditLog[];
 	isNonInitialPage: boolean;
 	isAuditLogVisible: boolean;

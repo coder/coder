@@ -1,7 +1,7 @@
 import type { CSSObject } from "@emotion/react";
 import { forwardRef } from "react";
 
-export type StackProps = {
+type StackProps = {
 	className?: string;
 	direction?: "column" | "row";
 	spacing?: number;

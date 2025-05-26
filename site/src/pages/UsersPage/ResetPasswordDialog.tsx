@@ -3,7 +3,7 @@ import { CodeExample } from "components/CodeExample/CodeExample";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { FC } from "react";
 
-export interface ResetPasswordDialogProps {
+interface ResetPasswordDialogProps {
 	open: boolean;
 	onClose: () => void;
 	onConfirm: () => void;

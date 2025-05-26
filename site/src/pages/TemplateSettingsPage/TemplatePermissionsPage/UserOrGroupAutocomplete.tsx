@@ -13,7 +13,7 @@ import { getGroupSubtitle } from "utils/groups";
 
 export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
 
-export type UserOrGroupAutocompleteProps = {
+type UserOrGroupAutocompleteProps = {
 	value: UserOrGroupAutocompleteValue;
 	onChange: (value: UserOrGroupAutocompleteValue) => void;
 	templateID: string;

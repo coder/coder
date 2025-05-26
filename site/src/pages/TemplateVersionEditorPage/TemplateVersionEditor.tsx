@@ -64,7 +64,7 @@ import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
-export interface TemplateVersionEditorProps {
+interface TemplateVersionEditorProps {
 	template: Template;
 	templateVersion: TemplateVersion;
 	defaultFileTree: FileTree;

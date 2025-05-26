@@ -14,7 +14,7 @@ import type { Autostop } from "./ttl";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export interface AutostartSchedule {
+interface AutostartSchedule {
 	sunday: boolean;
 	monday: boolean;
 	tuesday: boolean;
@@ -26,7 +26,7 @@ export interface AutostartSchedule {
 	timezone: string;
 }
 
-export type Autostart = {
+type Autostart = {
 	autostartEnabled: boolean;
 } & AutostartSchedule;
 
