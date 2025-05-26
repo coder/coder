@@ -3368,10 +3368,20 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
-	readonly running: boolean;
+	readonly status: WorkspaceAgentDevcontainerStatus;
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 }
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentDevcontainerStatus =
+	| "error"
+	| "running"
+	| "starting"
+	| "stopped";
+
+export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
+	["error", "running", "starting", "stopped"];
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentDevcontainersResponse {
