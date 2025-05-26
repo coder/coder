@@ -16,6 +16,7 @@
             "description": "blah blah",
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "491d202d-5658-40d9-9adc-fd3a67f6042b",
             "mutable": false,
@@ -23,6 +24,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "string",
             "validation": [],
             "value": "ok"
@@ -46,6 +48,11 @@
             },
             "prebuilds": [
               {
+                "expiration_policy": [
+                  {
+                    "ttl": 86400
+                  }
+                ],
                 "instances": 4
               }
             ]
@@ -53,7 +60,11 @@
           "sensitive_values": {
             "parameters": {},
             "prebuilds": [
-              {}
+              {
+                "expiration_policy": [
+                  {}
+                ]
+              }
             ]
           }
         },
@@ -65,6 +76,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
@@ -133,6 +145,7 @@
                 "description": "First parameter from module",
                 "display_name": null,
                 "ephemeral": false,
+                "form_type": "input",
                 "icon": null,
                 "id": "0a4d1299-b174-43b0-91ad-50c1ca9a4c25",
                 "mutable": true,
@@ -140,6 +153,7 @@
                 "option": null,
                 "optional": true,
                 "order": null,
+                "styling": "{}",
                 "type": "string",
                 "validation": [],
                 "value": "abcdef"
@@ -160,6 +174,7 @@
                 "description": "Second parameter from module",
                 "display_name": null,
                 "ephemeral": false,
+                "form_type": "input",
                 "icon": null,
                 "id": "f0812474-29fd-4c3c-ab40-9e66e36d4017",
                 "mutable": true,
@@ -167,6 +182,7 @@
                 "option": null,
                 "optional": true,
                 "order": null,
+                "styling": "{}",
                 "type": "string",
                 "validation": [],
                 "value": "ghijkl"
@@ -192,6 +208,7 @@
                     "description": "First parameter from child module",
                     "display_name": null,
                     "ephemeral": false,
+                    "form_type": "input",
                     "icon": null,
                     "id": "27b5fae3-7671-4e61-bdfe-c940627a21b8",
                     "mutable": true,
@@ -199,6 +216,7 @@
                     "option": null,
                     "optional": true,
                     "order": null,
+                    "styling": "{}",
                     "type": "string",
                     "validation": [],
                     "value": "abcdef"
@@ -219,6 +237,7 @@
                     "description": "Second parameter from child module",
                     "display_name": null,
                     "ephemeral": false,
+                    "form_type": "input",
                     "icon": null,
                     "id": "d285bb17-27ff-4a49-a12b-28582264b4d9",
                     "mutable": true,
@@ -226,6 +245,7 @@
                     "option": null,
                     "optional": true,
                     "order": null,
+                    "styling": "{}",
                     "type": "string",
                     "validation": [],
                     "value": "ghijkl"
