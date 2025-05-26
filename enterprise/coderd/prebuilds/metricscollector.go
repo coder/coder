@@ -85,7 +85,7 @@ var (
 	)
 	presetHardLimitedDesc = prometheus.NewDesc(
 		MetricPresetHardLimitedGauge,
-		"Indicates whether a given preset has reached the hard failure limit (1 for hard-limited, 0 otherwise).",
+		"Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.",
 		labels,
 		nil,
 	)
