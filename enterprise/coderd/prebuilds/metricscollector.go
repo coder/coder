@@ -286,5 +286,9 @@ func (mc *MetricsCollector) trackHardLimitedStatus(orgName, templateName, preset
 
 	key := hardLimitedPresetKey{orgName: orgName, templateName: templateName, presetName: presetName}
 
-	mc.isPresetHardLimited[key] = isHardLimited
+	if isHardLimited {
+		mc.isPresetHardLimited[key] = true
+	} else {
+		delete(mc.isPresetHardLimited, key)
+	}
 }
