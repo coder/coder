@@ -120,7 +120,8 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 			}
 			if api.devcontainerLogSourceIDs[dc.WorkspaceFolder] == uuid.Nil {
 				api.logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer",
-					slog.F("devcontainer", dc.Name),
+					slog.F("devcontainer_id", dc.ID),
+					slog.F("devcontainer_name", dc.Name),
 					slog.F("workspace_folder", dc.WorkspaceFolder),
 					slog.F("config_path", dc.ConfigPath),
 				)
@@ -633,8 +634,8 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		err    error
 		ctx    = api.ctx
 		logger = api.logger.With(
-			slog.F("id", dc.ID),
-			slog.F("name", dc.Name),
+			slog.F("devcontainer_id", dc.ID),
+			slog.F("devcontainer_name", dc.Name),
 			slog.F("workspace_folder", dc.WorkspaceFolder),
 			slog.F("config_path", configPath),
 		)
@@ -759,9 +760,10 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 		}
 
 		logger := api.logger.With(
-			slog.F("file", configPath),
-			slog.F("name", dc.Name),
+			slog.F("devcontainer_id", dc.ID),
+			slog.F("devcontainer_name", dc.Name),
 			slog.F("workspace_folder", dc.WorkspaceFolder),
+			slog.F("file", configPath),
 			slog.F("modified_at", modifiedAt),
 		)
 
