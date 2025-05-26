@@ -1,7 +1,18 @@
+import {
+	TooltipProvider,
+	TooltipTrigger,
+	TooltipContent,
+	Tooltip,
+} from "components/Tooltip/Tooltip";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { disabledRefetchOptions } from "api/queries/util";
-import type { Template, Workspace } from "api/typesGenerated";
+import type {
+	Template,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceApp,
+} from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
@@ -29,8 +40,9 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
+import { useAppLink } from "modules/apps/useAppLink";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import type { FC, ReactNode } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { relativeTime } from "utils/time";
 
@@ -210,6 +222,12 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 				tasks.map(({ workspace, prompt }) => {
 					const templateDisplayName =
 						workspace.template_display_name ?? workspace.template_name;
+					const status = workspace.latest_app_status;
+					const agent = workspace.latest_build.resources
+						.flatMap((r) => r.agents)
+						.find((a) => a?.id === status?.agent_id);
+					const app = agent?.apps.find((a) => a.id === status?.app_id);
+					console.log("TT ->>>", workspace.latest_build.resources);
 
 					return (
 						<TableRow key={workspace.id}>
@@ -242,9 +260,9 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 								/>
 							</TableCell>
 							<TableCell className="pl-10">
-								<Button size="icon-lg" variant="outline">
-									<ExternalImage src="https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png" />
-								</Button>
+								{agent && app && (
+									<IconAppLink app={app} workspace={workspace} agent={agent} />
+								)}
 							</TableCell>
 						</TableRow>
 					);
@@ -272,6 +290,71 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 			</TableHeader>
 			<TableBody>{body}</TableBody>
 		</Table>
+	);
+};
+
+type IconAppLinkProps = {
+	app: WorkspaceApp;
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+};
+
+const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+	const link = useAppLink(app, {
+		workspace,
+		agent,
+	});
+
+	return (
+		<BaseIconLink
+			key={app.id}
+			label={`Open ${link.label}`}
+			href={link.href}
+			onClick={link.onClick}
+		>
+			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+		</BaseIconLink>
+	);
+};
+
+type BaseIconLinkProps = PropsWithChildren<{
+	label: string;
+	href: string;
+	isLoading?: boolean;
+	target?: string;
+	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}>;
+
+const BaseIconLink: FC<BaseIconLinkProps> = ({
+	href,
+	isLoading,
+	label,
+	children,
+	target,
+	onClick,
+}) => {
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button variant="outline" size="icon-lg" asChild>
+						<a
+							target={target}
+							className={isLoading ? "animate-pulse" : ""}
+							href={href}
+							onClick={(e) => {
+								e.stopPropagation();
+								onClick?.(e);
+							}}
+						>
+							{children}
+							<span className="sr-only">{label}</span>
+						</a>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
