@@ -555,7 +555,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			desired: 2,
 			expired: 1,
 			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
-				expectedState := prebuilds.ReconciliationState{Actual: 1, Desired: 2, Expired: 1}
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 1}
 				expectedActions := []*prebuilds.ReconciliationActions{
 					{
 						ActionType: prebuilds.ActionTypeDelete,
@@ -579,7 +579,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			desired: 2,
 			expired: 2,
 			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
-				expectedState := prebuilds.ReconciliationState{Actual: 0, Desired: 2, Expired: 2}
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 2}
 				expectedActions := []*prebuilds.ReconciliationActions{
 					{
 						ActionType: prebuilds.ActionTypeDelete,
@@ -604,7 +604,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			desired: 2,
 			expired: 2,
 			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
-				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 2, Extraneous: 0}
+				expectedState := prebuilds.ReconciliationState{Actual: 4, Desired: 2, Expired: 2, Extraneous: 0}
 				expectedActions := []*prebuilds.ReconciliationActions{
 					{
 						ActionType: prebuilds.ActionTypeDelete,
@@ -626,7 +626,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			desired: 2,
 			expired: 1,
 			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
-				expectedState := prebuilds.ReconciliationState{Actual: 3, Desired: 2, Expired: 1, Extraneous: 1}
+				expectedState := prebuilds.ReconciliationState{Actual: 4, Desired: 2, Expired: 1, Extraneous: 1}
 				expectedActions := []*prebuilds.ReconciliationActions{
 					// First action correspond to deleting the expired prebuild,
 					// and the second action corresponds to deleting the extraneous prebuild

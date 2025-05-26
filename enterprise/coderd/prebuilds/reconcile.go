@@ -393,12 +393,11 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
-		logger.Error(ctx, "failed to calculate actions for preset", slog.F("preset_id", ps.Preset.ID), slog.Error(err))
+		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err))
 		return err
 	}
 
 	fields := []any{
-		slog.F("preset_id", ps.Preset.ID),
 		slog.F("desired", state.Desired), slog.F("actual", state.Actual),
 		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
 		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
@@ -520,6 +519,8 @@ func (c *StoreReconciler) WithReconciliationLock(
 // This method handles logging at appropriate levels and performs the necessary operations
 // according to the action type. It returns an error if any part of the action fails.
 func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logger slog.Logger, ps prebuilds.PresetSnapshot, action *prebuilds.ReconciliationActions) error {
+	levelFn := logger.Debug
+
 	// Nothing has to be done.
 	if !ps.Preset.UsingActiveVersion && action.IsNoop() {
 		logger.Debug(ctx, "skipping reconciliation for preset - nothing has to be done",
@@ -532,7 +533,12 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 	// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
-	levelFn := logger.Debug
+	fields := []any{
+		slog.F("action_type", action.ActionType), slog.F("create_count", action.Create),
+		slog.F("delete_count", len(action.DeleteIDs)), slog.F("to_delete", action.DeleteIDs),
+	}
+	levelFn(ctx, "calculated reconciliation action for preset", fields...)
+
 	switch {
 	case action.ActionType == prebuilds.ActionTypeBackoff:
 		levelFn = logger.Warn
@@ -542,14 +548,6 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 	case action.ActionType == prebuilds.ActionTypeDelete && len(action.DeleteIDs) > 0:
 		levelFn = logger.Info
 	}
-
-	fields := []any{
-		slog.F("preset_id", ps.Preset.ID), slog.F("action_type", action.ActionType),
-		slog.F("create_count", action.Create), slog.F("delete_count", len(action.DeleteIDs)),
-		slog.F("to_delete", action.DeleteIDs),
-	}
-
-	levelFn(ctx, "calculated reconciliation action for preset", fields...)
 
 	switch action.ActionType {
 	case prebuilds.ActionTypeBackoff:

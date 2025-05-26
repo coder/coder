@@ -51,7 +51,7 @@ type PresetSnapshot struct {
 // For example, it calculates how many prebuilds are expired, eligible,
 // how many are extraneous, and how many are in various transition states.
 type ReconciliationState struct {
-	Actual     int32 // Number of currently valid running prebuilds, i.e., non-expired prebuilds
+	Actual     int32 // Number of currently running prebuilds, i.e., non-expired, expired and extraneous prebuilds
 	Expired    int32 // Number of currently running prebuilds that exceeded their allowed time-to-live (TTL)
 	Desired    int32 // Number of prebuilds desired as defined in the preset
 	Eligible   int32 // Number of prebuilds that are ready to be claimed
@@ -84,7 +84,7 @@ func (ra *ReconciliationActions) IsNoop() bool {
 }
 
 // CalculateState computes the current state of prebuilds for a preset, including:
-// - Actual: Number of currently valid running prebuilds, i.e., non-expired prebuilds
+// - Actual: Number of currently running prebuilds, i.e., non-expired and expired prebuilds
 // - Expired: Number of currently running expired prebuilds
 // - Desired: Number of prebuilds desired as defined in the preset
 // - Eligible: Number of prebuilds that are ready to be claimed
@@ -104,8 +104,8 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 		extraneous int32
 	)
 
-	// #nosec G115 - Safe conversion as p.Running slice length is expected to be within int32 range
-	actual = int32(len(p.Running))
+	// #nosec G115 - Safe conversion as p.Running and p.Expired slice length is expected to be within int32 range
+	actual = int32(len(p.Running) + len(p.Expired))
 
 	// #nosec G115 - Safe conversion as p.Expired slice length is expected to be within int32 range
 	expired = int32(len(p.Expired))
@@ -113,7 +113,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	if p.isActive() {
 		desired = p.Preset.DesiredInstances.Int32
 		eligible = p.countEligible()
-		extraneous = max(actual-desired, 0)
+		extraneous = max(actual-expired-desired, 0)
 	}
 
 	starting, stopping, deleting := p.countInProgress()
@@ -137,7 +137,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 // 2. If the preset is inactive (template version is not active), it will delete all running prebuilds
 // 3. For active presets, it calculates the number of prebuilds to create or delete based on:
 //   - The desired number of instances
-//   - Currently running non-expired prebuilds
+//   - Currently running prebuilds
 //   - Currently running expired prebuilds
 //   - Prebuilds in transition states (starting/stopping/deleting)
 //   - Any extraneous prebuilds that need to be removed
@@ -176,7 +176,7 @@ func (p PresetSnapshot) isActive() bool {
 //
 // The reconciliation follows this order:
 //  1. Delete expired prebuilds: These are no longer valid and must be removed first.
-//  2. Delete extraneous prebuilds: After expired ones are removed, if the number of running prebuilds (excluding expired)
+//  2. Delete extraneous prebuilds: After expired ones are removed, if the number of running non-expired prebuilds
 //     still exceeds the desired count, the oldest prebuilds are deleted to reduce excess.
 //  3. Create missing prebuilds: If the number of non-expired, non-starting prebuilds is still below the desired count,
 //     create the necessary number of prebuilds to reach the target.
@@ -207,9 +207,12 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*Reconciliation
 			})
 	}
 
+	// Number of running prebuilds excluding the recently deleted Expired
+	runningValid := state.Actual - state.Expired
+
 	// Calculate how many new prebuilds we need to create
 	// We subtract starting prebuilds since they're already being created
-	prebuildsToCreate := max(state.Desired-state.Actual-state.Starting, 0)
+	prebuildsToCreate := max(state.Desired-runningValid-state.Starting, 0)
 	if prebuildsToCreate > 0 {
 		actions = append(actions,
 			&ReconciliationActions{
