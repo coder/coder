@@ -5,7 +5,7 @@ export const createChat = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.createChat,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["chats"]);
+			await queryClient.invalidateQueries({ queryKey: ["chats"] });
 		},
 	};
 };

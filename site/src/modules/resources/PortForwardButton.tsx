@@ -152,7 +152,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	// share port form
 	const {
 		mutateAsync: upsertWorkspacePortShareForm,
-		isLoading: isSubmitting,
+		isPending: isSubmitting,
 		error: submitError,
 	} = useMutation(upsertWorkspacePortShare(workspaceID));
 	const validationSchema = getValidationSchema();

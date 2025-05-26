@@ -84,8 +84,8 @@ const CreateEditRolePage: FC = () => {
 				}
 				isLoading={
 					role
-						? updateOrganizationRoleMutation.isLoading
-						: createOrganizationRoleMutation.isLoading
+						? updateOrganizationRoleMutation.isPending
+						: createOrganizationRoleMutation.isPending
 				}
 				organizationName={organizationName}
 			/>

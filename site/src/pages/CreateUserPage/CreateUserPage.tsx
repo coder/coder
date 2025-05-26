@@ -28,7 +28,7 @@ const CreateUserPage: FC = () => {
 
 			<CreateUserForm
 				error={createUserMutation.error}
-				isLoading={createUserMutation.isLoading}
+				isLoading={createUserMutation.isPending}
 				onSubmit={async (user) => {
 					await createUserMutation.mutateAsync({
 						username: user.username,

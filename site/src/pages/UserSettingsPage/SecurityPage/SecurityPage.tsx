@@ -33,7 +33,7 @@ const SecurityPage: FC = () => {
 				form: {
 					disabled: userLoginType.login_type !== "password",
 					error: updatePasswordMutation.error,
-					isLoading: updatePasswordMutation.isLoading,
+					isLoading: updatePasswordMutation.isPending,
 					onSubmit: async (data) => {
 						await updatePasswordMutation.mutateAsync({
 							userId: me.id,

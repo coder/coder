@@ -43,7 +43,7 @@ const SSHKeysPage: FC = () => {
 				type="delete"
 				hideCancel={false}
 				open={isConfirmingRegeneration}
-				confirmLoading={regenerateSSHKeyMutation.isLoading}
+				confirmLoading={regenerateSSHKeyMutation.isPending}
 				title={Language.regenerateDialogTitle}
 				description={Language.regenerateDialogMessage}
 				confirmText={Language.confirmLabel}

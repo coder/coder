@@ -55,7 +55,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 			return API.createWorkspace(userId, req);
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -114,7 +114,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };

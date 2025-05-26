@@ -9,6 +9,7 @@ import {
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
+	Template,
 	TemplateVersionParameter,
 	UserParameter,
 	Workspace,
@@ -62,15 +63,14 @@ const CreateWorkspacePage: FC = () => {
 	);
 	const templateVersionPresetsQuery = useQuery({
 		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: templateQuery.data !== undefined,
+		enabled: !!templateQuery.data,
 	});
-	const permissionsQuery = useQuery(
-		templateQuery.data
-			? checkAuthorization({
-					checks: createWorkspaceChecks(templateQuery.data.organization_id),
-				})
-			: { enabled: false },
-	);
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
+		}),
+		enabled: !!templateQuery.data,
+	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 	const organizationId = templateQuery.data?.organization_id;
@@ -96,7 +96,7 @@ const CreateWorkspacePage: FC = () => {
 	const loadFormDataError =
 		templateQuery.error ?? permissionsQuery.error ?? richParametersQuery.error;
 
-	const title = autoCreateWorkspaceMutation.isLoading
+	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
 		: "Create workspace";
 
@@ -111,7 +111,7 @@ const CreateWorkspacePage: FC = () => {
 	const autofillEnabled = experiments.includes("auto-fill-parameters");
 	const userParametersQuery = useQuery({
 		queryKey: ["userParameters"],
-		queryFn: () => API.getUserParameters(templateQuery.data!.id),
+		queryFn: () => API.getUserParameters(templateQuery.data?.id ?? ""),
 		enabled: autofillEnabled && templateQuery.isSuccess,
 	});
 	const autofillParameters = getAutofillParameters(
@@ -203,7 +203,7 @@ const CreateWorkspacePage: FC = () => {
 						autoCreateWorkspaceMutation.error
 					}
 					resetMutation={createWorkspaceMutation.reset}
-					template={templateQuery.data!}
+					template={templateQuery.data as Template}
 					versionId={realizedVersionId}
 					externalAuth={externalAuth ?? []}
 					externalAuthPollingState={externalAuthPollingState}
@@ -212,7 +212,7 @@ const CreateWorkspacePage: FC = () => {
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={realizedParameters as TemplateVersionParameter[]}
 					presets={templateVersionPresetsQuery.data ?? []}
-					creatingWorkspace={createWorkspaceMutation.isLoading}
+					creatingWorkspace={createWorkspaceMutation.isPending}
 					onCancel={() => {
 						navigate(-1);
 					}}
@@ -245,15 +245,11 @@ const useExternalAuth = (versionId: string | undefined) => {
 		setExternalAuthPollingState("polling");
 	}, []);
 
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
-		versionId
-			? {
-					...templateVersionExternalAuth(versionId),
-					refetchInterval:
-						externalAuthPollingState === "polling" ? 1000 : false,
-				}
-			: { enabled: false },
-	);
+	const { data: externalAuth, isPending: isLoadingExternalAuth } = useQuery({
+		...templateVersionExternalAuth(versionId ?? ""),
+		enabled: !!versionId,
+		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+	});
 
 	const allSignedIn = externalAuth?.every((it) => it.authenticated);
 

@@ -63,7 +63,7 @@ const WorkspaceParametersPage: FC = () => {
 				canChangeVersions={canChangeVersions}
 				data={parameters.data}
 				submitError={updateParameters.error}
-				isSubmitting={updateParameters.isLoading}
+				isSubmitting={updateParameters.isPending}
 				onSubmit={(values) => {
 					if (!parameters.data) {
 						return;

@@ -1,6 +1,6 @@
 import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { useMemo, useRef, useState } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 
 export type UseFilterMenuOptions = {
 	id: string;
@@ -40,7 +40,7 @@ export const useFilterMenu = ({
 			return getSelectedOption();
 		},
 		enabled,
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	const selectedOption = selectedOptionQuery.data;
 	const searchOptionsQuery = useQuery({

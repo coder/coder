@@ -31,7 +31,7 @@ const RequestOTPPage: FC = () => {
 				) : (
 					<RequestOTP
 						error={requestOTPMutation.error}
-						isRequesting={requestOTPMutation.isLoading}
+						isRequesting={requestOTPMutation.isPending}
 						onRequest={(email) => {
 							requestOTPMutation.mutate({ email });
 						}}

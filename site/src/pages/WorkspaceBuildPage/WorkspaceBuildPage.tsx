@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
@@ -20,7 +20,7 @@ const WorkspaceBuildPage: FC = () => {
 	const username = params.username.replace("@", "");
 	const wsBuildQuery = useQuery({
 		...workspaceBuildByNumber(username, workspaceName, buildNumber),
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	const build = wsBuildQuery.data;
 	const buildsQuery = useQuery({
