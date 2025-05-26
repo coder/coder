@@ -1,17 +1,16 @@
 import { Global, css, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { ChevronDownIcon } from "lucide-react";
 import { type FC, Suspense, lazy, useState } from "react";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
@@ -40,7 +39,7 @@ export const IconField: FC<IconFieldProps> = ({
 	const [open, setOpen] = useState(false);
 
 	return (
-		<Stack spacing={1}>
+		<div className="flex items-center gap-2">
 			<TextField
 				fullWidth
 				label="Icon"
@@ -93,14 +92,12 @@ export const IconField: FC<IconFieldProps> = ({
 			/>
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger>
-					<Button fullWidth endIcon={<DropdownArrow />}>
-						Select emoji
+					<Button variant="outline" size="lg" className="flex-shrink-0">
+						Emoji
+						<ChevronDownIcon />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent
-					id="emoji"
-					css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
-				>
+				<PopoverContent id="emoji" horizontal="right">
 					<Suspense fallback={<Loader />}>
 						<EmojiPicker
 							onEmojiSelect={(emoji) => {
@@ -128,6 +125,6 @@ export const IconField: FC<IconFieldProps> = ({
 					</Suspense>
 				</div>
 			)}
-		</Stack>
+		</div>
 	);
 };

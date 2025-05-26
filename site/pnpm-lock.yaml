@@ -145,12 +145,6 @@ importers:
       axios:
         specifier: 1.8.2
         version: 1.8.2
-      chart.js:
-        specifier: 4.4.0
-        version: 4.4.0
-      chartjs-adapter-date-fns:
-        specifier: 3.0.0
-        version: 3.0.0(chart.js@4.4.0)(date-fns@2.30.0)
       chroma-js:
         specifier: 2.4.2
         version: 2.4.2
@@ -172,9 +166,6 @@ importers:
       cronstrue:
         specifier: 2.50.0
         version: 2.50.0
-      date-fns:
-        specifier: 2.30.0
-        version: 2.30.0
       dayjs:
         specifier: 1.11.13
         version: 1.11.13
@@ -190,6 +181,9 @@ importers:
       front-matter:
         specifier: 4.0.2
         version: 4.0.2
+      humanize-duration:
+        specifier: 3.32.2
+        version: 3.32.2
       jszip:
         specifier: 3.10.1
         version: 3.10.1
@@ -208,9 +202,6 @@ importers:
       react:
         specifier: 18.3.1
         version: 18.3.1
-      react-chartjs-2:
-        specifier: 5.3.0
-        version: 5.3.0(chart.js@4.4.0)(react@18.3.1)
       react-color:
         specifier: 2.19.3
         version: 2.19.3(react@18.3.1)
@@ -362,6 +353,9 @@ importers:
       '@types/file-saver':
         specifier: 2.0.7
         version: 2.0.7
+      '@types/humanize-duration':
+        specifier: 3.27.4
+        version: 3.27.4
       '@types/jest':
         specifier: 29.5.14
         version: 29.5.14
@@ -1252,9 +1246,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==, tarball: https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.9.tgz}
-
-  '@kurkle/color@0.3.2':
-    resolution: {integrity: sha512-fuscdXJ9G1qb7W8VdHi+IwRqij3lBkosAm4ydQtEmbY58OzHXqQhvlxqEkoz0yssNVn38bcpRWgA9PP+OGoisw==, tarball: https://registry.npmjs.org/@kurkle/color/-/color-0.3.2.tgz}
 
   '@leeoniya/ufuzzy@1.0.10':
     resolution: {integrity: sha512-OR1yiyN8cKBn5UiHjKHUl0LcrTQt4vZPUpIf96qIIZVLxgd4xyASuRvTZ3tjbWvuyQAMgvKsq61Nwu131YyHnA==, tarball: https://registry.npmjs.org/@leeoniya/ufuzzy/-/ufuzzy-1.0.10.tgz}
@@ -2586,6 +2577,9 @@ packages:
   '@types/http-errors@2.0.1':
     resolution: {integrity: sha512-/K3ds8TRAfBvi5vfjuz8y6+GiAYBZ0x4tXv1Av6CWBWn0IlADc+ZX9pMq7oU0fNQPnBwIZl3rmeLp6SBApbxSQ==, tarball: https://registry.npmjs.org/@types/http-errors/-/http-errors-2.0.1.tgz}
 
+  '@types/humanize-duration@3.27.4':
+    resolution: {integrity: sha512-yaf7kan2Sq0goxpbcwTQ+8E9RP6HutFBPv74T/IA/ojcHKhuKVlk2YFYyHhWZeLvZPzzLE3aatuQB4h0iqyyUA==, tarball: https://registry.npmjs.org/@types/humanize-duration/-/humanize-duration-3.27.4.tgz}
+
   '@types/istanbul-lib-coverage@2.0.5':
     resolution: {integrity: sha512-zONci81DZYCZjiLe0r6equvZut0b+dBRPBN5kBDjsONnutYNtJMoWQ9uR2RkL1gLG9NMTzvf+29e5RFfPbeKhQ==, tarball: https://registry.npmjs.org/@types/istanbul-lib-coverage/-/istanbul-lib-coverage-2.0.5.tgz}
 
@@ -3121,16 +3115,6 @@ packages:
 
   character-reference-invalid@2.0.1:
     resolution: {integrity: sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw==, tarball: https://registry.npmjs.org/character-reference-invalid/-/character-reference-invalid-2.0.1.tgz}
-
-  chart.js@4.4.0:
-    resolution: {integrity: sha512-vQEj6d+z0dcsKLlQvbKIMYFHd3t8W/7L2vfJIbYcfyPcRx92CsHqECpueN8qVGNlKyDcr5wBrYAYKnfu/9Q1hQ==, tarball: https://registry.npmjs.org/chart.js/-/chart.js-4.4.0.tgz}
-    engines: {pnpm: '>=7'}
-
-  chartjs-adapter-date-fns@3.0.0:
-    resolution: {integrity: sha512-Rs3iEB3Q5pJ973J93OBTpnP7qoGwvq3nUnoMdtxO+9aoJof7UFcRbWcIDteXuYd1fgAvct/32T9qaLyLuZVwCg==, tarball: https://registry.npmjs.org/chartjs-adapter-date-fns/-/chartjs-adapter-date-fns-3.0.0.tgz}
-    peerDependencies:
-      chart.js: '>=2.8.0'
-      date-fns: '>=2.0.0'
 
   check-error@2.1.1:
     resolution: {integrity: sha512-OAlb+T7V4Op9OwdkjmguYRqncdlx5JiofwOAUkmTF+jNdHwzTaTs4sRAGpzLF3oOz5xAyDGrPgeIDFQmDOTiJw==, tarball: https://registry.npmjs.org/check-error/-/check-error-2.1.1.tgz}
@@ -4013,6 +3997,9 @@ packages:
   human-signals@2.1.0:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==, tarball: https://registry.npmjs.org/human-signals/-/human-signals-2.1.0.tgz}
     engines: {node: '>=10.17.0'}
+
+  humanize-duration@3.32.2:
+    resolution: {integrity: sha512-jcTwWYeCJf4dN5GJnjBmHd42bNyK94lY49QTkrsAQrMTUoIYLevvDpmQtg5uv8ZrdIRIbzdasmSNZ278HHUPEg==, tarball: https://registry.npmjs.org/humanize-duration/-/humanize-duration-3.32.2.tgz}
 
   iconv-lite@0.4.24:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==, tarball: https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.24.tgz}
@@ -5305,12 +5292,6 @@ packages:
   raw-body@2.5.2:
     resolution: {integrity: sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==, tarball: https://registry.npmjs.org/raw-body/-/raw-body-2.5.2.tgz}
     engines: {node: '>= 0.8'}
-
-  react-chartjs-2@5.3.0:
-    resolution: {integrity: sha512-UfZZFnDsERI3c3CZGxzvNJd02SHjaSJ8kgW1djn65H1KK8rehwTjyrRKOG3VTMG8wtHZ5rgAO5oTHtHi9GCCmw==, tarball: https://registry.npmjs.org/react-chartjs-2/-/react-chartjs-2-5.3.0.tgz}
-    peerDependencies:
-      chart.js: ^4.1.1
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   react-color@2.19.3:
     resolution: {integrity: sha512-LEeGE/ZzNLIsFWa1TMe8y5VYqr7bibneWmvJwm1pCn/eNmrabWDh659JSPn9BuaMpEfU83WTOJfnCcjDZwNQTA==, tarball: https://registry.npmjs.org/react-color/-/react-color-2.19.3.tgz}
@@ -7362,8 +7343,6 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.0
     optional: true
 
-  '@kurkle/color@0.3.2': {}
-
   '@leeoniya/ufuzzy@1.0.10': {}
 
   '@mdx-js/react@3.0.1(@types/react@18.3.12)(react@18.3.1)':
@@ -8761,6 +8740,8 @@ snapshots:
 
   '@types/http-errors@2.0.1': {}
 
+  '@types/humanize-duration@3.27.4': {}
+
   '@types/istanbul-lib-coverage@2.0.5': {}
 
   '@types/istanbul-lib-coverage@2.0.6': {}
@@ -9355,15 +9336,6 @@ snapshots:
   character-reference-invalid@1.1.4: {}
 
   character-reference-invalid@2.0.1: {}
-
-  chart.js@4.4.0:
-    dependencies:
-      '@kurkle/color': 0.3.2
-
-  chartjs-adapter-date-fns@3.0.0(chart.js@4.4.0)(date-fns@2.30.0):
-    dependencies:
-      chart.js: 4.4.0
-      date-fns: 2.30.0
 
   check-error@2.1.1: {}
 
@@ -10368,6 +10340,8 @@ snapshots:
       - supports-color
 
   human-signals@2.1.0: {}
+
+  humanize-duration@3.32.2: {}
 
   iconv-lite@0.4.24:
     dependencies:
@@ -12147,11 +12121,6 @@ snapshots:
       http-errors: 2.0.0
       iconv-lite: 0.4.24
       unpipe: 1.0.0
-
-  react-chartjs-2@5.3.0(chart.js@4.4.0)(react@18.3.1):
-    dependencies:
-      chart.js: 4.4.0
-      react: 18.3.1
 
   react-color@2.19.3(react@18.3.1):
     dependencies:
