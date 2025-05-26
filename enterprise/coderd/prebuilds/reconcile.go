@@ -361,15 +361,23 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_name", ps.Preset.Name),
 	)
 
-	// Report a preset as hard-limited only if all the following conditions are met:
-	// - The preset is marked as hard-limited
-	// - The preset is using the active version of its template, and the template has not been deleted
+	// Report a metric only if the preset uses the latest version of the template and the template is not deleted.
+	// This avoids conflicts between metrics from old and new template versions.
 	//
-	// The second condition is important because a hard-limited preset that has become outdated is no longer relevant.
-	// Its associated prebuilt workspaces were likely deleted, and it's not meaningful to continue reporting it
-	// as hard-limited to the admin.
-	reportAsHardLimited := ps.IsHardLimited && ps.Preset.UsingActiveVersion && !ps.Preset.Deleted
-	c.metrics.trackHardLimitedStatus(ps.Preset.OrganizationName, ps.Preset.TemplateName, ps.Preset.Name, reportAsHardLimited)
+	// NOTE: Multiple versions of a preset can exist with the same orgName, templateName, and presetName,
+	// because templates can have multiple versions — or deleted templates can share the same name.
+	//
+	// The safest approach is to report the metric only for the latest version of the preset.
+	// When a new template version is released, the metric for the new preset should overwrite
+	// the old value in Prometheus.
+	//
+	// However, there’s one edge case: if an admin creates a template, it becomes hard-limited,
+	// then deletes the template and never creates another with the same name,
+	// the old preset will continue to be reported as hard-limited —
+	// even though it’s deleted. This will persist until `coderd` is restarted.
+	if ps.Preset.UsingActiveVersion && !ps.Preset.Deleted {
+		c.metrics.trackHardLimitedStatus(ps.Preset.OrganizationName, ps.Preset.TemplateName, ps.Preset.Name, ps.IsHardLimited)
+	}
 
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
