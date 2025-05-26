@@ -31,7 +31,6 @@
 		"test:coverage": "jest --selectProjects test --collectCoverage",
 		"test:watch": "jest --selectProjects test --watch",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"deadcode": "ts-prune | grep -v \".stories\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\"",
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
 	},
 	"dependencies": {
@@ -186,7 +185,6 @@
 		"storybook-addon-remix-react-router": "3.1.0",
 		"tailwindcss": "3.4.17",
 		"ts-proto": "1.164.0",
-		"ts-prune": "0.10.3",
 		"typescript": "5.6.3",
 		"vite": "5.4.19",
 		"vite-plugin-checker": "0.8.0",
