@@ -197,34 +197,23 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					<TableHead className={tableColumnSize.name}>
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<span>
-												<Checkbox
-													className="-my-[9px]"
-													disabled={!workspaces || workspaces.length === 0}
-													checked={checkedWorkspaces.length === workspaces?.length}
-													size="xsmall"
-													onChange={(_, checked) => {
-														if (!workspaces) {
-															return;
-														}
+								<Checkbox
+									className="-my-[9px]"
+									disabled={!workspaces || workspaces.length === 0}
+									checked={checkedWorkspaces.length === workspaces?.length}
+									size="xsmall"
+									onChange={(_, checked) => {
+										if (!workspaces) {
+											return;
+										}
 
-														if (!checked) {
-															onCheckChange([]);
-														} else {
-															onCheckChange(workspaces);
-														}
-													}}
-												/>
-											</span>
-										</TooltipTrigger>
-										<TooltipContent>
-											Select all workspaces. Use Shift+Click to select a range.
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
+										if (!checked) {
+											onCheckChange([]);
+										} else {
+											onCheckChange(workspaces);
+										}
+									}}
+								/>
 							)}
 							Name
 						</div>
