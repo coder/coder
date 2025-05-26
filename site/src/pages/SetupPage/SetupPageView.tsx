@@ -104,7 +104,7 @@ const iconStyles = {
 	height: 16,
 };
 
-export interface SetupPageViewProps {
+interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	error?: unknown;
 	isLoading?: boolean;

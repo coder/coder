@@ -21,7 +21,7 @@ const Language = {
 	loginTypeLabel: "Login Type",
 } as const;
 
-export interface UsersTableProps {
+interface UsersTableProps {
 	users: readonly TypesGen.User[] | undefined;
 	roles: TypesGen.AssignableRoles[] | undefined;
 	groupsByUserId: GroupsByUserId | undefined;

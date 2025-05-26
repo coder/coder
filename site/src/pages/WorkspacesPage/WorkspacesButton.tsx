@@ -84,7 +84,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 						paddingBottom: "8px",
 					}}
 				>
-					{templatesFetchStatus === "loading" ? (
+					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (
 						<>

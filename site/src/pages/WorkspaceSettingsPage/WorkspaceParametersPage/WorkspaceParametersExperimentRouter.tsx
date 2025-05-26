@@ -13,41 +13,36 @@ const WorkspaceParametersExperimentRouter: FC = () => {
 	const workspace = useWorkspaceSettings();
 	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
-	const optOutQuery = useQuery(
-		dynamicParametersEnabled
-			? {
-					queryKey: [
-						"workspace",
-						workspace.id,
-						"template_id",
-						workspace.template_id,
-						"optOut",
-					],
-					queryFn: () => {
-						const templateId = workspace.template_id;
-						const workspaceId = workspace.id;
-						const localStorageKey = optOutKey(templateId);
-						const storedOptOutString = localStorage.getItem(localStorageKey);
+	const optOutQuery = useQuery({
+		enabled: dynamicParametersEnabled,
+		queryKey: [
+			"workspace",
+			workspace.id,
+			"template_id",
+			workspace.template_id,
+			"optOut",
+		],
+		queryFn: () => {
+			const templateId = workspace.template_id;
+			const workspaceId = workspace.id;
+			const localStorageKey = optOutKey(templateId);
+			const storedOptOutString = localStorage.getItem(localStorageKey);
 
-						let optOutResult: boolean;
+			let optOutResult: boolean;
 
-						if (storedOptOutString !== null) {
-							optOutResult = storedOptOutString === "true";
-						} else {
-							optOutResult = Boolean(
-								workspace.template_use_classic_parameter_flow,
-							);
-						}
+			if (storedOptOutString !== null) {
+				optOutResult = storedOptOutString === "true";
+			} else {
+				optOutResult = Boolean(workspace.template_use_classic_parameter_flow);
+			}
 
-						return {
-							templateId,
-							workspaceId,
-							optedOut: optOutResult,
-						};
-					},
-				}
-			: { enabled: false },
-	);
+			return {
+				templateId,
+				workspaceId,
+				optedOut: optOutResult,
+			};
+		},
+	});
 
 	if (dynamicParametersEnabled) {
 		if (optOutQuery.isLoading) {

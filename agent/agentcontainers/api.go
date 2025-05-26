@@ -50,13 +50,16 @@ type API struct {
 
 	mu                      sync.RWMutex
 	closed                  bool
-	containers              codersdk.WorkspaceAgentListContainersResponse // Output from the last list operation.
-	containersErr           error                                         // Error from the last list operation.
-	devcontainerNames       map[string]struct{}
-	knownDevcontainers      []codersdk.WorkspaceAgentDevcontainer
-	configFileModifiedTimes map[string]time.Time
+	containers              codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
+	containersErr           error                                          // Error from the last list operation.
+	devcontainerNames       map[string]bool                                // By devcontainer name.
+	knownDevcontainers      map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
+	configFileModifiedTimes map[string]time.Time                           // By config file path.
+	recreateSuccessTimes    map[string]time.Time                           // By workspace folder.
+	recreateErrorTimes      map[string]time.Time                           // By workspace folder.
+	recreateWg              sync.WaitGroup
 
-	devcontainerLogSourceIDs map[string]uuid.UUID // Track devcontainer log source IDs.
+	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
 
 // Option is a functional option for API.
@@ -101,24 +104,26 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 		if len(devcontainers) == 0 {
 			return
 		}
-		api.knownDevcontainers = slices.Clone(devcontainers)
-		api.devcontainerNames = make(map[string]struct{}, len(devcontainers))
+		api.knownDevcontainers = make(map[string]codersdk.WorkspaceAgentDevcontainer, len(devcontainers))
+		api.devcontainerNames = make(map[string]bool, len(devcontainers))
 		api.devcontainerLogSourceIDs = make(map[string]uuid.UUID)
-		for _, devcontainer := range devcontainers {
-			api.devcontainerNames[devcontainer.Name] = struct{}{}
+		for _, dc := range devcontainers {
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.devcontainerNames[dc.Name] = true
 			for _, script := range scripts {
 				// The devcontainer scripts match the devcontainer ID for
 				// identification.
-				if script.ID == devcontainer.ID {
-					api.devcontainerLogSourceIDs[devcontainer.WorkspaceFolder] = script.LogSourceID
+				if script.ID == dc.ID {
+					api.devcontainerLogSourceIDs[dc.WorkspaceFolder] = script.LogSourceID
 					break
 				}
 			}
-			if api.devcontainerLogSourceIDs[devcontainer.WorkspaceFolder] == uuid.Nil {
+			if api.devcontainerLogSourceIDs[dc.WorkspaceFolder] == uuid.Nil {
 				api.logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer",
-					slog.F("devcontainer", devcontainer.Name),
-					slog.F("workspace_folder", devcontainer.WorkspaceFolder),
-					slog.F("config_path", devcontainer.ConfigPath),
+					slog.F("devcontainer_id", dc.ID),
+					slog.F("devcontainer_name", dc.Name),
+					slog.F("workspace_folder", dc.WorkspaceFolder),
+					slog.F("config_path", dc.ConfigPath),
 				)
 			}
 		}
@@ -169,9 +174,11 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		logger:                  logger,
 		clock:                   quartz.NewReal(),
 		execer:                  agentexec.DefaultExecer,
-		devcontainerNames:       make(map[string]struct{}),
-		knownDevcontainers:      []codersdk.WorkspaceAgentDevcontainer{},
+		devcontainerNames:       make(map[string]bool),
+		knownDevcontainers:      make(map[string]codersdk.WorkspaceAgentDevcontainer),
 		configFileModifiedTimes: make(map[string]time.Time),
+		recreateSuccessTimes:    make(map[string]time.Time),
+		recreateErrorTimes:      make(map[string]time.Time),
 		scriptLogger:            func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 	}
 	// The ctx and logger must be set before applying options to avoid
@@ -223,7 +230,7 @@ func (api *API) watcherLoop() {
 			continue
 		}
 
-		now := api.clock.Now()
+		now := api.clock.Now("watcherLoop")
 		switch {
 		case event.Has(fsnotify.Create | fsnotify.Write):
 			api.logger.Debug(api.ctx, "devcontainer config file changed", slog.F("file", event.Name))
@@ -386,20 +393,18 @@ func (api *API) updateContainers(ctx context.Context) error {
 // on the latest list of containers. This method assumes that api.mu is
 // held.
 func (api *API) processUpdatedContainersLocked(ctx context.Context, updated codersdk.WorkspaceAgentListContainersResponse) {
-	dirtyStates := make(map[string]bool)
-	// Reset all known devcontainers to not running.
-	for i := range api.knownDevcontainers {
-		api.knownDevcontainers[i].Running = false
-		api.knownDevcontainers[i].Container = nil
-
-		// Preserve the dirty state and store in map for lookup.
-		dirtyStates[api.knownDevcontainers[i].WorkspaceFolder] = api.knownDevcontainers[i].Dirty
+	// Reset the container links in known devcontainers to detect if
+	// they still exist.
+	for _, dc := range api.knownDevcontainers {
+		dc.Container = nil
+		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	}
 
 	// Check if the container is running and update the known devcontainers.
-	updatedDevcontainers := make(map[string]bool)
 	for i := range updated.Containers {
-		container := &updated.Containers[i]
+		container := &updated.Containers[i] // Grab a reference to the container to allow mutating it.
+		container.DevcontainerDirty = false // Reset dirty state for the container (updated later).
+
 		workspaceFolder := container.Labels[DevcontainerLocalFolderLabel]
 		configFile := container.Labels[DevcontainerConfigFileLabel]
 
@@ -407,89 +412,83 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			continue
 		}
 
-		if lastModified, hasModTime := api.configFileModifiedTimes[configFile]; !hasModTime || container.CreatedAt.Before(lastModified) {
-			api.logger.Debug(ctx, "container created before config modification, setting dirty state from devcontainer",
-				slog.F("container", container.ID),
-				slog.F("created_at", container.CreatedAt),
-				slog.F("config_modified_at", lastModified),
-				slog.F("file", configFile),
-				slog.F("workspace_folder", workspaceFolder),
-				slog.F("dirty", dirtyStates[workspaceFolder]),
-			)
-			container.DevcontainerDirty = dirtyStates[workspaceFolder]
-		}
-
-		// Check if this is already in our known list.
-		if knownIndex := slices.IndexFunc(api.knownDevcontainers, func(dc codersdk.WorkspaceAgentDevcontainer) bool {
-			return dc.WorkspaceFolder == workspaceFolder
-		}); knownIndex != -1 {
-			// Update existing entry with runtime information.
-			dc := &api.knownDevcontainers[knownIndex]
-			if configFile != "" && dc.ConfigPath == "" {
+		if dc, ok := api.knownDevcontainers[workspaceFolder]; ok {
+			// If no config path is set, this devcontainer was defined
+			// in Terraform without the optional config file. Assume the
+			// first container with the workspace folder label is the
+			// one we want to use.
+			if dc.ConfigPath == "" && configFile != "" {
 				dc.ConfigPath = configFile
 				if err := api.watcher.Add(configFile); err != nil {
 					api.logger.Error(ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", configFile))
 				}
 			}
-			dc.Running = container.Running
+
 			dc.Container = container
-			dc.Dirty = container.DevcontainerDirty
-			updatedDevcontainers[workspaceFolder] = true
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			continue
 		}
 
 		// NOTE(mafredri): This name impl. may change to accommodate devcontainer agents RFC.
 		// If not in our known list, add as a runtime detected entry.
 		name := path.Base(workspaceFolder)
-		if _, ok := api.devcontainerNames[name]; ok {
+		if api.devcontainerNames[name] {
 			// Try to find a unique name by appending a number.
 			for i := 2; ; i++ {
 				newName := fmt.Sprintf("%s-%d", name, i)
-				if _, ok := api.devcontainerNames[newName]; !ok {
+				if !api.devcontainerNames[newName] {
 					name = newName
 					break
 				}
 			}
 		}
-		api.devcontainerNames[name] = struct{}{}
+		api.devcontainerNames[name] = true
 		if configFile != "" {
 			if err := api.watcher.Add(configFile); err != nil {
 				api.logger.Error(ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", configFile))
 			}
 		}
 
-		api.knownDevcontainers = append(api.knownDevcontainers, codersdk.WorkspaceAgentDevcontainer{
+		api.knownDevcontainers[workspaceFolder] = codersdk.WorkspaceAgentDevcontainer{
 			ID:              uuid.New(),
 			Name:            name,
 			WorkspaceFolder: workspaceFolder,
 			ConfigPath:      configFile,
-			Running:         container.Running,
-			Dirty:           container.DevcontainerDirty,
+			Status:          "",    // Updated later based on container state.
+			Dirty:           false, // Updated later based on config file changes.
 			Container:       container,
-		})
-		updatedDevcontainers[workspaceFolder] = true
+		}
 	}
 
-	for i := range api.knownDevcontainers {
-		if _, ok := updatedDevcontainers[api.knownDevcontainers[i].WorkspaceFolder]; ok {
-			continue
+	// Iterate through all known devcontainers and update their status
+	// based on the current state of the containers.
+	for _, dc := range api.knownDevcontainers {
+		switch {
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+			continue // This state is handled by the recreation routine.
+
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusError && (dc.Container == nil || dc.Container.CreatedAt.Before(api.recreateErrorTimes[dc.WorkspaceFolder])):
+			continue // The devcontainer needs to be recreated.
+
+		case dc.Container != nil:
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
+			if dc.Container.Running {
+				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
+			}
+
+			dc.Dirty = false
+			if lastModified, hasModTime := api.configFileModifiedTimes[dc.ConfigPath]; hasModTime && dc.Container.CreatedAt.Before(lastModified) {
+				dc.Dirty = true
+			}
+			dc.Container.DevcontainerDirty = dc.Dirty
+
+		case dc.Container == nil:
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
+			dc.Dirty = false
 		}
 
-		dc := &api.knownDevcontainers[i]
-
-		if !dc.Running && !dc.Dirty && dc.Container == nil {
-			// Already marked as not running, skip.
-			continue
-		}
-
-		api.logger.Debug(ctx, "devcontainer is not running anymore, marking as not running",
-			slog.F("workspace_folder", dc.WorkspaceFolder),
-			slog.F("config_path", dc.ConfigPath),
-			slog.F("name", dc.Name),
-		)
-		dc.Running = false
-		dc.Dirty = false
-		dc.Container = nil
+		delete(api.recreateErrorTimes, dc.WorkspaceFolder)
+		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	}
 
 	api.containers = updated
@@ -559,9 +558,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	containerIdx := slices.IndexFunc(containers.Containers, func(c codersdk.WorkspaceAgentContainer) bool {
-		return c.Match(containerID)
-	})
+	containerIdx := slices.IndexFunc(containers.Containers, func(c codersdk.WorkspaceAgentContainer) bool { return c.Match(containerID) })
 	if containerIdx == -1 {
 		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
 			Message: "Container not found",
@@ -584,18 +581,85 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	api.mu.Lock()
+
+	dc, ok := api.knownDevcontainers[workspaceFolder]
+	switch {
+	case !ok:
+		api.mu.Unlock()
+
+		// This case should not happen if the container is a valid devcontainer.
+		api.logger.Error(ctx, "devcontainer not found for workspace folder", slog.F("workspace_folder", workspaceFolder))
+		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+			Message: "Devcontainer not found.",
+			Detail:  fmt.Sprintf("Could not find devcontainer for workspace folder: %q", workspaceFolder),
+		})
+		return
+	case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+		api.mu.Unlock()
+
+		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
+			Message: "Devcontainer recreation already in progress",
+			Detail:  fmt.Sprintf("Recreation for workspace folder %q is already underway.", dc.WorkspaceFolder),
+		})
+		return
+	}
+
+	// Update the status so that we don't try to recreate the
+	// devcontainer multiple times in parallel.
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.recreateWg.Add(1)
+	go api.recreateDevcontainer(dc, configPath)
+
+	api.mu.Unlock()
+
+	httpapi.Write(ctx, w, http.StatusAccepted, codersdk.Response{
+		Message: "Devcontainer recreation initiated",
+		Detail:  fmt.Sprintf("Recreation process for workspace folder %q has started.", dc.WorkspaceFolder),
+	})
+}
+
+// recreateDevcontainer should run in its own goroutine and is responsible for
+// recreating a devcontainer based on the provided devcontainer configuration.
+// It updates the devcontainer status and logs the process. The configPath is
+// passed as a parameter for the odd chance that the container being recreated
+// has a different config file than the one stored in the devcontainer state.
+// The devcontainer state must be set to starting and the recreateWg must be
+// incremented before calling this function.
+func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string) {
+	defer api.recreateWg.Done()
+
+	var (
+		err    error
+		ctx    = api.ctx
+		logger = api.logger.With(
+			slog.F("devcontainer_id", dc.ID),
+			slog.F("devcontainer_name", dc.Name),
+			slog.F("workspace_folder", dc.WorkspaceFolder),
+			slog.F("config_path", configPath),
+		)
+	)
+
+	if dc.ConfigPath != configPath {
+		logger.Warn(ctx, "devcontainer config path mismatch",
+			slog.F("config_path_param", configPath),
+		)
+	}
+
 	// Send logs via agent logging facilities.
-	logSourceID := api.devcontainerLogSourceIDs[workspaceFolder]
+	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
 	if logSourceID == uuid.Nil {
 		// Fallback to the external log source ID if not found.
 		logSourceID = agentsdk.ExternalLogSourceID
 	}
+
 	scriptLogger := api.scriptLogger(logSourceID)
 	defer func() {
 		flushCtx, cancel := context.WithTimeout(api.ctx, 5*time.Second)
 		defer cancel()
 		if err := scriptLogger.Flush(flushCtx); err != nil {
-			api.logger.Error(flushCtx, "flush devcontainer logs failed", slog.Error(err))
+			logger.Error(flushCtx, "flush devcontainer logs failed during recreation", slog.Error(err))
 		}
 	}()
 	infoW := agentsdk.LogsWriter(ctx, scriptLogger.Send, logSourceID, codersdk.LogLevelInfo)
@@ -603,21 +667,49 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	errW := agentsdk.LogsWriter(ctx, scriptLogger.Send, logSourceID, codersdk.LogLevelError)
 	defer errW.Close()
 
-	_, err = api.dccli.Up(ctx, workspaceFolder, configPath, WithOutput(infoW, errW), WithRemoveExistingContainer())
+	logger.Debug(ctx, "starting devcontainer recreation")
+
+	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithOutput(infoW, errW), WithRemoveExistingContainer())
 	if err != nil {
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-			Message: "Could not recreate devcontainer",
-			Detail:  err.Error(),
-		})
+		// No need to log if the API is closing (context canceled), as this
+		// is expected behavior when the API is shutting down.
+		if !errors.Is(err, context.Canceled) {
+			logger.Error(ctx, "devcontainer recreation failed", slog.Error(err))
+		}
+
+		api.mu.Lock()
+		dc = api.knownDevcontainers[dc.WorkspaceFolder]
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+		api.knownDevcontainers[dc.WorkspaceFolder] = dc
+		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("recreate", "errorTimes")
+		api.mu.Unlock()
 		return
 	}
 
-	// NOTE(mafredri): This won't be needed once recreation is done async.
-	if err := api.refreshContainers(r.Context()); err != nil {
-		api.logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
-	}
+	logger.Info(ctx, "devcontainer recreated successfully")
 
-	w.WriteHeader(http.StatusNoContent)
+	api.mu.Lock()
+	dc = api.knownDevcontainers[dc.WorkspaceFolder]
+	// Update the devcontainer status to Running or Stopped based on the
+	// current state of the container, changing the status to !starting
+	// allows the update routine to update the devcontainer status, but
+	// to minimize the time between API consistency, we guess the status
+	// based on the container state.
+	if dc.Container != nil && dc.Container.Running {
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
+	} else {
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
+	}
+	dc.Dirty = false
+	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("recreate", "successTimes")
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.mu.Unlock()
+
+	// Ensure an immediate refresh to accurately reflect the
+	// devcontainer state after recreation.
+	if err := api.refreshContainers(ctx); err != nil {
+		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
+	}
 }
 
 // handleDevcontainersList handles the HTTP request to list known devcontainers.
@@ -626,7 +718,10 @@ func (api *API) handleDevcontainersList(w http.ResponseWriter, r *http.Request) 
 
 	api.mu.RLock()
 	err := api.containersErr
-	devcontainers := slices.Clone(api.knownDevcontainers)
+	devcontainers := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
+	for _, dc := range api.knownDevcontainers {
+		devcontainers = append(devcontainers, dc)
+	}
 	api.mu.RUnlock()
 	if err != nil {
 		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
@@ -659,16 +754,16 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 	// Record the timestamp of when this configuration file was modified.
 	api.configFileModifiedTimes[configPath] = modifiedAt
 
-	for i := range api.knownDevcontainers {
-		dc := &api.knownDevcontainers[i]
+	for _, dc := range api.knownDevcontainers {
 		if dc.ConfigPath != configPath {
 			continue
 		}
 
 		logger := api.logger.With(
-			slog.F("file", configPath),
-			slog.F("name", dc.Name),
+			slog.F("devcontainer_id", dc.ID),
+			slog.F("devcontainer_name", dc.Name),
 			slog.F("workspace_folder", dc.WorkspaceFolder),
+			slog.F("file", configPath),
 			slog.F("modified_at", modifiedAt),
 		)
 
@@ -683,6 +778,8 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 			logger.Info(api.ctx, "marking devcontainer container as dirty")
 			dc.Container.DevcontainerDirty = true
 		}
+
+		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	}
 }
 
@@ -692,17 +789,21 @@ func (api *API) Close() error {
 		api.mu.Unlock()
 		return nil
 	}
-	api.closed = true
-
 	api.logger.Debug(api.ctx, "closing API")
-	defer api.logger.Debug(api.ctx, "closed API")
+	api.closed = true
+	api.cancel()    // Interrupt all routines.
+	api.mu.Unlock() // Release lock before waiting for goroutines.
 
-	api.cancel()
+	// Close the watcher to ensure its loop finishes.
 	err := api.watcher.Close()
 
-	api.mu.Unlock()
+	// Wait for loops to finish.
 	<-api.watcherDone
 	<-api.updaterDone
 
+	// Wait for all devcontainer recreation tasks to complete.
+	api.recreateWg.Wait()
+
+	api.logger.Debug(api.ctx, "closed API")
 	return err
 }

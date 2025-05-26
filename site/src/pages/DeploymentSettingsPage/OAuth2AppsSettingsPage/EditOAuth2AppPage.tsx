@@ -39,10 +39,10 @@ const EditOAuth2AppPage: FC = () => {
 				isLoadingApp={appQuery.isLoading}
 				isLoadingSecrets={secretsQuery.isLoading}
 				mutatingResource={{
-					updateApp: putAppMutation.isLoading,
-					deleteApp: deleteAppMutation.isLoading,
-					createSecret: postSecretMutation.isLoading,
-					deleteSecret: deleteSecretMutation.isLoading,
+					updateApp: putAppMutation.isPending,
+					deleteApp: deleteAppMutation.isPending,
+					createSecret: postSecretMutation.isPending,
+					deleteSecret: deleteSecretMutation.isPending,
 				}}
 				fullNewSecret={fullNewSecret}
 				ackFullNewSecret={() => setFullNewSecret(undefined)}

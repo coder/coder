@@ -121,7 +121,7 @@ const styles = {
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface ParameterLabelProps {
+interface ParameterLabelProps {
 	parameter: TemplateVersionParameter;
 	isPreset?: boolean;
 }
@@ -191,10 +191,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 
 type Size = "medium" | "small";
 
-export type RichParameterInputProps = Omit<
-	TextFieldProps,
-	"size" | "onChange"
-> & {
+type RichParameterInputProps = Omit<TextFieldProps, "size" | "onChange"> & {
 	parameter: TemplateVersionParameter;
 	parameterAutofill?: AutofillBuildParameter;
 	onChange: (value: string) => void;

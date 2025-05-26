@@ -117,10 +117,12 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 		mutationFn: (request: CreateGroupRequest) =>
 			API.createGroup(organization, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(groupsQueryKey);
-			await queryClient.invalidateQueries(
-				getGroupsByOrganizationQueryKey(organization),
-			);
+			await queryClient.invalidateQueries({
+				queryKey: groupsQueryKey,
+			});
+			await queryClient.invalidateQueries({
+				queryKey: getGroupsByOrganizationQueryKey(organization),
+			});
 		},
 	};
 };
@@ -169,11 +171,13 @@ const invalidateGroup = (
 	groupId: string,
 ) =>
 	Promise.all([
-		queryClient.invalidateQueries(groupsQueryKey),
-		queryClient.invalidateQueries(
-			getGroupsByOrganizationQueryKey(organization),
-		),
-		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
+		queryClient.invalidateQueries({ queryKey: groupsQueryKey }),
+		queryClient.invalidateQueries({
+			queryKey: getGroupsByOrganizationQueryKey(organization),
+		}),
+		queryClient.invalidateQueries({
+			queryKey: getGroupQueryKey(organization, groupId),
+		}),
 	]);
 
 function sortGroupsByName<T extends Group>(

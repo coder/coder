@@ -28,7 +28,7 @@ export const Language = {
 	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 };
 
-export interface UserDropdownContentProps {
+interface UserDropdownContentProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks?: readonly TypesGen.LinkConfig[];

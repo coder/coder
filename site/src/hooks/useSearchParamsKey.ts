@@ -1,13 +1,13 @@
 import { useSearchParams } from "react-router-dom";
 
-export type UseSearchParamsKeyConfig = Readonly<{
+type UseSearchParamsKeyConfig = Readonly<{
 	key: string;
 	searchParams?: URLSearchParams;
 	defaultValue?: string;
 	replace?: boolean;
 }>;
 
-export type UseSearchParamKeyResult = Readonly<{
+type UseSearchParamKeyResult = Readonly<{
 	value: string;
 	setValue: (newValue: string) => void;
 	deleteValue: () => void;
