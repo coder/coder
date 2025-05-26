@@ -74,6 +74,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useMemo,
+	useRef,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -109,6 +110,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
+	const lastCheckedWorkspaceIdRef = useRef<string | null>(null);
+
 	const workspaceIDToAppByStatus = useMemo(() => {
 		return (
 			workspaces?.reduce(
@@ -149,6 +152,44 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 		activity: "w-2/6",
 	};
 
+	const handleWorkspaceCheckChange = (
+		workspace: Workspace,
+		isChecked: boolean,
+		isShiftKey: boolean
+	) => {
+		if (!workspaces) return;
+
+		if (isShiftKey && lastCheckedWorkspaceIdRef.current && isChecked) {
+			const lastIndex = workspaces.findIndex(w => w.id === lastCheckedWorkspaceIdRef.current);
+			const currentIndex = workspaces.findIndex(w => w.id === workspace.id);
+
+			if (lastIndex !== -1 && currentIndex !== -1) {
+				const startIndex = Math.min(lastIndex, currentIndex);
+				const endIndex = Math.max(lastIndex, currentIndex);
+
+				const workspacesToAdd = workspaces
+					.slice(startIndex, endIndex + 1)
+					.filter(w => !cantBeChecked(w));
+
+				const existingIds = new Set(checkedWorkspaces.map(w => w.id));
+				const newWorkspaces = [
+					...checkedWorkspaces,
+					...workspacesToAdd.filter(w => !existingIds.has(w.id)),
+				];
+
+				onCheckChange(newWorkspaces);
+			}
+		} else {
+			if (isChecked) {
+				onCheckChange([...checkedWorkspaces, workspace]);
+			} else {
+				onCheckChange(checkedWorkspaces.filter(w => w.id !== workspace.id));
+			}
+		}
+
+		lastCheckedWorkspaceIdRef.current = workspace.id;
+	};
+
 	return (
 		<Table>
 			<TableHeader>
@@ -156,23 +197,34 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					<TableHead className={tableColumnSize.name}>
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
-								<Checkbox
-									className="-my-[9px]"
-									disabled={!workspaces || workspaces.length === 0}
-									checked={checkedWorkspaces.length === workspaces?.length}
-									size="xsmall"
-									onChange={(_, checked) => {
-										if (!workspaces) {
-											return;
-										}
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span>
+												<Checkbox
+													className="-my-[9px]"
+													disabled={!workspaces || workspaces.length === 0}
+													checked={checkedWorkspaces.length === workspaces?.length}
+													size="xsmall"
+													onChange={(_, checked) => {
+														if (!workspaces) {
+															return;
+														}
 
-										if (!checked) {
-											onCheckChange([]);
-										} else {
-											onCheckChange(workspaces);
-										}
-									}}
-								/>
+														if (!checked) {
+															onCheckChange([]);
+														} else {
+															onCheckChange(workspaces);
+														}
+													}}
+												/>
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>
+											Select all workspaces. Use Shift+Click to select a range.
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
 							)}
 							Name
 						</div>
@@ -215,26 +267,33 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<TableCell>
 								<div className="flex items-center gap-2">
 									{canCheckWorkspaces && (
-										<Checkbox
-											data-testid={`checkbox-${workspace.id}`}
-											size="xsmall"
-											disabled={cantBeChecked(workspace)}
-											checked={checked}
-											onClick={(e) => {
-												e.stopPropagation();
-											}}
-											onChange={(e) => {
-												if (e.currentTarget.checked) {
-													onCheckChange([...checkedWorkspaces, workspace]);
-												} else {
-													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
-											}}
-										/>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span>
+														<Checkbox
+															data-testid={`checkbox-${workspace.id}`}
+															size="xsmall"
+															disabled={cantBeChecked(workspace)}
+															checked={checked}
+															onClick={(e) => {
+																e.stopPropagation();
+															}}
+															onChange={(e) => {
+																handleWorkspaceCheckChange(
+																	workspace,
+																	e.currentTarget.checked,
+																	e.nativeEvent instanceof MouseEvent && e.nativeEvent.shiftKey
+																);
+															}}
+														/>
+													</span>
+												</TooltipTrigger>
+												<TooltipContent>
+													Select this workspace. Use Shift+Click to select a range.
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									)}
 									<AvatarData
 										title={
