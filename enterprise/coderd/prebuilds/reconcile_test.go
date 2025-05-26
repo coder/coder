@@ -768,7 +768,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				require.Equal(t, 2, len(workspaces))
 				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus)
 
-				// When hard limit is not reached, metric is set to 0.
+				// When hard limit is not reached, metric is not set.
 				mf, err = registry.Gather()
 				require.NoError(t, err)
 				metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
@@ -776,9 +776,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 					"preset_name":   preset.Name,
 					"org_name":      org.Name,
 				})
-				require.NotNil(t, metric)
-				require.NotNil(t, metric.GetGauge())
-				require.EqualValues(t, 0, metric.GetGauge().GetValue())
+				require.Nil(t, metric)
 				return
 			}
 
