@@ -117,7 +117,7 @@
 		"tzdata": "1.0.40",
 		"ua-parser-js": "1.0.40",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
-		"undici": "6.21.1",
+		"undici": "6.21.2",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"yup": "1.6.1"
