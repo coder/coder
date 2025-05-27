@@ -206,7 +206,7 @@ func TestCloserStack_Timeout(t *testing.T) {
 		defer close(closed)
 		uut.close(nil)
 	}()
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 	// top starts right away, but it hangs
 	testutil.TryReceive(ctx, t, ac[2].started)
 	// timer pops and we start the middle one
