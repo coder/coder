@@ -27,6 +27,7 @@ const (
 	MetricDesiredGauge              = namespace + "desired"
 	MetricRunningGauge              = namespace + "running"
 	MetricEligibleGauge             = namespace + "eligible"
+	MetricPresetHardLimitedGauge    = namespace + "preset_hard_limited"
 	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
 )
 
@@ -82,6 +83,12 @@ var (
 		labels,
 		nil,
 	)
+	presetHardLimitedDesc = prometheus.NewDesc(
+		MetricPresetHardLimitedGauge,
+		"Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.",
+		labels,
+		nil,
+	)
 	lastUpdateDesc = prometheus.NewDesc(
 		MetricLastUpdatedGauge,
 		"The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.",
@@ -104,17 +111,22 @@ type MetricsCollector struct {
 
 	replacementsCounter   map[replacementKey]float64
 	replacementsCounterMu sync.Mutex
+
+	isPresetHardLimited   map[hardLimitedPresetKey]bool
+	isPresetHardLimitedMu sync.Mutex
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
 func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter prebuilds.StateSnapshotter) *MetricsCollector {
 	log := logger.Named("prebuilds_metrics_collector")
+
 	return &MetricsCollector{
 		database:            db,
 		logger:              log,
 		snapshotter:         snapshotter,
 		replacementsCounter: make(map[replacementKey]float64),
+		isPresetHardLimited: make(map[hardLimitedPresetKey]bool),
 	}
 }
 
@@ -126,6 +138,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- desiredPrebuildsDesc
 	descCh <- runningPrebuildsDesc
 	descCh <- eligiblePrebuildsDesc
+	descCh <- presetHardLimitedDesc
 	descCh <- lastUpdateDesc
 }
 
@@ -172,6 +185,17 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(state.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(state.Eligible), preset.TemplateName, preset.Name, preset.OrganizationName)
 	}
+
+	mc.isPresetHardLimitedMu.Lock()
+	for key, isHardLimited := range mc.isPresetHardLimited {
+		var val float64
+		if isHardLimited {
+			val = 1
+		}
+
+		metricsCh <- prometheus.MustNewConstMetric(presetHardLimitedDesc, prometheus.GaugeValue, val, key.templateName, key.presetName, key.orgName)
+	}
+	mc.isPresetHardLimitedMu.Unlock()
 
 	metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, float64(currentState.createdAt.Unix()))
 }
@@ -246,4 +270,26 @@ func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, pres
 	// For example, say we have 2 replacements: a docker_container and a null_resource; we don't know which one might
 	// cause an issue (or indeed if either would), so we just track the replacement.
 	mc.replacementsCounter[key]++
+}
+
+type hardLimitedPresetKey struct {
+	orgName, templateName, presetName string
+}
+
+func (k hardLimitedPresetKey) String() string {
+	return fmt.Sprintf("%s:%s:%s", k.orgName, k.templateName, k.presetName)
+}
+
+// nolint:revive // isHardLimited determines if the preset should be reported as hard-limited in Prometheus.
+func (mc *MetricsCollector) trackHardLimitedStatus(orgName, templateName, presetName string, isHardLimited bool) {
+	mc.isPresetHardLimitedMu.Lock()
+	defer mc.isPresetHardLimitedMu.Unlock()
+
+	key := hardLimitedPresetKey{orgName: orgName, templateName: templateName, presetName: presetName}
+
+	if isHardLimited {
+		mc.isPresetHardLimited[key] = true
+	} else {
+		delete(mc.isPresetHardLimited, key)
+	}
 }

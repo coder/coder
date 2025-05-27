@@ -2,7 +2,6 @@
   {
     "id": "==========[first user ID]===========",
     "username": "testuser",
-    "avatar_url": "",
     "name": "Test User",
     "email": "testuser@coder.com",
     "created_at": "====[timestamp]=====",
@@ -23,8 +22,6 @@
   {
     "id": "==========[second user ID]==========",
     "username": "testuser2",
-    "avatar_url": "",
-    "name": "",
     "email": "testuser2@coder.com",
     "created_at": "====[timestamp]=====",
     "updated_at": "====[timestamp]=====",

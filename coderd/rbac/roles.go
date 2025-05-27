@@ -803,12 +803,12 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 	return roles
 }
 
-// SiteRoles lists all roles that can be applied to a user.
+// SiteBuiltInRoles lists all roles that can be applied to a user.
 // This is the list of available roles, and not specific to a user
 //
 // This should be a list in a database, but until then we build
 // the list from the builtins.
-func SiteRoles() []Role {
+func SiteBuiltInRoles() []Role {
 	var roles []Role
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.

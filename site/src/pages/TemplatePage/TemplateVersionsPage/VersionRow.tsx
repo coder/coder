@@ -11,7 +11,7 @@ import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 
-export interface VersionRowProps {
+interface VersionRowProps {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;

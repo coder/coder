@@ -17,7 +17,7 @@ import { quietHoursDisplay, timeToCron, validTime } from "utils/schedule";
 import { getPreferredTimezone, timeZones } from "utils/timeZones";
 import * as Yup from "yup";
 
-export interface ScheduleFormValues {
+interface ScheduleFormValues {
 	time: string;
 	timezone: string;
 }
@@ -37,7 +37,7 @@ const validationSchema = Yup.object({
 	timezone: Yup.string().required(),
 });
 
-export interface ScheduleFormProps {
+interface ScheduleFormProps {
 	isLoading: boolean;
 	initialValues: UserQuietHoursScheduleResponse;
 	submitError: unknown;

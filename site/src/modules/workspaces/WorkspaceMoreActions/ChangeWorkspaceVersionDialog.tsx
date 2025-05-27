@@ -20,7 +20,7 @@ import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { createDayString } from "utils/createDayString";
 
-export type ChangeWorkspaceVersionDialogProps = DialogProps & {
+type ChangeWorkspaceVersionDialogProps = DialogProps & {
 	workspace: Workspace;
 	onClose: () => void;
 	onConfirm: (version: TemplateVersion) => void;

@@ -2188,14 +2188,14 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 
 	t.Logf("Looking for container with label: devcontainer.local_folder=%s", workspaceFolder)
 
-	var container docker.APIContainers
+	var container codersdk.WorkspaceAgentContainer
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
+		resp, err := conn.ListContainers(ctx)
 		if err != nil {
 			t.Logf("Error listing containers: %v", err)
 			return false
 		}
-		for _, c := range containers {
+		for _, c := range resp.Containers {
 			t.Logf("Found container: %s with labels: %v", c.ID[:12], c.Labels)
 			if v, ok := c.Labels["devcontainer.local_folder"]; ok && v == workspaceFolder {
 				t.Logf("Found matching container: %s", c.ID[:12])
@@ -2205,7 +2205,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 		}
 		return false
 	}, testutil.IntervalMedium, "no container with workspace folder label found")
-	defer func(container docker.APIContainers) {
+	defer func(container codersdk.WorkspaceAgentContainer) {
 		// We can't rely on pool here because the container is not
 		// managed by it (it is managed by @devcontainer/cli).
 		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
@@ -2225,7 +2225,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	// Invoke recreate to trigger the destruction and recreation of the
 	// devcontainer, we do it in a goroutine so we can process logs
 	// concurrently.
-	go func(container docker.APIContainers) {
+	go func(container codersdk.WorkspaceAgentContainer) {
 		err := conn.RecreateDevcontainer(ctx, container.ID)
 		assert.NoError(t, err, "recreate devcontainer should succeed")
 	}(container)
@@ -2253,12 +2253,12 @@ waitForOutcomeLoop:
 
 	// Make sure the container exists and isn't the same as the old one.
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
+		resp, err := conn.ListContainers(ctx)
 		if err != nil {
 			t.Logf("Error listing containers: %v", err)
 			return false
 		}
-		for _, c := range containers {
+		for _, c := range resp.Containers {
 			t.Logf("Found container: %s with labels: %v", c.ID[:12], c.Labels)
 			if v, ok := c.Labels["devcontainer.local_folder"]; ok && v == workspaceFolder {
 				if c.ID == container.ID {
@@ -2272,7 +2272,7 @@ waitForOutcomeLoop:
 		}
 		return false
 	}, testutil.IntervalMedium, "new devcontainer not found")
-	defer func(container docker.APIContainers) {
+	defer func(container codersdk.WorkspaceAgentContainer) {
 		// We can't rely on pool here because the container is not
 		// managed by it (it is managed by @devcontainer/cli).
 		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{

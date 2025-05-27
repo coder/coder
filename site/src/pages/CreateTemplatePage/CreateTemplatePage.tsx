@@ -40,7 +40,7 @@ const CreateTemplatePage: FC = () => {
 		},
 		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
 		error: createTemplateMutation.error,
-		isCreating: createTemplateMutation.isLoading,
+		isCreating: createTemplateMutation.isPending,
 		variablesSectionRef,
 	};
 

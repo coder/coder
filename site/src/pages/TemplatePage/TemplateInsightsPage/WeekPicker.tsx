@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { differenceInWeeks } from "date-fns";
+import dayjs from "dayjs";
 import { ChevronDownIcon } from "lucide-react";
 import { CheckIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
@@ -20,7 +20,10 @@ interface WeekPickerProps {
 export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 	const anchorRef = useRef<HTMLButtonElement>(null);
 	const [open, setOpen] = useState(false);
-	const numberOfWeeks = differenceInWeeks(value.endDate, value.startDate);
+	const numberOfWeeks = dayjs(value.endDate).diff(
+		dayjs(value.startDate),
+		"week",
+	);
 
 	const handleClose = () => {
 		setOpen(false);

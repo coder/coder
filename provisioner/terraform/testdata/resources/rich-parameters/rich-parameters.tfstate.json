@@ -16,6 +16,7 @@
             "description": null,
             "display_name": null,
             "ephemeral": false,
+            "form_type": "radio",
             "icon": null,
             "id": "39cdd556-8e21-47c7-8077-f9734732ff6c",
             "mutable": false,
@@ -36,6 +37,7 @@
             ],
             "optional": false,
             "order": null,
+            "styling": "{}",
             "type": "string",
             "validation": [],
             "value": ""
@@ -60,6 +62,7 @@
             "description": null,
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "3812e978-97f0-460d-a1ae-af2a49e339fb",
             "mutable": false,
@@ -67,6 +70,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "number",
             "validation": [],
             "value": "4"
@@ -87,6 +91,7 @@
             "description": null,
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "83ba35bf-ca92-45bc-9010-29b289e7b303",
             "mutable": false,
@@ -94,6 +99,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "number",
             "validation": [
               {
@@ -126,6 +132,7 @@
             "description": null,
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "3a8d8ea8-4459-4435-bf3a-da5e00354952",
             "mutable": false,
@@ -133,6 +140,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "number",
             "validation": [
               {
@@ -165,6 +173,7 @@
             "description": null,
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "3c641e1c-ba27-4b0d-b6f6-d62244fee536",
             "mutable": false,
@@ -172,6 +181,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "number",
             "validation": [
               {
@@ -204,6 +214,7 @@
             "description": "blah blah",
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "f00ed554-9be3-4b40-8787-2c85f486dc17",
             "mutable": false,
@@ -211,6 +222,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "string",
             "validation": [],
             "value": "ok"
@@ -227,6 +239,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
@@ -295,6 +308,7 @@
                 "description": "First parameter from module",
                 "display_name": null,
                 "ephemeral": false,
+                "form_type": "input",
                 "icon": null,
                 "id": "74f60a35-c5da-4898-ba1b-97e9726a3dd7",
                 "mutable": true,
@@ -302,6 +316,7 @@
                 "option": null,
                 "optional": true,
                 "order": null,
+                "styling": "{}",
                 "type": "string",
                 "validation": [],
                 "value": "abcdef"
@@ -322,6 +337,7 @@
                 "description": "Second parameter from module",
                 "display_name": null,
                 "ephemeral": false,
+                "form_type": "input",
                 "icon": null,
                 "id": "af4d2ac0-15e2-4648-8219-43e133bb52af",
                 "mutable": true,
@@ -329,6 +345,7 @@
                 "option": null,
                 "optional": true,
                 "order": null,
+                "styling": "{}",
                 "type": "string",
                 "validation": [],
                 "value": "ghijkl"
@@ -354,6 +371,7 @@
                     "description": "First parameter from child module",
                     "display_name": null,
                     "ephemeral": false,
+                    "form_type": "input",
                     "icon": null,
                     "id": "c7ffff35-e3d5-48fe-9714-3fb160bbb3d1",
                     "mutable": true,
@@ -361,6 +379,7 @@
                     "option": null,
                     "optional": true,
                     "order": null,
+                    "styling": "{}",
                     "type": "string",
                     "validation": [],
                     "value": "abcdef"
@@ -381,6 +400,7 @@
                     "description": "Second parameter from child module",
                     "display_name": null,
                     "ephemeral": false,
+                    "form_type": "input",
                     "icon": null,
                     "id": "45b6bdbe-1233-46ad-baf9-4cd7e73ce3b8",
                     "mutable": true,
@@ -388,6 +408,7 @@
                     "option": null,
                     "optional": true,
                     "order": null,
+                    "styling": "{}",
                     "type": "string",
                     "validation": [],
                     "value": "ghijkl"

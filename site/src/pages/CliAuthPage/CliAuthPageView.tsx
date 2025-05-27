@@ -7,7 +7,7 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-export interface CliAuthPageViewProps {
+interface CliAuthPageViewProps {
 	sessionToken?: string;
 }
 

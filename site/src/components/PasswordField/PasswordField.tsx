@@ -2,7 +2,7 @@ import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { API } from "api/api";
 import { useDebouncedValue } from "hooks/debounce";
 import type { FC } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 
 // TODO: @BrunoQuaresma: Unable to integrate Yup + Formik for validation. The
 // validation was triggering on the onChange event, but the form.errors were not
@@ -19,7 +19,7 @@ export const PasswordField: FC<TextFieldProps> = (props) => {
 	const validatePasswordQuery = useQuery({
 		queryKey: ["validatePassword", debouncedValue],
 		queryFn: () => API.validateUserPassword(debouncedValue),
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 		enabled: debouncedValue.length > 0,
 	});
 	const valid = validatePasswordQuery.data?.valid ?? true;

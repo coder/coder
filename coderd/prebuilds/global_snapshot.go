@@ -1,6 +1,8 @@
 package prebuilds
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -41,12 +43,16 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return nil, xerrors.Errorf("no preset found with ID %q", presetID)
 	}
 
+	// Only include workspaces that have successfully started
 	running := slice.Filter(s.RunningPrebuilds, func(prebuild database.GetRunningPrebuiltWorkspacesRow) bool {
 		if !prebuild.CurrentPresetID.Valid {
 			return false
 		}
 		return prebuild.CurrentPresetID.UUID == preset.ID
 	})
+
+	// Separate running workspaces into non-expired and expired based on the preset's TTL
+	nonExpired, expired := filterExpiredWorkspaces(preset, running)
 
 	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
 		return prebuild.PresetID.UUID == preset.ID
@@ -66,9 +72,33 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 
 	return &PresetSnapshot{
 		Preset:        preset,
-		Running:       running,
+		Running:       nonExpired,
+		Expired:       expired,
 		InProgress:    inProgress,
 		Backoff:       backoffPtr,
 		IsHardLimited: isHardLimited,
 	}, nil
+}
+
+// filterExpiredWorkspaces splits running workspaces into expired and non-expired
+// based on the preset's TTL.
+// If TTL is missing or zero, all workspaces are considered non-expired.
+func filterExpiredWorkspaces(preset database.GetTemplatePresetsWithPrebuildsRow, runningWorkspaces []database.GetRunningPrebuiltWorkspacesRow) (nonExpired []database.GetRunningPrebuiltWorkspacesRow, expired []database.GetRunningPrebuiltWorkspacesRow) {
+	if !preset.Ttl.Valid {
+		return runningWorkspaces, expired
+	}
+
+	ttl := time.Duration(preset.Ttl.Int32) * time.Second
+	if ttl <= 0 {
+		return runningWorkspaces, expired
+	}
+
+	for _, prebuild := range runningWorkspaces {
+		if time.Since(prebuild.CreatedAt) > ttl {
+			expired = append(expired, prebuild)
+		} else {
+			nonExpired = append(nonExpired, prebuild)
+		}
+	}
+	return nonExpired, expired
 }

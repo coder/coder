@@ -11,7 +11,7 @@ export interface FieldError {
 	detail: string;
 }
 
-export type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
+type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
 
 export interface ApiErrorResponse {
 	message: string;
@@ -19,7 +19,7 @@ export interface ApiErrorResponse {
 	validations?: FieldError[];
 }
 
-export type ApiError = AxiosError<ApiErrorResponse> & {
+type ApiError = AxiosError<ApiErrorResponse> & {
 	response: AxiosResponse<ApiErrorResponse>;
 };
 

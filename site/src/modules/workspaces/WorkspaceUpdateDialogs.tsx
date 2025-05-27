@@ -58,7 +58,7 @@ export const useWorkspaceUpdate = ({
 
 	return {
 		update,
-		isUpdating: updateWorkspaceMutation.isLoading,
+		isUpdating: updateWorkspaceMutation.isPending,
 		dialogs: {
 			updateConfirmation: {
 				open: isConfirmingUpdate,

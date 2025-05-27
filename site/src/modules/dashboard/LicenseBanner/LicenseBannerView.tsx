@@ -36,7 +36,7 @@ const formatMessage = (message: string) => {
 	return message;
 };
 
-export interface LicenseBannerViewProps {
+interface LicenseBannerViewProps {
 	errors: readonly string[];
 	warnings: readonly string[];
 }

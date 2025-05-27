@@ -37,7 +37,7 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 	});
 };
 
-export interface StarterTemplatesProps {
+interface StarterTemplatesProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 }
 

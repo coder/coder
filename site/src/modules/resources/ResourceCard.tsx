@@ -70,7 +70,7 @@ const styles = {
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface ResourceCardProps {
+interface ResourceCardProps {
 	resource: WorkspaceResource;
 	agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
