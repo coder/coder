@@ -10,8 +10,8 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import type { FC } from "react";
+} from "components/Popover/Popover";
+import { type FC, useState } from "react";
 
 type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;
@@ -19,6 +19,7 @@ type GroupsCellProps = {
 
 export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 	const theme = useTheme();
+	const [open, setOpen] = useState(false);
 
 	return (
 		<TableCell>
@@ -28,8 +29,11 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 				// the table UI
 				<em css={{ fontStyle: "normal" }}>N/A</em>
 			) : (
-				<Popover mode="hover">
-					<PopoverTrigger>
+				<Popover open={open} onOpenChange={setOpen}>
+					<PopoverTrigger
+						onMouseEnter={() => setOpen(true)}
+						onMouseLeave={() => setOpen(false)}
+					>
 						<button
 							css={{
 								cursor: "pointer",
@@ -58,20 +62,10 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 					</PopoverTrigger>
 
 					<PopoverContent
-						disableScrollLock
-						disableRestoreFocus
+						align="center"
+						side="top"
 						css={{
-							".MuiPaper-root": {
-								minWidth: "auto",
-							},
-						}}
-						anchorOrigin={{
-							vertical: "top",
-							horizontal: "center",
-						}}
-						transformOrigin={{
-							vertical: "bottom",
-							horizontal: "center",
+							minWidth: "auto",
 						}}
 					>
 						<OverflowY maxHeight={400}>
