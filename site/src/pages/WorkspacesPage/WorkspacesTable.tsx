@@ -160,25 +160,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 		if (!workspaces) return;
 
 		if (isShiftKey && lastCheckedWorkspaceIdRef.current && isChecked) {
-			const lastIndex = workspaces.findIndex(w => w.id === lastCheckedWorkspaceIdRef.current);
-			const currentIndex = workspaces.findIndex(w => w.id === workspace.id);
+			const newWorkspaces = getWorkspacesForShiftClick(
+				workspaces,
+				checkedWorkspaces,
+				lastCheckedWorkspaceIdRef.current,
+				workspace.id
+			);
 
-			if (lastIndex !== -1 && currentIndex !== -1) {
-				const startIndex = Math.min(lastIndex, currentIndex);
-				const endIndex = Math.max(lastIndex, currentIndex);
-
-				const workspacesToAdd = workspaces
-					.slice(startIndex, endIndex + 1)
-					.filter(w => !cantBeChecked(w));
-
-				const existingIds = new Set(checkedWorkspaces.map(w => w.id));
-				const newWorkspaces = [
-					...checkedWorkspaces,
-					...workspacesToAdd.filter(w => !existingIds.has(w.id)),
-				];
-
-				onCheckChange(newWorkspaces);
-			}
+			onCheckChange(newWorkspaces);
 		} else {
 			if (isChecked) {
 				onCheckChange([...checkedWorkspaces, workspace]);
@@ -188,6 +177,43 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 		}
 
 		lastCheckedWorkspaceIdRef.current = workspace.id;
+	};
+
+	/**
+	 * Handles shift+click multi-selection logic to select a range of workspaces
+	 */
+	const getWorkspacesForShiftClick = (
+		allWorkspaces: readonly Workspace[],
+		selectedWorkspaces: readonly Workspace[],
+		lastCheckedId: string | null,
+		currentId: string
+	): readonly Workspace[] => {
+		const lastIndex = allWorkspaces.findIndex(w => w.id === lastCheckedId);
+		const currentIndex = allWorkspaces.findIndex(w => w.id === currentId);
+
+		if (lastIndex === -1 || currentIndex === -1) {
+			return selectedWorkspaces;
+		}
+
+		const startIndex = Math.min(lastIndex, currentIndex);
+		const endIndex = Math.max(lastIndex, currentIndex);
+
+		const workspacesToAdd = allWorkspaces
+			.slice(startIndex, endIndex + 1)
+			.filter(w => !cantBeChecked(w));
+
+		const existingIds = new Set(selectedWorkspaces.map(w => w.id));
+		return [
+			...selectedWorkspaces,
+			...workspacesToAdd.filter(w => !existingIds.has(w.id)),
+		];
+	};
+
+	/**
+	 * Detects if the shift key was pressed during a mouse event
+	 */
+	const isShiftKeyPressed = (event: React.SyntheticEvent): boolean => {
+		return event.nativeEvent instanceof MouseEvent && event.nativeEvent.shiftKey;
 	};
 
 	return (
@@ -272,7 +298,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 																handleWorkspaceCheckChange(
 																	workspace,
 																	e.currentTarget.checked,
-																	e.nativeEvent instanceof MouseEvent && e.nativeEvent.shiftKey
+																	isShiftKeyPressed(e)
 																);
 															}}
 														/>
