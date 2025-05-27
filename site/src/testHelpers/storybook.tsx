@@ -162,29 +162,45 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 	);
 };
 
-export const withProxyProvider =
-	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
+const baselineProxyProvider: ProxyContextValue = {
+	proxyLatencies: MockProxyLatencies,
+	proxy: getPreferredProxy([], undefined),
+	proxies: [],
+	isLoading: false,
+	isFetched: true,
+	setProxy: () => {
+		return;
+	},
+	clearProxy: () => {
+		return;
+	},
+	refetchProxyLatencies: (): Date => {
+		return new Date();
+	},
+};
+
+export const withProxyProvider = (provider?: Partial<ProxyContextValue>) => {
+	// Not using the spread operator to combine the values, because there's a
+	// risk that it will wipe fields from the baseline provider if the incoming
+	// provider isn't defined properly. Have to do some wonky things at the type
+	// level to avoid using the `any` type, but by stitching together the
+	// providers on a per-property basis, we have much better runtime assurances
+	const merged: Record<string, ProxyContextValue[keyof ProxyContextValue]> = {
+		...baselineProxyProvider,
+	};
+	if (provider !== undefined) {
+		for (const key in provider) {
+			if (Object.hasOwn(provider, key)) {
+				merged[key] = provider;
+			}
+		}
+	}
+
+	return (Story: FC) => {
 		return (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					setProxy: () => {
-						return;
-					},
-					clearProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-					...value,
-				}}
-			>
+			<ProxyContext.Provider value={merged as unknown as ProxyContextValue}>
 				<Story />
 			</ProxyContext.Provider>
 		);
 	};
+};
