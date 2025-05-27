@@ -24,7 +24,6 @@ import {
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import {
 	displayNameValidator,
@@ -64,6 +63,7 @@ export interface TemplateSettingsForm {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
+	isDynamicParametersEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -76,6 +76,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	portSharingControlsEnabled,
+	isDynamicParametersEnabled,
 }) => {
 	const form = useFormik<UpdateTemplateMeta>({
 		initialValues: {
@@ -98,8 +99,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 		initialTouched,
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
-	const { experiments } = useDashboard();
-	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
 	return (
 		<HorizontalForm
@@ -227,7 +226,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
-					{dynamicParametersEnabled && (
+					{isDynamicParametersEnabled && (
 						<FormControlLabel
 							control={
 								<Checkbox
