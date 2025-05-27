@@ -9,7 +9,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
