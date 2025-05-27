@@ -1,16 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import TasksPage, { data } from "./TasksPage";
-import { spyOn, within, expect, userEvent } from "@storybook/test";
+import { expect, spyOn, userEvent, within } from "@storybook/test";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
-	mockApiError,
 	MockProxyLatencies,
 	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
+	mockApiError,
 } from "testHelpers/entities";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { withAuthProvider, withGlobalSnackbar } from "testHelpers/storybook";
+import TasksPage, { data } from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",

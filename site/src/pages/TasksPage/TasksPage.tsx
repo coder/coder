@@ -1,9 +1,3 @@
-import {
-	TooltipProvider,
-	TooltipTrigger,
-	TooltipContent,
-	Tooltip,
-} from "components/Tooltip/Tooltip";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { disabledRefetchOptions } from "api/queries/util";
@@ -17,6 +11,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -39,16 +34,21 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { relativeTime } from "utils/time";
 import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
-import { useAuthenticated } from "hooks";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { relativeTime } from "utils/time";
 
 const TasksPage: FC = () => {
 	const {
