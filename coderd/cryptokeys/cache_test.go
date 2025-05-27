@@ -423,7 +423,7 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, 2, ff.called)
 		require.Equal(t, decodedSecret(t, newKey), key)
 
-		trapped.Release()
+		trapped.MustRelease(ctx)
 		wait.MustWait(ctx)
 		require.Equal(t, 2, ff.called)
 		trap.Close()

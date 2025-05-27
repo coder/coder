@@ -1,8 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
-import { withDashboardProvider, withWebSocket } from "testHelpers/storybook";
+import {
+	withDashboardProvider,
+	withProxyProvider,
+	withWebSocket,
+} from "testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
@@ -94,32 +98,7 @@ const meta: Meta<typeof AgentRow> = {
 		showApps: true,
 		storybookAgentMetadata: defaultAgentMetadata,
 	},
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: M.MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					setProxy: () => {
-						return;
-					},
-					clearProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-		withDashboardProvider,
-		withWebSocket,
-	],
+	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
 	parameters: {
 		chromatic,
 		queries: [
@@ -253,31 +232,13 @@ export const Off: Story = {
 
 export const ShowingPortForward: Story = {
 	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: M.MockProxyLatencies,
-					proxy: getPreferredProxy(
-						M.MockWorkspaceProxies,
-						M.MockPrimaryWorkspaceProxy,
-					),
-					proxies: M.MockWorkspaceProxies,
-					isLoading: false,
-					isFetched: true,
-					setProxy: () => {
-						return;
-					},
-					clearProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
+		withProxyProvider({
+			proxy: getPreferredProxy(
+				M.MockWorkspaceProxies,
+				M.MockPrimaryWorkspaceProxy,
+			),
+			proxies: M.MockWorkspaceProxies,
+		}),
 	],
 };
 
