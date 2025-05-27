@@ -777,6 +777,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
     {
       "created_at": "2019-08-24T14:15:22Z",
       "devcontainer_dirty": true,
+      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {

@@ -31,3 +31,24 @@ export const WithPorts: Story = {
 		},
 	},
 };
+
+export const Dirty: Story = {
+	args: {
+		container: {
+			...MockWorkspaceAgentContainer,
+			devcontainer_dirty: true,
+			ports: MockWorkspaceAgentContainerPorts,
+		},
+	},
+};
+
+export const Recreating: Story = {
+	args: {
+		container: {
+			...MockWorkspaceAgentContainer,
+			devcontainer_dirty: true,
+			devcontainer_status: "starting",
+			ports: MockWorkspaceAgentContainerPorts,
+		},
+	},
+};

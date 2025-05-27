@@ -17201,6 +17201,14 @@ const docTemplate = `{
                     "description": "DevcontainerDirty is true if the devcontainer configuration has changed\nsince the container was created. This is used to determine if the\ncontainer needs to be rebuilt.",
                     "type": "boolean"
                 },
+                "devcontainer_status": {
+                    "description": "DevcontainerStatus is the status of the devcontainer, if this\ncontainer is a devcontainer. This is used to determine if the\ndevcontainer is running, stopped, starting, or in an error state.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerStatus"
+                        }
+                    ]
+                },
                 "id": {
                     "description": "ID is the unique identifier of the container.",
                     "type": "string"
@@ -17264,6 +17272,21 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentDevcontainerStatus": {
+            "type": "string",
+            "enum": [
+                "running",
+                "stopped",
+                "starting",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentDevcontainerStatusRunning",
+                "WorkspaceAgentDevcontainerStatusStopped",
+                "WorkspaceAgentDevcontainerStatusStarting",
+                "WorkspaceAgentDevcontainerStatusError"
+            ]
         },
         "codersdk.WorkspaceAgentHealth": {
             "type": "object",
