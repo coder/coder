@@ -325,6 +325,7 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
+const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 
 const RoutesWithSuspense = () => {
 	return (
@@ -435,6 +436,8 @@ export const router = createBrowserRouter(
 						<Route index element={<ChatLanding />} />
 						<Route path=":chatID" element={<ChatMessages />} />
 					</Route>
+
+					<Route path="/tasks" element={<TasksPage />} />
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
