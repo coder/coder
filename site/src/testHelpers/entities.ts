@@ -903,6 +903,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	health: "disabled",
 	external: false,
 	sharing_level: "owner",
+	group: "",
 	hidden: false,
 	open_in: "slim-window",
 	statuses: [],

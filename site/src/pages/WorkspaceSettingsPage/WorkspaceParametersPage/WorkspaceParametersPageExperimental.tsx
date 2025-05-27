@@ -21,14 +21,7 @@ import {
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp, Undo2 } from "lucide-react";
 import type { FC } from "react";
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -53,16 +46,17 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
+	const sendMessage = useEffectEvent((formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
+			owner_id: workspace.owner_id,
 			inputs: formValues,
 		};
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
 		}
-	}, []);
+	});
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -76,7 +70,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!workspace.latest_build.template_version_id) return;
 
 		const socket = API.templateVersionDynamicParameters(
-			workspace.owner_id,
 			workspace.latest_build.template_version_id,
 			{
 				onMessage,
@@ -103,11 +96,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [
-		workspace.owner_id,
-		workspace.latest_build.template_version_id,
-		onMessage,
-	]);
+	}, [workspace.latest_build.template_version_id, onMessage]);
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>

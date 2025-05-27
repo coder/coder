@@ -2432,6 +2432,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				sharingLevel = database.AppSharingLevelPublic
 			}
 
+			displayGroup := sql.NullString{
+				Valid:  app.Group != "",
+				String: app.Group,
+			}
+
 			openIn := database.WorkspaceAppOpenInSlimWindow
 			switch app.OpenIn {
 			case sdkproto.AppOpenIn_TAB:
@@ -2464,6 +2469,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Health:               health,
 				// #nosec G115 - Order represents a display order value that's always small and fits in int32
 				DisplayOrder: int32(app.Order),
+				DisplayGroup: displayGroup,
 				Hidden:       app.Hidden,
 				OpenIn:       openIn,
 			})

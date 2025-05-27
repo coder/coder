@@ -32,7 +32,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/public_key/main.tf")
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
@@ -210,6 +210,47 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		// test to make it obvious what this test is doing.
 		require.Zero(t, setup.api.FileCache.Count())
 	})
+
+	t.Run("BadOwner", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			plan:                     nil,
+			static:                   nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		err = stream.Send(codersdk.DynamicParametersRequest{
+			ID: 1,
+			Inputs: map[string]string{
+				"jetbrains_ide": "GO",
+			},
+			OwnerID: uuid.New(),
+		})
+		require.NoError(t, err)
+
+		preview = testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, 1, preview.ID)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Extra.Code, "owner_not_found")
+	})
 }
 
 type setupDynamicParamsTestParams struct {
@@ -242,7 +283,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	files := echo.WithExtraFiles(map[string][]byte{
 		"main.tf": args.mainTF,
@@ -262,7 +303,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	if args.expectWebsocketError {
 		require.Errorf(t, err, "expected error forming websocket")
 	} else {
