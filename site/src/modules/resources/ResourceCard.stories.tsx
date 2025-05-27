@@ -1,19 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { WorkspaceAgent } from "api/typesGenerated";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import {
-	MockProxyLatencies,
-	MockWorkspaceResource,
-} from "testHelpers/entities";
+import { MockWorkspaceResource } from "testHelpers/entities";
+import { withProxyProvider } from "testHelpers/storybook";
 import { AgentRowPreview } from "./AgentRowPreview";
 import { ResourceCard } from "./ResourceCard";
 
 const meta: Meta<typeof ResourceCard> = {
 	title: "modules/resources/ResourceCard",
 	component: ResourceCard,
+	decorators: [withProxyProvider()],
 	args: {
 		resource: MockWorkspaceResource,
-		agentRow: getAgentRow,
+		agentRow: (agent) => <AgentRowPreview agent={agent} key={agent.id} />,
 	},
 };
 
@@ -67,31 +64,5 @@ export const BunchOfMetadata: Story = {
 				},
 			],
 		},
-		agentRow: getAgentRow,
 	},
 };
-
-function getAgentRow(agent: WorkspaceAgent): JSX.Element {
-	return (
-		<ProxyContext.Provider
-			value={{
-				proxyLatencies: MockProxyLatencies,
-				proxy: getPreferredProxy([], undefined),
-				proxies: [],
-				isLoading: false,
-				isFetched: true,
-				setProxy: () => {
-					return;
-				},
-				clearProxy: () => {
-					return;
-				},
-				refetchProxyLatencies: (): Date => {
-					return new Date();
-				},
-			}}
-		>
-			<AgentRowPreview agent={agent} key={agent.id} />
-		</ProxyContext.Provider>
-	);
-}
