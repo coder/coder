@@ -7,7 +7,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
-import { DeprecatedBadge } from "components/Badges/Badges";
+import { DeletedBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import type { useFilter } from "components/Filter/Filter";
 import {
@@ -158,7 +158,9 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			</TableCell>
 
 			<TableCell css={styles.actionCell}>
-				{template.deprecated ? (
+				{template.deleted ? (
+					<DeletedBadge />
+				) : template.deprecated ? (
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
 						?.createWorkspaceForUserID ? (

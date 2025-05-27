@@ -2636,6 +2636,7 @@ export interface Template {
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly use_classic_parameter_flow: boolean;
+	readonly deleted: boolean;
 }
 
 // From codersdk/templates.go

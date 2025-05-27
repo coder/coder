@@ -191,6 +191,12 @@ export const DeprecatedBadge: FC = () => {
 	);
 };
 
+export const DeletedBadge: FC = () => {
+	return (
+		<span css={[styles.badge, styles.errorBadge]}>Deleted</span>
+	);
+};
+
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<Stack
