@@ -4714,7 +4714,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		t.Skip("This test makes use of a database trigger not implemented in dbmem")
 	}
 
-	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceTable, database.WorkspaceResource, database.WorkspaceAgent) {
+	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
 		t.Helper()
 
 		user := dbgen.User(t, db, database.User{})
@@ -4750,10 +4750,10 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			Name:       agentName,
 		})
 
-		return workspace, resource, agent
+		return build, resource, agent
 	}
 
-	t.Run("DuplicateNamesInSameWorkspaceBuild", func(t *testing.T) {
+	t.Run("DuplicateNamesInSameWorkspaceResource", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
@@ -4761,8 +4761,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A workspace with an agent
-		_, resource, agent := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
-		require.Equal(t, "duplicate-agent", agent.Name)
+		_, resource, _ := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
 
 		// When: Another agent is created for that workspace with the same name.
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
@@ -4783,6 +4782,82 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		require.True(t, errors.As(err, &pqErr))
 		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
 		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace resource`)
+	})
+
+	t.Run("DuplicateNamesInSameProvisionerJob", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, agent := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: A child agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent.Name,
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace resource`)
+	})
+
+	t.Run("DuplicateChildNamesOverMultipleResources", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with two agents
+		_, resource1, agent1 := createWorkspaceWithAgent(t, db, org, "parent-agent-1")
+
+		resource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: resource1.JobID})
+		agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource2.ID,
+			Name:       "parent-agent-2",
+		})
+
+		// Given: One agent has a child agent
+		agent1Child := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{Valid: true, UUID: agent1.ID},
+			Name:       "child-agent",
+			ResourceID: resource1.ID,
+		})
+
+		// When: A child agent is inserted for the other parent.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			ParentID:        uuid.NullUUID{Valid: true, UUID: agent2.ID},
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent1Child.Name,
+			ResourceID:      resource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "child-agent" already exists in this workspace resource`)
 	})
 
 	t.Run("SameNamesInDifferentWorkspaces", func(t *testing.T) {
