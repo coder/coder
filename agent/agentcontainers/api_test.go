@@ -432,7 +432,7 @@ func TestAPI(t *testing.T) {
 
 				// Make sure the ticker function has been registered
 				// before advancing the clock.
-				tickerTrap.MustWait(ctx).Release()
+				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
 
 				for i := range tt.wantStatus {
@@ -486,7 +486,7 @@ func TestAPI(t *testing.T) {
 					nowRecreateSuccessTrap.Close()
 					// The timestamp for the error will be stored, which gives
 					// us a good anchor point to know when to do our request.
-					nowRecreateErrorTrap.MustWait(ctx).Release()
+					nowRecreateErrorTrap.MustWait(ctx).MustRelease(ctx)
 					nowRecreateErrorTrap.Close()
 
 					// Advance the clock to run the devcontainer state update routine.
@@ -507,7 +507,7 @@ func TestAPI(t *testing.T) {
 				}
 
 				// Ensure the devcontainer ends up in success state.
-				nowRecreateSuccessTrap.MustWait(ctx).Release()
+				nowRecreateSuccessTrap.MustWait(ctx).MustRelease(ctx)
 				nowRecreateSuccessTrap.Close()
 
 				// Advance the clock to run the devcontainer state update routine.
