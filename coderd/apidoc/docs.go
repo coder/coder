@@ -17822,6 +17822,9 @@ const docTemplate = `{
                 },
                 "workspace_owner_name": {
                     "type": "string"
+                },
+                "workspace_owner_username": {
+                    "type": "string"
                 }
             }
         },

@@ -57,7 +57,8 @@ type WorkspaceBuild struct {
 	WorkspaceID             uuid.UUID            `json:"workspace_id" format:"uuid"`
 	WorkspaceName           string               `json:"workspace_name"`
 	WorkspaceOwnerID        uuid.UUID            `json:"workspace_owner_id" format:"uuid"`
-	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
+	WorkspaceOwnerName      string               `json:"workspace_owner_name,omitempty"`
+	WorkspaceOwnerUsername  string               `json:"workspace_owner_username"`
 	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
 	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
 	TemplateVersionName     string               `json:"template_version_name"`
