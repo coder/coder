@@ -1,27 +1,28 @@
-<svg height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><title>Cursor (inverted)</title>
-  <!-- faces the same geometry, only colors flipped -->
-  <path d="M11.925 24l10.425-6-10.425-6L1.5 18l10.425 6z" fill="url(#cursor-fill-0-inv)"/>
-  <path d="M22.35 18V6L11.925 0v12l10.425 6z" fill="url(#cursor-fill-1-inv)"/>
-  <path d="M11.925 0L1.5 6v12l10.425-6V0z" fill="url(#cursor-fill-2-inv)"/>
-  <path d="M22.35 6L11.925 24V12L22.35 6z" fill="#AAA"/>
-  <path d="M22.35 6l-10.425 6L1.5 6h20.85z" fill="#FFF"/>
-  <defs>
-    <!-- gradient 0 -->
-    <linearGradient id="cursor-fill-0-inv" x1="11.925" x2="11.925" y1="12" y2="24" gradientUnits="userSpaceOnUse">
-      <stop offset=".16" stop-color="#FFF" stop-opacity=".39"/>
-      <stop offset=".658" stop-color="#FFF" stop-opacity=".8"/>
-    </linearGradient>
-    <!-- gradient 1 -->
-    <linearGradient id="cursor-fill-1-inv" x1="22.35" x2="11.925" y1="6.037" y2="12.15" gradientUnits="userSpaceOnUse">
-      <stop offset=".182" stop-color="#FFF" stop-opacity=".31"/>
-      <stop offset=".715" stop-color="#FFF" stop-opacity="0"/>
-    </linearGradient>
-    <!-- gradient 2 -->
-    <linearGradient id="cursor-fill-2-inv" x1="11.925" x2="1.5" y1="0" y2="18" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFF" stop-opacity=".6"/>
-      <stop offset=".667" stop-color="#FFF" stop-opacity=".22"/>
-    </linearGradient>
-  </defs>
+<?xml version="1.0"?>
+<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+ <title>Cursor</title>
+ <defs>
+  <linearGradient fx="0.21" fy="0.75" id="svg_24" x1="1" x2="0.55" y1="0.34" y2="0.88">
+   <stop offset="0.18" stop-color="#666666" stop-opacity="1"/>
+   <stop offset="0.71" stop-color="#000000" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient fx="0.39" fy="0.45" id="svg_25" x1="0.48" x2="1" y1="0.26" y2="0.86">
+   <stop offset="0.16" stop-color="#7f7f7f" stop-opacity="1"/>
+   <stop offset="0.66" stop-color="#e5e5e5" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient fx="0.68" fy="0.53" id="svg_27" x1="0.36" x2="0.58" y1="0" y2="0.57">
+   <stop stop-color="#b2b2b2" stop-opacity="1"/>
+   <stop offset="0.67" stop-color="#666666" stop-opacity="1"/>
+  </linearGradient>
+ </defs>
+ <g class="layer">
+  <title>Layer 1</title>
+  <path d="m11.93,24l10.42,-6l-10.42,-6l-10.43,6l10.43,6z" fill="url(#svg_25)" id="svg_1" transform="matrix(1 0 0 1 0 0)"/>
+  <path d="m22.35,18l0,-12l-10.42,-6l0,12l10.42,6z" fill="url(#svg_24)" id="svg_2" transform="matrix(1 0 0 1 0 0)"/>
+  <path d="m11.93,0l-10.43,6l0,12l10.43,-6l0,-12z" fill="url(#svg_27)" id="svg_3"/>
+  <path d="m22.35,6l-10.42,18l0,-12l10.42,-6z" fill="#cccccc" id="svg_4"/>
+  <path d="m22.35,6l-10.42,6l-10.43,-6l20.85,0z" fill="#FFF" id="svg_5"/>
+ </g>
 </svg>
 <!-- MIT License
 
