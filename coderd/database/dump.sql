@@ -320,29 +320,29 @@ CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    workspace_id_var uuid;
+    workspace_build_id uuid;
     existing_count integer;
 BEGIN
-    -- Get the workspace_id for this agent by following the relationship chain:
-    -- workspace_agents -> workspace_resources -> provisioner_jobs -> workspace_builds -> workspaces
-    SELECT wb.workspace_id INTO workspace_id_var
+    -- Get the workspace_build.id for this agent by following the relationship chain:
+    -- workspace_agents -> workspace_resources -> provisioner_jobs -> workspace_builds
+    SELECT wb.id INTO workspace_build_id
     FROM workspace_resources wr
     JOIN provisioner_jobs pj ON wr.job_id = pj.id
     JOIN workspace_builds wb ON pj.id = wb.job_id
     WHERE wr.id = NEW.resource_id;
 
-    -- If we couldn't find a workspace_id, allow the insert (might be a template import or other edge case)
-    IF workspace_id_var IS NULL THEN
+    -- If we couldn't find a workspace_build_id, allow the insert (might be a template import or other edge case)
+    IF workspace_build_id IS NULL THEN
         RETURN NEW;
     END IF;
 
-    -- Check if there's already an agent with this name in this workspace
+    -- Check if there's already an agent with this name for this workspace build
     SELECT COUNT(*) INTO existing_count
     FROM workspace_agents wa
     JOIN workspace_resources wr ON wa.resource_id = wr.id
     JOIN provisioner_jobs pj ON wr.job_id = pj.id
     JOIN workspace_builds wb ON pj.id = wb.job_id
-    WHERE wb.workspace_id = workspace_id_var
+    WHERE wb.id = workspace_build_id
       AND wa.name = NEW.name
       AND wa.id != NEW.id;  -- Exclude the current agent (for updates)
 
