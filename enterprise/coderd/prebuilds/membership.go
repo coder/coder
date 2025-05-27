@@ -9,7 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/quartz"
 )
 
@@ -17,10 +16,15 @@ import (
 // organizations for which prebuilt workspaces are requested. This is necessary because our data model requires that such
 // prebuilt workspaces belong to a member of the organization of their eventual claimant.
 type StoreMembershipReconciler struct {
-	store    database.Store
-	clock    quartz.Clock
-	snapshot *prebuilds.GlobalSnapshot
-	userID   uuid.UUID
+	store database.Store
+	clock quartz.Clock
+}
+
+func NewStoreMembershipReconciler(store database.Store, clock quartz.Clock) StoreMembershipReconciler {
+	return StoreMembershipReconciler{
+		store: store,
+		clock: clock,
+	}
 }
 
 // ReconcileAll compares the current membership of a user to the membership required in order to create prebuilt workspaces.
@@ -28,9 +32,9 @@ type StoreMembershipReconciler struct {
 // the membership required.
 //
 // This method does not have an opinion on transaction or lock management. These responsibilities are left to the caller.
-func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context) error {
+func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid.UUID, presets []database.GetTemplatePresetsWithPrebuildsRow) error {
 	organizationMemberships, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-		UserID: s.userID,
+		UserID: userID,
 		Deleted: sql.NullBool{
 			Bool:  false,
 			Valid: true,
@@ -41,12 +45,17 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context) error {
 	}
 
 	systemUserMemberships := make(map[uuid.UUID]struct{}, 0)
+	defaultOrg, err := s.store.GetDefaultOrganization(ctx)
+	if err != nil {
+		return xerrors.Errorf("get default organization: %w", err)
+	}
+	systemUserMemberships[defaultOrg.ID] = struct{}{}
 	for _, o := range organizationMemberships {
 		systemUserMemberships[o.ID] = struct{}{}
 	}
 
 	var membershipInsertionErrors error
-	for _, preset := range s.snapshot.Presets {
+	for _, preset := range presets {
 		_, alreadyMember := systemUserMemberships[preset.OrganizationID]
 		if alreadyMember {
 			continue
@@ -58,7 +67,7 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context) error {
 		// Insert the missing membership
 		_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: preset.OrganizationID,
-			UserID:         s.userID,
+			UserID:         userID,
 			CreatedAt:      s.clock.Now(),
 			UpdatedAt:      s.clock.Now(),
 			Roles:          []string{},

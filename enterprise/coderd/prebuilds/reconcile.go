@@ -261,15 +261,10 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			return nil
 		}
 
-		// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
+		// nolint:gocritic // The prebuilds orchestrator subject is responsible for ensuring that the prebuilds user is a member of the necessary organizations
 		prebuildsMembershipCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
-		membershipReconciler := StoreMembershipReconciler{
-			store:    c.store,
-			clock:    c.clock,
-			snapshot: snapshot,
-			userID:   prebuilds.SystemUserID,
-		}
-		err = membershipReconciler.ReconcileAll(prebuildsMembershipCtx)
+		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
+		err = membershipReconciler.ReconcileAll(prebuildsMembershipCtx, prebuilds.SystemUserID, snapshot.Presets)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}

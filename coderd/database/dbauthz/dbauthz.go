@@ -402,6 +402,9 @@ var (
 					rbac.ResourceUser.Type: {
 						policy.ActionRead,
 					},
+					rbac.ResourceOrganization.Type: {
+						policy.ActionRead,
+					},
 				}),
 			},
 		}),
