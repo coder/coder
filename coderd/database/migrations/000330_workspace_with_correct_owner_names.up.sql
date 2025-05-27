@@ -40,7 +40,7 @@ SELECT
     COALESCE(
         visible_users.username,
         ''::text
-    ) AS initiator_by_username
+    ) AS initiator_by_username COALESCE(visible_users.name, ''::text) AS initiator_by_name
 FROM (
         workspace_builds
         LEFT JOIN visible_users ON (
@@ -92,6 +92,7 @@ SELECT
         visible_users.username,
         ''::text
     ) AS created_by_username,
+    COALESCE(visible_users.name, ''::text) AS created_by_name,
     COALESCE(organizations.name, ''::text) AS organization_name,
     COALESCE(
         organizations.display_name,
@@ -139,7 +140,7 @@ SELECT
     COALESCE(
         visible_users.username,
         ''::text
-    ) AS created_by_username
+    ) AS created_by_username COALESCE(visible_users.name, ''::text) AS created_by_name
 FROM (
         template_versions
         LEFT JOIN visible_users ON (
