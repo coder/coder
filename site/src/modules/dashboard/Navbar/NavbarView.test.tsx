@@ -11,7 +11,6 @@ const proxyContextValue: ProxyContextValue = {
 		preferredWildcardHostname: "",
 		proxy: MockPrimaryWorkspaceProxy,
 	},
-	latenciesLoaded: true,
 	isLoading: false,
 	isFetched: true,
 	setProxy: jest.fn(),

@@ -19,7 +19,6 @@ const defaultProxyContextValue = {
 	proxy: getPreferredProxy(MockWorkspaceProxies, undefined),
 	proxies: MockWorkspaceProxies,
 	isLoading: false,
-	latenciesLoaded: true,
 	isFetched: true,
 	setProxy: fn(),
 	clearProxy: fn(),
