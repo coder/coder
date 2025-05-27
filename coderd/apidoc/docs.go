@@ -17570,6 +17570,9 @@ const docTemplate = `{
                     "description": "External specifies whether the URL should be opened externally on\nthe client or not.",
                     "type": "boolean"
                 },
+                "group": {
+                    "type": "string"
+                },
                 "health": {
                     "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
                 },

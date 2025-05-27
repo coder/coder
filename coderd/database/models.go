@@ -3677,8 +3677,9 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool               `db:"hidden" json:"hidden"`
-	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	Hidden       bool               `db:"hidden" json:"hidden"`
+	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
