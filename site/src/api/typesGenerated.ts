@@ -826,6 +826,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
 	| "dynamic-parameters"
@@ -3618,7 +3619,8 @@ export interface WorkspaceBuild {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly workspace_owner_id: string;
-	readonly workspace_owner_name: string;
+	readonly workspace_owner_name?: string;
+	readonly workspace_owner_username: string;
 	readonly workspace_owner_avatar_url?: string;
 	readonly template_version_id: string;
 	readonly template_version_name: string;

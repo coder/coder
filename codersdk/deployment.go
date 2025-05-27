@@ -3346,6 +3346,7 @@ const (
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
+	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
 
 // ExperimentsSafe should include all experiments that are safe for
