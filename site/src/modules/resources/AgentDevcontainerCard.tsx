@@ -20,7 +20,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { ExternalLinkIcon, Loader2Icon } from "lucide-react";
 import type { FC } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
@@ -77,6 +77,15 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			}
 		}
 	};
+
+	// If the container is starting, reflect this in the recreate button.
+	useEffect(() => {
+		if (container.devcontainer_status === "starting") {
+			setIsRecreating(true);
+		} else {
+			setIsRecreating(false);
+		}
+	}, [container.devcontainer_status]);
 
 	return (
 		<section

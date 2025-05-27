@@ -450,6 +450,10 @@ type WorkspaceAgentContainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
+	// DevcontainerStatus is the status of the devcontainer, if this
+	// container is a devcontainer. This is used to determine if the
+	// devcontainer is running, stopped, starting, or in an error state.
+	DevcontainerStatus WorkspaceAgentDevcontainerStatus `json:"devcontainer_status,omitempty"`
 	// DevcontainerDirty is true if the devcontainer configuration has changed
 	// since the container was created. This is used to determine if the
 	// container needs to be rebuilt.
