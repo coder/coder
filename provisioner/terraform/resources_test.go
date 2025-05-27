@@ -786,6 +786,7 @@ func TestConvertResources(t *testing.T) {
 					Name:                     "dev",
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
+					ApiKeyScope:              "all",
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
@@ -830,6 +831,9 @@ func TestConvertResources(t *testing.T) {
 				}},
 				Prebuild: &proto.Prebuild{
 					Instances: 4,
+					ExpirationPolicy: &proto.ExpirationPolicy{
+						Ttl: 86400,
+					},
 				},
 			}},
 		},

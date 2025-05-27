@@ -8,7 +8,7 @@ import {
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
-export type ProvisionerVersionProps = {
+type ProvisionerVersionProps = {
 	buildVersion: string | undefined;
 	provisionerVersion: string;
 };

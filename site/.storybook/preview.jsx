@@ -28,7 +28,7 @@ import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
 import { StrictMode } from "react";
 import { HelmetProvider } from "react-helmet-async";
-import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import themes from "../src/theme";
@@ -114,20 +114,7 @@ function withQuery(Story, { parameters }) {
 
 	if (parameters.queries) {
 		for (const query of parameters.queries) {
-			if (query.isError) {
-				// Based on `setQueryData`, but modified to set the result as an error.
-				const cache = queryClient.getQueryCache();
-				const parsedOptions = parseQueryArgs(query.key);
-				const defaultedOptions = queryClient.defaultQueryOptions(parsedOptions);
-				// Adds an uninitialized response to the cache, which we can now mutate.
-				const cachedQuery = cache.build(queryClient, defaultedOptions);
-				// Setting `manual` prevents retries.
-				cachedQuery.setData(undefined, { manual: true });
-				// Set the `error` value and the appropriate status.
-				cachedQuery.setState({ error: query.data, status: "error" });
-			} else {
-				queryClient.setQueryData(query.key, query.data);
-			}
+			queryClient.setQueryData(query.key, query.data);
 		}
 	}
 

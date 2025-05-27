@@ -399,6 +399,17 @@ type WorkspaceAgentDevcontainersResponse struct {
 	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
 }
 
+// WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
+type WorkspaceAgentDevcontainerStatus string
+
+// WorkspaceAgentDevcontainerStatus enums.
+const (
+	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
+	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
+	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
+)
+
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
@@ -408,9 +419,9 @@ type WorkspaceAgentDevcontainer struct {
 	ConfigPath      string    `json:"config_path,omitempty"`
 
 	// Additional runtime fields.
-	Running   bool                     `json:"running"`
-	Dirty     bool                     `json:"dirty"`
-	Container *WorkspaceAgentContainer `json:"container,omitempty"`
+	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
+	Dirty     bool                             `json:"dirty"`
+	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
 }
 
 // WorkspaceAgentContainer describes a devcontainer of some sort

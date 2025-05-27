@@ -172,7 +172,7 @@ type CopiedTemplateForm = { copiedTemplate: Template };
 type StarterTemplateForm = { starterTemplate: TemplateExample };
 type UploadTemplateForm = { upload: TemplateUploadProps };
 
-export type CreateTemplateFormProps = (
+type CreateTemplateFormProps = (
 	| CopiedTemplateForm
 	| StarterTemplateForm
 	| UploadTemplateForm
@@ -221,14 +221,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
-	const { data: provisioners } = useQuery(
-		selectedOrg
-			? {
-					...provisionerDaemons(selectedOrg.id),
-					enabled: showOrganizationPicker,
-				}
-			: { enabled: false },
-	);
+	const { data: provisioners } = useQuery({
+		...provisionerDaemons(selectedOrg?.id ?? ""),
+		enabled: showOrganizationPicker && !!selectedOrg,
+	});
 
 	// TODO: Ideally, we would have a backend endpoint that could notify the
 	// frontend that a provisioner has been connected, so that we could hide

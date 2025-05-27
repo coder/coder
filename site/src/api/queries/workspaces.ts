@@ -55,7 +55,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 			return API.createWorkspace(userId, req);
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -114,7 +114,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -355,7 +355,7 @@ export const agentLogs = (agentId: string) => {
 };
 
 // workspace usage options
-export interface WorkspaceUsageOptions {
+interface WorkspaceUsageOptions {
 	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;

@@ -25,7 +25,7 @@ const validationSchema = Yup.object({
 	name: Yup.string(),
 });
 
-export interface AccountFormProps {
+interface AccountFormProps {
 	editable: boolean;
 	email: string;
 	isLoading: boolean;

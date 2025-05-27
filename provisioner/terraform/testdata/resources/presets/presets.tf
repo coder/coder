@@ -25,6 +25,9 @@ data "coder_workspace_preset" "MyFirstProject" {
   }
   prebuilds {
     instances = 4
+    expiration_policy {
+      ttl = 86400
+    }
   }
 }
 

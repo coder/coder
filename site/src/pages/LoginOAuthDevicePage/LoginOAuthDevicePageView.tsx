@@ -6,7 +6,7 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 
-export interface LoginOAuthDevicePageViewProps {
+interface LoginOAuthDevicePageViewProps {
 	authenticated: boolean;
 	redirectUrl: string;
 	externalAuthDevice?: ExternalAuthDevice;

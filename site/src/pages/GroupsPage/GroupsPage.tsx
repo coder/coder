@@ -25,14 +25,14 @@ import { GroupsPageView } from "./GroupsPageView";
 const GroupsPage: FC = () => {
 	const { template_rbac: groupsEnabled } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
-	const groupsQuery = useQuery(
-		organization ? groupsByOrganization(organization.name) : { enabled: false },
-	);
-	const permissionsQuery = useQuery(
-		organization
-			? organizationsPermissions([organization.id])
-			: { enabled: false },
-	);
+	const groupsQuery = useQuery({
+		...groupsByOrganization(organization?.name ?? ""),
+		enabled: !!organization,
+	});
+	const permissionsQuery = useQuery({
+		...organizationsPermissions([organization?.id ?? ""]),
+		enabled: !!organization,
+	});
 
 	useEffect(() => {
 		if (groupsQuery.error) {

@@ -121,22 +121,22 @@ resource "coder_agent" "main" {
   }
 }
 
-# See https://registry.coder.com/modules/code-server
+# See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
   count  = data.coder_workspace.me.start_count
-  source = "registry.coder.com/modules/code-server/coder"
+  source = "registry.coder.com/coder/code-server/coder"
 
-  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
-  version = ">= 1.0.0"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
 
   agent_id = coder_agent.main.id
   order    = 1
 }
 
-# See https://registry.coder.com/modules/jetbrains-gateway
+# See https://registry.coder.com/modules/coder/jetbrains-gateway
 module "jetbrains_gateway" {
   count  = data.coder_workspace.me.start_count
-  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+  source = "registry.coder.com/coder/jetbrains-gateway/coder"
 
   # JetBrains IDEs to make available for the user to select
   jetbrains_ides = ["IU", "PS", "WS", "PY", "CL", "GO", "RM", "RD", "RR"]
@@ -145,8 +145,8 @@ module "jetbrains_gateway" {
   # Default folder to open when starting a JetBrains IDE
   folder = "/home/coder"
 
-  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
-  version = ">= 1.0.0"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
 
   agent_id   = coder_agent.main.id
   agent_name = "main"

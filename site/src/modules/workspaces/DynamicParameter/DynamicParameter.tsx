@@ -39,7 +39,7 @@ import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
-export interface DynamicParameterProps {
+interface DynamicParameterProps {
 	parameter: PreviewParameter;
 	value?: string;
 	onChange: (value: string) => void;

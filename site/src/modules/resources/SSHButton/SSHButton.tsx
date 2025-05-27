@@ -17,7 +17,7 @@ import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export interface AgentSSHButtonProps {
+interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
 	sshPrefix?: string;
@@ -82,7 +82,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	);
 };
 
-export interface AgentDevcontainerSSHButtonProps {
+interface AgentDevcontainerSSHButtonProps {
 	workspace: string;
 	container: string;
 }

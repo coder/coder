@@ -15,7 +15,7 @@ import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
-export interface NavbarViewProps {
+interface NavbarViewProps {
 	logo_url?: string;
 	user?: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;

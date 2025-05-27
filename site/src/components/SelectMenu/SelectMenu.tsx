@@ -29,7 +29,7 @@ export const SelectMenuTrigger = PopoverTrigger;
 
 export const SelectMenuContent = PopoverContent;
 
-export type SelectMenuButtonProps = ButtonProps & {
+type SelectMenuButtonProps = ButtonProps & {
 	startIcon?: React.ReactNode;
 };
 

@@ -2,7 +2,13 @@ import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { API, type DeploymentConfig } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
-import { formatDuration, intervalToDuration } from "date-fns";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import relativeTime from "dayjs/plugin/relativeTime";
+
+dayjs.extend(duration);
+dayjs.extend(relativeTime);
+import { humanDuration } from "utils/time";
 import { coderPort, defaultPassword } from "./constants";
 import { type LoginOptions, findSessionToken, randomName } from "./helpers";
 
@@ -237,13 +243,6 @@ export async function verifyConfigFlagString(
 	await expect(configOption).toHaveText(opt.value as any);
 }
 
-export async function verifyConfigFlagEmpty(page: Page, flag: string) {
-	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-value-empty`,
-	);
-	await expect(configOption).toHaveText("Not set");
-}
-
 export async function verifyConfigFlagArray(
 	page: Page,
 	config: DeploymentConfig,
@@ -290,19 +289,15 @@ export async function verifyConfigFlagDuration(
 	flag: string,
 ) {
 	const opt = findConfigOption(config, flag);
+	if (typeof opt.value !== "number") {
+		throw new Error(
+			`Option with env ${flag} should be a number, but got ${typeof opt.value}.`,
+		);
+	}
 	const configOption = page.locator(
 		`div.options-table .option-${flag} .option-value-string`,
 	);
-	//
-	await expect(configOption).toHaveText(
-		formatDuration(
-			// intervalToDuration takes ms, so convert nanoseconds to ms
-			intervalToDuration({
-				start: 0,
-				end: (opt.value as number) / 1e6,
-			}),
-		),
-	);
+	await expect(configOption).toHaveText(humanDuration(opt.value / 1e6));
 }
 
 export function findConfigOption(

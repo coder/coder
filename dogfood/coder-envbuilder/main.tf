@@ -5,7 +5,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0.0"
+      version = "~> 3.0"
     }
     envbuilder = {
       source = "coder/envbuilder"
@@ -109,35 +109,35 @@ data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 module "slackme" {
-  source           = "registry.coder.com/modules/slackme/coder"
+  source           = "registry.coder.com/coder/slackme/coder"
   version          = "1.0.2"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
-  source   = "registry.coder.com/modules/dotfiles/coder"
-  version  = "1.0.15"
+  source   = "registry.coder.com/coder/dotfiles/coder"
+  version  = "1.0.29"
   agent_id = coder_agent.dev.id
 }
 
 module "personalize" {
-  source   = "registry.coder.com/modules/personalize/coder"
+  source   = "registry.coder.com/coder/personalize/coder"
   version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
-  source                  = "registry.coder.com/modules/code-server/coder"
-  version                 = "1.0.15"
+  source                  = "registry.coder.com/coder/code-server/coder"
+  version                 = "1.2.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
 }
 
 module "jetbrains_gateway" {
-  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.13"
+  source         = "registry.coder.com/coder/jetbrains-gateway/coder"
+  version        = "1.1.1"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
@@ -147,13 +147,13 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
-  version  = "1.0.8"
+  source   = "registry.coder.com/coder/filebrowser/coder"
+  version  = "1.0.31"
   agent_id = coder_agent.dev.id
 }
 
 module "coder-login" {
-  source   = "registry.coder.com/modules/coder-login/coder"
+  source   = "registry.coder.com/coder/coder-login/coder"
   version  = "1.0.15"
   agent_id = coder_agent.dev.id
 }

@@ -31,7 +31,8 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 ## Enable prebuilt workspaces for template presets
 
 In your template, add a `prebuilds` block within a `coder_workspace_preset` definition to identify the number of prebuilt
-instances your Coder deployment should maintain:
+instances your Coder deployment should maintain, and optionally configure a `expiration_policy` block to set a TTL
+(Time To Live) for unclaimed prebuilt workspaces to ensure stale resources are automatically cleaned up.
 
    ```hcl
    data "coder_workspace_preset" "goland" {
@@ -42,13 +43,19 @@ instances your Coder deployment should maintain:
        memory        = 16
      }
      prebuilds {
-       instances = 3  # Number of prebuilt workspaces to maintain
+       instances = 3   # Number of prebuilt workspaces to maintain
+       expiration_policy {
+          ttl = 86400  # Time (in seconds) after which unclaimed prebuilds are expired (1 day)
+      }
      }
    }
    ```
 
 After you publish a new template version, Coder will automatically provision and maintain prebuilt workspaces through an
 internal reconciliation loop (similar to Kubernetes) to ensure the defined `instances` count are running.
+
+The `expiration_policy` block ensures that any prebuilt workspaces left unclaimed for more than `ttl` seconds is considered
+expired and automatically cleaned up.
 
 ## Prebuilt workspace lifecycle
 
@@ -94,6 +101,15 @@ _Note the search term `owner:prebuilds`._
 Unclaimed prebuilt workspaces can be interacted with in the same way as any other workspace.
 However, if a Prebuilt workspace is stopped, the reconciliation loop will not destroy it.
 This gives template admins the ability to park problematic prebuilt workspaces in a stopped state for further investigation.
+
+### Expiration Policy
+
+Prebuilt workspaces support expiration policies through the `ttl` setting inside the `expiration_policy` block.
+This value defines the Time To Live (TTL) of a prebuilt workspace, i.e., the duration in seconds that an unclaimed
+prebuilt workspace can remain before it is considered expired and eligible for cleanup.
+
+Expired prebuilt workspaces are removed during the reconciliation loop to avoid stale environments and resource waste.
+New prebuilt workspaces are only created to maintain the desired count if needed.
 
 ### Template updates and the prebuilt workspace lifecycle
 

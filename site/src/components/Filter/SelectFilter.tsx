@@ -20,7 +20,7 @@ export type SelectFilterOption = {
 	value: string;
 };
 
-export type SelectFilterProps = {
+type SelectFilterProps = {
 	options: SelectFilterOption[] | undefined;
 	selectedOption?: SelectFilterOption;
 	// Used to add a accessibility label to the select

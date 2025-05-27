@@ -66,7 +66,7 @@ const GroupSettingsPage: FC = () => {
 				group={groupQuery.data}
 				formErrors={groupQuery.error}
 				isLoading={groupQuery.isLoading}
-				isUpdating={patchGroupMutation.isLoading}
+				isUpdating={patchGroupMutation.isPending}
 			/>
 		</>
 	);

@@ -696,7 +696,8 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), fakeEnqueuer)
+			registry := prometheus.NewRegistry()
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
 
 			// Template admin to receive a notification.
 			templateAdmin := dbgen.User(t, db, database.User{
@@ -732,6 +733,17 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			workspaceCount := len(workspaces)
 			require.Equal(t, 1, workspaceCount)
 
+			// Verify initial state: metric is not set - meaning preset is not hard limited.
+			require.NoError(t, controller.ForceMetricsUpdate(ctx))
+			mf, err := registry.Gather()
+			require.NoError(t, err)
+			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
+
 			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
 			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
 			clock.Advance(time.Nanosecond).MustWait(ctx)
@@ -755,6 +767,16 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				// When hard limit is not reached, a new workspace should be created.
 				require.Equal(t, 2, len(workspaces))
 				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus)
+
+				// When hard limit is not reached, metric is not set.
+				mf, err = registry.Gather()
+				require.NoError(t, err)
+				metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+					"template_name": template.Name,
+					"preset_name":   preset.Name,
+					"org_name":      org.Name,
+				})
+				require.Nil(t, metric)
 				return
 			}
 
@@ -775,6 +797,252 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				return true
 			})
 			require.Len(t, matching, 1)
+
+			// When hard limit is reached, metric is set to 1.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
+		})
+	}
+}
+
+func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
+	testCases := []struct {
+		name                     string
+		hardLimit                int64
+		createNewTemplateVersion bool
+		deleteTemplate           bool
+	}{
+		{
+			// hard limit is hit - but we allow deletion of prebuilt workspace because it's outdated (new template version was created)
+			name:                     "new template version is created",
+			hardLimit:                1,
+			createNewTemplateVersion: true,
+			deleteTemplate:           false,
+		},
+		{
+			// hard limit is hit - but we allow deletion of prebuilt workspace because template is deleted
+			name:                     "template is deleted",
+			hardLimit:                1,
+			createNewTemplateVersion: false,
+			deleteTemplate:           true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{
+				FailureHardLimit:              serpent.Int64(tc.hardLimit),
+				ReconciliationBackoffInterval: 0,
+			}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			fakeEnqueuer := newFakeEnqueuer()
+			registry := prometheus.NewRegistry()
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
+
+			// Template admin to receive a notification.
+			templateAdmin := dbgen.User(t, db, database.User{
+				RBACRoles: []string{codersdk.RoleTemplateAdmin},
+			})
+
+			// Set up test environment with a template, version, and preset.
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, false)
+			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			preset := setupTestDBPreset(t, db, templateVersionID, 2, uuid.New().String())
+
+			// Create a successful prebuilt workspace.
+			successfulWorkspace, _ := setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusSucceeded,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			// Make sure that prebuilt workspaces created in such order: [successful, failed].
+			clock.Advance(time.Second).MustWait(ctx)
+
+			// Create a failed prebuilt workspace that counts toward the hard failure limit.
+			setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusFailed,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			getJobStatusMap := func(workspaces []database.WorkspaceTable) map[database.ProvisionerJobStatus]int {
+				jobStatusMap := make(map[database.ProvisionerJobStatus]int)
+				for _, workspace := range workspaces {
+					workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+						WorkspaceID: workspace.ID,
+					})
+					require.NoError(t, err)
+
+					for _, workspaceBuild := range workspaceBuilds {
+						job, err := db.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+						require.NoError(t, err)
+						jobStatusMap[job.JobStatus]++
+					}
+				}
+				return jobStatusMap
+			}
+
+			// Verify initial state: two workspaces exist, one successful, one failed.
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+			jobStatusMap := getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 2)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+
+			// Verify initial state: metric is not set - meaning preset is not hard limited.
+			require.NoError(t, controller.ForceMetricsUpdate(ctx))
+			mf, err := registry.Gather()
+			require.NoError(t, err)
+			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
+
+			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
+			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
+			clock.Advance(time.Nanosecond).MustWait(ctx)
+
+			// Trigger reconciliation to attempt creating a new prebuild.
+			// The outcome depends on whether the hard limit has been reached.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// These two additional calls to ReconcileAll should not trigger any notifications.
+			// A notification is only sent once.
+			require.NoError(t, controller.ReconcileAll(ctx))
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// Verify the final state after reconciliation.
+			// When hard limit is reached, no new workspace should be created.
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+			jobStatusMap = getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 2)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+
+			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+			require.NoError(t, err)
+			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
+
+			// When hard limit is reached, a notification should be sent.
+			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
+				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
+					return false
+				}
+
+				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+					return false
+				}
+
+				return true
+			})
+			require.Len(t, matching, 1)
+
+			// When hard limit is reached, metric is set to 1.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
+
+			if tc.createNewTemplateVersion {
+				// Create a new template version and mark it as active
+				// This marks the template version that we care about as inactive
+				setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			}
+
+			if tc.deleteTemplate {
+				require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+					ID:        template.ID,
+					Deleted:   true,
+					UpdatedAt: dbtime.Now(),
+				}))
+			}
+
+			// Trigger reconciliation to make sure that successful, but outdated prebuilt workspace will be deleted.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+
+			jobStatusMap = getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 3)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+			// Pending job should be the job that deletes successful, but outdated prebuilt workspace.
+			// Prebuilt workspace MUST be deleted, despite the fact that preset is marked as hard limited.
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusPending])
+
+			workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+				WorkspaceID: successfulWorkspace.ID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaceBuilds))
+			// Make sure that successfully created, but outdated prebuilt workspace was scheduled for deletion.
+			require.Equal(t, database.WorkspaceTransitionDelete, workspaceBuilds[0].Transition)
+			require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[1].Transition)
+
+			// Metric is deleted after preset became outdated.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
 		})
 	}
 }
@@ -958,17 +1226,18 @@ func TestFailedBuildBackoff(t *testing.T) {
 	state := presetState.CalculateState()
 	actions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
 
 	// Then: the backoff time is in the future, no prebuilds are running, and we won't create any new prebuilds.
 	require.EqualValues(t, 0, state.Actual)
-	require.EqualValues(t, 0, actions.Create)
+	require.EqualValues(t, 0, actions[0].Create)
 	require.EqualValues(t, desiredInstances, state.Desired)
-	require.True(t, clock.Now().Before(actions.BackoffUntil))
+	require.True(t, clock.Now().Before(actions[0].BackoffUntil))
 
 	// Then: the backoff time is as expected based on the number of failed builds.
 	require.NotNil(t, presetState.Backoff)
 	require.EqualValues(t, desiredInstances, presetState.Backoff.NumFailed)
-	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 
 	// When: advancing to the next tick which is still within the backoff time.
 	clock.Advance(cfg.ReconciliationInterval.Value())
@@ -981,13 +1250,15 @@ func TestFailedBuildBackoff(t *testing.T) {
 	newState := presetState.CalculateState()
 	newActions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(newActions))
+
 	require.EqualValues(t, 0, newState.Actual)
-	require.EqualValues(t, 0, newActions.Create)
+	require.EqualValues(t, 0, newActions[0].Create)
 	require.EqualValues(t, desiredInstances, newState.Desired)
-	require.EqualValues(t, actions.BackoffUntil, newActions.BackoffUntil)
+	require.EqualValues(t, actions[0].BackoffUntil, newActions[0].BackoffUntil)
 
 	// When: advancing beyond the backoff time.
-	clock.Advance(clock.Until(actions.BackoffUntil.Add(time.Second)))
+	clock.Advance(clock.Until(actions[0].BackoffUntil.Add(time.Second)))
 
 	// Then: we will attempt to create a new prebuild.
 	snapshot, err = reconciler.SnapshotState(ctx, db)
@@ -997,9 +1268,11 @@ func TestFailedBuildBackoff(t *testing.T) {
 	state = presetState.CalculateState()
 	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
+
 	require.EqualValues(t, 0, state.Actual)
 	require.EqualValues(t, desiredInstances, state.Desired)
-	require.EqualValues(t, desiredInstances, actions.Create)
+	require.EqualValues(t, desiredInstances, actions[0].Create)
 
 	// When: the desired number of new prebuild are provisioned, but one fails again.
 	for i := 0; i < desiredInstances; i++ {
@@ -1018,11 +1291,13 @@ func TestFailedBuildBackoff(t *testing.T) {
 	state = presetState.CalculateState()
 	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
+
 	require.EqualValues(t, 1, state.Actual)
 	require.EqualValues(t, desiredInstances, state.Desired)
-	require.EqualValues(t, 0, actions.Create)
+	require.EqualValues(t, 0, actions[0].Create)
 	require.EqualValues(t, 3, presetState.Backoff.NumFailed)
-	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 }
 
 func TestReconciliationLock(t *testing.T) {
