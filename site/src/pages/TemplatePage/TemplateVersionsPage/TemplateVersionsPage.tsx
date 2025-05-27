@@ -19,7 +19,7 @@ const TemplateVersionsPage = () => {
 	const [latestActiveVersion, setLatestActiveVersion] = useState(
 		template.active_version_id,
 	);
-	const { mutate: promoteVersion, isLoading: isPromoting } = useMutation({
+	const { mutate: promoteVersion, isPending: isPromoting } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.updateActiveTemplateVersion(template.id, {
 				id: templateVersionId,
@@ -35,7 +35,7 @@ const TemplateVersionsPage = () => {
 		},
 	});
 
-	const { mutate: archiveVersion, isLoading: isArchiving } = useMutation({
+	const { mutate: archiveVersion, isPending: isArchiving } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.archiveTemplateVersion(templateVersionId);
 		},

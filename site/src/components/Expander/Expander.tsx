@@ -4,7 +4,7 @@ import Link from "@mui/material/Link";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { FC, ReactNode } from "react";
 
-export interface ExpanderProps {
+interface ExpanderProps {
 	expanded: boolean;
 	setExpanded: (val: boolean) => void;
 	children?: ReactNode;

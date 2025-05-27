@@ -1,41 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import {
-	MockProxyLatencies,
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceApp,
-	MockWorkspaceAppStatus,
-} from "testHelpers/entities";
+import { MockWorkspaceAppStatus } from "testHelpers/entities";
+import { withProxyProvider } from "testHelpers/storybook";
 import { WorkspaceAppStatus } from "./WorkspaceAppStatus";
 
 const meta: Meta<typeof WorkspaceAppStatus> = {
 	title: "modules/workspaces/WorkspaceAppStatus",
 	component: WorkspaceAppStatus,
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-	],
+	decorators: [withProxyProvider()],
 };
 
 export default meta;
@@ -68,24 +39,6 @@ export const Working: Story = {
 	},
 };
 
-export const LongURI: Story = {
-	args: {
-		status: {
-			...MockWorkspaceAppStatus,
-			uri: "https://www.google.com/search?q=hello+world+plus+a+lot+of+other+words",
-		},
-	},
-};
-
-export const FileURI: Story = {
-	args: {
-		status: {
-			...MockWorkspaceAppStatus,
-			uri: "file:///Users/jason/Desktop/test.txt",
-		},
-	},
-};
-
 export const LongMessage: Story = {
 	args: {
 		status: {
@@ -93,16 +46,5 @@ export const LongMessage: Story = {
 			message:
 				"This is a long message that will wrap around the component. It should wrap many times because this is very very very very very long.",
 		},
-	},
-};
-
-export const WithApp: Story = {
-	args: {
-		status: MockWorkspaceAppStatus,
-		app: {
-			...MockWorkspaceApp,
-		},
-		agent: MockWorkspaceAgent,
-		workspace: MockWorkspace,
 	},
 };

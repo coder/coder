@@ -9,7 +9,7 @@ import {
 import { type FC, useState } from "react";
 import { UserDropdownContent } from "./UserDropdownContent";
 
-export interface UserDropdownProps {
+interface UserDropdownProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks?: readonly TypesGen.LinkConfig[];

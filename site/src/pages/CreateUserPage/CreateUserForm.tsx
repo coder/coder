@@ -77,7 +77,7 @@ type CreateUserFormData = {
 	readonly password: string;
 };
 
-export interface CreateUserFormProps {
+interface CreateUserFormProps {
 	error?: unknown;
 	isLoading: boolean;
 	onSubmit: (user: CreateUserFormData) => void;

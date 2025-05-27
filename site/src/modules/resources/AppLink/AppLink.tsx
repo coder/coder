@@ -24,7 +24,7 @@ export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	web_terminal: "Terminal",
 };
 
-export interface AppLinkProps {
+interface AppLinkProps {
 	workspace: TypesGen.Workspace;
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;

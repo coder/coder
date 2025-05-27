@@ -70,7 +70,7 @@ type StageTiming = {
 	error?: boolean;
 };
 
-export type StagesChartProps = {
+type StagesChartProps = {
 	timings: StageTiming[];
 	onSelectStage: (stage: Stage) => void;
 };

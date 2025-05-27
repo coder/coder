@@ -8,7 +8,7 @@ import type { FC, ReactNode } from "react";
 
 type SectionLayout = "fixed" | "fluid";
 
-export interface SectionProps {
+interface SectionProps {
 	// Useful for testing
 	id?: string;
 	title?: ReactNode | string;

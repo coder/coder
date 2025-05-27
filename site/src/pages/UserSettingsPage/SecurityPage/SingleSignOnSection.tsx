@@ -52,7 +52,8 @@ export const useSingleSignOnSection = () => {
 	const [loginTypeConfirmation, setLoginTypeConfirmation] =
 		useState<LoginTypeConfirmation>({ open: false, selectedType: undefined });
 
-	const mutation = useMutation(API.convertToOAUTH, {
+	const mutation = useMutation({
+		mutationFn: API.convertToOAUTH,
 		onSuccess: (data) => {
 			const loginTypeMsg =
 				data.to_type === "github" ? "Github" : "OpenID Connect";
@@ -93,7 +94,7 @@ export const useSingleSignOnSection = () => {
 		confirm,
 		// We still want to show it loading when it is success so the modal does not
 		// change until the redirect
-		isUpdating: mutation.isLoading || mutation.isSuccess,
+		isUpdating: mutation.isPending || mutation.isSuccess,
 		isConfirming: loginTypeConfirmation.open,
 		error: mutation.error,
 	};

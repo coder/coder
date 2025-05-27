@@ -11,13 +11,11 @@ const userQuietHoursScheduleKey = (userId: string) => [
 	"quietHours",
 ];
 
-export const userQuietHoursSchedule = (
-	userId: string,
-): QueryOptions<UserQuietHoursScheduleResponse> => {
+export const userQuietHoursSchedule = (userId: string) => {
 	return {
 		queryKey: userQuietHoursScheduleKey(userId),
 		queryFn: () => API.getUserQuietHoursSchedule(userId),
-	};
+	} satisfies QueryOptions<UserQuietHoursScheduleResponse>;
 };
 
 export const updateUserQuietHoursSchedule = (
@@ -28,7 +26,9 @@ export const updateUserQuietHoursSchedule = (
 		mutationFn: (request: UpdateUserQuietHoursScheduleRequest) =>
 			API.updateUserQuietHoursSchedule(userId, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(userQuietHoursScheduleKey(userId));
+			await queryClient.invalidateQueries({
+				queryKey: userQuietHoursScheduleKey(userId),
+			});
 		},
 	};
 };

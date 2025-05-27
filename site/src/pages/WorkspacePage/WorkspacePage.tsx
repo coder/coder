@@ -36,11 +36,10 @@ const WorkspacePage: FC = () => {
 	const workspace = workspaceQuery.data;
 
 	// Template
-	const templateQuery = useQuery(
-		workspace
-			? templateQueryOptions(workspace.template_id)
-			: { enabled: false },
-	);
+	const templateQuery = useQuery({
+		...templateQueryOptions(workspace?.template_id ?? ""),
+		enabled: !!workspace,
+	});
 	const template = templateQuery.data;
 
 	// Permissions
@@ -67,9 +66,9 @@ const WorkspacePage: FC = () => {
 				newWorkspaceData.latest_build.status !== workspace.latest_build.status;
 
 			if (hasNewBuild || lastBuildHasChanged) {
-				await queryClient.invalidateQueries(
-					workspaceBuildsKey(newWorkspaceData.id),
-				);
+				await queryClient.invalidateQueries({
+					queryKey: workspaceBuildsKey(newWorkspaceData.id),
+				});
 			}
 		},
 	);

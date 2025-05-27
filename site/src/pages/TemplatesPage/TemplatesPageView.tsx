@@ -182,7 +182,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 };
 
-export interface TemplatesPageViewProps {
+interface TemplatesPageViewProps {
 	error?: unknown;
 	filter: ReturnType<typeof useFilter>;
 	showOrganizations: boolean;

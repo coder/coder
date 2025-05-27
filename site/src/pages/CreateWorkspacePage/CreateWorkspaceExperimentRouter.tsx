@@ -15,44 +15,33 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
-	const templateQuery = useQuery(
-		dynamicParametersEnabled
-			? templateByName(organizationName, templateName)
-			: { enabled: false },
-	);
+	const templateQuery = useQuery({
+		...templateByName(organizationName, templateName),
+		enabled: dynamicParametersEnabled,
+	});
 
-	const optOutQuery = useQuery(
-		templateQuery.data
-			? {
-					queryKey: [
-						organizationName,
-						"template",
-						templateQuery.data.id,
-						"optOut",
-					],
-					queryFn: () => {
-						const templateId = templateQuery.data.id;
-						const localStorageKey = optOutKey(templateId);
-						const storedOptOutString = localStorage.getItem(localStorageKey);
+	const optOutQuery = useQuery({
+		enabled: !!templateQuery.data,
+		queryKey: [organizationName, "template", templateQuery.data?.id, "optOut"],
+		queryFn: () => {
+			const templateId = templateQuery.data?.id;
+			const localStorageKey = optOutKey(templateId ?? "");
+			const storedOptOutString = localStorage.getItem(localStorageKey);
 
-						let optOutResult: boolean;
+			let optOutResult: boolean;
 
-						if (storedOptOutString !== null) {
-							optOutResult = storedOptOutString === "true";
-						} else {
-							optOutResult = Boolean(
-								templateQuery.data.use_classic_parameter_flow,
-							);
-						}
+			if (storedOptOutString !== null) {
+				optOutResult = storedOptOutString === "true";
+			} else {
+				optOutResult = !!templateQuery.data?.use_classic_parameter_flow;
+			}
 
-						return {
-							templateId: templateId,
-							optedOut: optOutResult,
-						};
-					},
-				}
-			: { enabled: false },
-	);
+			return {
+				templateId: templateId,
+				optedOut: optOutResult,
+			};
+		},
+	});
 
 	if (dynamicParametersEnabled) {
 		if (optOutQuery.isLoading) {
@@ -63,7 +52,7 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		}
 
 		const toggleOptedOut = () => {
-			const key = optOutKey(optOutQuery.data.templateId);
+			const key = optOutKey(optOutQuery.data?.templateId ?? "");
 			const storedValue = localStorage.getItem(key);
 
 			const current = storedValue

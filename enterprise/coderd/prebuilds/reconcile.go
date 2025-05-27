@@ -361,17 +361,22 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("preset_name", ps.Preset.Name),
 	)
 
-	// If the preset was previously hard-limited, log it and exit early.
-	if ps.Preset.PrebuildStatus == database.PrebuildStatusHardLimited {
-		logger.Warn(ctx, "skipping hard limited preset")
-		return nil
-	}
+	// Report a preset as hard-limited only if all the following conditions are met:
+	// - The preset is marked as hard-limited
+	// - The preset is using the active version of its template, and the template has not been deleted
+	//
+	// The second condition is important because a hard-limited preset that has become outdated is no longer relevant.
+	// Its associated prebuilt workspaces were likely deleted, and it's not meaningful to continue reporting it
+	// as hard-limited to the admin.
+	reportAsHardLimited := ps.IsHardLimited && ps.Preset.UsingActiveVersion && !ps.Preset.Deleted
+	c.metrics.trackHardLimitedStatus(ps.Preset.OrganizationName, ps.Preset.TemplateName, ps.Preset.Name, reportAsHardLimited)
 
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
 	// - Send notifications to template admins
-	if ps.IsHardLimited {
-		logger.Warn(ctx, "skipping hard limited preset")
+	// - Continue execution, we disallow only creation operation for hard-limited presets. Deletion is allowed.
+	if ps.Preset.PrebuildStatus != database.PrebuildStatusHardLimited && ps.IsHardLimited {
+		logger.Warn(ctx, "preset is hard limited, notifying template admins")
 
 		err := c.store.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
 			Status:   database.PrebuildStatusHardLimited,
@@ -384,100 +389,35 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
 		if err != nil {
 			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
-			return nil
 		}
-
-		return nil
 	}
 
 	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
 		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err))
-		return nil
-	}
-
-	// Nothing has to be done.
-	if !ps.Preset.UsingActiveVersion && actions.IsNoop() {
-		logger.Debug(ctx, "skipping reconciliation for preset - nothing has to be done")
-		return nil
-	}
-
-	// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
-	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
-
-	levelFn := logger.Debug
-	switch {
-	case actions.ActionType == prebuilds.ActionTypeBackoff:
-		levelFn = logger.Warn
-	// Log at info level when there's a change to be effected.
-	case actions.ActionType == prebuilds.ActionTypeCreate && actions.Create > 0:
-		levelFn = logger.Info
-	case actions.ActionType == prebuilds.ActionTypeDelete && len(actions.DeleteIDs) > 0:
-		levelFn = logger.Info
+		return err
 	}
 
 	fields := []any{
-		slog.F("action_type", actions.ActionType),
-		slog.F("create_count", actions.Create), slog.F("delete_count", len(actions.DeleteIDs)),
-		slog.F("to_delete", actions.DeleteIDs),
 		slog.F("desired", state.Desired), slog.F("actual", state.Actual),
 		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
 		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
 		slog.F("eligible", state.Eligible),
 	}
 
-	levelFn(ctx, "calculated reconciliation actions for preset", fields...)
+	levelFn := logger.Debug
+	levelFn(ctx, "calculated reconciliation state for preset", fields...)
 
-	switch actions.ActionType {
-	case prebuilds.ActionTypeBackoff:
-		// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
-		levelFn(ctx, "template prebuild state retrieved, backing off",
-			append(fields,
-				slog.F("backoff_until", actions.BackoffUntil.Format(time.RFC3339)),
-				slog.F("backoff_secs", math.Round(actions.BackoffUntil.Sub(c.clock.Now()).Seconds())),
-			)...)
-
-		return nil
-
-	case prebuilds.ActionTypeCreate:
-		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
-		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
-		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-		desired := ps.Preset.DesiredInstances.Int32
-		if actions.Create > desired {
-			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
-				slog.F("create_count", actions.Create), slog.F("desired_count", desired))
-
-			actions.Create = desired
+	var multiErr multierror.Error
+	for _, action := range actions {
+		err = c.executeReconciliationAction(ctx, logger, ps, action)
+		if err != nil {
+			logger.Error(ctx, "failed to execute action", "type", action.ActionType, slog.Error(err))
+			multiErr.Errors = append(multiErr.Errors, err)
 		}
-
-		var multiErr multierror.Error
-
-		for range actions.Create {
-			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
-				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
-				multiErr.Errors = append(multiErr.Errors, err)
-			}
-		}
-
-		return multiErr.ErrorOrNil()
-
-	case prebuilds.ActionTypeDelete:
-		var multiErr multierror.Error
-
-		for _, id := range actions.DeleteIDs {
-			if err := c.deletePrebuiltWorkspace(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
-				logger.Error(ctx, "failed to delete prebuild", slog.Error(err))
-				multiErr.Errors = append(multiErr.Errors, err)
-			}
-		}
-
-		return multiErr.ErrorOrNil()
-
-	default:
-		return xerrors.Errorf("unknown action type: %v", actions.ActionType)
 	}
+	return multiErr.ErrorOrNil()
 }
 
 func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
@@ -523,7 +463,7 @@ func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context,
 	return nil
 }
 
-func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) (*prebuilds.ReconciliationActions, error) {
+func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -570,6 +510,101 @@ func (c *StoreReconciler) WithReconciliationLock(
 		ReadOnly:     true,
 		TxIdentifier: "prebuilds",
 	})
+}
+
+// executeReconciliationAction executes a reconciliation action on the given preset snapshot.
+//
+// The action can be of different types (create, delete, backoff), and may internally include
+// multiple items to process, for example, a delete action can contain multiple prebuild IDs to delete,
+// and a create action includes a count of prebuilds to create.
+//
+// This method handles logging at appropriate levels and performs the necessary operations
+// according to the action type. It returns an error if any part of the action fails.
+func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logger slog.Logger, ps prebuilds.PresetSnapshot, action *prebuilds.ReconciliationActions) error {
+	levelFn := logger.Debug
+
+	// Nothing has to be done.
+	if !ps.Preset.UsingActiveVersion && action.IsNoop() {
+		logger.Debug(ctx, "skipping reconciliation for preset - nothing has to be done",
+			slog.F("template_id", ps.Preset.TemplateID.String()), slog.F("template_name", ps.Preset.TemplateName),
+			slog.F("template_version_id", ps.Preset.TemplateVersionID.String()), slog.F("template_version_name", ps.Preset.TemplateVersionName),
+			slog.F("preset_id", ps.Preset.ID.String()), slog.F("preset_name", ps.Preset.Name))
+		return nil
+	}
+
+	// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
+	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
+
+	fields := []any{
+		slog.F("action_type", action.ActionType), slog.F("create_count", action.Create),
+		slog.F("delete_count", len(action.DeleteIDs)), slog.F("to_delete", action.DeleteIDs),
+	}
+	levelFn(ctx, "calculated reconciliation action for preset", fields...)
+
+	switch {
+	case action.ActionType == prebuilds.ActionTypeBackoff:
+		levelFn = logger.Warn
+	// Log at info level when there's a change to be effected.
+	case action.ActionType == prebuilds.ActionTypeCreate && action.Create > 0:
+		levelFn = logger.Info
+	case action.ActionType == prebuilds.ActionTypeDelete && len(action.DeleteIDs) > 0:
+		levelFn = logger.Info
+	}
+
+	switch action.ActionType {
+	case prebuilds.ActionTypeBackoff:
+		// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
+		levelFn(ctx, "template prebuild state retrieved, backing off",
+			append(fields,
+				slog.F("backoff_until", action.BackoffUntil.Format(time.RFC3339)),
+				slog.F("backoff_secs", math.Round(action.BackoffUntil.Sub(c.clock.Now()).Seconds())),
+			)...)
+
+		return nil
+
+	case prebuilds.ActionTypeCreate:
+		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
+		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
+		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
+		desired := ps.Preset.DesiredInstances.Int32
+		if action.Create > desired {
+			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
+				slog.F("create_count", action.Create), slog.F("desired_count", desired))
+
+			action.Create = desired
+		}
+
+		// If preset is hard-limited, and it's a create operation, log it and exit early.
+		// Creation operation is disallowed for hard-limited preset.
+		if ps.IsHardLimited && action.Create > 0 {
+			logger.Warn(ctx, "skipping hard limited preset for create operation")
+			return nil
+		}
+
+		var multiErr multierror.Error
+		for range action.Create {
+			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
+				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
+				multiErr.Errors = append(multiErr.Errors, err)
+			}
+		}
+
+		return multiErr.ErrorOrNil()
+
+	case prebuilds.ActionTypeDelete:
+		var multiErr multierror.Error
+		for _, id := range action.DeleteIDs {
+			if err := c.deletePrebuiltWorkspace(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
+				logger.Error(ctx, "failed to delete prebuild", slog.Error(err))
+				multiErr.Errors = append(multiErr.Errors, err)
+			}
+		}
+
+		return multiErr.ErrorOrNil()
+
+	default:
+		return xerrors.Errorf("unknown action type: %v", action.ActionType)
+	}
 }
 
 func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltWorkspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {

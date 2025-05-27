@@ -24,7 +24,7 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-export type UserEngagementChartProps = {
+type UserEngagementChartProps = {
 	data:
 		| {
 				date: string;

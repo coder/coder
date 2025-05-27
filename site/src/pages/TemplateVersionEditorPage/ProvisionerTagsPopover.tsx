@@ -13,7 +13,7 @@ import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField"
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export interface ProvisionerTagsPopoverProps {
+interface ProvisionerTagsPopoverProps {
 	tags: ProvisionerDaemon["tags"];
 	onTagsChange: (values: ProvisionerDaemon["tags"]) => void;
 }

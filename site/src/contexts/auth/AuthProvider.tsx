@@ -72,7 +72,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 		userQuery.isError &&
 		isApiError(userQuery.error) &&
 		userQuery.error.response.status === 401;
-	const isSigningOut = logoutMutation.isLoading;
+	const isSigningOut = logoutMutation.isPending;
 	const isLoading =
 		userQuery.isLoading ||
 		hasFirstUserQuery.isLoading ||
@@ -80,8 +80,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const isConfiguringTheFirstUser =
 		!hasFirstUserQuery.isLoading && !hasFirstUserQuery.data;
 	const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
-	const isSigningIn = loginMutation.isLoading;
-	const isUpdatingProfile = updateProfileMutation.isLoading;
+	const isSigningIn = loginMutation.isPending;
+	const isUpdatingProfile = updateProfileMutation.isPending;
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();

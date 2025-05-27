@@ -3,7 +3,7 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
 
-export type WorkspaceSettingsPageViewProps = {
+type WorkspaceSettingsPageViewProps = {
 	error: unknown;
 	workspace: Workspace;
 	onCancel: () => void;

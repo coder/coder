@@ -6,7 +6,7 @@ import { Stack } from "components/Stack/Stack";
 import { CircleCheckBigIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
-export interface PopoverPaywallProps {
+interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;

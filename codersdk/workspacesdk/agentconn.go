@@ -397,7 +397,7 @@ func (c *AgentConn) RecreateDevcontainer(ctx context.Context, containerIDOrName 
 		return xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusAccepted {
 		return codersdk.ReadBodyAsError(res)
 	}
 	return nil

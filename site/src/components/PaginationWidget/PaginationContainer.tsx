@@ -4,7 +4,7 @@ import { PaginationHeader } from "./PaginationHeader";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 export type PaginationResult = PaginationResultInfo & {
-	isPreviousData: boolean;
+	isPlaceholderData: boolean;
 };
 
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
