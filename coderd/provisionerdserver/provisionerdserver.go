@@ -1746,6 +1746,11 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				continue
 			}
 
+			if t.Start.AsTime().IsZero() || t.End.AsTime().IsZero() {
+				s.Logger.Warn(ctx, "timings entry has zero start or end time, skipping", slog.F("entry", t.String()))
+				continue
+			}
+
 			var stg database.ProvisionerJobTimingStage
 			if err := stg.Scan(t.Stage); err != nil {
 				s.Logger.Warn(ctx, "failed to parse timings stage, skipping", slog.F("value", t.Stage))
