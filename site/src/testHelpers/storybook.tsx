@@ -24,6 +24,7 @@ import {
 	MockOrganizationPermissions,
 	MockProxyLatencies,
 } from "./entities";
+import _ from "lodash";
 
 export const withDashboardProvider = (
 	Story: FC,
@@ -182,25 +183,16 @@ const baselineProxyProvider: ProxyContextValue = {
 export const withProxyProvider = (provider?: Partial<ProxyContextValue>) => {
 	// Not using the spread operator to combine the values, because there's a
 	// risk that it will wipe fields from the baseline provider if the incoming
-	// provider isn't defined properly. Have to do some wonky things at the type
-	// level to avoid using the `any` type, but by stitching together the
-	// providers on a per-property basis, we have much better runtime assurances
-	const merged: Record<string, ProxyContextValue[keyof ProxyContextValue]> = {
-		...baselineProxyProvider,
-	};
+	// provider isn't defined properly
+	let merged = baselineProxyProvider;
 	if (provider !== undefined) {
-		for (const key in provider) {
-			if (Object.hasOwn(baselineProxyProvider, key)) {
-				merged[key] = provider;
-			}
-		}
+		merged = { ...baselineProxyProvider };
+		_.defaults(merged, [provider]);
 	}
 
-	return (Story: FC) => {
-		return (
-			<ProxyContext.Provider value={merged as unknown as ProxyContextValue}>
-				<Story />
-			</ProxyContext.Provider>
-		);
-	};
+	return (Story: FC) => (
+		<ProxyContext.Provider value={merged}>
+			<Story />
+		</ProxyContext.Provider>
+	);
 };
