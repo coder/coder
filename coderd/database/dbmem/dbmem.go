@@ -531,6 +531,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 
 			OwnerAvatarUrl: extended.OwnerAvatarUrl,
 			OwnerUsername:  extended.OwnerUsername,
+			OwnerName:      extended.OwnerName,
 
 			OrganizationName:        extended.OrganizationName,
 			OrganizationDisplayName: extended.OrganizationDisplayName,
@@ -628,6 +629,7 @@ func (q *FakeQuerier) extendWorkspace(w database.WorkspaceTable) database.Worksp
 		return u.ID == w.OwnerID
 	})
 	extended.OwnerUsername = owner.Username
+	extended.OwnerName = owner.Name
 	extended.OwnerAvatarUrl = owner.AvatarURL
 
 	return extended

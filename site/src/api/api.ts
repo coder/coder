@@ -1166,7 +1166,7 @@ class ApiMethods {
 					)
 				) {
 					const { job } = await this.getWorkspaceBuildByNumber(
-						build.workspace_owner_name,
+						build.workspace_owner_username,
 						build.workspace_name,
 						build.build_number,
 					);

@@ -663,7 +663,14 @@ func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req Chan
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
 func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/me/convert-login", req)
+	return c.ConvertUserLoginType(ctx, Me, req)
+}
+
+// ConvertUserLoginType will send a request to convert the user from password
+// based authentication to oauth based. The response has the oauth state code
+// to use in the oauth flow.
+func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/convert-login", user), req)
 	if err != nil {
 		return OAuthConversionResponse{}, err
 	}
