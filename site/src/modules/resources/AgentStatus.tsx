@@ -9,7 +9,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { PopoverTrigger } from "components/Popover/Popover";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
