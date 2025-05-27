@@ -15,14 +15,14 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { Popover, PopoverContent, PopoverTrigger } from "components/Popover/Popover";
 import { ChevronLeftIcon } from "lucide-react";
 import { CircleDollarSign } from "lucide-react";
 import { TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { displayDormantDeletion } from "utils/dormant";
@@ -254,21 +254,26 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 	ownerName,
 	ownerAvatarUrl,
 }) => {
+	const [open, setOpen] = useState(false);
+	
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger
+				onMouseEnter={() => setOpen(true)}
+				onMouseLeave={() => setOpen(false)}
+			>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</PopoverTrigger>
 
-			<HelpTooltipContent
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				transformOrigin={{ vertical: "top", horizontal: "center" }}
+			<PopoverContent
+				align="center"
+				side="bottom"
 			>
 				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
-			</HelpTooltipContent>
+			</PopoverContent>
 		</Popover>
 	);
 };
@@ -284,9 +289,14 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 	orgPageUrl,
 	orgIconUrl,
 }) => {
+	const [open, setOpen] = useState(false);
+	
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger
+				onMouseEnter={() => setOpen(true)}
+				onMouseLeave={() => setOpen(false)}
+			>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
 						size="sm"
@@ -298,9 +308,9 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 				</span>
 			</PopoverTrigger>
 
-			<HelpTooltipContent
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				transformOrigin={{ vertical: "top", horizontal: "center" }}
+			<PopoverContent
+				align="center"
+				side="bottom"
 			>
 				<AvatarData
 					title={
@@ -324,7 +334,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					}
 					imgFallbackText={orgName}
 				/>
-			</HelpTooltipContent>
+			</PopoverContent>
 		</Popover>
 	);
 };
@@ -346,10 +356,15 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	latestBuildVersionName,
 	templateDisplayName,
 }) => {
+	const [open, setOpen] = useState(false);
+	
 	return (
 		<div className="flex items-center">
-			<Popover mode="hover">
-				<PopoverTrigger>
+			<Popover open={open} onOpenChange={setOpen}>
+				<PopoverTrigger
+					onMouseEnter={() => setOpen(true)}
+					onMouseLeave={() => setOpen(false)}
+				>
 					<span css={styles.breadcrumbSegment}>
 						<TopbarAvatar
 							src={templateIconUrl}
@@ -362,9 +377,9 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 					</span>
 				</PopoverTrigger>
 
-				<HelpTooltipContent
-					anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-					transformOrigin={{ vertical: "top", horizontal: "center" }}
+				<PopoverContent
+					align="center"
+					side="bottom"
 				>
 					<AvatarData
 						title={
@@ -394,7 +409,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						}
 						imgFallbackText={templateDisplayName}
 					/>
-				</HelpTooltipContent>
+				</PopoverContent>
 			</Popover>
 			<CopyButton text={workspaceName} label="Copy workspace name" />
 		</div>
