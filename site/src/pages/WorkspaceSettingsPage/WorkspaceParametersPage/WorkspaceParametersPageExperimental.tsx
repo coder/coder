@@ -9,7 +9,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -165,11 +164,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			<header className="flex flex-col items-start gap-2">
 				<span className="flex flex-row items-center gap-2">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
-					<FeatureStageBadge
-						className="mt-1"
-						contentType={"beta"}
-						labelText="Dynamic parameters"
-					/>
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
