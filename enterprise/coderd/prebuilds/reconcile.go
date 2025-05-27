@@ -321,6 +321,14 @@ func (c *StoreReconciler) reportHardLimitedPresets(snapshot *prebuilds.GlobalSna
 	// The second condition is important because a hard-limited preset that has become outdated is no longer relevant.
 	// Its associated prebuilt workspaces were likely deleted, and it's not meaningful to continue reporting it
 	// as hard-limited to the admin.
+	//
+	// This approach accounts for all relevant scenarios:
+	// Scenario #1: The admin created a new template version with the same preset names.
+	// Scenario #2: The admin created a new template version and renamed the presets.
+	// Scenario #3: The admin deleted a template version that contained hard-limited presets.
+	//
+	// In all of these cases, only the latest and non-deleted presets will be reported.
+	// All other presets will be ignored and eventually removed from Prometheus.
 	isPresetHardLimited := make(map[hardLimitedPresetKey]bool)
 	for key, presets := range presetsMap {
 		for _, preset := range presets {
