@@ -15,7 +15,7 @@ import {
 import { docs } from "utils/docs";
 import OptionsTable from "../OptionsTable";
 
-export type NetworkSettingsPageViewProps = {
+type NetworkSettingsPageViewProps = {
 	options: SerpentOption[];
 };
 

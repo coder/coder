@@ -158,7 +158,7 @@ const RoleSelect: FC<SelectProps> = (props) => {
 	);
 };
 
-export interface TemplatePermissionsPageViewProps {
+interface TemplatePermissionsPageViewProps {
 	templateACL: TemplateACL | undefined;
 	templateID: string;
 	canUpdatePermissions: boolean;

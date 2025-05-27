@@ -36,7 +36,7 @@ type ResourceTiming = {
 	range: TimeRange;
 };
 
-export type ResourcesChartProps = {
+type ResourcesChartProps = {
 	stage: Stage;
 	timings: ResourceTiming[];
 	onBack: () => void;

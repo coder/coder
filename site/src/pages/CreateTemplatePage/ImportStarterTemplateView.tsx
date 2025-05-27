@@ -8,7 +8,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
@@ -46,7 +46,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
 
 	const missedVariables = useQuery({
 		...templateVersionVariables(isJobError ? error.version.id : ""),
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 		enabled:
 			isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
 	});

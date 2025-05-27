@@ -15,7 +15,12 @@ import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -36,25 +41,28 @@ const TemplateVariablesPage: FC = () => {
 		data: version,
 		error: versionError,
 		isLoading: isVersionLoading,
-	} = useQuery({ ...templateVersion(versionId), keepPreviousData: true });
+	} = useQuery({
+		...templateVersion(versionId),
+		placeholderData: keepPreviousData,
+	});
 	const {
 		data: variables,
 		error: variablesError,
 		isLoading: isVariablesLoading,
 	} = useQuery({
 		...templateVersionVariables(versionId),
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 
 	const {
 		mutateAsync: sendCreateAndBuildTemplateVersion,
 		error: buildError,
-		isLoading: isBuilding,
+		isPending: isBuilding,
 	} = useMutation(createAndBuildTemplateVersion(organization));
 	const {
 		mutateAsync: sendUpdateActiveTemplateVersion,
 		error: publishError,
-		isLoading: isPublishing,
+		isPending: isPublishing,
 	} = useMutation(updateActiveTemplateVersion(template, queryClient));
 
 	const publishVersion = useCallback(

@@ -84,7 +84,7 @@ import {
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
-export interface WorkspacesTableProps {
+interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
@@ -489,9 +489,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	});
 
 	const isRetrying =
-		startWorkspaceMutation.isLoading ||
-		stopWorkspaceMutation.isLoading ||
-		deleteWorkspaceMutation.isLoading;
+		startWorkspaceMutation.isPending ||
+		stopWorkspaceMutation.isPending ||
+		deleteWorkspaceMutation.isPending;
 
 	const retry = () => {
 		switch (workspace.latest_build.transition) {
@@ -525,7 +525,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
-						isLoading={startWorkspaceMutation.isLoading}
+						isLoading={startWorkspaceMutation.isPending}
 						label="Start workspace"
 					>
 						<PlayIcon />
@@ -548,7 +548,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				{abilities.canCancel && (
 					<PrimaryAction
 						onClick={cancelBuildMutation.mutate}
-						isLoading={cancelBuildMutation.isLoading}
+						isLoading={cancelBuildMutation.isPending}
 						label="Cancel build"
 					>
 						<BanIcon />

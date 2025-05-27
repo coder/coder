@@ -40,9 +40,7 @@ module.exports = {
 				// can see many act warnings that may can help us to find the issue.
 				"/usePaginatedQuery.test.ts",
 			],
-			transformIgnorePatterns: [
-				"<rootDir>/node_modules/@chartjs-adapter-date-fns",
-			],
+			transformIgnorePatterns: [],
 			moduleDirectories: ["node_modules", "<rootDir>/src"],
 			moduleNameMapper: {
 				"\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",

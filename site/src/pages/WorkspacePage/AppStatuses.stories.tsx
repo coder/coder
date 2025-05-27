@@ -1,12 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
-	MockProxyLatencies,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
 } from "testHelpers/entities";
+import { withProxyProvider } from "testHelpers/storybook";
 import { AppStatuses } from "./AppStatuses";
 
 const meta: Meta<typeof AppStatuses> = {
@@ -15,32 +14,7 @@ const meta: Meta<typeof AppStatuses> = {
 	args: {
 		referenceDate: new Date("2024-03-26T15:15:00Z"),
 	},
-	// Add decorator for ProxyContext
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					latenciesLoaded: true,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-	],
+	decorators: [withProxyProvider()],
 };
 
 export default meta;

@@ -55,12 +55,12 @@ const WorkspaceSchedulePage: FC = () => {
 	const submitScheduleMutation = useMutation({
 		mutationFn: submitSchedule,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(
-				workspaceByOwnerAndNameKey(
+			await queryClient.invalidateQueries({
+				queryKey: workspaceByOwnerAndNameKey(
 					params.username.replace(/^@/, ""),
 					params.workspace,
 				),
-			);
+			});
 			displaySuccess("Workspace schedule updated");
 		},
 		onError: () => displayError("Failed to update workspace schedule"),
@@ -102,7 +102,7 @@ const WorkspaceSchedulePage: FC = () => {
 						...getAutostart(workspace),
 						...getAutostop(workspace),
 					}}
-					isLoading={submitScheduleMutation.isLoading}
+					isLoading={submitScheduleMutation.isPending}
 					defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
 					onCancel={() => {
 						navigate(`/@${username}/${workspaceName}`);

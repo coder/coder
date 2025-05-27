@@ -66,7 +66,7 @@ const Option: FC<OptionProps> = ({
 	);
 };
 
-export interface EditRolesButtonProps {
+interface EditRolesButtonProps {
 	isLoading: boolean;
 	roles: readonly SlimRole[];
 	selectedRoleNames: Set<string>;

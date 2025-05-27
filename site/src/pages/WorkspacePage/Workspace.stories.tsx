@@ -1,9 +1,12 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import * as Mocks from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
 
@@ -43,33 +46,7 @@ const meta: Meta<typeof Workspace> = {
 		],
 		user: Mocks.MockUserOwner,
 	},
-	decorators: [
-		withAuthProvider,
-		withDashboardProvider,
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: Mocks.MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					latenciesLoaded: true,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-	],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 };
 
 export default meta;

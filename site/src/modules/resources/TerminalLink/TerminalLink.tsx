@@ -4,7 +4,7 @@ import type { FC, MouseEvent } from "react";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-export interface TerminalLinkProps {
+interface TerminalLinkProps {
 	workspaceName: string;
 	agentName?: string;
 	userName?: string;

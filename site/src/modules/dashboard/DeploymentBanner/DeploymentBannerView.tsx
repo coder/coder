@@ -38,7 +38,7 @@ import { getDisplayWorkspaceStatus } from "utils/workspace";
 
 const bannerHeight = 36;
 
-export interface DeploymentBannerViewProps {
+interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;
 	stats?: DeploymentStats;
 	fetchStats?: () => void;

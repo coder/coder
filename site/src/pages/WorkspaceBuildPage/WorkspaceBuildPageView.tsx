@@ -48,7 +48,7 @@ const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
 	);
 };
 
-export interface WorkspaceBuildPageViewProps {
+interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
 	build: WorkspaceBuild | undefined;
 	buildError?: unknown;
@@ -205,7 +205,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 										fontWeight: 600,
 									}}
 								>
-									{`coder rm ${`${build.workspace_owner_name}/${build.workspace_name}`} --orphan`}
+									{`coder rm ${`${build.workspace_owner_username}/${build.workspace_name}`} --orphan`}
 								</code>{" "}
 								to delete the workspace skipping resource destruction.
 							</div>

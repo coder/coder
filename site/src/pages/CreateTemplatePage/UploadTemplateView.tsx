@@ -60,7 +60,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 						uploadFileMutation.reset();
 					}
 				},
-				isUploading: uploadFileMutation.isLoading,
+				isUploading: uploadFileMutation.isPending,
 				onRemove: uploadFileMutation.reset,
 				file: uploadFileMutation.variables,
 			}}

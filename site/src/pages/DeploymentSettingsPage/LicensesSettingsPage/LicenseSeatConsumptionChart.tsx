@@ -32,7 +32,7 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-export type LicenseSeatConsumptionChartProps = {
+type LicenseSeatConsumptionChartProps = {
 	limit: number | undefined;
 	data:
 		| {

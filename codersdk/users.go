@@ -40,7 +40,7 @@ type UsersRequest struct {
 type MinimalUser struct {
 	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
-	AvatarURL string    `json:"avatar_url" format:"uri"`
+	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
 }
 
 // ReducedUser omits role and organization information. Roles are deduced from
@@ -49,11 +49,11 @@ type MinimalUser struct {
 // required by the frontend.
 type ReducedUser struct {
 	MinimalUser `table:"m,recursive_inline"`
-	Name        string    `json:"name"`
+	Name        string    `json:"name,omitempty"`
 	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
-	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
+	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
 	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
 	LoginType LoginType  `json:"login_type"`
@@ -663,7 +663,14 @@ func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req Chan
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
 func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/me/convert-login", req)
+	return c.ConvertUserLoginType(ctx, Me, req)
+}
+
+// ConvertUserLoginType will send a request to convert the user from password
+// based authentication to oauth based. The response has the oauth state code
+// to use in the oauth flow.
+func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/convert-login", user), req)
 	if err != nil {
 		return OAuthConversionResponse{}, err
 	}

@@ -29,7 +29,7 @@ const CreateGroupPage: FC = () => {
 					);
 				}}
 				error={createGroupMutation.error}
-				isLoading={createGroupMutation.isLoading}
+				isLoading={createGroupMutation.isPending}
 			/>
 		</>
 	);

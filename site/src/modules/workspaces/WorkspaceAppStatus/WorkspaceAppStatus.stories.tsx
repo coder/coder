@@ -1,39 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import {
-	MockProxyLatencies,
-	MockWorkspaceAppStatus,
-} from "testHelpers/entities";
+import { MockWorkspaceAppStatus } from "testHelpers/entities";
+import { withProxyProvider } from "testHelpers/storybook";
 import { WorkspaceAppStatus } from "./WorkspaceAppStatus";
 
 const meta: Meta<typeof WorkspaceAppStatus> = {
 	title: "modules/workspaces/WorkspaceAppStatus",
 	component: WorkspaceAppStatus,
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					latenciesLoaded: true,
-					isLoading: false,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-	],
+	decorators: [withProxyProvider()],
 };
 
 export default meta;

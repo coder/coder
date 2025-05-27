@@ -5,6 +5,7 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
@@ -14,7 +15,9 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
-export type WorkspaceParametersPageViewExperimentalProps = {
+import { docs } from "utils/docs";
+
+type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
@@ -139,6 +142,13 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							<p className="text-sm text-content-secondary m-0">
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+									)}
+								>
+									View docs
+								</Link>
 							</p>
 						</hgroup>
 						{standardParameters.map((parameter, index) => {
