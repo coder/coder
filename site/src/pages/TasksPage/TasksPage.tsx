@@ -43,10 +43,12 @@ import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { relativeTime } from "utils/time";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { useAuthenticated } from "hooks";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 const TasksPage: FC = () => {
 	const {
@@ -142,42 +144,99 @@ const TasksPage: FC = () => {
 	);
 };
 
+type CreateTaskMutationFnProps = { prompt: string; templateId: string };
+
 type TaskFormProps = {
 	templates: Template[];
 };
 
 const TaskForm: FC<TaskFormProps> = ({ templates }) => {
-	return (
-		<form className="border border-border border-solid rounded-lg p-4">
-			<textarea
-				name="prompt"
-				placeholder="Write an action for your AI agent to perform..."
-				className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
-			/>
-			<div className="flex items-center justify-between">
-				<Select name="templateID">
-					<SelectTrigger className="w-52 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
-						<SelectValue placeholder="Select a template" />
-					</SelectTrigger>
-					<SelectContent>
-						{templates.map((template) => {
-							return (
-								<SelectItem value={template.id} key={template.id}>
-									<span className="overflow-hidden text-ellipsis block">
-										{template.display_name ?? template.name}
-									</span>
-								</SelectItem>
-							);
-						})}
-					</SelectContent>
-				</Select>
+	const { user } = useAuthenticated();
+	const queryClient = useQueryClient();
 
-				<Button size="sm" type="submit">
-					<SendIcon />
-					Run task
-				</Button>
-			</div>
+	const createTaskMutation = useMutation({
+		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
+			data.createTask(prompt, user.id, templateId),
+		onSuccess: (newTask) => {
+			// The current data loading is heavy, so we manually update the cache to
+			// avoid re-fetching. Once we improve data loading, we can replace the
+			// manual update with queryClient.invalidateQueries.
+			queryClient.setQueryData<Task[]>(["tasks"], (oldTasks = []) => {
+				return [newTask, ...oldTasks];
+			});
+		},
+	});
+
+	const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+
+		const form = e.currentTarget;
+		const formData = new FormData(form);
+		const prompt = formData.get("prompt") as string;
+		const templateID = formData.get("templateID") as string;
+
+		if (!prompt || !templateID) {
+			return;
+		}
+
+		try {
+			await createTaskMutation.mutateAsync({
+				prompt,
+				templateId: templateID,
+			});
+			form.reset();
+		} catch (error) {
+			const message = getErrorMessage(error, "Error creating task");
+			const detail = getErrorDetail(error) ?? "Please, try again";
+			displayError(message, detail);
+		}
+	};
+
+	console.log("CREATE TASK MUTATION", createTaskMutation.isLoading);
+
+	return (
+		<form
+			className="border border-border border-solid rounded-lg p-4"
+			onSubmit={onSubmit}
+		>
+			<fieldset disabled={createTaskMutation.isLoading}>
+				<label htmlFor="prompt" className="sr-only">
+					Prompt
+				</label>
+				<textarea
+					required
+					id="prompt"
+					name="prompt"
+					placeholder="Write an action for your AI agent to perform..."
+					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
+						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
+				/>
+				<div className="flex items-center justify-between">
+					<Select name="templateID" defaultValue={templates[0].id} required>
+						<SelectTrigger className="w-52 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
+							<SelectValue placeholder="Select a template" />
+						</SelectTrigger>
+						<SelectContent>
+							{templates.map((template) => {
+								return (
+									<SelectItem value={template.id} key={template.id}>
+										<span className="overflow-hidden text-ellipsis block">
+											{template.display_name ?? template.name}
+										</span>
+									</SelectItem>
+								);
+							})}
+						</SelectContent>
+					</Select>
+
+					<Button size="sm" type="submit">
+						<Spinner loading={createTaskMutation.isLoading}>
+							<SendIcon />
+						</Spinner>
+						Run task
+					</Button>
+				</div>
+			</fieldset>
 		</form>
 	);
 };
@@ -194,6 +253,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 	} = useQuery({
 		queryKey: ["tasks"],
 		queryFn: () => data.fetchTasks(templates),
+		refetchInterval: 10_000,
 	});
 
 	let body: ReactNode = null;
@@ -395,6 +455,8 @@ type Task = {
 	prompt: string;
 };
 
+const AI_PROMPT_PARAMETER_NAME = "AI Prompt";
+
 export const data = {
 	// TODO: This function is currently inefficient because it fetches all templates
 	// and their parameters individually, resulting in many API calls and slow
@@ -409,7 +471,7 @@ export const data = {
 			),
 		);
 		return templates.filter((_template, index) => {
-			return parameters[index].some((p) => p.name === "AI Prompt");
+			return parameters[index].some((p) => p.name === AI_PROMPT_PARAMETER_NAME);
 		});
 	},
 
@@ -440,7 +502,9 @@ export const data = {
 				const parameters = await API.getWorkspaceBuildParameters(
 					workspace.latest_build.id,
 				);
-				const prompt = parameters.find((p) => p.name === "AI Prompt")?.value;
+				const prompt = parameters.find(
+					(p) => p.name === AI_PROMPT_PARAMETER_NAME,
+				)?.value;
 
 				if (!prompt) {
 					return;
@@ -452,6 +516,25 @@ export const data = {
 				} satisfies Task;
 			}),
 		).then((tasks) => tasks.filter((t) => t !== undefined));
+	},
+
+	async createTask(
+		prompt: string,
+		userId: string,
+		templateId: string,
+	): Promise<Task> {
+		const workspace = await API.createWorkspace(userId, {
+			name: `ai-task-${new Date().getTime()}`,
+			template_id: templateId,
+			rich_parameter_values: [
+				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
+			],
+		});
+
+		return {
+			workspace,
+			prompt,
+		};
 	},
 };
 

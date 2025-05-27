@@ -1,18 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import TasksPage, { data } from "./TasksPage";
-import { spyOn } from "@storybook/test";
+import { spyOn, within, expect, userEvent } from "@storybook/test";
 import {
 	mockApiError,
 	MockProxyLatencies,
 	MockTemplate,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
 } from "testHelpers/entities";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import { withAuthProvider, withGlobalSnackbar } from "testHelpers/storybook";
 
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",
 	component: TasksPage,
+	decorators: [withAuthProvider],
+	parameters: {
+		user: MockUserOwner,
+	},
 };
 
 export default meta;
@@ -49,6 +55,14 @@ export const LoadingTasks: Story = {
 		spyOn(data, "fetchTasks").mockImplementation(
 			() => new Promise((res) => 1000 * 60 * 60),
 		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select the first AI template", async () => {
+			const combobox = await canvas.findByRole("combobox");
+			expect(combobox).toHaveTextContent(MockTemplate.display_name);
+		});
 	},
 };
 
@@ -97,36 +111,149 @@ export const LoadedTasks: Story = {
 	],
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue([
-			{
-				workspace: {
-					...MockWorkspace,
-					latest_app_status: MockWorkspaceAppStatus,
-				},
-				prompt: "Create competitors page",
-			},
-			{
-				workspace: {
-					...MockWorkspace,
-					id: "workspace-2",
-					latest_app_status: {
-						...MockWorkspaceAppStatus,
-						message: "Avatar size fixed!",
-					},
-				},
-				prompt: "Fix user avatar size",
-			},
-			{
-				workspace: {
-					...MockWorkspace,
-					id: "workspace-3",
-					latest_app_status: {
-						...MockWorkspaceAppStatus,
-						message: "Accessibility issues fixed!",
-					},
-				},
-				prompt: "Fix accessibility issues",
-			},
-		]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
 	},
 };
+
+export const CreateTaskSuccessfully: Story = {
+	decorators: [
+		(Story) => (
+			<ProxyContext.Provider
+				value={{
+					proxyLatencies: MockProxyLatencies,
+					proxy: getPreferredProxy([], undefined),
+					proxies: [],
+					isLoading: false,
+					isFetched: true,
+					clearProxy: () => {
+						return;
+					},
+					setProxy: () => {
+						return;
+					},
+					refetchProxyLatencies: (): Date => {
+						return new Date();
+					},
+				}}
+			>
+				<Story />
+			</ProxyContext.Provider>
+		),
+	],
+	beforeEach: () => {
+		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(data, "createTask").mockImplementation((prompt: string) => {
+			return Promise.resolve({
+				prompt,
+				workspace: {
+					...MockWorkspace,
+					latest_app_status: {
+						...MockWorkspaceAppStatus,
+						message: "Task created successfully!",
+					},
+				},
+			});
+		});
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Run task", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, "Create a new task");
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			await userEvent.click(submitButton);
+		});
+
+		await step("Verify task in the table", async () => {
+			await canvas.findByRole("row", {
+				name: /create a new task/i,
+			});
+		});
+	},
+};
+
+export const CreateTaskError: Story = {
+	decorators: [
+		(Story) => (
+			<ProxyContext.Provider
+				value={{
+					proxyLatencies: MockProxyLatencies,
+					proxy: getPreferredProxy([], undefined),
+					proxies: [],
+					isLoading: false,
+					isFetched: true,
+					clearProxy: () => {
+						return;
+					},
+					setProxy: () => {
+						return;
+					},
+					refetchProxyLatencies: (): Date => {
+						return new Date();
+					},
+				}}
+			>
+				<Story />
+			</ProxyContext.Provider>
+		),
+		withGlobalSnackbar,
+	],
+	beforeEach: () => {
+		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(data, "createTask").mockRejectedValue(
+			mockApiError({
+				message: "Failed to create task",
+				detail: "You don't have permission to create tasks.",
+			}),
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Run task", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, "Create a new task");
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			await userEvent.click(submitButton);
+		});
+
+		await step("Verify error", async () => {
+			await canvas.findByText(/failed to create task/i);
+		});
+	},
+};
+
+const MockTasks = [
+	{
+		workspace: {
+			...MockWorkspace,
+			latest_app_status: MockWorkspaceAppStatus,
+		},
+		prompt: "Create competitors page",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-2",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Avatar size fixed!",
+			},
+		},
+		prompt: "Fix user avatar size",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-3",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Accessibility issues fixed!",
+			},
+		},
+		prompt: "Fix accessibility issues",
+	},
+];
