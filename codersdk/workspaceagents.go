@@ -518,16 +518,20 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
-func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) error {
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) (Response, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
 	if err != nil {
-		return err
+		return Response{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	if res.StatusCode != http.StatusAccepted {
+		return Response{}, ReadBodyAsError(res)
 	}
-	return nil
+	var m Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
