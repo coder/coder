@@ -192,8 +192,6 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		}
 	};
 
-	console.log("CREATE TASK MUTATION", createTaskMutation.isLoading);
-
 	return (
 		<form
 			className="border border-border border-solid rounded-lg p-4"
