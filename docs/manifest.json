@@ -198,7 +198,15 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["beta"]
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "Coder Desktop connect and sync",
+							"description": "Use Coder Desktop to manage your workspace code and files locally",
+							"path": "./user-guides/desktop/desktop-connect-sync.md",
+							"state": ["beta"]
+						}
+					]
 				},
 				{
 					"title": "Workspace Management",
