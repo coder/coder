@@ -120,6 +120,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.UseClassicParameterFlow,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.CreatedByName,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
