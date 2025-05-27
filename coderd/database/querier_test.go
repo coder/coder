@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4711,13 +4710,11 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 	t.Parallel()
 
-	var builds atomic.Int32
-
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test makes use of a database trigger not implemented in dbmem")
 	}
 
-	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceTable, database.TemplateVersion, database.WorkspaceAgent) {
+	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceTable, database.WorkspaceResource, database.WorkspaceAgent) {
 		t.Helper()
 
 		user := dbgen.User(t, db, database.User{})
@@ -4740,7 +4737,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			OrganizationID: org.ID,
 		})
 		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			BuildNumber:       builds.Add(1),
+			BuildNumber:       1,
 			JobID:             job.ID,
 			WorkspaceID:       workspace.ID,
 			TemplateVersionID: templateVersion.ID,
@@ -4753,10 +4750,10 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			Name:       agentName,
 		})
 
-		return workspace, templateVersion, agent
+		return workspace, resource, agent
 	}
 
-	t.Run("DuplicateNamesInSameWorkspace", func(t *testing.T) {
+	t.Run("DuplicateNamesInSameWorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
@@ -4764,29 +4761,16 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A workspace with an agent
-		workspace1, templateVersion1, agent1 := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
-		require.Equal(t, "duplicate-agent", agent1.Name)
+		_, resource, agent := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+		require.Equal(t, "duplicate-agent", agent.Name)
 
 		// When: Another agent is created for that workspace with the same name.
-		job2 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			OrganizationID: org.ID,
-		})
-		build2 := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			BuildNumber:       builds.Add(1),
-			JobID:             job2.ID,
-			WorkspaceID:       workspace1.ID,
-			TemplateVersionID: templateVersion1.ID,
-		})
-		resource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: build2.JobID,
-		})
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:              uuid.New(),
 			CreatedAt:       time.Now(),
 			UpdatedAt:       time.Now(),
 			Name:            "duplicate-agent", // Same name as agent1
-			ResourceID:      resource2.ID,
+			ResourceID:      resource.ID,
 			AuthToken:       uuid.New(),
 			Architecture:    "amd64",
 			OperatingSystem: "linux",
@@ -4798,7 +4782,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		var pqErr *pq.Error
 		require.True(t, errors.As(err, &pqErr))
 		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
-		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace`)
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace resource`)
 	})
 
 	t.Run("SameNamesInDifferentWorkspaces", func(t *testing.T) {
