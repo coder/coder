@@ -367,11 +367,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
-						<FeatureStageBadge
-							className="mt-1"
-							contentType={"beta"}
-							labelText="Dynamic parameters"
-						/>
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
