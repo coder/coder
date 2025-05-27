@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -264,18 +265,31 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		doTransition := func(t *testing.T, trans codersdk.WorkspaceTransition) {
 			t.Helper()
 
+			fooVal := coderdtest.RandomUsername(t)
 			bld, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID:       setup.template.ActiveVersionID,
-				Transition:              trans,
+				TemplateVersionID: setup.template.ActiveVersionID,
+				Transition:        trans,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					// No validation, so this should work as is.
+					// Overwrite the value on each transition
+					{Name: "foo", Value: fooVal},
+				},
 				EnableDynamicParameters: ptr.Ref(true),
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
 			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
-			require.Len(t, latestParams, 1)
-			require.Equal(t, "jetbrains_ide", latestParams[0].Name)
-			require.Equal(t, "GO", latestParams[0].Value)
+			require.Len(t, latestParams, 2)
+			idx := slices.IndexFunc(latestParams, func(parameter codersdk.WorkspaceBuildParameter) bool {
+				return parameter.Name == "jetbrains_ide"
+			})
+			require.Equal(t, "jetbrains_ide", latestParams[idx].Name)
+			require.Equal(t, "GO", latestParams[idx].Value)
+
+			fooIdx := (idx + 1) % 2
+			require.Equal(t, "foo", latestParams[fooIdx].Name)
+			require.Equal(t, fooVal, latestParams[fooIdx].Value)
 		}
 
 		// Restart the workspace, then delete. Asserting params on all builds.
