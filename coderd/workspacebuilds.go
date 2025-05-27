@@ -1095,7 +1095,7 @@ func (api *API) convertWorkspaceBuild(
 		CreatedAt:               build.CreatedAt,
 		UpdatedAt:               build.UpdatedAt,
 		WorkspaceOwnerID:        workspace.OwnerID,
-		WorkspaceOwnerName:      workspace.OwnerName,
+		WorkspaceOwnerName:      workspace.OwnerName,      // Uses owner name from workspace table
 		WorkspaceOwnerUsername:  workspace.OwnerUsername,
 		WorkspaceOwnerAvatarURL: workspace.OwnerAvatarUrl,
 		WorkspaceID:             build.WorkspaceID,
@@ -1105,7 +1105,7 @@ func (api *API) convertWorkspaceBuild(
 		BuildNumber:             build.BuildNumber,
 		Transition:              transition,
 		InitiatorID:             build.InitiatorID,
-		InitiatorUsername:       build.InitiatorByUsername,
+		InitiatorUsername:       build.InitiatorByName,       // Use InitiatorByName instead of InitiatorByUsername
 		Job:                     apiJob,
 		Deadline:                codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
 		MaxDeadline:             codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),

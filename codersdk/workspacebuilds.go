@@ -65,7 +65,7 @@ type WorkspaceBuild struct {
 	BuildNumber             int32                `json:"build_number"`
 	Transition              WorkspaceTransition  `json:"transition" enums:"start,stop,delete"`
 	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid"`
-	InitiatorUsername       string               `json:"initiator_name"`
+	InitiatorUsername       string               `json:"initiator_name"`  // This should be renamed to initiator_username in a future API version
 	Job                     ProvisionerJob       `json:"job"`
 	Reason                  BuildReason          `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
 	Resources               []WorkspaceResource  `json:"resources"`
