@@ -10,6 +10,7 @@ import {
 	getPreferredProxy,
 } from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
+import _ from "lodash";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
@@ -24,7 +25,6 @@ import {
 	MockOrganizationPermissions,
 	MockProxyLatencies,
 } from "./entities";
-import _ from "lodash";
 
 export const withDashboardProvider = (
 	Story: FC,
