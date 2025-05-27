@@ -197,7 +197,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 			className="border border-border border-solid rounded-lg p-4"
 			onSubmit={onSubmit}
 		>
-			<fieldset disabled={createTaskMutation.isLoading}>
+			<fieldset disabled={createTaskMutation.isPending}>
 				<label htmlFor="prompt" className="sr-only">
 					Prompt
 				</label>
@@ -228,7 +228,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					</Select>
 
 					<Button size="sm" type="submit">
-						<Spinner loading={createTaskMutation.isLoading}>
+						<Spinner loading={createTaskMutation.isPending}>
 							<SendIcon />
 						</Spinner>
 						Run task
