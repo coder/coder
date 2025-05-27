@@ -648,6 +648,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 			//   fields such as 'ephemeral'. This requires loading the terraform
 			//   files. For now, just send the previous inputs as is.
 			if _, exists := latestValues[last.Name]; exists {
+				// latestValues take priority, so skip this previous value.
 				continue
 			}
 			names = append(names, last.Name)
