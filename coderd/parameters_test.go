@@ -210,6 +210,47 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		// test to make it obvious what this test is doing.
 		require.Zero(t, setup.api.FileCache.Count())
 	})
+
+	t.Run("BadOwner", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			plan:                     nil,
+			static:                   nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		err = stream.Send(codersdk.DynamicParametersRequest{
+			ID: 1,
+			Inputs: map[string]string{
+				"jetbrains_ide": "GO",
+			},
+			OwnerID: uuid.New(),
+		})
+		require.NoError(t, err)
+
+		preview = testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, 1, preview.ID)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Extra.Code, "owner_not_found")
+	})
 }
 
 type setupDynamicParamsTestParams struct {
