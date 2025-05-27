@@ -21,11 +21,10 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
@@ -55,8 +54,10 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 		? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
 		: undefined;
 
+	const [open, setOpen] = useState(false);
+	
 	return (
-		<Popover>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger>
 				<TopbarButton
 					data-testid="build-parameters-button"
@@ -68,8 +69,8 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent
-				horizontal="right"
-				css={{ ".MuiPaper-root": { width: 304 } }}
+				align="end"
+				css={{ width: 304 }}
 			>
 				<BuildParametersPopoverContent
 					ephemeralParameters={ephemeralParameters}
@@ -93,7 +94,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	onSubmit,
 }) => {
 	const theme = useTheme();
-	const popover = usePopover();
+	const [open, setOpen] = useState(false);
 
 	return (
 		<>
@@ -116,7 +117,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 							<Form
 								onSubmit={(buildParameters) => {
 									onSubmit(buildParameters);
-									popover.setOpen(false);
+									setOpen(false);
 								}}
 								ephemeralParameters={ephemeralParameters}
 								buildParameters={buildParameters.map(
