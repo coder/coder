@@ -1,15 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, spyOn, userEvent, within } from "@storybook/test";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
-	MockProxyLatencies,
 	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
-import { withAuthProvider, withGlobalSnackbar } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withGlobalSnackbar,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import TasksPage, { data } from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -85,30 +87,7 @@ export const EmptyTasks: Story = {
 };
 
 export const LoadedTasks: Story = {
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-	],
+	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
 		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
@@ -116,30 +95,7 @@ export const LoadedTasks: Story = {
 };
 
 export const CreateTaskSuccessfully: Story = {
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-	],
+	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
 		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
@@ -175,31 +131,7 @@ export const CreateTaskSuccessfully: Story = {
 };
 
 export const CreateTaskError: Story = {
-	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					clearProxy: () => {
-						return;
-					},
-					setProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
-		withGlobalSnackbar,
-	],
+	decorators: [withProxyProvider(), withGlobalSnackbar],
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
 		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
