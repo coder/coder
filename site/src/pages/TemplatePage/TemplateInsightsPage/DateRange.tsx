@@ -6,7 +6,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import dayjs from "dayjs";
 import { MoveRightIcon } from "lucide-react";
 import { type ComponentProps, type FC, useRef, useState } from "react";
