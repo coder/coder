@@ -541,15 +541,15 @@ BEGIN
             IF workspace_count > 0 THEN
                 error_parts := array_append(error_parts, workspace_count || ' workspaces');
             END IF;
-            
+
             IF template_count > 0 THEN
                 error_parts := array_append(error_parts, template_count || ' templates');
             END IF;
-            
+
             IF provisioner_keys_count > 0 THEN
                 error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
             END IF;
-            
+
             error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
             RAISE EXCEPTION '%', error_message;
         END;
@@ -1449,7 +1449,7 @@ COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the or
 
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
-COMMENT ON COLUMN template_version_parameters.form_type IS 'Specify what form_type should be used to render the parameter in the UI. This value should correspond to an enum, but this will not be enforced in the sql. Mistakes here should not be fatal for functional usage.';
+COMMENT ON COLUMN template_version_parameters.form_type IS 'Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.';
 
 CREATE TABLE template_version_preset_parameters (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
