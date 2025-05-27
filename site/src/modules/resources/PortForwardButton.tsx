@@ -62,7 +62,7 @@ import {
 } from "utils/portForward";
 import * as Yup from "yup";
 
-export interface PortForwardButtonProps {
+interface PortForwardButtonProps {
 	host: string;
 	username: string;
 	workspaceName: string;
@@ -152,7 +152,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	// share port form
 	const {
 		mutateAsync: upsertWorkspacePortShareForm,
-		isLoading: isSubmitting,
+		isPending: isSubmitting,
 		error: submitError,
 	} = useMutation(upsertWorkspacePortShare(workspaceID));
 	const validationSchema = getValidationSchema();

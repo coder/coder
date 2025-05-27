@@ -37,7 +37,7 @@ const httpStatusColor = (httpStatus: number): ThemeRole => {
 	return "success";
 };
 
-export interface AuditLogRowProps {
+interface AuditLogRowProps {
 	auditLog: AuditLog;
 	// Useful for Storybook
 	defaultIsDiffOpen?: boolean;

@@ -11,8 +11,6 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
-import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
@@ -36,11 +34,10 @@ const WorkspacePage: FC = () => {
 	const workspace = workspaceQuery.data;
 
 	// Template
-	const templateQuery = useQuery(
-		workspace
-			? templateQueryOptions(workspace.template_id)
-			: { enabled: false },
-	);
+	const templateQuery = useQuery({
+		...templateQueryOptions(workspace?.template_id ?? ""),
+		enabled: !!workspace,
+	});
 	const template = templateQuery.data;
 
 	// Permissions
@@ -67,9 +64,9 @@ const WorkspacePage: FC = () => {
 				newWorkspaceData.latest_build.status !== workspace.latest_build.status;
 
 			if (hasNewBuild || lastBuildHasChanged) {
-				await queryClient.invalidateQueries(
-					workspaceBuildsKey(newWorkspaceData.id),
-				);
+				await queryClient.invalidateQueries({
+					queryKey: workspaceBuildsKey(newWorkspaceData.id),
+				});
 			}
 		},
 	);
@@ -106,29 +103,18 @@ const WorkspacePage: FC = () => {
 		workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
 	const isLoading = !workspace || !template || !permissions;
 
-	return (
-		<>
-			<AnnouncementBanners />
-			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<Navbar />
-				{pageError ? (
-					<Margins>
-						<ErrorAlert
-							error={pageError}
-							css={{ marginTop: 16, marginBottom: 16 }}
-						/>
-					</Margins>
-				) : isLoading ? (
-					<Loader />
-				) : (
-					<WorkspaceReadyPage
-						workspace={workspace}
-						template={template}
-						permissions={permissions}
-					/>
-				)}
-			</div>
-		</>
+	return pageError ? (
+		<Margins>
+			<ErrorAlert error={pageError} css={{ marginTop: 16, marginBottom: 16 }} />
+		</Margins>
+	) : isLoading ? (
+		<Loader />
+	) : (
+		<WorkspaceReadyPage
+			workspace={workspace}
+			template={template}
+			permissions={permissions}
+		/>
 	);
 };
 

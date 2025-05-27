@@ -27,7 +27,7 @@ import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 
-export type GroupsPageViewProps = {
+type GroupsPageViewProps = {
 	groups: Group[] | undefined;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;

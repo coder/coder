@@ -224,7 +224,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 
@@ -458,7 +459,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 
@@ -1169,7 +1171,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 
@@ -1476,7 +1479,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   }
 ]
 ```
@@ -1648,6 +1652,7 @@ Status Code **200**
 | `» workspace_owner_avatar_url`   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_owner_id`           | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_owner_name`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `» workspace_owner_username`     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 
 #### Enumerated Values
 
@@ -1959,7 +1964,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 

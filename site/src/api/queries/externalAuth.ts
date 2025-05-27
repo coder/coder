@@ -37,7 +37,9 @@ export const exchangeExternalAuthDevice = (
 		queryKey: ["external-auth", providerId, "device", deviceCode],
 		onSuccess: async () => {
 			// Force a refresh of the Git auth status.
-			await queryClient.invalidateQueries(["external-auth", providerId]);
+			await queryClient.invalidateQueries({
+				queryKey: ["external-auth", providerId],
+			});
 		},
 	};
 };
@@ -57,7 +59,9 @@ export const unlinkExternalAuths = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.unlinkExternalAuthProvider,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["external-auth"]);
+			await queryClient.invalidateQueries({
+				queryKey: ["external-auth"],
+			});
 		},
 	};
 };

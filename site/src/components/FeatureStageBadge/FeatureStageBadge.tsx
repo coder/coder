@@ -18,6 +18,7 @@ export const featureStageBadgeTypes = {
 type FeatureStageBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		contentType: keyof typeof featureStageBadgeTypes;
+		labelText?: string;
 		size?: "sm" | "md" | "lg";
 		showTooltip?: boolean;
 	}
@@ -25,6 +26,7 @@ type FeatureStageBadgeProps = Readonly<
 
 export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	contentType,
+	labelText = "",
 	size = "md",
 	showTooltip = true, // This is a temporary until the deprecated popover is removed
 	...delegatedProps
@@ -43,7 +45,8 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 						{...delegatedProps}
 					>
 						<span style={visuallyHidden}> (This is a</span>
-						<span css={styles.badgeLabel}>
+						<span className="first-letter:uppercase">
+							{labelText && `${labelText} `}
 							{featureStageBadgeTypes[contentType]}
 						</span>
 						<span style={visuallyHidden}> feature)</span>
@@ -104,13 +107,6 @@ const styles = {
 		borderColor: theme.branding.featureStage.hover.border,
 		backgroundColor: theme.branding.featureStage.hover.background,
 	}),
-
-	badgeLabel: {
-		// Have to set display mode to anything other than inline, or else the
-		// CSS capitalization algorithm won't capitalize the element
-		display: "inline-block",
-		textTransform: "capitalize",
-	},
 
 	badgeLargeText: {
 		fontSize: "1rem",

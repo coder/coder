@@ -4,7 +4,7 @@ import { type FC, type FormEvent, useId, useState } from "react";
 import { Stack } from "../../Stack/Stack";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
-export interface DeleteDialogProps {
+interface DeleteDialogProps {
 	isOpen: boolean;
 	onConfirm: () => void;
 	onCancel: () => void;

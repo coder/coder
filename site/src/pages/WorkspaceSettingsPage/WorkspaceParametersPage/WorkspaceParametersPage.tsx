@@ -63,7 +63,7 @@ const WorkspaceParametersPage: FC = () => {
 				canChangeVersions={canChangeVersions}
 				data={parameters.data}
 				submitError={updateParameters.error}
-				isSubmitting={updateParameters.isLoading}
+				isSubmitting={updateParameters.isPending}
 				onSubmit={(values) => {
 					if (!parameters.data) {
 						return;
@@ -92,7 +92,7 @@ const WorkspaceParametersPage: FC = () => {
 	);
 };
 
-export type WorkspaceParametersPageViewProps = {
+type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	canChangeVersions: boolean;
 	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;

@@ -17,7 +17,7 @@ const Language = {
 	createdByLabel: "Created by",
 };
 
-export interface VersionsTableProps {
+interface VersionsTableProps {
 	activeVersionId: string;
 	versions?: TypesGen.TemplateVersion[];
 	onPromoteClick?: (templateVersionId: string) => void;

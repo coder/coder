@@ -9,7 +9,7 @@ import { type FC, useRef, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-export interface VSCodeDevContainerButtonProps {
+interface VSCodeDevContainerButtonProps {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;

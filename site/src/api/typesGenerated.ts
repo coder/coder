@@ -827,6 +827,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
 	| "dynamic-parameters"
@@ -3352,6 +3353,7 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+	readonly devcontainer_status?: WorkspaceAgentDevcontainerStatus;
 	readonly devcontainer_dirty: boolean;
 }
 
@@ -3369,10 +3371,20 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
-	readonly running: boolean;
+	readonly status: WorkspaceAgentDevcontainerStatus;
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 }
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentDevcontainerStatus =
+	| "error"
+	| "running"
+	| "starting"
+	| "stopped";
+
+export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
+	["error", "running", "starting", "stopped"];
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentDevcontainersResponse {
@@ -3609,7 +3621,8 @@ export interface WorkspaceBuild {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly workspace_owner_id: string;
-	readonly workspace_owner_name: string;
+	readonly workspace_owner_name?: string;
+	readonly workspace_owner_username: string;
 	readonly workspace_owner_avatar_url?: string;
 	readonly template_version_id: string;
 	readonly template_version_name: string;

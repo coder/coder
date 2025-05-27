@@ -32,7 +32,7 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 	// right baseline time.
 	pc, err := pubTrap.Wait(ctx)
 	require.NoError(t, err)
-	pc.Release()
+	pc.MustRelease(ctx)
 	require.Equal(t, 15*time.Second, pc.Duration)
 
 	// we subscribe after starting the timer, so we know the timer also starts
@@ -66,7 +66,7 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 	}()
 	sc, err := subTrap.Wait(ctx) // timer.Stop() called
 	require.NoError(t, err)
-	sc.Release()
+	sc.MustRelease(ctx)
 	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 }
@@ -88,7 +88,7 @@ func TestWatchdog_Timeout(t *testing.T) {
 	// right baseline time.
 	pc, err := pubTrap.Wait(ctx)
 	require.NoError(t, err)
-	pc.Release()
+	pc.MustRelease(ctx)
 	require.Equal(t, 15*time.Second, pc.Duration)
 
 	// we subscribe after starting the timer, so we know the timer also starts

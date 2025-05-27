@@ -1507,6 +1507,7 @@ COMMENT ON COLUMN template_versions.message IS 'Message describing the changes i
 CREATE VIEW visible_users AS
  SELECT users.id,
     users.username,
+    users.name,
     users.avatar_url
    FROM users;
 
@@ -1527,7 +1528,8 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
-    COALESCE(visible_users.username, ''::text) AS created_by_username
+    COALESCE(visible_users.username, ''::text) AS created_by_username,
+    COALESCE(visible_users.name, ''::text) AS created_by_name
    FROM (template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
@@ -1623,6 +1625,7 @@ CREATE VIEW template_with_names AS
     templates.use_classic_parameter_flow,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
+    COALESCE(visible_users.name, ''::text) AS created_by_name,
     COALESCE(organizations.name, ''::text) AS organization_name,
     COALESCE(organizations.display_name, ''::text) AS organization_display_name,
     COALESCE(organizations.icon, ''::text) AS organization_icon
@@ -2040,7 +2043,8 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
-    COALESCE(visible_users.username, ''::text) AS initiator_by_username
+    COALESCE(visible_users.username, ''::text) AS initiator_by_username,
+    COALESCE(visible_users.name, ''::text) AS initiator_by_name
    FROM (workspace_builds
      LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
 
@@ -2243,6 +2247,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
+    visible_users.name AS owner_name,
     organizations.name AS organization_name,
     organizations.display_name AS organization_display_name,
     organizations.icon AS organization_icon,

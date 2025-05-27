@@ -13,7 +13,7 @@ import { Link as RouterLink } from "react-router-dom";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
-export interface CreateTemplateGalleryPageViewProps {
+interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	error?: unknown;
 }

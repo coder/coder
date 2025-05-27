@@ -8,7 +8,7 @@ import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
-export interface LoginPageViewProps {
+interface LoginPageViewProps {
 	authMethods: AuthMethods | undefined;
 	error: unknown;
 	isLoading: boolean;

@@ -7,7 +7,7 @@ import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 
-export interface SSHKeysPageViewProps {
+interface SSHKeysPageViewProps {
 	isLoading: boolean;
 	getSSHKeyError?: unknown;
 	sshKey?: GitSSHKey;

@@ -25,6 +25,8 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add previous parameter values to 'WorkspaceBuild' jobs. Provisioner passes
 //     the previous values for the `terraform apply` to enforce monotonicity
 //     in the terraform provider.
+//   - Add new field named `expiration_policy` to `Prebuild`, with a field named
+//     `ttl` to define TTL-based expiration for unclaimed prebuilds.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 6
