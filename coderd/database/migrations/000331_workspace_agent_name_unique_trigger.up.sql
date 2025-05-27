@@ -6,7 +6,7 @@ DECLARE
 BEGIN
 	IF NEW.parent_id IS NULL THEN
 		-- Count how many agents in this resource already have
-		-- the given agent ID.
+		-- the given agent name.
 		SELECT COUNT(*) INTO agents_with_name
 		FROM workspace_agents
 		WHERE workspace_agents.resource_id = NEW.resource_id
@@ -19,7 +19,7 @@ BEGIN
 		WHERE workspace_resources.id = NEW.resource_id;
 
 		-- Count how many agents in this provisioner job already have
-		-- the given agent ID.
+		-- the given agent name.
 		SELECT COUNT(*) INTO agents_with_name
 		FROM workspace_agents
 		JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
