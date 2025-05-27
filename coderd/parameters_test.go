@@ -280,6 +280,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
 			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
+			require.NoError(t, err)
+
 			require.Len(t, latestParams, 2)
 			idx := slices.IndexFunc(latestParams, func(parameter codersdk.WorkspaceBuildParameter) bool {
 				return parameter.Name == "jetbrains_ide"
