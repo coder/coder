@@ -190,7 +190,7 @@ export const withProxyProvider = (provider?: Partial<ProxyContextValue>) => {
 	};
 	if (provider !== undefined) {
 		for (const key in provider) {
-			if (Object.hasOwn(merged, key)) {
+			if (Object.hasOwn(baselineProxyProvider, key)) {
 				merged[key] = provider;
 			}
 		}
