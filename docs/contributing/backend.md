@@ -56,3 +56,12 @@ A template named docker-amd64 (or docker-arm64 on ARM systems) is created automa
 ```
 
 ## Platform Architecture
+
+To understand how the backend fits into the broader system, we recommend reviewing the following resources:
+* [General Concepts](../admin/infrastructure/validated-architectures.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
+
+* [Architecture](../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
+
+These sections provide the necessary context for navigating and contributing to the backend effectively.
+
+## Tech Stack
