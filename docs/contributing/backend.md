@@ -82,7 +82,7 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 ### Coder libraries
 
 * [coder/terraform-provider-coder](https://github.com/coder/terraform-provider-coder): official Terraform provider for managing Coder resources via infrastructure-as-code
-* [coder/websocket](https://github.com/coder/websocket): lightweight wrapper for real-time client-server communication
-* [coder/serpent](https://github.com/coder/serpent): manages background job orchestration, including workspace builds and audit logging
-* [coder/guts](https://github.com/coder/guts): shared internal utilities and logic
-* [coder/wgtunnel](https://github.com/coder/wgtunnel): custom tunneling layer for secure peer-to-peer workspace networking
+* [coder/websocket](https://github.com/coder/websocket): minimal WebSocket library for real-time communication
+* [coder/serpent](https://github.com/coder/serpent): CLI framework built on `cobra`, used for large, complex CLIs
+* [coder/guts](https://github.com/coder/guts): generates TypeScript types from Go for shared type definitions
+* [coder/wgtunnel](https://github.com/coder/wgtunnel): WireGuard tunnel server for secure backend networking
