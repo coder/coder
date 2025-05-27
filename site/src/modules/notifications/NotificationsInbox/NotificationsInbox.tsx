@@ -47,7 +47,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 				res: ListInboxNotificationsResponse,
 			) => ListInboxNotificationsResponse,
 		) => {
-			await queryClient.cancelQueries(NOTIFICATIONS_QUERY_KEY);
+			await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
 			queryClient.setQueryData<ListInboxNotificationsResponse>(
 				NOTIFICATIONS_QUERY_KEY,
 				(prev) => {
@@ -90,7 +90,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 
 	const {
 		mutate: loadMoreNotifications,
-		isLoading: isLoadingMoreNotifications,
+		isPending: isLoadingMoreNotifications,
 	} = useMutation({
 		mutationFn: async () => {
 			if (!inboxRes || inboxRes.notifications.length === 0) {

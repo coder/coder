@@ -70,11 +70,10 @@ const IdpSyncPage: FC = () => {
 	const tab = searchParams.get("tab") || "groups";
 	const field = tab === "groups" ? groupField : roleField;
 
-	const fieldValuesQuery = useQuery(
-		field
-			? organizationIdpSyncClaimFieldValues(organizationName, field)
-			: { enabled: false },
-	);
+	const fieldValuesQuery = useQuery({
+		...organizationIdpSyncClaimFieldValues(organizationName, field),
+		enabled: !!field,
+	});
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;

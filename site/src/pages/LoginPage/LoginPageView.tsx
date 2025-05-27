@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
@@ -8,7 +8,7 @@ import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
-export interface LoginPageViewProps {
+interface LoginPageViewProps {
 	authMethods: AuthMethods | undefined;
 	error: unknown;
 	isLoading: boolean;
@@ -44,7 +44,13 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 				) : tosAcceptanceRequired ? (
 					<>
 						<TermsOfServiceLink url={authMethods.terms_of_service_url} />
-						<Button onClick={() => setTosAccepted(true)}>I agree</Button>
+						<Button
+							size="lg"
+							className="w-full"
+							onClick={() => setTosAccepted(true)}
+						>
+							I agree
+						</Button>
 					</>
 				) : (
 					<SignInForm

@@ -7612,6 +7612,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Recreate devcontainer for workspace agent",
 				"operationId": "recreate-devcontainer-for-workspace-agent",
@@ -7633,8 +7634,11 @@
 					}
 				],
 				"responses": {
-					"204": {
-						"description": "No Content"
+					"202": {
+						"description": "Accepted",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
 					}
 				}
 			}

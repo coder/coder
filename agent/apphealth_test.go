@@ -78,7 +78,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 	healthchecksStarted := make([]string, 2)
 	for i := 0; i < 2; i++ {
 		c := healthcheckTrap.MustWait(ctx)
-		c.Release()
+		c.MustRelease(ctx)
 		healthchecksStarted[i] = c.Tags[1]
 	}
 	slices.Sort(healthchecksStarted)
@@ -87,7 +87,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 	// advance the clock 1ms before the report ticker starts, so that it's not
 	// simultaneous with the checks.
 	mClock.Advance(time.Millisecond).MustWait(ctx)
-	reportTrap.MustWait(ctx).Release()
+	reportTrap.MustWait(ctx).MustRelease(ctx)
 
 	mClock.Advance(999 * time.Millisecond).MustWait(ctx) // app2 is now healthy
 
@@ -143,11 +143,11 @@ func TestAppHealth_500(t *testing.T) {
 
 	fakeAPI, closeFn := setupAppReporter(ctx, t, slices.Clone(apps), handlers, mClock)
 	defer closeFn()
-	healthcheckTrap.MustWait(ctx).Release()
+	healthcheckTrap.MustWait(ctx).MustRelease(ctx)
 	// advance the clock 1ms before the report ticker starts, so that it's not
 	// simultaneous with the checks.
 	mClock.Advance(time.Millisecond).MustWait(ctx)
-	reportTrap.MustWait(ctx).Release()
+	reportTrap.MustWait(ctx).MustRelease(ctx)
 
 	mClock.Advance(999 * time.Millisecond).MustWait(ctx) // check gets triggered
 	mClock.Advance(time.Millisecond).MustWait(ctx)       // report gets triggered, but unsent since we are at the threshold
@@ -202,25 +202,25 @@ func TestAppHealth_Timeout(t *testing.T) {
 
 	fakeAPI, closeFn := setupAppReporter(ctx, t, apps, handlers, mClock)
 	defer closeFn()
-	healthcheckTrap.MustWait(ctx).Release()
+	healthcheckTrap.MustWait(ctx).MustRelease(ctx)
 	// advance the clock 1ms before the report ticker starts, so that it's not
 	// simultaneous with the checks.
 	mClock.Set(ms(1)).MustWait(ctx)
-	reportTrap.MustWait(ctx).Release()
+	reportTrap.MustWait(ctx).MustRelease(ctx)
 
 	w := mClock.Set(ms(1000)) // 1st check starts
-	timeoutTrap.MustWait(ctx).Release()
+	timeoutTrap.MustWait(ctx).MustRelease(ctx)
 	mClock.Set(ms(1001)).MustWait(ctx) // report tick, no change
 	mClock.Set(ms(1999))               // timeout pops
 	w.MustWait(ctx)                    // 1st check finished
 	w = mClock.Set(ms(2000))           // 2nd check starts
-	timeoutTrap.MustWait(ctx).Release()
+	timeoutTrap.MustWait(ctx).MustRelease(ctx)
 	mClock.Set(ms(2001)).MustWait(ctx) // report tick, no change
 	mClock.Set(ms(2999))               // timeout pops
 	w.MustWait(ctx)                    // 2nd check finished
 	// app is now unhealthy after 2 timeouts
 	mClock.Set(ms(3000)) // 3rd check starts
-	timeoutTrap.MustWait(ctx).Release()
+	timeoutTrap.MustWait(ctx).MustRelease(ctx)
 	mClock.Set(ms(3001)).MustWait(ctx) // report tick, sends changes
 
 	update := testutil.TryReceive(ctx, t, fakeAPI.AppHealthCh())

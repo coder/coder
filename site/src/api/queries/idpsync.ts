@@ -9,7 +9,9 @@ export const patchOrganizationSyncSettings = (queryClient: QueryClient) => {
 		mutationFn: (request: OrganizationSyncSettings) =>
 			API.patchOrganizationIdpSyncSettings(request),
 		onSuccess: async () =>
-			await queryClient.invalidateQueries(getOrganizationIdpSyncSettingsKey()),
+			await queryClient.invalidateQueries({
+				queryKey: getOrganizationIdpSyncSettingsKey(),
+			}),
 	};
 };
 

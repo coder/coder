@@ -40,7 +40,7 @@ const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 });
 
-export type CreateEditRolePageViewProps = {
+type CreateEditRolePageViewProps = {
 	role: AssignableRoles | undefined;
 	onSubmit: (data: CustomRoleRequest) => void;
 	error?: unknown;

@@ -96,7 +96,7 @@ export const useActionFilterMenu = ({
 	});
 };
 
-export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
+type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
 interface ActionMenuProps {
 	menu: ActionFilterMenu;
@@ -154,9 +154,7 @@ export const useResourceTypeFilterMenu = ({
 	});
 };
 
-export type ResourceTypeFilterMenu = ReturnType<
-	typeof useResourceTypeFilterMenu
->;
+type ResourceTypeFilterMenu = ReturnType<typeof useResourceTypeFilterMenu>;
 
 interface ResourceTypeMenuProps {
 	menu: ResourceTypeFilterMenu;

@@ -27,12 +27,12 @@ export const CancelJobConfirmationDialog: FC<
 	const cancelMutation = useMutation({
 		mutationFn: cancelProvisionerJob,
 		onSuccess: () => {
-			queryClient.invalidateQueries(
-				provisionerJobsQueryKey(job.organization_id),
-			);
-			queryClient.invalidateQueries(
-				getProvisionerDaemonsKey(job.organization_id, job.tags),
-			);
+			queryClient.invalidateQueries({
+				queryKey: provisionerJobsQueryKey(job.organization_id),
+			});
+			queryClient.invalidateQueries({
+				queryKey: getProvisionerDaemonsKey(job.organization_id, job.tags),
+			});
 		},
 	});
 
@@ -44,7 +44,7 @@ export const CancelJobConfirmationDialog: FC<
 			description={`Are you sure you want to cancel the provisioner job "${job.id}"? This operation will result in the associated workspaces not getting created.`}
 			confirmText="Confirm"
 			cancelText="Discard"
-			confirmLoading={cancelMutation.isLoading}
+			confirmLoading={cancelMutation.isPending}
 			onConfirm={async () => {
 				try {
 					await cancelMutation.mutateAsync(job);

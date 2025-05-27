@@ -39,7 +39,7 @@ import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
-export interface DynamicParameterProps {
+interface DynamicParameterProps {
 	parameter: PreviewParameter;
 	value?: string;
 	onChange: (value: string) => void;
@@ -89,9 +89,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 					/>
 				)}
 			</div>
-			{parameter.diagnostics.length > 0 && (
-				<ParameterDiagnostics diagnostics={parameter.diagnostics} />
-			)}
+			<ParameterDiagnostics diagnostics={parameter.diagnostics} />
 		</div>
 	);
 };
@@ -112,6 +110,9 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	const displayName = parameter.display_name
 		? parameter.display_name
 		: parameter.name;
+	const hasRequiredDiagnostic = parameter.diagnostics?.find(
+		(d) => d.extra?.code === "required",
+	);
 
 	return (
 		<div className="flex items-start gap-2">
@@ -182,6 +183,22 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
 									Autofilled from the URL
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+					{hasRequiredDiagnostic && (
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="flex items-center">
+										<Badge size="sm" variant="destructive" border="none">
+											Required
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									{hasRequiredDiagnostic.summary || "Required parameter"}
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -558,21 +575,26 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 	diagnostics,
 }) => {
 	return (
-		<div className="flex flex-col gap-2">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs px-1 ${
-						diagnostic.severity === "error"
-							? "text-content-destructive"
-							: "text-content-warning"
-					}`}
-				>
-					<p className="font-medium">{diagnostic.summary}</p>
-					{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
-				</div>
-			))}
-		</div>
+		<>
+			{diagnostics.map((diagnostic, index) => {
+				if (diagnostic.extra?.code === "required") {
+					return null;
+				}
+				return (
+					<div
+						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
+						className={`text-xs px-1 ${
+							diagnostic.severity === "error"
+								? "text-content-destructive"
+								: "text-content-warning"
+						}`}
+					>
+						<p className="font-medium">{diagnostic.summary}</p>
+						{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
+					</div>
+				);
+			})}
+		</>
 	);
 };
 

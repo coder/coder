@@ -12,6 +12,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "amd64",
             "auth": "google-instance-identity",
             "connection_timeout": 120,
@@ -74,6 +75,7 @@
         ],
         "before": null,
         "after": {
+          "api_key_scope": "all",
           "arch": "amd64",
           "auth": "google-instance-identity",
           "connection_timeout": 120,

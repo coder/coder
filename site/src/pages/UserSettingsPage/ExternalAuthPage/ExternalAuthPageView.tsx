@@ -32,7 +32,7 @@ import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateW
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
-export type ExternalAuthPageViewProps = {
+type ExternalAuthPageViewProps = {
 	isLoading: boolean;
 	getAuthsError?: unknown;
 	unlinked: number;

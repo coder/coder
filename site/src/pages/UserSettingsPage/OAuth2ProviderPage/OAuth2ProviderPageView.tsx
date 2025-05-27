@@ -12,7 +12,7 @@ import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
 
-export type OAuth2ProviderPageViewProps = {
+type OAuth2ProviderPageViewProps = {
 	isLoading: boolean;
 	error: unknown;
 	apps?: TypesGen.OAuth2ProviderApp[];

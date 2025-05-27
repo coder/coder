@@ -53,14 +53,16 @@ export const WorkspaceSettingsLayout: FC = () => {
 					{isError ? (
 						<ErrorAlert error={error} />
 					) : (
-						<WorkspaceSettings.Provider value={workspace}>
-							<Sidebar workspace={workspace} username={username} />
-							<Suspense fallback={<Loader />}>
-								<main css={{ width: "100%" }}>
-									<Outlet />
-								</main>
-							</Suspense>
-						</WorkspaceSettings.Provider>
+						workspace && (
+							<WorkspaceSettings.Provider value={workspace}>
+								<Sidebar workspace={workspace} username={username} />
+								<Suspense fallback={<Loader />}>
+									<main css={{ width: "100%" }}>
+										<Outlet />
+									</main>
+								</Suspense>
+							</WorkspaceSettings.Provider>
+						)
 					)}
 				</Stack>
 			</Margins>

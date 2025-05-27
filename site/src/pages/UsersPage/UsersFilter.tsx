@@ -47,7 +47,7 @@ export const useStatusFilterMenu = ({
 	});
 };
 
-export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
+type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
 const PRESET_FILTERS = [
 	{ query: userFilterQuery.active, name: "Active users" },
