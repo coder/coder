@@ -9,7 +9,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import {
 	Children,
