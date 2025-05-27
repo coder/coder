@@ -3556,6 +3556,7 @@ export interface WorkspaceApp {
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	readonly healthcheck?: Healthcheck;
 	readonly health: WorkspaceAppHealth;
+	readonly group?: string;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
 	readonly statuses: readonly WorkspaceAppStatus[];
