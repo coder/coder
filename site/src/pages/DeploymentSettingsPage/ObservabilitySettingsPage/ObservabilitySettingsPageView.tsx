@@ -16,8 +16,8 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import type { FC } from "react";
+} from "components/Popover/Popover";
+import { type FC, useState } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -55,25 +55,30 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeader>
 
 					<Badges>
-						<Popover mode="hover">
-							{featureAuditLogEnabled && !isPremium ? (
-								<EnterpriseBadge />
-							) : (
-								<PopoverTrigger>
-									<span>
-										<PremiumBadge />
-									</span>
-								</PopoverTrigger>
-							)}
-
-							<PopoverContent css={{ transform: "translateY(-28px)" }}>
+						{featureAuditLogEnabled && !isPremium ? (
+							<EnterpriseBadge />
+						) : (() => {
+							const [open, setOpen] = useState(false);
+							return (
+								<Popover open={open} onOpenChange={setOpen}>
+									<PopoverTrigger
+										onMouseEnter={() => setOpen(true)}
+										onMouseLeave={() => setOpen(false)}
+									>
+										<span>
+											<PremiumBadge />
+										</span>
+									</PopoverTrigger>
+									<PopoverContent css={{ marginBottom: "28px" }}>
 								<PopoverPaywall
 									message="Observability"
 									description="With a Premium license, you can monitor your application with logs and metrics."
 									documentationLink="https://coder.com/docs/admin/appearance"
 								/>
 							</PopoverContent>
-						</Popover>
+								</Popover>
+							);
+						})()}
 					</Badges>
 				</div>
 
