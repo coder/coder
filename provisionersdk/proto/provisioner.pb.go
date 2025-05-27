@@ -7,12 +7,11 @@
 package proto
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -21,79 +20,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-type ParameterFormType int32
-
-const (
-	ParameterFormType_DEFAULT     ParameterFormType = 0
-	ParameterFormType_FORM_ERROR  ParameterFormType = 1
-	ParameterFormType_RADIO       ParameterFormType = 2
-	ParameterFormType_DROPDOWN    ParameterFormType = 3
-	ParameterFormType_INPUT       ParameterFormType = 4
-	ParameterFormType_TEXTAREA    ParameterFormType = 5
-	ParameterFormType_SLIDER      ParameterFormType = 6
-	ParameterFormType_CHECKBOX    ParameterFormType = 7
-	ParameterFormType_SWITCH      ParameterFormType = 8
-	ParameterFormType_TAGSELECT   ParameterFormType = 9
-	ParameterFormType_MULTISELECT ParameterFormType = 10
-)
-
-// Enum value maps for ParameterFormType.
-var (
-	ParameterFormType_name = map[int32]string{
-		0:  "DEFAULT",
-		1:  "FORM_ERROR",
-		2:  "RADIO",
-		3:  "DROPDOWN",
-		4:  "INPUT",
-		5:  "TEXTAREA",
-		6:  "SLIDER",
-		7:  "CHECKBOX",
-		8:  "SWITCH",
-		9:  "TAGSELECT",
-		10: "MULTISELECT",
-	}
-	ParameterFormType_value = map[string]int32{
-		"DEFAULT":     0,
-		"FORM_ERROR":  1,
-		"RADIO":       2,
-		"DROPDOWN":    3,
-		"INPUT":       4,
-		"TEXTAREA":    5,
-		"SLIDER":      6,
-		"CHECKBOX":    7,
-		"SWITCH":      8,
-		"TAGSELECT":   9,
-		"MULTISELECT": 10,
-	}
-)
-
-func (x ParameterFormType) Enum() *ParameterFormType {
-	p := new(ParameterFormType)
-	*p = x
-	return p
-}
-
-func (x ParameterFormType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ParameterFormType) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[0].Descriptor()
-}
-
-func (ParameterFormType) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[0]
-}
-
-func (x ParameterFormType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ParameterFormType.Descriptor instead.
-func (ParameterFormType) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{0}
-}
 
 // LogLevel represents severity of the log.
 type LogLevel int32
@@ -135,11 +61,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[1].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[0].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[1]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[0]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -148,7 +74,7 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{1}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{0}
 }
 
 type AppSharingLevel int32
@@ -184,11 +110,11 @@ func (x AppSharingLevel) String() string {
 }
 
 func (AppSharingLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[2].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[1].Descriptor()
 }
 
 func (AppSharingLevel) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[2]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[1]
 }
 
 func (x AppSharingLevel) Number() protoreflect.EnumNumber {
@@ -197,7 +123,7 @@ func (x AppSharingLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AppSharingLevel.Descriptor instead.
 func (AppSharingLevel) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{2}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{1}
 }
 
 type AppOpenIn int32
@@ -234,11 +160,11 @@ func (x AppOpenIn) String() string {
 }
 
 func (AppOpenIn) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[3].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[2].Descriptor()
 }
 
 func (AppOpenIn) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[3]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[2]
 }
 
 func (x AppOpenIn) Number() protoreflect.EnumNumber {
@@ -247,7 +173,7 @@ func (x AppOpenIn) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AppOpenIn.Descriptor instead.
 func (AppOpenIn) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{3}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{2}
 }
 
 // WorkspaceTransition is the desired outcome of a build
@@ -284,11 +210,11 @@ func (x WorkspaceTransition) String() string {
 }
 
 func (WorkspaceTransition) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[4].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[3].Descriptor()
 }
 
 func (WorkspaceTransition) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[4]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[3]
 }
 
 func (x WorkspaceTransition) Number() protoreflect.EnumNumber {
@@ -297,7 +223,7 @@ func (x WorkspaceTransition) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WorkspaceTransition.Descriptor instead.
 func (WorkspaceTransition) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{3}
 }
 
 type PrebuiltWorkspaceBuildStage int32
@@ -333,11 +259,11 @@ func (x PrebuiltWorkspaceBuildStage) String() string {
 }
 
 func (PrebuiltWorkspaceBuildStage) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[5].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[4].Descriptor()
 }
 
 func (PrebuiltWorkspaceBuildStage) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[5]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[4]
 }
 
 func (x PrebuiltWorkspaceBuildStage) Number() protoreflect.EnumNumber {
@@ -346,7 +272,7 @@ func (x PrebuiltWorkspaceBuildStage) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PrebuiltWorkspaceBuildStage.Descriptor instead.
 func (PrebuiltWorkspaceBuildStage) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4}
 }
 
 type TimingState int32
@@ -382,11 +308,11 @@ func (x TimingState) String() string {
 }
 
 func (TimingState) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[6].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[5].Descriptor()
 }
 
 func (TimingState) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[6]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[5]
 }
 
 func (x TimingState) Number() protoreflect.EnumNumber {
@@ -395,7 +321,7 @@ func (x TimingState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TimingState.Descriptor instead.
 func (TimingState) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
 }
 
 // Empty indicates a successful request/response.
@@ -617,10 +543,9 @@ type RichParameter struct {
 	ValidationMonotonic string                 `protobuf:"bytes,12,opt,name=validation_monotonic,json=validationMonotonic,proto3" json:"validation_monotonic,omitempty"`
 	Required            bool                   `protobuf:"varint,13,opt,name=required,proto3" json:"required,omitempty"`
 	// legacy_variable_name was removed (= 14)
-	DisplayName string            `protobuf:"bytes,15,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Order       int32             `protobuf:"varint,16,opt,name=order,proto3" json:"order,omitempty"`
-	Ephemeral   bool              `protobuf:"varint,17,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
-	FormType    ParameterFormType `protobuf:"varint,18,opt,name=form_type,json=formType,proto3,enum=provisioner.ParameterFormType" json:"form_type,omitempty"`
+	DisplayName string `protobuf:"bytes,15,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Order       int32  `protobuf:"varint,16,opt,name=order,proto3" json:"order,omitempty"`
+	Ephemeral   bool   `protobuf:"varint,17,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
 }
 
 func (x *RichParameter) Reset() {
@@ -765,13 +690,6 @@ func (x *RichParameter) GetEphemeral() bool {
 		return x.Ephemeral
 	}
 	return false
-}
-
-func (x *RichParameter) GetFormType() ParameterFormType {
-	if x != nil {
-		return x.FormType
-	}
-	return ParameterFormType_DEFAULT
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -3867,7 +3785,7 @@ var file_provisionersdk_proto_provisioner_proto_rawDesc = []byte{
 	0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61,
 	0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
 	0x12, 0x12, 0x0a, 0x04, 0x69, 0x63, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x69, 0x63, 0x6f, 0x6e, 0x22, 0xbb, 0x05, 0x0a, 0x0d, 0x52, 0x69, 0x63, 0x68, 0x50, 0x61, 0x72,
+	0x69, 0x63, 0x6f, 0x6e, 0x22, 0xfe, 0x04, 0x0a, 0x0d, 0x52, 0x69, 0x63, 0x68, 0x50, 0x61, 0x72,
 	0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65,
 	0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
