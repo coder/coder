@@ -25,7 +25,7 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
-export interface WorkspaceProps {
+interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;

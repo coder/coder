@@ -38,8 +38,8 @@ import {
 } from "./permissions";
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
-export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
+type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePageExperimental: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -73,18 +73,16 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
-	const templateVersionPresetsQuery = useQuery(
-		templateQuery.data
-			? templateVersionPresets(templateQuery.data.active_version_id)
-			: { enabled: false },
-	);
-	const permissionsQuery = useQuery(
-		templateQuery.data
-			? checkAuthorization({
-					checks: createWorkspaceChecks(templateQuery.data.organization_id),
-				})
-			: { enabled: false },
-	);
+	const templateVersionPresetsQuery = useQuery({
+		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
+		enabled: !!templateQuery.data,
+	});
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
+		}),
+		enabled: !!templateQuery.data,
+	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
@@ -192,7 +190,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
-	const title = autoCreateWorkspaceMutation.isLoading
+	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
 		: "Create workspace";
 
@@ -308,7 +306,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
-					creatingWorkspace={createWorkspaceMutation.isLoading}
+					creatingWorkspace={createWorkspaceMutation.isPending}
 					sendMessage={sendMessage}
 					onCancel={() => {
 						navigate(-1);
@@ -344,15 +342,11 @@ const useExternalAuth = (versionId: string | undefined) => {
 		setExternalAuthPollingState("polling");
 	}, []);
 
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
-		versionId
-			? {
-					...templateVersionExternalAuth(versionId),
-					refetchInterval:
-						externalAuthPollingState === "polling" ? 1000 : false,
-				}
-			: { enabled: false },
-	);
+	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
+		...templateVersionExternalAuth(versionId ?? ""),
+		enabled: !!versionId,
+		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+	});
 
 	const allSignedIn = externalAuth?.every((it) => it.authenticated);
 

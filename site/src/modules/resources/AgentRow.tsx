@@ -157,8 +157,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 		select: (res) => res.containers.filter((c) => c.status === "running"),
 		// TODO: Implement a websocket connection to get updates on containers
 		// without having to poll.
-		refetchInterval: (_, query) => {
-			const { error } = query.state;
+		refetchInterval: ({ state }) => {
+			const { error } = state;
 			return isAxiosError(error) && error.response?.status === 403
 				? false
 				: 10_000;

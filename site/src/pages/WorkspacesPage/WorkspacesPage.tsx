@@ -77,8 +77,8 @@ const WorkspacesPage: FC = () => {
 	});
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
-		refetchInterval: (_, query) => {
-			return query.state.error ? false : 5_000;
+		refetchInterval: ({ state }) => {
+			return state.error ? false : 5_000;
 		},
 	});
 

@@ -101,7 +101,7 @@ const formatURI = (uri: string) => {
 
 // --- Component Implementation ---
 
-export interface AppStatusesProps {
+interface AppStatusesProps {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */

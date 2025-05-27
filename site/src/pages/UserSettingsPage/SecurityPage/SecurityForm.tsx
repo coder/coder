@@ -39,7 +39,7 @@ const validationSchema = Yup.object({
 		}),
 });
 
-export interface SecurityFormProps {
+interface SecurityFormProps {
 	disabled: boolean;
 	isLoading: boolean;
 	onSubmit: (values: SecurityFormValues) => void;

@@ -96,7 +96,7 @@ const CustomRolesPage: FC = () => {
 				<DeleteDialog
 					key={roleToDelete?.name}
 					isOpen={roleToDelete !== undefined}
-					confirmLoading={deleteRoleMutation.isLoading}
+					confirmLoading={deleteRoleMutation.isPending}
 					name={roleToDelete?.name ?? ""}
 					entity="role"
 					onCancel={() => setRoleToDelete(undefined)}

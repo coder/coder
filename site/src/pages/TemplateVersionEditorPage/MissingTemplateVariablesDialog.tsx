@@ -16,10 +16,7 @@ import { Loader } from "components/Loader/Loader";
 import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
 import { type FC, useEffect, useState } from "react";
 
-export type MissingTemplateVariablesDialogProps = Omit<
-	DialogProps,
-	"onSubmit"
-> & {
+type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
 	onClose: () => void;
 	onSubmit: (values: VariableValue[]) => void;
 	missingVariables?: TemplateVersionVariable[];

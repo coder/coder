@@ -5,6 +5,7 @@ import {
 	templateVersionLogs,
 	templateVersionVariables,
 } from "api/queries/templates";
+import type { Template, TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -25,7 +26,9 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
 	const navigate = useNavigate();
 	const { entitlements } = useDashboard();
 	const [searchParams] = useSearchParams();
-	const templateQuery = useQuery(template(searchParams.get("fromTemplate")!));
+	const templateQuery = useQuery(
+		template(searchParams.get("fromTemplate") as string),
+	);
 	const activeVersionId = templateQuery.data?.active_version_id ?? "";
 	const templateVersionQuery = useQuery({
 		...templateVersion(activeVersionId),
@@ -65,7 +68,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
 			{...formPermissions}
 			variablesSectionRef={variablesSectionRef}
 			onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
-			copiedTemplate={templateQuery.data!}
+			copiedTemplate={templateQuery.data as Template}
 			error={error}
 			isSubmitting={isCreating}
 			variables={templateVersionVariablesQuery.data}
@@ -74,9 +77,9 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
 			logs={templateVersionLogsQuery.data}
 			onSubmit={async (formData) => {
 				await onCreateTemplate({
-					organization: templateQuery.data!.organization_name,
+					organization: (templateQuery.data as Template).organization_name,
 					version: firstVersionFromFile(
-						templateVersionQuery.data!.job.file_id,
+						(templateVersionQuery.data as TemplateVersion).job.file_id,
 						formData.user_variable_values,
 						formData.provisioner_type,
 						formData.tags,
