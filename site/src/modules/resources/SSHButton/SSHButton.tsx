@@ -11,7 +11,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
@@ -43,7 +43,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 				</Button>
 			</PopoverTrigger>
 
-			<PopoverContent horizontal="right" classes={{ paper }}>
+			<PopoverContent align="end" className={paper}>
 				<HelpTooltipText>
 					Run the following commands to connect with SSH:
 				</HelpTooltipText>
@@ -105,7 +105,7 @@ export const AgentDevcontainerSSHButton: FC<
 				</Button>
 			</PopoverTrigger>
 
-			<PopoverContent horizontal="right" classes={{ paper }}>
+			<PopoverContent align="end" className={paper}>
 				<HelpTooltipText>
 					Run the following commands to connect with SSH:
 				</HelpTooltipText>
