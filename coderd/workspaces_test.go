@@ -3549,6 +3549,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								Name:        firstParameterName,
 								Type:        firstParameterType,
 								Description: firstParameterDescription,
+								FormType:    proto.ParameterFormType_INPUT,
 							},
 							{
 								Name:                secondParameterName,
@@ -3558,6 +3559,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								ValidationMin:       ptr.Ref(int32(1)),
 								ValidationMax:       ptr.Ref(int32(3)),
 								ValidationMonotonic: string(secondParameterValidationMonotonic),
+								FormType:            proto.ParameterFormType_INPUT,
 							},
 							{
 								Name:         thirdParameterName,
