@@ -857,7 +857,7 @@ func TestAPI(t *testing.T) {
 
 				// Make sure the ticker function has been registered
 				// before advancing the clock.
-				tickerTrap.MustWait(ctx).Release()
+				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
 
 				// Advance the clock to run the updater loop.
