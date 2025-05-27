@@ -2,8 +2,8 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { visuallyHidden } from "@mui/utils";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
-import type { FC, HTMLAttributes, ReactNode } from "react";
+import { Popover, PopoverTrigger } from "components/Popover/Popover";
+import { type FC, type HTMLAttributes, type ReactNode, useState } from "react";
 import { docs } from "utils/docs";
 
 /**
@@ -31,33 +31,36 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	showTooltip = true, // This is a temporary until the deprecated popover is removed
 	...delegatedProps
 }) => {
+	const [isOpen, setIsOpen] = useState(false);
+	
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				{({ isOpen }) => (
-					<span
-						css={[
-							styles.badge,
-							size === "sm" && styles.badgeSmallText,
-							size === "lg" && styles.badgeLargeText,
-							isOpen && styles.badgeHover,
-						]}
-						{...delegatedProps}
-					>
-						<span style={visuallyHidden}> (This is a</span>
-						<span className="first-letter:uppercase">
-							{labelText && `${labelText} `}
-							{featureStageBadgeTypes[contentType]}
-						</span>
-						<span style={visuallyHidden}> feature)</span>
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
+			<PopoverTrigger 
+				onMouseEnter={() => setIsOpen(true)}
+				onMouseLeave={() => setIsOpen(false)}
+			>
+				<span
+					css={[
+						styles.badge,
+						size === "sm" && styles.badgeSmallText,
+						size === "lg" && styles.badgeLargeText,
+						isOpen && styles.badgeHover,
+					]}
+					{...delegatedProps}
+				>
+					<span style={visuallyHidden}> (This is a</span>
+					<span className="first-letter:uppercase">
+						{labelText && `${labelText} `}
+						{featureStageBadgeTypes[contentType]}
 					</span>
-				)}
+					<span style={visuallyHidden}> feature)</span>
+				</span>
 			</PopoverTrigger>
 
 			{showTooltip && (
 				<HelpTooltipContent
-					anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-					transformOrigin={{ vertical: "top", horizontal: "center" }}
+					align="center"
+					side="top"
 				>
 					<p css={styles.tooltipDescription}>
 						This feature has not yet reached general availability (GA).
