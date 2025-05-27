@@ -41,7 +41,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import {
@@ -94,7 +94,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 					<ChevronDownIcon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent horizontal="right" classes={{ paper }}>
+			<PopoverContent align="end" className={paper}>
 				<PortForwardPopoverView
 					{...props}
 					listeningPorts={portsQuery.data?.ports}
