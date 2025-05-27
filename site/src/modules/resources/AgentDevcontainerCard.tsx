@@ -99,7 +99,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					</h3>
 					{container.devcontainer_dirty && (
 						<HelpTooltip>
-							<HelpTooltipTrigger className="flex items-center text-xs text-warning-foreground ml-2">
+							<HelpTooltipTrigger className="flex items-center text-xs text-content-warning ml-2">
 								<span>Outdated</span>
 							</HelpTooltipTrigger>
 							<HelpTooltipContent>
