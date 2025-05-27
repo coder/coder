@@ -774,6 +774,7 @@ export const DisplayApps: DisplayApp[] = [
 export interface DynamicParametersRequest {
 	readonly id: number;
 	readonly inputs: Record<string, string>;
+	readonly owner_id?: string;
 }
 
 // From codersdk/parameters.go
