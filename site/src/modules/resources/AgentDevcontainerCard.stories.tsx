@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { within, userEvent } from "@storybook/test";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -29,5 +30,32 @@ export const WithPorts: Story = {
 			...MockWorkspaceAgentContainer,
 			ports: MockWorkspaceAgentContainerPorts,
 		},
+	},
+};
+
+export const Dirty: Story = {
+	args: {
+		container: {
+			...MockWorkspaceAgentContainer,
+			devcontainer_dirty: true,
+			ports: MockWorkspaceAgentContainerPorts,
+		},
+	},
+};
+
+export const Recreating: Story = {
+	args: {
+		container: {
+			...MockWorkspaceAgentContainer,
+			devcontainer_dirty: true,
+			ports: MockWorkspaceAgentContainerPorts,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const recreateButton = await canvas.findByRole("button", {
+			name: /recreate/i,
+		});
+		await userEvent.click(recreateButton);
 	},
 };
