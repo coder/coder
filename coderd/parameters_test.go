@@ -282,7 +282,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		doTransition(t, codersdk.WorkspaceTransitionStop)
 		doTransition(t, codersdk.WorkspaceTransitionStart)
 		doTransition(t, codersdk.WorkspaceTransitionDelete)
-
 	})
 }
 
