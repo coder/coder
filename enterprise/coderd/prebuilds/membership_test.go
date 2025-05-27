@@ -57,6 +57,14 @@ func TestReconcileAll(t *testing.T) {
 			backgroundOrg := dbgen.Organization(t, db, database.Organization{})
 			targetOrg := dbgen.Organization(t, db, database.Organization{})
 
+			if !dbtestutil.WillUsePostgres() {
+				// dbmem doesn't ensure membership to the default organization
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					OrganizationID: defaultOrg.ID,
+					UserID:         agplprebuilds.SystemUserID,
+				})
+			}
+
 			dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: backgroundOrg.ID, UserID: agplprebuilds.SystemUserID})
 			if tc.preExistingMembership {
 				// System user already a member of both orgs.
