@@ -335,7 +335,7 @@ jobs:
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
         if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@a4b59caa8be2e88c348abeef042d7c1a33d8743e
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -436,7 +436,7 @@ jobs:
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
         if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@a4b59caa8be2e88c348abeef042d7c1a33d8743e
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

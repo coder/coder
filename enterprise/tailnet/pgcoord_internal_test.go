@@ -63,9 +63,8 @@ func TestHeartbeats_Cleanup(t *testing.T) {
 	uut.wg.Add(1)
 	go uut.cleanupLoop()
 
-	call, err := trap.Wait(ctx)
-	require.NoError(t, err)
-	call.Release()
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
 	require.Equal(t, cleanupPeriod, call.Duration)
 	mClock.Advance(cleanupPeriod).MustWait(ctx)
 }
@@ -99,7 +98,7 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	// coord 3 heartbeat comes very soon after
 	mClock.Advance(time.Millisecond).MustWait(ctx)
 	go uut.listen(ctx, []byte(coord3.String()), nil)
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 
 	// both coordinators are present
 	uut.lock.RLock()
@@ -112,11 +111,11 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	// however, several ms pass between expiring 2 and computing the time until 3 expires
 	c := trap.MustWait(ctx)
 	mClock.Advance(2 * time.Millisecond).MustWait(ctx) // 3 has now expired _in the past_
-	c.Release()
+	c.MustRelease(ctx)
 	w.MustWait(ctx)
 
 	// expired in the past means we immediately reschedule checkExpiry, so we get another call
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 
 	uut.lock.RLock()
 	require.NotContains(t, uut.coordinators, coord2)
@@ -411,7 +410,7 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	expectedPeriod := HeartbeatPeriod
 	tfCall, err := tfTrap.Wait(ctx)
 	require.NoError(t, err)
-	tfCall.Release()
+	tfCall.MustRelease(ctx)
 	require.Equal(t, expectedPeriod, tfCall.Duration)
 
 	// Now that the ticker has started, we can advance 2 more beats to get to 3
