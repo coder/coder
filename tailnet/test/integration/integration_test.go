@@ -110,6 +110,14 @@ var topologies = []integration.TestTopology{
 		RunTests:        integration.TestSuite,
 	},
 	{
+		// Test that direct over normal MTU works.
+		Name:            "DirectMTU1500",
+		SetupNetworking: integration.SetupNetworkingWithDirectMTU1500,
+		Server:          integration.SimpleServerOptions{},
+		StartClient:     integration.StartClientDirect,
+		RunTests:        integration.TestSuite,
+	},
+	{
 		// Test that DERP over WebSocket (as well as DERPForceWebSockets works).
 		// This does not test the actual DERP failure detection code and
 		// automatic fallback.

@@ -178,6 +178,11 @@ func SetupNetworkingEasyNATWithSTUN(t *testing.T, _ slog.Logger) TestNetworking 
 	return internet.Net
 }
 
+func SetupNetworkingWithDirectMTU1500(t *testing.T, _ slog.Logger) TestNetworking {
+	triNet := createFakeTriangleNetwork(t)
+	return triNet.Net
+}
+
 // hardNAT creates a fake internet with multiple STUN servers and sets up "hard
 // NAT" forwarding rules. If bothHard is false, only the first client will have
 // hard NAT rules, and the second client will have easy NAT rules.
@@ -464,12 +469,6 @@ type fakeTriangleNetwork struct {
 // .   └──────────────┘10.0.1.1           └─────────────┘
 func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
 	t.Helper()
-	const (
-		bridgePrefix  = "10.0.0."
-		serverIP      = bridgePrefix + "1"
-		client1Prefix = "10.0.2."
-		client2Prefix = "10.0.3."
-	)
 	var (
 		namePrefix = uniqNetName(t) + "_"
 		network    = fakeTriangleNetwork{
@@ -477,124 +476,110 @@ func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
 		}
 	)
 
-	// Create bridge namespace and bridge interface.
-	router.BridgeNetNS = createNetNS(t, router.BridgeName)
-	err := createBridge(router.BridgeNetNS, router.BridgeName)
-	require.NoError(t, err, "create bridge in netns")
+	// Create three network namespaces for server, client1, and client2
+	network.ServerNetNS = createNetNS(t, namePrefix+"server")
+	network.Client1NetNS = createNetNS(t, namePrefix+"client1")
+	network.Client2NetNS = createNetNS(t, namePrefix+"client2")
 
-	// Create server namespace and veth pair between bridge and server.
-	router.ServerNetNS = createNetNS(t, namePrefix+"s")
-	router.ServerVethPair = vethPair{
-		Outer: namePrefix + "b-s",
-		Inner: namePrefix + "s-b",
+	// Create veth pair between server and client1
+	network.ServerClient1VethPair = vethPair{
+		Outer: namePrefix + "server-client1",
+		Inner: namePrefix + "client1-server",
 	}
-	err = joinBridge(joinBridgeOpts{
-		bridgeNetNS: router.BridgeNetNS,
-		netNS:       router.ServerNetNS,
-		bridgeName:  router.BridgeName,
-		vethPair:    router.ServerVethPair,
-		ip:          serverIP,
-	})
-	require.NoError(t, err, "join bridge with server")
+	err := createVethPair(network.ServerClient1VethPair.Outer, network.ServerClient1VethPair.Inner)
+	require.NoErrorf(t, err, "create veth pair %q <-> %q",
+		network.ServerClient1VethPair.Outer, network.ServerClient1VethPair.Inner)
 
-	leaves := []struct {
-		leaf           *fakeRouterLeaf
-		routerName     string
-		clientName     string
-		routerBridgeIP string
-		routerClientIP string
-		clientIP       string
+	// Move server-client1 veth ends to their respective namespaces
+	err = setVethNetNS(network.ServerClient1VethPair.Outer, int(network.ServerNetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to server NetNS", network.ServerClient1VethPair.Outer)
+	err = setVethNetNS(network.ServerClient1VethPair.Inner, int(network.Client1NetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client1 NetNS", network.ServerClient1VethPair.Inner)
+
+	// Create veth pair between server and client2
+	network.ServerClient2VethPair = vethPair{
+		Outer: namePrefix + "s-2",
+		Inner: namePrefix + "2-s",
+	}
+	err = createVethPair(network.ServerClient2VethPair.Outer, network.ServerClient2VethPair.Inner)
+	require.NoErrorf(t, err, "create veth pair %q <-> %q",
+		network.ServerClient2VethPair.Outer, network.ServerClient2VethPair.Inner)
+
+	// Move server-client2 veth ends to their respective namespaces
+	err = setVethNetNS(network.ServerClient2VethPair.Outer, int(network.ServerNetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to server NetNS", network.ServerClient2VethPair.Outer)
+	err = setVethNetNS(network.ServerClient2VethPair.Inner, int(network.Client2NetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.ServerClient2VethPair.Inner)
+
+	// Create veth pair between client1 and client2
+	network.Client1Client2VethPair = vethPair{
+		Outer: namePrefix + "1-2",
+		Inner: namePrefix + "2-1",
+	}
+	err = createVethPair(network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner)
+	require.NoErrorf(t, err, "create veth pair %q <-> %q",
+		network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner)
+
+	// Move client1-client2 veth ends to their respective namespaces
+	err = setVethNetNS(network.Client1Client2VethPair.Outer, int(network.Client1NetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client1 NetNS", network.Client1Client2VethPair.Outer)
+	err = setVethNetNS(network.Client1Client2VethPair.Inner, int(network.Client2NetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.Client1Client2VethPair.Inner)
+
+	// Set IP addresses according to the diagram:
+	// Server has 10.0.2.3 and 10.0.3.3 on its interfaces
+	err = setInterfaceIP(network.ServerNetNS, network.ServerClient1VethPair.Outer, "10.0.2.3")
+	require.NoErrorf(t, err, "set IP on server-client1 interface")
+	err = setInterfaceIP(network.ServerNetNS, network.ServerClient2VethPair.Outer, "10.0.3.3")
+	require.NoErrorf(t, err, "set IP on server-client2 interface")
+
+	// Client1 has 10.0.2.1 (to server) and 10.0.1.1 (to client2)
+	err = setInterfaceIP(network.Client1NetNS, network.ServerClient1VethPair.Inner, "10.0.2.1")
+	require.NoErrorf(t, err, "set IP on client1-server interface")
+	err = setInterfaceIP(network.Client1NetNS, network.Client1Client2VethPair.Outer, "10.0.1.1")
+	require.NoErrorf(t, err, "set IP on client1-client2 interface")
+
+	// Client2 has 10.0.3.2 (to server) and 10.0.1.2 (to client1)
+	err = setInterfaceIP(network.Client2NetNS, network.ServerClient2VethPair.Inner, "10.0.3.2")
+	require.NoErrorf(t, err, "set IP on client2-server interface")
+	err = setInterfaceIP(network.Client2NetNS, network.Client1Client2VethPair.Inner, "10.0.1.2")
+	require.NoErrorf(t, err, "set IP on client2-client1 interface")
+
+	// Bring up all interfaces
+	interfaces := []struct {
+		netNS     *os.File
+		ifaceName string
 	}{
-		{
-			leaf:           &router.Client1,
-			routerName:     "c1r",
-			clientName:     "c1",
-			routerBridgeIP: bridgePrefix + "2",
-			routerClientIP: client1Prefix + "1",
-			clientIP:       client1Prefix + "2",
-		},
-		{
-			leaf:           &router.Client2,
-			routerName:     "c2r",
-			clientName:     "c2",
-			routerBridgeIP: bridgePrefix + "3",
-			routerClientIP: client2Prefix + "1",
-			clientIP:       client2Prefix + "2",
-		},
+		{network.ServerNetNS, network.ServerClient1VethPair.Outer},
+		{network.ServerNetNS, network.ServerClient2VethPair.Outer},
+		{network.Client1NetNS, network.ServerClient1VethPair.Inner},
+		{network.Client1NetNS, network.Client1Client2VethPair.Outer},
+		{network.Client2NetNS, network.ServerClient2VethPair.Inner},
+		{network.Client2NetNS, network.Client1Client2VethPair.Inner},
+	}
+	for _, iface := range interfaces {
+		err = setInterfaceUp(iface.netNS, iface.ifaceName)
+		require.NoErrorf(t, err, "bring up interface %q", iface.ifaceName)
+		// Note: routes are not needed as the interfaces are defined as /24, and we are fully connected, so nothing
+		// needs to forward IP to a further destination.
 	}
 
-	for _, leaf := range leaves {
-		leaf.leaf.RouterIP = leaf.routerBridgeIP
-		leaf.leaf.ClientIP = leaf.clientIP
-
-		// Create two network namespaces for each leaf: one for the router and
-		// one for the "client".
-		leaf.leaf.RouterNetNS = createNetNS(t, namePrefix+leaf.routerName)
-		leaf.leaf.ClientNetNS = createNetNS(t, namePrefix+leaf.clientName)
-
-		// Join the bridge.
-		leaf.leaf.OuterVethPair = vethPair{
-			Outer: namePrefix + "b-" + leaf.routerName,
-			Inner: namePrefix + leaf.routerName + "-b",
-		}
-		err = joinBridge(joinBridgeOpts{
-			bridgeNetNS: router.BridgeNetNS,
-			netNS:       leaf.leaf.RouterNetNS,
-			bridgeName:  router.BridgeName,
-			vethPair:    leaf.leaf.OuterVethPair,
-			ip:          leaf.routerBridgeIP,
-		})
-		require.NoError(t, err, "join bridge with router")
-
-		// Create inner veth pair between the router and the client.
-		leaf.leaf.InnerVethPair = vethPair{
-			Outer: namePrefix + leaf.routerName + "-" + leaf.clientName,
-			Inner: namePrefix + leaf.clientName + "-" + leaf.routerName,
-		}
-		err = createVethPair(leaf.leaf.InnerVethPair.Outer, leaf.leaf.InnerVethPair.Inner)
-		require.NoErrorf(t, err, "create veth pair %q <-> %q", leaf.leaf.InnerVethPair.Outer, leaf.leaf.InnerVethPair.Inner)
-
-		// Move the network interfaces to the respective network namespaces.
-		err = setVethNetNS(leaf.leaf.InnerVethPair.Outer, int(leaf.leaf.RouterNetNS.Fd()))
-		require.NoErrorf(t, err, "set veth %q to NetNS", leaf.leaf.InnerVethPair.Outer)
-		err = setVethNetNS(leaf.leaf.InnerVethPair.Inner, int(leaf.leaf.ClientNetNS.Fd()))
-		require.NoErrorf(t, err, "set veth %q to NetNS", leaf.leaf.InnerVethPair.Inner)
-
-		// Set router's "local" IP on the veth.
-		err = setInterfaceIP(leaf.leaf.RouterNetNS, leaf.leaf.InnerVethPair.Outer, leaf.routerClientIP)
-		require.NoErrorf(t, err, "set IP %q on interface %q", leaf.routerClientIP, leaf.leaf.InnerVethPair.Outer)
-		// Set client's IP on the veth.
-		err = setInterfaceIP(leaf.leaf.ClientNetNS, leaf.leaf.InnerVethPair.Inner, leaf.clientIP)
-		require.NoErrorf(t, err, "set IP %q on interface %q", leaf.clientIP, leaf.leaf.InnerVethPair.Inner)
-
-		// Bring up the interfaces.
-		err = setInterfaceUp(leaf.leaf.RouterNetNS, leaf.leaf.InnerVethPair.Outer)
-		require.NoErrorf(t, err, "bring up interface %q", leaf.leaf.OuterVethPair.Outer)
-		err = setInterfaceUp(leaf.leaf.ClientNetNS, leaf.leaf.InnerVethPair.Inner)
-		require.NoErrorf(t, err, "bring up interface %q", leaf.leaf.InnerVethPair.Inner)
-
-		// We don't need to add a route from parent to peer since the kernel
-		// already adds a default route for the /24. We DO need to add a default
-		// route from peer to parent, however.
-		err = addRouteInNetNS(leaf.leaf.ClientNetNS, []string{"default", "via", leaf.routerClientIP, "dev", leaf.leaf.InnerVethPair.Inner})
-		require.NoErrorf(t, err, "add peer default route to %q", leaf.leaf.InnerVethPair.Inner)
-	}
-
-	router.Net = TestNetworking{
+	// Set up the TestNetworking structure
+	network.Net = TestNetworking{
 		Server: TestNetworkingServer{
-			Process:    TestNetworkingProcess{NetNS: router.ServerNetNS},
-			ListenAddr: serverIP + ":8080",
+			Process:    TestNetworkingProcess{NetNS: network.ServerNetNS},
+			ListenAddr: "0.0.0.0:8080", // Server listens on all IPs
 		},
 		Client1: TestNetworkingClient{
-			Process:         TestNetworkingProcess{NetNS: router.Client1.ClientNetNS},
-			ServerAccessURL: "http://" + serverIP + ":8080",
+			Process:         TestNetworkingProcess{NetNS: network.Client1NetNS},
+			ServerAccessURL: "http://10.0.2.3:8080", // Client1 accesses server directly
 		},
 		Client2: TestNetworkingClient{
-			Process:         TestNetworkingProcess{NetNS: router.Client2.ClientNetNS},
-			ServerAccessURL: "http://" + serverIP + ":8080",
+			Process:         TestNetworkingProcess{NetNS: network.Client2NetNS},
+			ServerAccessURL: "http://10.0.3.3:8080", // Client2 accesses server directly
 		},
 	}
-	return router
+	return network
 }
 
 func uniqNetName(t *testing.T) string {
