@@ -464,16 +464,19 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 	// Iterate through all known devcontainers and update their status
 	// based on the current state of the containers.
 	for _, dc := range api.knownDevcontainers {
-		if dc.Container != nil {
-			dc.Container.DevcontainerStatus = dc.Status
-			dc.Container.DevcontainerDirty = dc.Dirty
-		}
-
 		switch {
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+			if dc.Container != nil {
+				dc.Container.DevcontainerStatus = dc.Status
+				dc.Container.DevcontainerDirty = dc.Dirty
+			}
 			continue // This state is handled by the recreation routine.
 
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusError && (dc.Container == nil || dc.Container.CreatedAt.Before(api.recreateErrorTimes[dc.WorkspaceFolder])):
+			if dc.Container != nil {
+				dc.Container.DevcontainerStatus = dc.Status
+				dc.Container.DevcontainerDirty = dc.Dirty
+			}
 			continue // The devcontainer needs to be recreated.
 
 		case dc.Container != nil:
@@ -481,6 +484,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			if dc.Container.Running {
 				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
 			}
+			dc.Container.DevcontainerStatus = dc.Status
 
 			dc.Dirty = false
 			if lastModified, hasModTime := api.configFileModifiedTimes[dc.ConfigPath]; hasModTime && dc.Container.CreatedAt.Before(lastModified) {

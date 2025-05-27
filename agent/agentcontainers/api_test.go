@@ -477,6 +477,8 @@ func TestAPI(t *testing.T) {
 				require.NoError(t, err, "unmarshal response failed")
 				require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response")
 				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStarting, resp.Devcontainers[0].Status, "devcontainer is not starting")
+				require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference")
+				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStarting, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not starting")
 
 				// Allow the devcontainer CLI to continue the up process.
 				close(tt.devcontainerCLI.continueUp)
@@ -503,6 +505,8 @@ func TestAPI(t *testing.T) {
 					require.NoError(t, err, "unmarshal response failed after error")
 					require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response after error")
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusError, resp.Devcontainers[0].Status, "devcontainer is not in an error state after up failure")
+					require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference after up failure")
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusError, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not error after up failure")
 					return
 				}
 
@@ -525,7 +529,9 @@ func TestAPI(t *testing.T) {
 				err = json.NewDecoder(rec.Body).Decode(&resp)
 				require.NoError(t, err, "unmarshal response failed after recreation")
 				require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response after recreation")
-				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, resp.Devcontainers[0].Status, "devcontainer is not stopped after recreation")
+				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, resp.Devcontainers[0].Status, "devcontainer is not running after recreation")
+				require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference after recreation")
+				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not running after recreation")
 			})
 		}
 	})
@@ -620,6 +626,7 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc.Status)
 					require.NotNil(t, dc.Container)
 					assert.Equal(t, "runtime-container-1", dc.Container.ID)
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -660,12 +667,14 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStopped, known2.Status)
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, runtime1.Status)
 
-					require.NotNil(t, known1.Container)
 					assert.Nil(t, known2.Container)
-					require.NotNil(t, runtime1.Container)
 
+					require.NotNil(t, known1.Container)
 					assert.Equal(t, "known-container-1", known1.Container.ID)
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, known1.Container.DevcontainerStatus)
+					require.NotNil(t, runtime1.Container)
 					assert.Equal(t, "runtime-container-1", runtime1.Container.ID)
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, runtime1.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -704,10 +713,12 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStopped, nonRunning.Status)
 
 					require.NotNil(t, running.Container, "running container should have container reference")
-					require.NotNil(t, nonRunning.Container, "non-running container should have container reference")
-
 					assert.Equal(t, "running-container", running.Container.ID)
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, running.Container.DevcontainerStatus)
+
+					require.NotNil(t, nonRunning.Container, "non-running container should have container reference")
 					assert.Equal(t, "non-running-container", nonRunning.Container.ID)
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStopped, nonRunning.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -743,6 +754,7 @@ func TestAPI(t *testing.T) {
 					assert.NotEmpty(t, dc2.ConfigPath)
 					require.NotNil(t, dc2.Container)
 					assert.Equal(t, "known-container-2", dc2.Container.ID)
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc2.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -811,9 +823,14 @@ func TestAPI(t *testing.T) {
 
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
+				mClock := quartz.NewMock(t)
+				mClock.Set(time.Now()).MustWait(testutil.Context(t, testutil.WaitShort))
+				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
 				apiOptions := []agentcontainers.Option{
+					agentcontainers.WithClock(mClock),
 					agentcontainers.WithLister(tt.lister),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
@@ -837,6 +854,15 @@ func TestAPI(t *testing.T) {
 				r.Mount("/", api.Routes())
 
 				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Make sure the ticker function has been registered
+				// before advancing the clock.
+				tickerTrap.MustWait(ctx).Release()
+				tickerTrap.Close()
+
+				// Advance the clock to run the updater loop.
+				_, aw := mClock.AdvanceNext()
+				aw.MustWait(ctx)
 
 				req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
 					WithContext(ctx)
