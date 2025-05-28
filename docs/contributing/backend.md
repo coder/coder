@@ -119,9 +119,10 @@ The Coder backend is organized into multiple packages and directories, each with
 * [enterprise](https://github.com/coder/coder/tree/main/enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
   * [coderd](https://github.com/coder/coder/tree/main/enterprise/coderd)
     * [prebuilds](https://github.com/coder/coder/tree/main/enterprise/coderd/prebuilds): core logic of prebuilt workspaces - reconciliation loop
-* `nix`: Nix utility scripts and definitions
-* `provisioner`, `provisionerd`, `provisionersdk`: components for infrastructure provisioning
-* `pty`: terminal emulation for remote shells
-* `support`: shared internal helpers
-* `tailnet`: network stack and identity management
-* `vpn`: VPN and tunneling components
+* [provisioner](https://github.com/coder/coder/tree/main/provisioner):
+* [provisionerd](https://github.com/coder/coder/tree/main/provisionerd):
+* [provisionersdk](https://github.com/coder/coder/tree/main/provisionersdk):
+* [pty](https://github.com/coder/coder/tree/main/pty): terminal emulation for agent shell
+* [support](https://github.com/coder/coder/tree/main/support): compile a support bundle with diagnostics
+* [tailnet](https://github.com/coder/coder/tree/main/tailnet): core logic of Tailnet controller to maintain DERP maps, coordinate connections with agents and peers
+* [vpn](https://github.com/coder/coder/tree/main/vpn): Coder Desktop (VPN) and tunneling components
