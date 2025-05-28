@@ -91,7 +91,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: false,
-			expectError:  "script start time is required",
+			expectError:  "script start time is required and cannot be zero",
 		},
 		{
 			scriptID: uuid.New(),
@@ -103,7 +103,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: false,
-			expectError:  "script end time is required",
+			expectError:  "script end time is required and cannot be zero",
 		},
 		{
 			scriptID: uuid.New(),
@@ -115,7 +115,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: false,
-			expectError:  "script start time cannot be zero",
+			expectError:  "script start time is required and cannot be zero",
 		},
 		{
 			scriptID: uuid.New(),
@@ -127,7 +127,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: false,
-			expectError:  "script end time cannot be zero",
+			expectError:  "script end time is required and cannot be zero",
 		},
 		{
 			scriptID: uuid.New(),

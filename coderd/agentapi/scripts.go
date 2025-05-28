@@ -27,23 +27,17 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 		return nil, xerrors.Errorf("script id from bytes: %w", err)
 	}
 
-	if req.GetTiming().GetStart() == nil {
-		return nil, xerrors.New("script start time is required")
+	scriptStart := req.GetTiming().GetStart()
+	if !scriptStart.IsValid() || scriptStart.AsTime().IsZero() {
+		return nil, xerrors.New("script start time is required and cannot be zero")
 	}
 
-	if req.GetTiming().GetEnd() == nil {
-		return nil, xerrors.New("script end time is required")
+	scriptEnd := req.GetTiming().GetEnd()
+	if !scriptEnd.IsValid() || scriptEnd.AsTime().IsZero() {
+		return nil, xerrors.New("script end time is required and cannot be zero")
 	}
 
-	if req.GetTiming().GetStart().AsTime().IsZero() {
-		return nil, xerrors.New("script start time cannot be zero")
-	}
-
-	if req.GetTiming().GetEnd().AsTime().IsZero() {
-		return nil, xerrors.New("script end time cannot be zero")
-	}
-
-	if req.GetTiming().GetStart().AsTime().After(req.GetTiming().GetEnd().AsTime()) {
+	if scriptStart.AsTime().After(scriptEnd.AsTime()) {
 		return nil, xerrors.New("script start time cannot be after end time")
 	}
 
