@@ -32,6 +32,7 @@ cd coder
 ```
 
 This will start two processes:
+
 * http://localhost:3000 — the backend API server, used primarily for backend development.
 * http://localhost:8080 — the Node.js frontend dev server, useful if you're also touching frontend code.
 
@@ -56,6 +57,7 @@ A template named docker-amd64 (or docker-arm64 on ARM systems) is created automa
 ## Platform Architecture
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
+
 * [General Concepts](../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
 
 * [Architecture](../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
@@ -132,15 +134,18 @@ The Coder backend is organized into multiple packages and directories, each with
 The Coder backend includes a rich suite of unit and end-to-end tests. A variety of helper utilities are used throughout the codebase to make testing easier, more consistent, and closer to real behavior.
 
 ### [clitest](https://github.com/coder/coder/tree/main/cli/clitest)
+
 * Spawns an in-memory `serpent.Command` instance for unit testing
 * Configures an authorized `codersdk` client
 * Once a `serpent.Invocation` is created, tests can execute commands as if invoked by a real user
 
 ### [ptytest](https://github.com/coder/coder/tree/main/pty/ptytest)
+
 * `ptytest` attaches to a `serpent.Invocation` and simulates TTY input/output
 * `pty` provides matchers and "write" operations for interacting with pseudo-terminals
 
 ### [coderdtest](https://github.com/coder/coder/tree/main/coderd/coderdtest)
+
 * Provides shortcuts to spin up an in-memory `coderd` instance
 * Can start an embedded provisioner daemon
 * Supports multi-user testing via `CreateFirstUser` and `CreateAnotherUser`
@@ -148,6 +153,7 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
 * [oidctest](https://github.com/coder/coder/tree/main/coderd/coderdtest/oidctest) can start a fake OIDC provider
 
 ### [testutil](https://github.com/coder/coder/tree/main/testutil)
+
 * General-purpose testing utilities, including:
   * [chan.go](https://github.com/coder/coder/blob/main/testutil/chan.go): helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
   * [duration.go](https://github.com/coder/coder/blob/main/testutil/duration.go): set timeouts for test execution
@@ -157,10 +163,12 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
   * [pty.go](https://github.com/coder/coder/blob/main/testutil/pty.go): read output from a terminal until a condition is met
 
 ### [dbtestutil](https://github.com/coder/coder/tree/main/coderd/database/dbtestutil)
+
 * Allows choosing between real and in-memory database backends for tests
 * `WillUsePostgres` is useful for skipping tests in CI environments that don't run Postgres
 
 ### [quartz](https://github.com/coder/quartz/tree/main)
+
 * Provides a mockable clock or ticker interface
 * Allows manual time advancement
 * Useful for testing time-sensitive or timeout-related logic
