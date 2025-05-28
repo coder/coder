@@ -113,8 +113,8 @@ export const Active: Story = {
 									apps: [
 										{
 											...MockWorkspaceApp,
-											id: "cloud-code",
-											display_name: "Cloud Code",
+											id: "claude-code",
+											display_name: "Claude Code",
 											icon: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png",
 											url: `${window.location.protocol}/iframe.html?viewMode=story&id=pages-terminal--ready&args=&globals=`,
 											external: true,
@@ -142,7 +142,7 @@ export const Active: Story = {
 				},
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
-					app_id: "cloud-code",
+					app_id: "claude-code",
 				},
 			},
 		});
