@@ -35,9 +35,6 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 		return nil, xerrors.Errorf("get parent agent: %w", err)
 	}
 
-	// NOTE(DanielleMaywood):
-	// This allows duplicate agent names to make it through.
-	// It would be nice if this was enforced at the database level.
 	agentName := req.Name
 	if agentName == "" {
 		return nil, xerrors.Errorf("agent name cannot be empty")
