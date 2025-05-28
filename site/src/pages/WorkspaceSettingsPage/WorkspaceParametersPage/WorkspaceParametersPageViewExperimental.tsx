@@ -16,6 +16,7 @@ import {
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import { AutofillBuildParameter } from "utils/richParameters";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
@@ -44,14 +45,32 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	sendMessage,
 	onCancel,
 }) => {
+
+	const autoFillValues: AutofillBuildParameter[] = originalParameters!.map((p) => ({
+		...p,
+		source: "active_build",
+	}))
+	const autofillByName = Object.fromEntries(
+		autoFillValues.map((param) => [param.name, param]),
+	);
+
+		
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
+
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
-			rich_parameter_values: getInitialParameterValues(parameters, originalParameters!.map((p) => ({
-			...p,
-			source: "active_build",
-		}))),
+			rich_parameter_values: getInitialParameterValues(parameters, autoFillValues),
 		},
+		initialTouched,
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
