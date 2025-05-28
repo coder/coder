@@ -61,6 +61,22 @@ number(set) := c if {
 	c := 1
 }
 
+
+is_prebuild_workspace if {
+	input.object.type = "workspace"
+	input.object.owner = "c42fdf75-3097-471c-8c33-fb52454d81c0"
+}
+
+object_set := object_types if {
+	is_prebuild_workspace
+	object_types := [input.object.type, "prebuilt_workspace", "*"]
+}
+
+object_set := object_types if {
+	not is_prebuild_workspace
+	object_types := [input.object.type, "*"]
+}
+
 # site, org, and user rules are all similar. Each rule should return a number
 # from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
@@ -78,7 +94,7 @@ site_allow(roles) := num if {
 		# Iterate over all site permissions in all roles
 		perm := roles[_].site[_]
 		perm.action in [input.action, "*"]
-		perm.resource_type in [input.object.type, "*"]
+		perm.resource_type in object_set
 
 		# x is either 'true' or 'false' if a matching permission exists.
 		x := bool_flip(perm.negate)
@@ -117,7 +133,7 @@ org_allow_set(roles) := allow_set if {
 		set := {x |
 			perm := roles[_].org[id][_]
 			perm.action in [input.action, "*"]
-			perm.resource_type in [input.object.type, "*"]
+			perm.resource_type in object_set
 			x := bool_flip(perm.negate)
 		}
 		num := number(set)
@@ -207,7 +223,7 @@ user_allow(roles) := num if {
 	allow := {x |
 		perm := roles[_].user[_]
 		perm.action in [input.action, "*"]
-		perm.resource_type in [input.object.type, "*"]
+		perm.resource_type in object_set
 		x := bool_flip(perm.negate)
 	}
 	num := number(allow)
