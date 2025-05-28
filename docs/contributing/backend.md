@@ -148,13 +148,13 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
 * [oidctest](https://github.com/coder/coder/tree/main/coderd/coderdtest/oidctest) can start a fake OIDC provider
 
 ### [testutil](https://github.com/coder/coder/tree/main/testutil)
-General-purpose testing utilities, including:
-* `chan.go`: helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
-* `duration.go`: set timeouts for test execution
-* `eventually.go`: repeatedly poll for a condition using a ticker
-* `port.go`: select a free random port
-* `prometheus.go`: validate Prometheus metrics with expected values
-* `pty.go`: read output from a terminal until a condition is met
+* General-purpose testing utilities, including:
+  * [chan.go](https://github.com/coder/coder/blob/main/testutil/chan.go): helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
+  * [duration.go](https://github.com/coder/coder/blob/main/testutil/duration.go): set timeouts for test execution
+  * [eventually.go](https://github.com/coder/coder/blob/main/testutil/eventually.go): repeatedly poll for a condition using a ticker
+  * [port.go](https://github.com/coder/coder/blob/main/testutil/port.go): select a free random port
+  * [prometheus.go](https://github.com/coder/coder/blob/main/testutil/prometheus.go): validate Prometheus metrics with expected values
+  * [pty.go](https://github.com/coder/coder/blob/main/testutil/pty.go): read output from a terminal until a condition is met
 
 ### [dbtestutil](https://github.com/coder/coder/tree/main/coderd/database/dbtestutil)
 * Allows choosing between real and in-memory database backends for tests
