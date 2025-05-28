@@ -1,34 +1,36 @@
 # GitHub
 
-## Default Configuration
-
 By default, new Coder deployments use a Coder-managed GitHub app to authenticate
-users. We provide it for convenience, allowing you to experiment with Coder
-without setting up your own GitHub OAuth app. Once you authenticate with it, you
-grant Coder server read access to your GitHub user email and other metadata listed
-during the authentication flow.
+users.
+We provide it for convenience, allowing you to experiment with Coder
+without setting up your own GitHub OAuth app.
+
+If you authenticate with it, you grant Coder server read access to your GitHub
+user email and other metadata listed during the authentication flow.
 
 This access is necessary for the Coder server to complete the authentication
-process. To the best of our knowledge, Coder, the company, does not gain access
+process.
+To the best of our knowledge, Coder, the company, does not gain access
 to this data by administering the GitHub app.
+
+## Default Configuration
 
 > [!IMPORTANT]
 > The default GitHub app requires [device flow](#device-flow) to authenticate.
-> This is enabled by default when using the default GitHub app. If you disable
-> device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored.
+>
+> This is enabled by default when using the default GitHub app.
+> If you disable device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored.
 
-By default, only the admin user can sign up. To allow additional users to sign
-up with GitHub, add the following environment variable:
+By default, only the admin user can sign up.
+To allow additional users to sign up with GitHub, add the following environment variable:
 
 ```env
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 ```
 
 [Install the GitHub app](https://github.com/apps/coder/installations/select_target) in every GitHub organization that you need to limit sign ups to.
-**This will grant Coder, the company, access to your organizations' data as
-described in the installation flow.** In a production environment, we recommend
-configuring your own GitHub OAuth app as outlined further below, so all of your
-data is kept private.
+This will grant Coder, the company, access to your organizations' data as described in the installation flow.
+In a production environment, we recommend configuring your own GitHub OAuth app as outlined further below, so all of your data is kept private.
 
 If you'd like to proceed with the default GitHub app, install it in the
 organizations you want to limit sign ups to by visiting
@@ -135,23 +137,24 @@ To upgrade Coder, run:
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
 
-We recommend requiring and auditing MFA usage for all users in your GitHub
-organizations. This can be enforced from the organization settings page in the
-"Authentication security" sidebar tab.
+We recommend requiring and auditing MFA usage for all users in your GitHub organizations.
+This can be enforced from the organization settings page in the **Authentication security** sidebar tab.
 
 ## Device Flow
 
 Coder supports
 [device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)
-for GitHub OAuth. This is enabled by default for the default GitHub app and cannot be disabled
-for that app. For your own custom GitHub OAuth app, you can enable device flow by setting:
+for GitHub OAuth.
+This is enabled by default for the default GitHub app and cannot be disabled for that app.
+
+For your own custom GitHub OAuth app, you can enable device flow by setting:
 
 ```env
 CODER_OAUTH2_GITHUB_DEVICE_FLOW=true
 ```
 
-Device flow is optional for custom GitHub OAuth apps. We generally recommend using
-the standard OAuth flow instead, as it is more convenient for end users.
+Device flow is optional for custom GitHub OAuth apps.
+We generally recommend using the standard OAuth flow instead, as it is more convenient for end users.
 
 > [!NOTE]
 > If you're using the default GitHub app, device flow is always enabled regardless of
