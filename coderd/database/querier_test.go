@@ -4781,7 +4781,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		var pqErr *pq.Error
 		require.True(t, errors.As(err, &pqErr))
 		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
-		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this provisioner job`)
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
 	})
 
 	t.Run("DuplicateNamesInSameProvisionerJob", func(t *testing.T) {
@@ -4812,7 +4812,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		var pqErr *pq.Error
 		require.True(t, errors.As(err, &pqErr))
 		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
-		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this provisioner job`)
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
 	})
 
 	t.Run("DuplicateChildNamesOverMultipleResources", func(t *testing.T) {
@@ -4857,7 +4857,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 		var pqErr *pq.Error
 		require.True(t, errors.As(err, &pqErr))
 		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
-		require.Contains(t, pqErr.Message, `workspace agent name "child-agent" already exists in this provisioner job`)
+		require.Contains(t, pqErr.Message, `workspace agent name "child-agent" already exists in this workspace build`)
 	})
 
 	t.Run("SameNamesInDifferentWorkspaces", func(t *testing.T) {
