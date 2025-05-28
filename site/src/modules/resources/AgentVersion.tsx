@@ -1,10 +1,10 @@
+import { buildInfo } from "api/queries/buildInfo";
 import type { WorkspaceAgent } from "api/typesGenerated";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { agentVersionStatus, getDisplayVersionStatus } from "utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
-import { buildInfo } from "api/queries/buildInfo";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useQuery } from "react-query";
 
 interface AgentVersionProps {
 	agent: WorkspaceAgent;

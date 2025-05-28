@@ -1,7 +1,5 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { buildInfo } from "api/queries/buildInfo";
-import { deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -18,9 +16,7 @@ import {
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,

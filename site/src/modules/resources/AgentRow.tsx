@@ -15,6 +15,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
@@ -42,7 +43,6 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;

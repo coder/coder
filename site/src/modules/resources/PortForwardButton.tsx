@@ -17,7 +17,6 @@ import {
 } from "api/queries/workspaceportsharing";
 import {
 	type Template,
-	type UpsertWorkspaceAgentPortShareRequest,
 	type Workspace,
 	type WorkspaceAgent,
 	type WorkspaceAgentListeningPort,
@@ -44,7 +43,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import { type FormikContextType, useFormik } from "formik";
+import { useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import {
 	ChevronDownIcon,
