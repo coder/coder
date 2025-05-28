@@ -104,14 +104,11 @@ The Coder backend is organized into multiple packages and directories, each with
   * [workspaceapps](https://github.com/coder/coder/tree/main/coderd/workspaceapps): core logic of a secure proxy to expose workspace apps deployed in a workspace
   * [wsbuilder](https://github.com/coder/coder/tree/main/coderd/wsbuilder): wrapper for business logic of creating a workspace build. It encapsulates all database operations required to insert a build record in a transaction.
 * [database](https://github.com/coder/coder/tree/main/coderd/database): schema migrations, query logic, in-memory database, etc.
-  * [db2sdk](https://github.com/coder/coder/tree/main/coderd/database/db2sdk)
-  * [dbauthz](https://github.com/coder/coder/tree/main/coderd/database/dbauthz)
-  * [dbauthz](https://github.com/coder/coder/tree/main/coderd/database/dbauthz)
-  * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake)
-  * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake)
-  * [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen)
-  * [dbmem](https://github.com/coder/coder/tree/main/coderd/database/dbmem)
-  * [dbmetrics](https://github.com/coder/coder/tree/main/coderd/database/dbmetrics)
+  * [db2sdk](https://github.com/coder/coder/tree/main/coderd/database/db2sdk): translation between database structures and [codersdk](https://github.com/coder/coder/tree/main/coderd/codersdk) objects used by coderd API.
+  * [dbauthz](https://github.com/coder/coder/tree/main/coderd/database/dbauthz): AuthZ wrappers for database queries, ideally, every query should verify first if the accessor is eligible to see the query results.
+  * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake): helper functions to quickly prepare the initial database state for testing purposes (e.g. create N healthy workspaces and templates), operates on higher level than [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen)
+  * [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen): helper functions to insert raw records to the database store, used for testing purposes
+  * [dbmem](https://github.com/coder/coder/tree/main/coderd/database/dbmem): in-memory implementation of the database store, ideally, every real query should have a complimentary Go implementation
   * [dbmetrics](https://github.com/coder/coder/tree/main/coderd/database/dbmetrics)
   * [dbmock](https://github.com/coder/coder/tree/main/coderd/database/dbmock)
   * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge)
