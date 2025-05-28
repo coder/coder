@@ -24,8 +24,7 @@ up with GitHub, add the following environment variable:
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 ```
 
-You may limit sign ups to members of specific GitHub organizations, but the
-GitHub app must be installed in the organizations you want to limit sign ups to.
+[Install the GitHub app](https://github.com/apps/coder/installations/select_target) in every GitHub organization that you need to limit sign ups to.
 **This will grant Coder, the company, access to your organizations' data as
 described in the installation flow.** In a production environment, we recommend
 configuring your own GitHub OAuth app as outlined further below, so all of your
