@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -27,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1268,7 +1268,10 @@ func TestQueuePosition(t *testing.T) {
 		Tags: database.StringMap{},
 	})
 
-	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -1296,7 +1299,10 @@ func TestQueuePosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jobs[0].ID, job.ID)
 
-	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -2550,7 +2556,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			}
 
 			// When: we fetch the jobs by their IDs
-			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
+			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+				IDs:             filteredJobIDs,
+				StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+			})
 			require.NoError(t, err)
 			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
 
@@ -2693,7 +2702,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -2788,7 +2800,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
