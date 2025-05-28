@@ -1220,6 +1220,14 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		})
 	}
 	for _, agent := range agents {
+		if agent.FirstConnectedAt.Time.IsZero() {
+			api.Logger.Debug(ctx, "ignoring agent connection timing with zero first connected time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_agent_id", agent.ID),
+				slog.F("workspace_build_id", build.ID),
+			)
+			continue
+		}
 		res.AgentConnectionTimings = append(res.AgentConnectionTimings, codersdk.AgentConnectionTiming{
 			WorkspaceAgentID:   agent.ID.String(),
 			WorkspaceAgentName: agent.Name,
