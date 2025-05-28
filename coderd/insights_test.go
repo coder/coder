@@ -609,8 +609,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -1525,8 +1525,8 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},

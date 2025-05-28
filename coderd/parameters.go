@@ -36,7 +36,7 @@ import (
 // @Param user path string true "Template version ID" format(uuid)
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
-// @Router /users/{user}/templateversions/{templateversion}/parameters [get]
+// @Router /templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
@@ -77,12 +77,12 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	}
 }
 
-type previewFunction func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics)
+type previewFunction func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
 func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion) {
 	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
 	)
 
 	// nolint:gocritic // We need to fetch the templates files for the Terraform
@@ -130,7 +130,7 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
-	owner, err := getWorkspaceOwnerData(ctx, api.Database, user, templateVersion.OrganizationID)
+	owner, err := getWorkspaceOwnerData(ctx, api.Database, apikey.UserID, templateVersion.OrganizationID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace owner.",
@@ -145,10 +145,46 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		Owner:           owner,
 	}
 
-	api.handleParameterWebsocket(rw, r, func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	// failedOwners keeps track of which owners failed to fetch from the database.
+	// This prevents db spam on repeated requests for the same failed owner.
+	failedOwners := make(map[uuid.UUID]error)
+	failedOwnerDiag := hcl.Diagnostics{
+		{
+			Severity: hcl.DiagError,
+			Summary:  "Failed to fetch workspace owner",
+			Detail:   "Please check your permissions or the user may not exist.",
+			Extra: previewtypes.DiagnosticExtra{
+				Code: "owner_not_found",
+			},
+		},
+	}
+
+	api.handleParameterWebsocket(rw, r, apikey.UserID, func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+		if ownerID == uuid.Nil {
+			// Default to the authenticated user
+			// Nice for testing
+			ownerID = apikey.UserID
+		}
+
+		if _, ok := failedOwners[ownerID]; ok {
+			// If it has failed once, assume it will fail always.
+			// Re-open the websocket to try again.
+			return nil, failedOwnerDiag
+		}
+
 		// Update the input values with the new values.
-		// The rest of the input is unchanged.
 		input.ParameterValues = values
+
+		// Update the owner if there is a change
+		if input.Owner.ID != ownerID.String() {
+			owner, err = getWorkspaceOwnerData(ctx, api.Database, ownerID, templateVersion.OrganizationID)
+			if err != nil {
+				failedOwners[ownerID] = err
+				return nil, failedOwnerDiag
+			}
+			input.Owner = owner
+		}
+
 		return preview.Preview(ctx, input, templateFS)
 	})
 }
@@ -239,7 +275,7 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 		params = append(params, param)
 	}
 
-	api.handleParameterWebsocket(rw, r, func(_ context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	api.handleParameterWebsocket(rw, r, uuid.Nil, func(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		for i := range params {
 			param := &params[i]
 			paramValue, ok := values[param.Name]
@@ -264,7 +300,7 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 	})
 }
 
-func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, render previewFunction) {
+func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, ownerID uuid.UUID, render previewFunction) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
 
@@ -284,7 +320,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	)
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := render(ctx, map[string]string{})
+	result, diagnostics := render(ctx, ownerID, map[string]string{})
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1, // Always start with -1.
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
@@ -312,7 +348,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				return
 			}
 
-			result, diagnostics := render(ctx, update.Inputs)
+			result, diagnostics := render(ctx, update.OwnerID, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
 				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
@@ -332,17 +368,24 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 func getWorkspaceOwnerData(
 	ctx context.Context,
 	db database.Store,
-	user database.User,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 ) (previewtypes.WorkspaceOwner, error) {
 	var g errgroup.Group
+
+	// TODO: @emyrk we should only need read access on the org member, not the
+	//   site wide user object. Figure out a better way to handle this.
+	user, err := db.GetUserByID(ctx, ownerID)
+	if err != nil {
+		return previewtypes.WorkspaceOwner{}, xerrors.Errorf("fetch user: %w", err)
+	}
 
 	var ownerRoles []previewtypes.WorkspaceOwnerRBACRole
 	g.Go(func() error {
 		// nolint:gocritic // This is kind of the wrong query to use here, but it
 		// matches how the provisioner currently works. We should figure out
 		// something that needs less escalation but has the correct behavior.
-		row, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+		row, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), ownerID)
 		if err != nil {
 			return err
 		}
@@ -372,7 +415,7 @@ func getWorkspaceOwnerData(
 		// The correct public key has to be sent. This will not be leaked
 		// unless the template leaks it.
 		// nolint:gocritic
-		key, err := db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), user.ID)
+		key, err := db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), ownerID)
 		if err != nil {
 			return err
 		}
@@ -388,7 +431,7 @@ func getWorkspaceOwnerData(
 		// nolint:gocritic
 		groups, err := db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
 			OrganizationID: organizationID,
-			HasMemberID:    user.ID,
+			HasMemberID:    ownerID,
 		})
 		if err != nil {
 			return err
@@ -400,7 +443,7 @@ func getWorkspaceOwnerData(
 		return nil
 	})
 
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
 		return previewtypes.WorkspaceOwner{}, err
 	}
