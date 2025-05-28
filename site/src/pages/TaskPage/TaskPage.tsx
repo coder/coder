@@ -1,40 +1,82 @@
 import { API } from "api/api";
-import type { WorkspaceApp } from "api/typesGenerated";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import type { WorkspaceApp, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { ArrowLeftIcon, CircleCheckIcon, LayoutGridIcon } from "lucide-react";
-import { getAppHref } from "modules/apps/apps";
-import { useAppLink } from "modules/apps/useAppLink";
-import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import { useState, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
-import { useParams } from "react-router-dom";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
-import { timeFrom } from "utils/time";
-import { Link as RouterLink } from "react-router-dom";
-import { useProxy } from "contexts/ProxyContext";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useProxy } from "contexts/ProxyContext";
+import { ArrowLeftIcon, LayoutGridIcon, RotateCcwIcon } from "lucide-react";
 import { AppStatusIcon } from "modules/apps/AppStatusIcon";
+import { getAppHref } from "modules/apps/apps";
+import { useAppLink } from "modules/apps/useAppLink";
+import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
+import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import type React from "react";
+import { type FC, type ReactNode, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useParams } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
+import { cn } from "utils/cn";
+import { pageTitle } from "utils/page";
+import { timeFrom } from "utils/time";
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
 		workspace: string;
 		username: string;
 	};
-	const { data: task } = useQuery({
+	const {
+		data: task,
+		error,
+		refetch,
+	} = useQuery({
 		queryKey: ["tasks", username, workspaceName],
 		queryFn: () => data.fetchTask(username, workspaceName),
 		refetchInterval: 5_000,
 	});
+
+	if (error) {
+		return (
+			<>
+				<Helmet>
+					<title>{pageTitle("Error loading task")}</title>
+				</Helmet>
+
+				<div className="w-full min-h-80 flex items-center justify-center">
+					<div className="flex flex-col items-center">
+						<h3 className="m-0 font-medium text-content-primary text-base">
+							{getErrorMessage(error, "Failed to load task")}
+						</h3>
+						<span className="text-content-secondary text-sm">
+							{getErrorDetail(error)}
+						</span>
+						<div className="mt-4 flex items-center gap-2">
+							<Button size="sm" variant="outline" asChild>
+								<RouterLink to="/tasks">
+									<ArrowLeftIcon />
+									Back to tasks
+								</RouterLink>
+							</Button>
+							<Button size="sm" onClick={() => refetch()}>
+								<RotateCcwIcon />
+								Try again
+							</Button>
+						</div>
+					</div>
+				</div>
+			</>
+		);
+	}
 
 	if (!task) {
 		return (
@@ -47,15 +89,136 @@ const TaskPage = () => {
 		);
 	}
 
-	const statuses = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.flatMap((a) => a?.apps)
-		.flatMap((a) => a?.statuses)
-		.filter((s) => !!s)
-		.sort(
-			(a, b) =>
-				new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+	let content: ReactNode = null;
+	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
+	const terminatedStatuses: WorkspaceStatus[] = [
+		"canceled",
+		"canceling",
+		"deleted",
+		"deleting",
+		"stopped",
+		"stopping",
+	];
+
+	if (waitingStatuses.includes(task.workspace.latest_build.status)) {
+		content = (
+			<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<Spinner loading className="mb-4" />
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Building your task
+					</h3>
+					<span className="text-content-secondary text-sm">
+						Your task is being built and will be ready soon
+					</span>
+				</div>
+			</div>
 		);
+	} else if (task.workspace.latest_build.status === "failed") {
+		content = (
+			<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Task build failed
+					</h3>
+					<span className="text-content-secondary text-sm">
+						Please check the logs for more details.
+					</span>
+					<Button size="sm" variant="outline" asChild className="mt-4">
+						<RouterLink
+							to={`/@${task.workspace.owner_name}/${task.workspace.name}/builds/${task.workspace.latest_build.build_number}`}
+						>
+							View logs
+						</RouterLink>
+					</Button>
+				</div>
+			</div>
+		);
+	} else if (terminatedStatuses.includes(task.workspace.latest_build.status)) {
+		content = (
+			<Margins>
+				<div className="py-6 flex flex-col gap-3">
+					{task.workspace.latest_app_status && (
+						<div className="p-3 border border-border border-solid rounded-lg">
+							<WorkspaceAppStatus status={task.workspace.latest_app_status} />
+						</div>
+					)}
+					<div className="border border-border border-solid rounded-lg w-full min-h-80 flex items-center justify-center">
+						<div className="flex flex-col items-center">
+							<h3 className="m-0 font-medium text-content-primary text-base">
+								Task build terminated
+							</h3>
+							<span className="text-content-secondary text-sm">
+								So apps and previous statuses are not available
+							</span>
+						</div>
+					</div>
+				</div>
+			</Margins>
+		);
+	} else if (!task.workspace.latest_app_status) {
+		content = (
+			<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<Spinner loading className="mb-4" />
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Running your task
+					</h3>
+					<span className="text-content-secondary text-sm">
+						The status should be available soon
+					</span>
+				</div>
+			</div>
+		);
+	} else {
+		const statuses = task.workspace.latest_build.resources
+			.flatMap((r) => r.agents)
+			.flatMap((a) => a?.apps)
+			.flatMap((a) => a?.statuses)
+			.filter((s) => !!s)
+			.sort(
+				(a, b) =>
+					new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+			);
+
+		content = (
+			<div className="flex-1 flex justify-stretch overflow-hidden">
+				<aside className="w-full max-w-xs border-0 border-r border-border border-solid">
+					<ScrollArea className="h-full py-3">
+						{statuses.map((status, index) => {
+							return (
+								<article
+									className={cn(["px-4 py-3 flex gap-3"], {
+										"opacity-75 hover:opacity-100": index !== 0,
+									})}
+									key={status.id}
+								>
+									<AppStatusIcon
+										status={status}
+										latest={index === 0}
+										className="size-4 mt-1"
+									/>
+									<div className="flex flex-col gap-1">
+										<h3 className="m-0 font-medium text-sm">
+											{status.message}
+										</h3>
+										<time
+											dateTime={status.created_at}
+											className="font-medium text-xs text-content-secondary"
+										>
+											{timeFrom(new Date(status.created_at))}
+										</time>
+									</div>
+								</article>
+							);
+						})}
+					</ScrollArea>
+				</aside>
+
+				<TaskApps task={task} />
+			</div>
+		);
+	}
 
 	return (
 		<>
@@ -90,41 +253,7 @@ const TaskPage = () => {
 					</div>
 				</header>
 
-				<div className="flex-1 flex justify-stretch overflow-hidden">
-					<aside className="w-full max-w-xs border-0 border-r border-border border-solid">
-						<ScrollArea className="h-full py-3">
-							{statuses.map((status, index) => {
-								return (
-									<article
-										className={cn(["px-4 py-3 flex gap-3"], {
-											"opacity-75 hover:opacity-100": index !== 0,
-										})}
-										key={status.id}
-									>
-										<AppStatusIcon
-											status={status}
-											latest={index === 0}
-											className="size-4 mt-1"
-										/>
-										<div className="flex flex-col gap-1">
-											<h3 className="m-0 font-medium text-sm">
-												{status.message}
-											</h3>
-											<time
-												dateTime={status.created_at}
-												className="font-medium text-xs text-content-secondary"
-											>
-												{timeFrom(new Date(status.created_at))}
-											</time>
-										</div>
-									</article>
-								);
-							})}
-						</ScrollArea>
-					</aside>
-
-					<TaskApps task={task} />
-				</div>
+				{content}
 			</section>
 		</>
 	);

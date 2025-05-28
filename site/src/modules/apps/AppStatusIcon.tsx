@@ -1,8 +1,8 @@
 import type { WorkspaceAppStatus } from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
 import {
-	CircleCheckIcon,
 	CircleAlertIcon,
+	CircleCheckIcon,
 	HourglassIcon,
 	TriangleAlertIcon,
 } from "lucide-react";

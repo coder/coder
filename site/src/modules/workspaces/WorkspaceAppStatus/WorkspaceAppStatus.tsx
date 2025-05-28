@@ -34,7 +34,7 @@ export const WorkspaceAppStatus = ({
 	}
 
 	return (
-		<div className="flex flex-col">
+		<div className="flex flex-col text-content-secondary">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -48,7 +48,9 @@ export const WorkspaceAppStatus = ({
 					<TooltipContent>{status.message}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
-			<span className="first-letter:uppercase block pl-6">{status.state}</span>
+			<span className="text-xs first-letter:uppercase block pl-6">
+				{status.state}
+			</span>
 		</div>
 	);
 };

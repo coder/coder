@@ -6,7 +6,6 @@ import type {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -18,18 +17,13 @@ import { timeFrom } from "utils/time";
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
-	CircleAlertIcon,
-	CircleCheckIcon,
 	ExternalLinkIcon,
 	FileIcon,
-	HourglassIcon,
 	LayoutGridIcon,
-	TriangleAlertIcon,
 } from "lucide-react";
+import { AppStatusIcon } from "modules/apps/AppStatusIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { cn } from "utils/cn";
-import { AppStatusIcon } from "modules/apps/AppStatusIcon";
 
 const formatURI = (uri: string) => {
 	if (uri.startsWith("file://")) {

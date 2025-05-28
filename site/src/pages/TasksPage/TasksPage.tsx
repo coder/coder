@@ -45,18 +45,13 @@ import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import {
-	useEffect,
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-} from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { pageTitle } from "utils/page";
-import { relativeTime } from "utils/time";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
+import { pageTitle } from "utils/page";
+import { relativeTime } from "utils/time";
 
 const TasksPage: FC = () => {
 	const {
