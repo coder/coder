@@ -174,7 +174,7 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
 									<span
 										css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
 									>
-										{workspace.owner_name}
+										{workspace.owner_username}
 									</span>
 									<PersonIcon />
 								</Stack>

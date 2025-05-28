@@ -1200,7 +1200,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		network := a.network
 		a.closeMutex.Unlock()
 		if network == nil {
-			keySeed, err := SSHKeySeed(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName)
+			keySeed, err := SSHKeySeed(manifest.OwnerUsername, manifest.WorkspaceName, manifest.AgentName)
 			if err != nil {
 				return xerrors.Errorf("generate SSH key seed: %w", err)
 			}

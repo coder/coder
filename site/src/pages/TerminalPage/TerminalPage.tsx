@@ -332,7 +332,7 @@ const TerminalPage: FC = () => {
 				<title>
 					{workspace.data
 						? pageTitle(
-								`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
+								`Terminal · ${workspace.data.owner_username}/${workspace.data.name}`,
 							)
 						: ""}
 				</title>
