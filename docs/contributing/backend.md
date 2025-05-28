@@ -136,11 +136,11 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
 * Configures an authorized `codersdk` client
 * Once a `serpent.Invocation` is created, tests can execute commands as if invoked by a real user
 
-### `ptytest`
+### [ptytest](https://github.com/coder/coder/tree/main/ptytest)
 * `ptytest` attaches to a `serpent.Invocation` and simulates TTY input/output
 * `pty` provides matchers and "write" operations for interacting with pseudo-terminals
 
-### `coderdtest`
+### [coderdtest](https://github.com/coder/coder/tree/main/coderd/coderdtest)
 * Provides shortcuts to spin up an in-memory `coderd` instance
 * Can start an embedded provisioner daemon
 * Supports multi-user testing via `CreateFirstUser` and `CreateAnotherUser`
