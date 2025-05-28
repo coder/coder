@@ -31,7 +31,6 @@ interface WorkspaceProps {
 	permissions: WorkspacePermissions;
 	isUpdating: boolean;
 	isRestarting: boolean;
-	buildInfo?: TypesGen.BuildInfoResponse;
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	timings?: TypesGen.WorkspaceBuildTimings;
@@ -53,7 +52,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
-	buildInfo,
 	template,
 	buildLogs,
 	latestVersion,

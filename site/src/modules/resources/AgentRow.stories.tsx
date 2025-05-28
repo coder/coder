@@ -96,7 +96,7 @@ const meta: Meta<typeof AgentRow> = {
 		},
 		workspace: M.MockWorkspace,
 		showApps: true,
-		storybookAgentMetadata: defaultAgentMetadata,
+		initialMetadata: defaultAgentMetadata,
 	},
 	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
 	parameters: {
@@ -162,7 +162,7 @@ export const BunchOfApps: Story = {
 export const Connecting: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentConnecting,
-		storybookAgentMetadata: [],
+		initialMetadata: [],
 	},
 };
 
@@ -190,7 +190,7 @@ export const Started: Story = {
 export const StartedNoMetadata: Story = {
 	args: {
 		...Started.args,
-		storybookAgentMetadata: [],
+		initialMetadata: [],
 	},
 };
 

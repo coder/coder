@@ -43,14 +43,12 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { buildInfo } from "api/queries/buildInfo";
 
 export interface AgentRowProps {
 	agent: WorkspaceAgent;
 	workspace: Workspace;
 	template: Template;
-	storybookAgentMetadata?: WorkspaceAgentMetadata[];
+	initialMetadata?: WorkspaceAgentMetadata[];
 	onUpdateAgent: () => void;
 }
 
@@ -59,7 +57,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	workspace,
 	template,
 	onUpdateAgent,
-	storybookAgentMetadata,
+	initialMetadata,
 }) => {
 	// Apps visibility
 	const { browser_only } = useFeatureVisibility();
@@ -196,10 +194,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 						agent.display_apps.includes("port_forwarding_helper") && (
 							<PortForwardButton
 								host={proxy.preferredWildcardHostname}
-								workspaceName={workspace.name}
+								workspace={workspace}
 								agent={agent}
-								username={workspace.owner_name}
-								workspaceID={workspace.id}
 								template={template}
 							/>
 						)}
@@ -281,10 +277,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				<AgentMetadata
-					storybookMetadata={storybookAgentMetadata}
-					agent={agent}
-				/>
+				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
 			{hasStartupFeatures && (
