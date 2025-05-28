@@ -115,7 +115,7 @@ export const Active: Story = {
 											...MockWorkspaceApp,
 											id: "claude-code",
 											display_name: "Claude Code",
-											icon: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png",
+											icon: "/icon/claude.svg",
 											url: `${window.location.protocol}/iframe.html?viewMode=story&id=pages-terminal--ready&args=&globals=`,
 											external: true,
 											statuses: [
