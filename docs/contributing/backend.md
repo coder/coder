@@ -131,7 +131,7 @@ The Coder backend is organized into multiple packages and directories, each with
 
 The Coder backend includes a rich suite of unit and end-to-end tests. A variety of helper utilities are used throughout the codebase to make testing easier, more consistent, and closer to real behavior.
 
-### `clitest`
+### [clitest](https://github.com/coder/coder/tree/main/clitest)
 * Spawns an in-memory `serpent.Command` instance for unit testing
 * Configures an authorized `codersdk` client
 * Once a `serpent.Invocation` is created, tests can execute commands as if invoked by a real user
