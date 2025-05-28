@@ -9,6 +9,9 @@ import (
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
+// TestProviderFormTypeEnum keeps the provider.ParameterFormTypes() enum in sync with the
+// proto.FormType enum. If a new form type is added to the provider, it should also be added
+// to the proto file.
 func TestProviderFormTypeEnum(t *testing.T) {
 	t.Parallel()
 

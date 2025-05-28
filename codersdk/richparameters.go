@@ -104,16 +104,13 @@ func inOptionSet(richParameter TemplateVersionParameter, value string) bool {
 		optionValues = append(optionValues, option.Value)
 	}
 
-	// This is the simple case
-	if slice.Contains(optionValues, value) {
-		return true
-	}
-
 	// If the type is `list(string)` and the form_type is `multi-select`, then we check each individual
 	// value in the list against the option set.
-	mightBeMultiSelect := richParameter.Type == provider.OptionTypeListString && richParameter.FormType == string(provider.ParameterFormTypeMultiSelect)
-	if !mightBeMultiSelect {
-		return false
+	isMultiSelect := richParameter.Type == provider.OptionTypeListString && richParameter.FormType == string(provider.ParameterFormTypeMultiSelect)
+
+	if !isMultiSelect {
+		// This is the simple case. Just checking if the value is in the option set.
+		return slice.Contains(optionValues, value)
 	}
 
 	var checks []string

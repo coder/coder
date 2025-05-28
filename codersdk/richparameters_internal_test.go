@@ -126,6 +126,16 @@ func Test_inOptionSet(t *testing.T) {
 			want:  false,
 			value: "purple",
 		},
+		{
+			name: "list(string)-multi-scalar-value",
+			param: TemplateVersionParameter{
+				Type:     provider.OptionTypeListString,
+				FormType: string(provider.ParameterFormTypeMultiSelect),
+				Options:  options("red", "green", "blue"),
+			},
+			want:  false,
+			value: "green",
+		},
 	}
 
 	for _, tt := range tests {
