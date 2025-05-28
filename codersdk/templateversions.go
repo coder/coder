@@ -54,23 +54,25 @@ const (
 
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
-	Name                 string                           `json:"name"`
-	DisplayName          string                           `json:"display_name,omitempty"`
-	Description          string                           `json:"description"`
-	DescriptionPlaintext string                           `json:"description_plaintext"`
-	Type                 string                           `json:"type" enums:"string,number,bool,list(string)"`
-	FormType             string                           `json:"form_type"`
-	Mutable              bool                             `json:"mutable"`
-	DefaultValue         string                           `json:"default_value"`
-	Icon                 string                           `json:"icon"`
-	Options              []TemplateVersionParameterOption `json:"options"`
-	ValidationError      string                           `json:"validation_error,omitempty"`
-	ValidationRegex      string                           `json:"validation_regex,omitempty"`
-	ValidationMin        *int32                           `json:"validation_min,omitempty"`
-	ValidationMax        *int32                           `json:"validation_max,omitempty"`
-	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
-	Required             bool                             `json:"required"`
-	Ephemeral            bool                             `json:"ephemeral"`
+	Name                 string `json:"name"`
+	DisplayName          string `json:"display_name,omitempty"`
+	Description          string `json:"description"`
+	DescriptionPlaintext string `json:"description_plaintext"`
+	Type                 string `json:"type" enums:"string,number,bool,list(string)"`
+	// FormType has an enum value of empty string, `""`.
+	// Keep the leading comma in the enums struct tag.
+	FormType            string                           `json:"form_type" enums:",radio,dropdown,input,textarea,slider,checkbox,switch,tag-select,multi-select,error"`
+	Mutable             bool                             `json:"mutable"`
+	DefaultValue        string                           `json:"default_value"`
+	Icon                string                           `json:"icon"`
+	Options             []TemplateVersionParameterOption `json:"options"`
+	ValidationError     string                           `json:"validation_error,omitempty"`
+	ValidationRegex     string                           `json:"validation_regex,omitempty"`
+	ValidationMin       *int32                           `json:"validation_min,omitempty"`
+	ValidationMax       *int32                           `json:"validation_max,omitempty"`
+	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	Required            bool                             `json:"required"`
+	Ephemeral           bool                             `json:"ephemeral"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
