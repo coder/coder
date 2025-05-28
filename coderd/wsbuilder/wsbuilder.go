@@ -623,6 +623,11 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 
+	lastBuildParameterValues := db2sdk.WorkspaceBuildParameters(lastBuildParameters)
+	resolver := codersdk.ParameterResolver{
+		Rich: lastBuildParameterValues,
+	}
+
 	// Dynamic parameters skip all parameter validation.
 	// Deleting a workspace also should skip parameter validation.
 	// Pass the user's input as is.
@@ -632,17 +637,32 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		//  conditional parameter existence, the static frame of reference
 		//  is not sufficient. So assume the user is correct, or pull in the
 		//  dynamic param code to find the actual parameters.
+		latestValues := make(map[string]string, len(b.richParameterValues))
+		for _, latest := range b.richParameterValues {
+			latestValues[latest.Name] = latest.Value
+		}
+
+		// Merge the inputs with values from the previous build.
+		for _, last := range lastBuildParameterValues {
+			// TODO: Ideally we use the resolver here and look at parameter
+			//   fields such as 'ephemeral'. This requires loading the terraform
+			//   files. For now, just send the previous inputs as is.
+			if _, exists := latestValues[last.Name]; exists {
+				// latestValues take priority, so skip this previous value.
+				continue
+			}
+			names = append(names, last.Name)
+			values = append(values, last.Value)
+		}
+
 		for _, value := range b.richParameterValues {
 			names = append(names, value.Name)
 			values = append(values, value.Value)
 		}
+
 		b.parameterNames = &names
 		b.parameterValues = &values
 		return names, values, nil
-	}
-
-	resolver := codersdk.ParameterResolver{
-		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
 	}
 
 	for _, templateVersionParameter := range templateVersionParameters {
