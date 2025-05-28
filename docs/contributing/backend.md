@@ -125,3 +125,16 @@ The Coder backend is organized into multiple packages and directories, each with
 * [support](https://github.com/coder/coder/tree/main/support): compile a support bundle with diagnostics
 * [tailnet](https://github.com/coder/coder/tree/main/tailnet): core logic of Tailnet controller to maintain DERP maps, coordinate connections with agents and peers
 * [vpn](https://github.com/coder/coder/tree/main/vpn): Coder Desktop (VPN) and tunneling components
+
+## Testing
+
+TODO
+
+## Quiz
+
+Try to find answers to these questions before jumping into implementation work — having a solid understanding of how Coder works will save you time and help you contribute effectively.
+
+1. When you create a template, what does that do exactly?
+2. When you create a workspace, what exactly happens?
+3. How does the agent get the required information to run?
+4. How are provisioner jobs run?
