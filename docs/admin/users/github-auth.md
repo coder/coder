@@ -16,46 +16,50 @@ to this data by administering the GitHub app.
 ## Default Configuration
 
 > [!IMPORTANT]
-> The default GitHub app requires [device flow](#device-flow) to authenticate.
+> The default GitHub app grants Coder access to your organizations' GitHub data.
 >
-> This is enabled by default when using the default GitHub app.
-> If you disable device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored.
+> For production environments, we strongly recommend that you
+> [configure your own GitHub OAuth app](#step-1-configure-the-oauth-application-in-github)
+> to ensure that your data is not shared with Coder (the company).
 
-By default, only the admin user can sign up.
-To allow additional users to sign up with GitHub, add the following environment variable:
+To use the default configuration:
 
-```env
-CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
-```
+1. [Install the GitHub app](https://github.com/apps/coder/installations/select_target)
+   in any GitHub organization that you want to use with Coder.
 
-[Install the GitHub app](https://github.com/apps/coder/installations/select_target) in every GitHub organization that you need to limit sign ups to.
-This will grant Coder, the company, access to your organizations' data as described in the installation flow.
-In a production environment, we recommend configuring your own GitHub OAuth app as outlined further below, so all of your data is kept private.
+   The default GitHub app requires [device flow](#device-flow) to authenticate.
+   This is enabled by default when using the default GitHub app.
+   If you disable device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored.
 
-If you'd like to proceed with the default GitHub app, install it in the
-organizations you want to limit sign ups to by visiting
-[this page](https://github.com/apps/coder/installations/select_target) and set
-the following environment variable:
+1. By default, only the admin user can sign up.
+   To allow additional users to sign up with GitHub, add:
 
-```env
-CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
-```
+   ```shell
+   CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
+   ```
 
-For production deployments, we recommend configuring your own GitHub OAuth app
-as outlined below. The default is automatically disabled if you configure your
-own app or set:
+1. **Configure Organization Restrictions (Optional)**
+   If you want to limit sign-ups to specific GitHub organizations, set:
 
-```env
+   ```shell
+   CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
+   ```
+
+## Disable the Default GitHub App
+
+You can disable the default GitHub app by [configuring your own app](#step-1-configure-the-oauth-application-in-github)
+or by adding the following environment variable to your [Coder server configuration](../../reference/cli/server.md#options):
+
+```shell
 CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 ```
 
 > [!NOTE]
-> After you disable the default GitHub provider with the setting above, the
-> **Sign in with GitHub** button might still appear on your login page even though
-> the authentication flow is disabled.
+> After you disable the default GitHub provider, the **Sign in with GitHub** button
+> might still appear on your login page even though the authentication flow is disabled.
 >
-> To completely hide the GitHub sign-in button, you must both disable the default
-> provider and ensure you don't have a custom GitHub OAuth app configured.
+> To completely hide the GitHub sign-in button, you must disable the default provider
+> and ensure you don't have a custom GitHub OAuth app configured.
 
 ## Step 1: Configure the OAuth application in GitHub
 
@@ -95,7 +99,7 @@ Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
-```env
+```shell
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
 CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
@@ -105,7 +109,7 @@ CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 > [!TIP]
 > To allow everyone to sign up using GitHub, set:
 >
-> ```env
+> ```shell
 > CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
 > ```
 
@@ -149,7 +153,7 @@ This is enabled by default for the default GitHub app and cannot be disabled for
 
 For your own custom GitHub OAuth app, you can enable device flow by setting:
 
-```env
+```shell
 CODER_OAUTH2_GITHUB_DEVICE_FLOW=true
 ```
 
