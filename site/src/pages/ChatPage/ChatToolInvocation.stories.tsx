@@ -38,7 +38,7 @@ export const CreateWorkspace: Story = {
 				name: MockWorkspace.name,
 				rich_parameters: {},
 				template_version_id: MockWorkspace.template_active_version_id,
-				user: MockWorkspace.owner_name,
+				user: MockWorkspace.owner_username,
 			},
 			MockWorkspace,
 		),

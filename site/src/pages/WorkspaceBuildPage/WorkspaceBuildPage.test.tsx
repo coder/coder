@@ -21,12 +21,12 @@ describe("WorkspaceBuildPage", () => {
 			.spyOn(API, "getWorkspaceBuildByNumber")
 			.mockResolvedValue(MockWorkspaceBuild);
 		renderWithAuth(<WorkspaceBuildPage />, {
-			route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
+			route: `/@${MockWorkspace.owner_username}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
 			path: "/:username/:workspace/builds/:buildNumber",
 		});
 		await waitFor(() =>
 			expect(getWorkspaceBuildSpy).toBeCalledWith(
-				MockWorkspace.owner_name,
+				MockWorkspace.owner_username,
 				MockWorkspace.name,
 				MockWorkspaceBuild.build_number,
 			),
@@ -52,7 +52,7 @@ describe("WorkspaceBuildPage", () => {
 
 		client.onmessage = async () => {
 			renderWithAuth(<WorkspaceBuildPage />, {
-				route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
+				route: `/@${MockWorkspace.owner_username}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
 				path: "/:username/:workspace/builds/:buildNumber",
 			});
 
@@ -70,7 +70,7 @@ describe("WorkspaceBuildPage", () => {
 			}/logs?follow&after=0`,
 		);
 		renderWithAuth(<WorkspaceBuildPage />, {
-			route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}?${LOGS_TAB_KEY}=${MockWorkspaceAgent.id}`,
+			route: `/@${MockWorkspace.owner_username}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}?${LOGS_TAB_KEY}=${MockWorkspaceAgent.id}`,
 			path: "/:username/:workspace/builds/:buildNumber",
 		});
 		await screen.findByText(`Build #${MockWorkspaceBuild.build_number}`);

@@ -330,7 +330,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 							</TableCell>
 							<TableCell>
 								<AvatarData
-									title={workspace.owner_name}
+									title={workspace.owner_username}
 									subtitle={
 										<span className="block first-letter:uppercase">
 											{relativeTime(new Date(workspace.created_at))}
