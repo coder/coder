@@ -16,7 +16,6 @@ export const Closed: Story = {
 	args: {
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
-		sshPrefix: "coder.",
 	},
 };
 
@@ -24,7 +23,6 @@ export const Opened: Story = {
 	args: {
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
-		sshPrefix: "coder.",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

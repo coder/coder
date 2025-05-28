@@ -44,7 +44,7 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
 
-export interface AgentRowProps {
+interface AgentRowProps {
 	agent: WorkspaceAgent;
 	workspace: Workspace;
 	template: Template;

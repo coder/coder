@@ -28,7 +28,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 	args: {
 		agent: MockWorkspaceAgent,
 		template: MockTemplate,
-		workspaceID: MockWorkspace.id,
+		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
 		host: "coder.com",
 	},

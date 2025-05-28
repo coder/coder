@@ -95,7 +95,6 @@ const meta: Meta<typeof AgentRow> = {
 			logs_length: logs.length,
 		},
 		workspace: M.MockWorkspace,
-		showApps: true,
 		initialMetadata: defaultAgentMetadata,
 	},
 	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
@@ -121,24 +120,6 @@ type Story = StoryObj<typeof AgentRow>;
 
 export const Example: Story = {};
 
-export const HideSSHButton: Story = {
-	args: {
-		hideSSHButton: true,
-	},
-};
-
-export const HideVSCodeDesktopButton: Story = {
-	args: {
-		hideVSCodeDesktopButton: true,
-	},
-};
-
-export const NotShowingApps: Story = {
-	args: {
-		showApps: false,
-	},
-};
-
 export const BunchOfApps: Story = {
 	args: {
 		agent: {
@@ -155,7 +136,6 @@ export const BunchOfApps: Story = {
 			],
 		},
 		workspace: M.MockWorkspace,
-		showApps: true,
 	},
 };
 
@@ -246,8 +226,6 @@ export const Outdated: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentOutdated,
 		workspace: M.MockWorkspace,
-		serverVersion: "v99.999.9999+c1cdf14",
-		serverAPIVersion: "1.0",
 	},
 };
 
@@ -255,8 +233,6 @@ export const Deprecated: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentDeprecated,
 		workspace: M.MockWorkspace,
-		serverVersion: "v99.999.9999+c1cdf14",
-		serverAPIVersion: "2.0",
 	},
 };
 
