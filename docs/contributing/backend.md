@@ -7,9 +7,7 @@ Coder’s backend powers the core infrastructure behind workspace provisioning, 
 The purpose of this guide is to help you:
 
 * Understand how the various backend components fit together.
-
 * Navigate the codebase with confidence and adhere to established best practices.
-
 * Contribute meaningful changes - whether you're fixing bugs, implementing features, or reviewing code.
 
 By aligning on tools, workflows, and conventions, we reduce cognitive overhead, improve collaboration across teams, and accelerate our ability to deliver high-quality software.
@@ -86,3 +84,31 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 * [coder/serpent](https://github.com/coder/serpent): CLI framework built on `cobra`, used for large, complex CLIs
 * [coder/guts](https://github.com/coder/guts): generates TypeScript types from Go for shared type definitions
 * [coder/wgtunnel](https://github.com/coder/wgtunnel): WireGuard tunnel server for secure backend networking
+
+## Repository Structure
+
+The Coder backend is organized into multiple packages and directories, each with a specific purpose. Here's a high-level overview of the most important ones:
+
+* [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
+* [cli](https://github.com/coder/coder/tree/main/cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/cliui), and [testdata](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/testdata) contains golden files for common CLI calls
+* [cmd](https://github.com/coder/coder/tree/main/cmd): entry points for CLI and services, including `coderd`
+* [coderd](https://github.com/coder/coder/tree/main/coderd): the main API server implementation
+  * [audit](https://github.com/coder/coder/tree/main/coderd/audit): audit log logic, defines target resources, actions and extra fields
+  * [autobuild](https://github.com/coder/coder/tree/main/coderd/autobuild): core logic of the workspace autobuild executor, periodically evaluates workspaces for next transition actions
+  * `httpmw`: shared HTTP middleware
+  * `prebuilds`: prebuilt workspace logic
+  * `provisionerdserver`: interface to provisioner processes
+  * `rbac`: role-based access control
+  * `telemetry`: metrics and observability
+  * `tracing`: distributed tracing support
+  * `workspaceapps`: app lifecycle in workspaces
+  * `wsbuilder`: workspace build system
+* `database`: schema migrations and query logic
+* `dogfood`: internal testing and validation tools
+* `enterprise`: enterprise-only features and extensions
+* `nix`: Nix utility scripts and definitions
+* `provisioner`, `provisionerd`, `provisionersdk`: components for infrastructure provisioning
+* `pty`: terminal emulation for remote shells
+* `support`: shared internal helpers
+* `tailnet`: network stack and identity management
+* `vpn`: VPN and tunneling components
