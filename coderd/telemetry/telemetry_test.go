@@ -448,7 +448,7 @@ type mockDB struct {
 	database.Store
 }
 
-func (m *mockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
+func (*mockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
 	return []database.GetPrebuildMetricsRow{
 		{
 			TemplateName:     "template1",
@@ -473,7 +473,7 @@ type emptyMockDB struct {
 	database.Store
 }
 
-func (m *emptyMockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
+func (*emptyMockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
 	return []database.GetPrebuildMetricsRow{}, nil
 }
 
