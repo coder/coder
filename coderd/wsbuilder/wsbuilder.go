@@ -637,7 +637,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		//  conditional parameter existence, the static frame of reference
 		//  is not sufficient. So assume the user is correct, or pull in the
 		//  dynamic param code to find the actual parameters.
-		latestValues := make(map[string]string)
+		latestValues := make(map[string]string, len(b.richParameterValues))
 		for _, latest := range b.richParameterValues {
 			latestValues[latest.Name] = latest.Value
 		}

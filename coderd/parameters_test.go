@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"os"
-	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -281,17 +280,10 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 
 			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
 			require.NoError(t, err)
-
-			require.Len(t, latestParams, 2)
-			idx := slices.IndexFunc(latestParams, func(parameter codersdk.WorkspaceBuildParameter) bool {
-				return parameter.Name == "jetbrains_ide"
+			require.ElementsMatch(t, latestParams, []codersdk.WorkspaceBuildParameter{
+				{Name: "jetbrains_ide", Value: "GO"},
+				{Name: "foo", Value: fooVal},
 			})
-			require.Equal(t, "jetbrains_ide", latestParams[idx].Name)
-			require.Equal(t, "GO", latestParams[idx].Value)
-
-			fooIdx := (idx + 1) % 2
-			require.Equal(t, "foo", latestParams[fooIdx].Name)
-			require.Equal(t, fooVal, latestParams[fooIdx].Value)
 		}
 
 		// Restart the workspace, then delete. Asserting params on all builds.
