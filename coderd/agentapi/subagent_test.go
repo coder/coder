@@ -24,7 +24,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestDevContainerAgentAPI(t *testing.T) {
+func TestSubAgentAPI(t *testing.T) {
 	t.Parallel()
 
 	newDatabaseWithOrg := func(t *testing.T) (database.Store, database.Organization) {
@@ -68,14 +68,14 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		return user, agent
 	}
 
-	newAgentAPI := func(t *testing.T, logger slog.Logger, db database.Store, clock quartz.Clock, user database.User, org database.Organization, agent database.WorkspaceAgent) *agentapi.DevContainerAgentAPI {
+	newAgentAPI := func(t *testing.T, logger slog.Logger, db database.Store, clock quartz.Clock, user database.User, org database.Organization, agent database.WorkspaceAgent) *agentapi.SubAgentAPI {
 		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 		accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
 		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 		accessControlStore.Store(&acs)
 
-		return &agentapi.DevContainerAgentAPI{
+		return &agentapi.SubAgentAPI{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 			AgentID:        agent.ID,
@@ -87,7 +87,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		}
 	}
 
-	t.Run("CreateDevContainerAgent", func(t *testing.T) {
+	t.Run("CreateSubAgent", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -135,7 +135,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 				user, agent := newUserWithWorkspaceAgent(t, db, org)
 				api := newAgentAPI(t, log, db, clock, user, org, agent)
 
-				createResp, err := api.CreateDevContainerAgent(ctx, &proto.CreateDevContainerAgentRequest{
+				createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
 					Name:            tt.agentName,
 					Directory:       tt.agentDir,
 					Architecture:    tt.agentArch,
@@ -161,7 +161,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		}
 	})
 
-	t.Run("DeleteDevContainerAgent", func(t *testing.T) {
+	t.Run("DeleteSubAgent", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("WhenOnlyOne", func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 			user, agent := newUserWithWorkspaceAgent(t, db, org)
 			api := newAgentAPI(t, log, db, clock, user, org, agent)
 
-			// Given: A dev container agent.
+			// Given: A sub agent.
 			childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 				ResourceID:      agent.ResourceID,
@@ -184,8 +184,8 @@ func TestDevContainerAgentAPI(t *testing.T) {
 				OperatingSystem: "linux",
 			})
 
-			// When: We delete the dev container agent.
-			_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+			// When: We delete the sub agent.
+			_, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
 				Id: childAgent.ID[:],
 			})
 			require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 			user, agent := newUserWithWorkspaceAgent(t, db, org)
 			api := newAgentAPI(t, log, db, clock, user, org, agent)
 
-			// Given: Multiple dev container agents.
+			// Given: Multiple sub agents.
 			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 				ResourceID:      agent.ResourceID,
@@ -225,8 +225,8 @@ func TestDevContainerAgentAPI(t *testing.T) {
 				OperatingSystem: "linux",
 			})
 
-			// When: We delete one of the dev container agents.
-			_, err := api.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+			// When: We delete one of the sub agents.
+			_, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
 				Id: childAgentOne.ID[:],
 			})
 			require.NoError(t, err)
@@ -265,7 +265,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 			})
 
 			// When: An agent API attempts to delete an agent it doesn't own
-			_, err := apiTwo.DeleteDevContainerAgent(ctx, &proto.DeleteDevContainerAgentRequest{
+			_, err := apiTwo.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
 				Id: childAgentOne.ID[:],
 			})
 
@@ -277,7 +277,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 		})
 	})
 
-	t.Run("ListDevContainerAgents", func(t *testing.T) {
+	t.Run("ListSubAgents", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("Empty", func(t *testing.T) {
@@ -291,8 +291,8 @@ func TestDevContainerAgentAPI(t *testing.T) {
 			user, agent := newUserWithWorkspaceAgent(t, db, org)
 			api := newAgentAPI(t, log, db, clock, user, org, agent)
 
-			// When: We list dev container agents with no children
-			listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+			// When: We list sub agents with no children
+			listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
 			require.NoError(t, err)
 
 			// Then: We expect an empty list
@@ -310,7 +310,7 @@ func TestDevContainerAgentAPI(t *testing.T) {
 			user, agent := newUserWithWorkspaceAgent(t, db, org)
 			api := newAgentAPI(t, log, db, clock, user, org, agent)
 
-			// Given: Multiple dev container agents.
+			// Given: Multiple sub agents.
 			childAgentOne := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 				ResourceID:      agent.ResourceID,
@@ -334,12 +334,12 @@ func TestDevContainerAgentAPI(t *testing.T) {
 				return cmp.Compare(a.ID.String(), b.ID.String())
 			})
 
-			// When: We list the dev container agents.
-			listResp, err := api.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{}) //nolint:gocritic // this is a test.
+			// When: We list the sub agents.
+			listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{}) //nolint:gocritic // this is a test.
 			require.NoError(t, err)
 
 			listedChildAgents := listResp.Agents
-			slices.SortFunc(listedChildAgents, func(a, b *proto.ListDevContainerAgentsResponse_DevContainerAgent) int {
+			slices.SortFunc(listedChildAgents, func(a, b *proto.ListSubAgentsResponse_SubAgent) int {
 				return cmp.Compare(string(a.Id), string(b.Id))
 			})
 
@@ -386,8 +386,8 @@ func TestDevContainerAgentAPI(t *testing.T) {
 				OperatingSystem: "linux",
 			})
 
-			// When: We list the dev container agents for the first user
-			listRespOne, err := apiOne.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+			// When: We list the sub agents for the first user
+			listRespOne, err := apiOne.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
 			require.NoError(t, err)
 
 			// Then: We should only see the first user's child agent
@@ -395,8 +395,8 @@ func TestDevContainerAgentAPI(t *testing.T) {
 			require.Equal(t, childAgentOne.ID[:], listRespOne.Agents[0].Id)
 			require.Equal(t, childAgentOne.Name, listRespOne.Agents[0].Name)
 
-			// When: We list the dev container agents for the second user
-			listRespTwo, err := apiTwo.ListDevContainerAgents(ctx, &proto.ListDevContainerAgentsRequest{})
+			// When: We list the sub agents for the second user
+			listRespTwo, err := apiTwo.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
 			require.NoError(t, err)
 
 			// Then: We should only see the second user's child agent

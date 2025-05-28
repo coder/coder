@@ -51,11 +51,17 @@ type DRPCAgentClient24 interface {
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }
 
-// DRPCAgentClient25 is the Agent API at v2.5. It adds the CreateDevContainerAgent,
-// DeleteDevContainerAgent and ListDevContainerAgents RPCs.
+// DRPCAgentClient25 is the Agent API at v2.5. It adds a ParentId field to the
+// agent manifest response. Compatible with Coder v2.23+
 type DRPCAgentClient25 interface {
 	DRPCAgentClient24
-	CreateDevContainerAgent(ctx context.Context, in *CreateDevContainerAgentRequest) (*CreateDevContainerAgentResponse, error)
-	DeleteDevContainerAgent(ctx context.Context, in *DeleteDevContainerAgentRequest) (*DeleteDevContainerAgentResponse, error)
-	ListDevContainerAgents(ctx context.Context, in *ListDevContainerAgentsRequest) (*ListDevContainerAgentsResponse, error)
+}
+
+// DRPCAgentClient26 is the Agent API at v2.6. It adds the CreateSubAgent,
+// DeleteSubAgent and ListSubAgents RPCs. Compatible with Coder v2.24+
+type DRPCAgentClient26 interface {
+	DRPCAgentClient25
+	CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
+	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
+	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
 }

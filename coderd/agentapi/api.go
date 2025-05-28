@@ -51,7 +51,7 @@ type API struct {
 	*LogsAPI
 	*ScriptsAPI
 	*AuditAPI
-	*DevContainerAgentAPI
+	*SubAgentAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -195,7 +195,7 @@ func New(opts Options) *API {
 		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
 	}
 
-	api.DevContainerAgentAPI = &DevContainerAgentAPI{
+	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
 		AgentID:        opts.AgentID,

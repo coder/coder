@@ -377,33 +377,33 @@ message ReportConnectionRequest {
 	Connection connection = 1;
 }
 
-message CreateDevContainerAgentRequest {
+message CreateSubAgentRequest {
 	string name = 1;
 	string directory = 2;
 	string architecture = 3;
 	string operating_system = 4;
 }
 
-message CreateDevContainerAgentResponse {
+message CreateSubAgentResponse {
 	bytes id = 1;
 	bytes auth_token = 2;
 }
 
-message DeleteDevContainerAgentRequest {
+message DeleteSubAgentRequest {
 	bytes id = 1;
 }
 
-message DeleteDevContainerAgentResponse {}
+message DeleteSubAgentResponse {}
 
-message ListDevContainerAgentsRequest {}
+message ListSubAgentsRequest {}
 
-message ListDevContainerAgentsResponse {
-	message DevContainerAgent {
+message ListSubAgentsResponse {
+	message SubAgent {
 		string name = 1;
 		bytes id = 2;
 	}
 
-	repeated DevContainerAgent agents = 1;
+	repeated SubAgent agents = 1;
 }
 
 service Agent {
@@ -420,7 +420,7 @@ service Agent {
 	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
-	rpc CreateDevContainerAgent(CreateDevContainerAgentRequest) returns (CreateDevContainerAgentResponse);
-	rpc DeleteDevContainerAgent(DeleteDevContainerAgentRequest) returns (DeleteDevContainerAgentResponse);
-	rpc ListDevContainerAgents(ListDevContainerAgentsRequest) returns (ListDevContainerAgentsResponse);
+	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
+	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
+	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 }

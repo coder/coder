@@ -15,7 +15,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-type DevContainerAgentAPI struct {
+type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
 	AgentID        uuid.UUID
@@ -26,9 +26,9 @@ type DevContainerAgentAPI struct {
 	Database database.Store
 }
 
-func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
+func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
 	parentAgent, err := a.AgentFn(ctx)
 	if err != nil {
@@ -45,7 +45,7 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 
 	createdAt := a.Clock.Now()
 
-	devContainerAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
 		CreatedAt:                createdAt,
@@ -68,48 +68,48 @@ func (a *DevContainerAgentAPI) CreateDevContainerAgent(ctx context.Context, req 
 		APIKeyScope:              parentAgent.APIKeyScope,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert dev container agent: %w", err)
+		return nil, xerrors.Errorf("insert sub agent: %w", err)
 	}
 
-	return &agentproto.CreateDevContainerAgentResponse{
-		Id:        devContainerAgent.ID[:],
-		AuthToken: devContainerAgent.AuthToken[:],
+	return &agentproto.CreateSubAgentResponse{
+		Id:        subAgent.ID[:],
+		AuthToken: subAgent.AuthToken[:],
 	}, nil
 }
 
-func (a *DevContainerAgentAPI) DeleteDevContainerAgent(ctx context.Context, req *agentproto.DeleteDevContainerAgentRequest) (*agentproto.DeleteDevContainerAgentResponse, error) {
+func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	devContainerAgentID, err := uuid.FromBytes(req.Id)
+	subAgentID, err := uuid.FromBytes(req.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := a.Database.DeleteWorkspaceAgentByID(ctx, devContainerAgentID); err != nil {
+	if err := a.Database.DeleteWorkspaceAgentByID(ctx, subAgentID); err != nil {
 		return nil, err
 	}
 
-	return &agentproto.DeleteDevContainerAgentResponse{}, nil
+	return &agentproto.DeleteSubAgentResponse{}, nil
 }
 
-func (a *DevContainerAgentAPI) ListDevContainerAgents(ctx context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
+func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsDevContainerAgentAPI(ctx, a.OwnerID, a.OrganizationID)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
 	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, a.AgentID)
 	if err != nil {
 		return nil, err
 	}
 
-	agents := make([]*agentproto.ListDevContainerAgentsResponse_DevContainerAgent, len(workspaceAgents))
+	agents := make([]*agentproto.ListSubAgentsResponse_SubAgent, len(workspaceAgents))
 
 	for i, agent := range workspaceAgents {
-		agents[i] = &agentproto.ListDevContainerAgentsResponse_DevContainerAgent{
+		agents[i] = &agentproto.ListSubAgentsResponse_SubAgent{
 			Name: agent.Name,
 			Id:   agent.ID[:],
 		}
 	}
 
-	return &agentproto.ListDevContainerAgentsResponse{Agents: agents}, nil
+	return &agentproto.ListSubAgentsResponse{Agents: agents}, nil
 }

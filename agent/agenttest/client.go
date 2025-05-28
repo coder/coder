@@ -98,8 +98,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC25(ctx context.Context) (
-	agentproto.DRPCAgentClient25, proto.DRPCTailnetClient25, error,
+func (c *Client) ConnectRPC26(ctx context.Context) (
+	agentproto.DRPCAgentClient26, proto.DRPCTailnetClient26, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -365,15 +365,15 @@ func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequ
 	return slices.Clone(f.connectionReports)
 }
 
-func (*FakeAgentAPI) CreateDevContainerAgent(_ context.Context, _ *agentproto.CreateDevContainerAgentRequest) (*agentproto.CreateDevContainerAgentResponse, error) {
+func (*FakeAgentAPI) CreateSubAgent(_ context.Context, _ *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	panic("unimplemented")
 }
 
-func (*FakeAgentAPI) DeleteDevContainerAgent(_ context.Context, _ *agentproto.DeleteDevContainerAgentRequest) (*agentproto.DeleteDevContainerAgentResponse, error) {
+func (*FakeAgentAPI) DeleteSubAgent(_ context.Context, _ *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
 	panic("unimplemented")
 }
 
-func (*FakeAgentAPI) ListDevContainerAgents(_ context.Context, _ *agentproto.ListDevContainerAgentsRequest) (*agentproto.ListDevContainerAgentsResponse, error) {
+func (*FakeAgentAPI) ListSubAgents(_ context.Context, _ *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
 	panic("unimplemented")
 }
 

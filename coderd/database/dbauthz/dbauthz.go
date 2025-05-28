@@ -319,15 +319,15 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	subjectDevContainerAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
+	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
 		return rbac.Subject{
-			Type:         rbac.SubjectTypeDevContainerAgentAPI,
-			FriendlyName: "Dev Container Agent API",
+			Type:         rbac.SubjectTypeSubAgentAPI,
+			FriendlyName: "Sub Agent API",
 			ID:           userID.String(),
 			Roles: rbac.Roles([]rbac.Role{
 				{
-					Identifier:  rbac.RoleIdentifier{Name: "devcontaineragentapi"},
-					DisplayName: "Dev Container Agent API",
+					Identifier:  rbac.RoleIdentifier{Name: "subagentapi"},
+					DisplayName: "Sub Agent API",
 					Site:        []rbac.Permission{},
 					Org: map[string][]rbac.Permission{
 						orgID.String(): {},
@@ -459,10 +459,10 @@ func AsResourceMonitor(ctx context.Context) context.Context {
 	return As(ctx, subjectResourceMonitor)
 }
 
-// AsDevContainerAgentAPI returns a context with an actor that has permissions required for
-// handling the lifecycle of dev container agents.
-func AsDevContainerAgentAPI(ctx context.Context, userID uuid.UUID, orgID uuid.UUID) context.Context {
-	return As(ctx, subjectDevContainerAgentAPI(userID, orgID))
+// AsSubAgentAPI returns a context with an actor that has permissions required for
+// handling the lifecycle of sub agents.
+func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
+	return As(ctx, subjectSubAgentAPI(userID, orgID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
