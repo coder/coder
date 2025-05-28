@@ -216,7 +216,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									host={proxy.preferredWildcardHostname}
 									workspaceName={workspace.name}
 									agent={agent}
-									username={workspace.owner_name}
+									username={workspace.owner_username}
 									workspaceID={workspace.id}
 									template={template}
 								/>
@@ -239,7 +239,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							<>
 								{showVSCode && (
 									<VSCodeDesktopButton
-										userName={workspace.owner_name}
+										userName={workspace.owner_username}
 										workspaceName={workspace.name}
 										agentName={agent.name}
 										folderPath={agent.expanded_directory}
@@ -261,7 +261,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							<TerminalLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
-								userName={workspace.owner_name}
+								userName={workspace.owner_username}
 							/>
 						)}
 					</section>
