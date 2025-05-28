@@ -109,17 +109,16 @@ The Coder backend is organized into multiple packages and directories, each with
   * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake): helper functions to quickly prepare the initial database state for testing purposes (e.g. create N healthy workspaces and templates), operates on higher level than [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen)
   * [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen): helper functions to insert raw records to the database store, used for testing purposes
   * [dbmem](https://github.com/coder/coder/tree/main/coderd/database/dbmem): in-memory implementation of the database store, ideally, every real query should have a complimentary Go implementation
-  * [dbmetrics](https://github.com/coder/coder/tree/main/coderd/database/dbmetrics)
-  * [dbmock](https://github.com/coder/coder/tree/main/coderd/database/dbmock)
-  * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge)
-  * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge)
-  * [gen](https://github.com/coder/coder/tree/main/coderd/database/gen)
-  * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations)
-  * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub)
-  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries)
-* `dogfood`: internal testing and validation tools
-* `enterprise`: enterprise-only features and extensions
-TODO
+  * [dbmock](https://github.com/coder/coder/tree/main/coderd/database/dbmock): a store wrapper for database queries, useful to verify if the function has been called, used for testing purposes
+  * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
+  * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
+  * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
+  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/blob/docs-backend-contrib-guide/coderd/database/queries.sql.go)
+  * [sqlc.yaml](https://github.com/coder/coder/tree/main/coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
+* [dogfood](https://github.com/coder/coder/tree/main/dogfood): Terraform definition of the dogfood cluster deployment
+* [enterprise](https://github.com/coder/coder/tree/main/enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
+  * [coderd](https://github.com/coder/coder/tree/main/enterprise/coderd)
+    * [prebuilds](https://github.com/coder/coder/tree/main/enterprise/coderd/prebuilds): core logic of prebuilt workspaces - reconciliation loop
 * `nix`: Nix utility scripts and definitions
 * `provisioner`, `provisionerd`, `provisionersdk`: components for infrastructure provisioning
 * `pty`: terminal emulation for remote shells
