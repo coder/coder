@@ -1,9 +1,9 @@
 import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { Link } from "components/Link/Link";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link } from "components/Link/Link";
 import {
 	type ErrorResponse,
 	isRouteErrorResponse,
