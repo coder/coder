@@ -5,6 +5,11 @@ CREATE TYPE agent_id_name_pair AS (
 	name text
 );
 
+CREATE TYPE agent_key_scope_enum AS ENUM (
+    'all',
+    'no_user_data'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'all',
     'application_connect'
@@ -146,6 +151,12 @@ CREATE TYPE parameter_type_system AS ENUM (
 CREATE TYPE port_share_protocol AS ENUM (
     'http',
     'https'
+);
+
+CREATE TYPE prebuild_status AS ENUM (
+    'healthy',
+    'hard_limited',
+    'validation_failed'
 );
 
 CREATE TYPE provisioner_daemon_status AS ENUM (
@@ -304,6 +315,43 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
+
+CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	workspace_build_id uuid;
+	agents_with_name int;
+BEGIN
+	-- Find the workspace build the workspace agent is being inserted into.
+	SELECT workspace_builds.id INTO workspace_build_id
+	FROM workspace_resources
+	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+	WHERE workspace_resources.id = NEW.resource_id;
+
+	-- If the agent doesn't have a workspace build, we'll allow the insert.
+	IF workspace_build_id IS NULL THEN
+		RETURN NEW;
+	END IF;
+
+	-- Count how many agents in this workspace build already have the given agent name.
+	SELECT COUNT(*) INTO agents_with_name
+	FROM workspace_agents
+	JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+	WHERE workspace_builds.id = workspace_build_id
+		AND workspace_agents.name = NEW.name
+		AND workspace_agents.id != NEW.id;
+
+	-- If there's already an agent with this name, raise an error
+	IF agents_with_name > 0 THEN
+		RAISE EXCEPTION 'workspace agent name "%" already exists in this workspace build', NEW.name
+			USING ERRCODE = 'unique_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
 
 CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
@@ -1434,14 +1482,19 @@ CREATE TABLE template_version_presets (
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desired_instances integer,
-    invalidate_after_secs integer DEFAULT 0
+    invalidate_after_secs integer DEFAULT 0,
+    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    cached_plan jsonb NOT NULL
+    cached_plan jsonb NOT NULL,
+    cached_module_files uuid,
+    provisionerd_version text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN template_version_terraform_values.provisionerd_version IS 'What version of the provisioning engine was used to generate the cached plan and module files.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -1491,6 +1544,7 @@ COMMENT ON COLUMN template_versions.message IS 'Message describing the changes i
 CREATE VIEW visible_users AS
  SELECT users.id,
     users.username,
+    users.name,
     users.avatar_url
    FROM users;
 
@@ -1511,7 +1565,8 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
-    COALESCE(visible_users.username, ''::text) AS created_by_username
+    COALESCE(visible_users.username, ''::text) AS created_by_username,
+    COALESCE(visible_users.name, ''::text) AS created_by_name
    FROM (template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
@@ -1551,7 +1606,8 @@ CREATE TABLE templates (
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
-    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
+    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1571,6 +1627,8 @@ COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks b
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
 
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
+
+COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -1601,8 +1659,10 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
+    templates.use_classic_parameter_flow,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
+    COALESCE(visible_users.name, ''::text) AS created_by_name,
     COALESCE(organizations.name, ''::text) AS organization_name,
     COALESCE(organizations.display_name, ''::text) AS organization_display_name,
     COALESCE(organizations.icon, ''::text) AS organization_icon
@@ -1832,6 +1892,8 @@ CREATE TABLE workspace_agents (
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     api_version text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
+    parent_id uuid,
+    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1857,6 +1919,8 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -1964,7 +2028,8 @@ CREATE TABLE workspace_apps (
     external boolean DEFAULT false NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
-    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL
+    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
+    display_group text
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
@@ -2016,24 +2081,59 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
-    COALESCE(visible_users.username, ''::text) AS initiator_by_username
+    COALESCE(visible_users.username, ''::text) AS initiator_by_username,
+    COALESCE(visible_users.name, ''::text) AS initiator_by_name
    FROM (workspace_builds
      LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
 CREATE VIEW workspace_latest_builds AS
- SELECT DISTINCT ON (wb.workspace_id) wb.id,
-    wb.workspace_id,
-    wb.template_version_id,
-    wb.job_id,
-    wb.template_version_preset_id,
-    wb.transition,
-    wb.created_at,
-    pj.job_status
-   FROM (workspace_builds wb
-     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
-  ORDER BY wb.workspace_id, wb.build_number DESC;
+ SELECT latest_build.id,
+    latest_build.workspace_id,
+    latest_build.template_version_id,
+    latest_build.job_id,
+    latest_build.template_version_preset_id,
+    latest_build.transition,
+    latest_build.created_at,
+    latest_build.job_status
+   FROM (workspaces
+     LEFT JOIN LATERAL ( SELECT workspace_builds.id,
+            workspace_builds.workspace_id,
+            workspace_builds.template_version_id,
+            workspace_builds.job_id,
+            workspace_builds.template_version_preset_id,
+            workspace_builds.transition,
+            workspace_builds.created_at,
+            provisioner_jobs.job_status
+           FROM (workspace_builds
+             JOIN provisioner_jobs ON ((provisioner_jobs.id = workspace_builds.job_id)))
+          WHERE (workspace_builds.workspace_id = workspaces.id)
+          ORDER BY workspace_builds.build_number DESC
+         LIMIT 1) latest_build ON (true))
+  WHERE (workspaces.deleted = false)
+  ORDER BY workspaces.id;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
@@ -2069,27 +2169,6 @@ CREATE TABLE workspace_resources (
     daily_cost integer DEFAULT 0 NOT NULL,
     module_path text
 );
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspace_prebuilds AS
  WITH all_prebuilds AS (
@@ -2206,6 +2285,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
+    visible_users.name AS owner_name,
     organizations.name AS organization_name,
     organizations.display_name AS organization_display_name,
     organizations.icon AS organization_icon,
@@ -2730,6 +2810,12 @@ CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE O
 
 CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
 
+CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF name, resource_id ON workspace_agents FOR EACH ROW EXECUTE FUNCTION check_workspace_agent_name_unique();
+
+COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
+the uniqueness requirement. A trigger allows us to enforce uniqueness going
+forward without requiring a migration to clean up historical data.';
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
@@ -2851,6 +2937,9 @@ ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_cached_module_files_fkey FOREIGN KEY (cached_module_files) REFERENCES files(id);
+
+ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_variables
@@ -2921,6 +3010,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

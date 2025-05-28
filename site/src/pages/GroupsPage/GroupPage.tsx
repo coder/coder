@@ -1,8 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
+import MuiButton from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";
 import {
 	addMember,
@@ -19,7 +16,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { Button as ShadcnButton } from "components/Button/Button";
+import { Button } from "components/Button/Button";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
@@ -36,6 +33,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -50,8 +48,9 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { TrashIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
+import { UserPlusIcon } from "lucide-react";
+import { SettingsIcon } from "lucide-react";
+import { EllipsisVertical, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -68,9 +67,10 @@ const GroupPage: FC = () => {
 	const navigate = useNavigate();
 	const groupQuery = useQuery(group(organization, groupName));
 	const groupData = groupQuery.data;
-	const { data: permissions } = useQuery(
-		groupData ? groupPermissions(groupData.id) : { enabled: false },
-	);
+	const { data: permissions } = useQuery({
+		...groupPermissions(groupData?.id ?? ""),
+		enabled: !!groupData,
+	});
 	const addMemberMutation = useMutation(addMember(queryClient));
 	const removeMemberMutation = useMutation(removeMember(queryClient));
 	const deleteGroupMutation = useMutation(deleteGroup(queryClient));
@@ -122,23 +122,23 @@ const GroupPage: FC = () => {
 
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
-						<Button
+						<MuiButton
 							component={RouterLink}
-							startIcon={<SettingsOutlined />}
+							startIcon={<SettingsIcon className="size-icon-sm" />}
 							to="settings"
 						>
 							Settings
-						</Button>
-						<Button
+						</MuiButton>
+						<MuiButton
 							disabled={groupData?.id === groupData?.organization_id}
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
-							startIcon={<TrashIcon className="size-icon-sm" />}
+							startIcon={<TrashIcon className="size-icon-xs" />}
 							css={styles.removeButton}
 						>
 							Delete&hellip;
-						</Button>
+						</MuiButton>
 					</Stack>
 				)}
 			</Stack>
@@ -146,7 +146,7 @@ const GroupPage: FC = () => {
 			<Stack spacing={1}>
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
 					<AddGroupMember
-						isLoading={addMemberMutation.isLoading}
+						isLoading={addMemberMutation.isPending}
 						organizationId={groupData.organization_id}
 						onSubmit={async (member, reset) => {
 							try {
@@ -221,7 +221,7 @@ const GroupPage: FC = () => {
 			{groupQuery.data && (
 				<DeleteDialog
 					isOpen={isDeletingGroup}
-					confirmLoading={deleteGroupMutation.isLoading}
+					confirmLoading={deleteGroupMutation.isPending}
 					name={groupQuery.data.name}
 					entity="group"
 					onConfirm={async () => {
@@ -280,15 +280,12 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({
 					}}
 				/>
 
-				<LoadingButton
-					loadingPosition="start"
-					disabled={!selectedUser}
-					type="submit"
-					startIcon={<PersonAdd />}
-					loading={isLoading}
-				>
+				<Button disabled={!selectedUser || isLoading} type="submit">
+					<Spinner loading={isLoading}>
+						<UserPlusIcon className="size-icon-sm" />
+					</Spinner>
 					Add user
-				</LoadingButton>
+				</Button>
 			</Stack>
 		</form>
 	);
@@ -333,14 +330,10 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<ShadcnButton
-								size="icon-lg"
-								variant="subtle"
-								aria-label="Open menu"
-							>
+							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
 								<EllipsisVertical aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
-							</ShadcnButton>
+							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem

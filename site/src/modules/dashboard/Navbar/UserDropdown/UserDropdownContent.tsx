@@ -4,13 +4,6 @@ import {
 	type Theme,
 	css,
 } from "@emotion/react";
-import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
-import BugIcon from "@mui/icons-material/BugReportOutlined";
-import ChatIcon from "@mui/icons-material/ChatOutlined";
-import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
-import LaunchIcon from "@mui/icons-material/LaunchOutlined";
-import DocsIcon from "@mui/icons-material/MenuBook";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
@@ -20,6 +13,12 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import { BookOpenTextIcon } from "lucide-react";
+import { BugIcon } from "lucide-react";
+import { CircleUserIcon } from "lucide-react";
+import { LogOutIcon } from "lucide-react";
+import { MessageSquareIcon } from "lucide-react";
+import { MonitorDownIcon, SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 
@@ -29,7 +28,7 @@ export const Language = {
 	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 };
 
-export interface UserDropdownContentProps {
+interface UserDropdownContentProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks?: readonly TypesGen.LinkConfig[];
@@ -53,9 +52,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			case "bug":
 				return <BugIcon css={styles.menuItemIcon} />;
 			case "chat":
-				return <ChatIcon css={styles.menuItemIcon} />;
+				return <MessageSquareIcon css={styles.menuItemIcon} />;
 			case "docs":
-				return <DocsIcon css={styles.menuItemIcon} />;
+				return <BookOpenTextIcon css={styles.menuItemIcon} />;
 			case "star":
 				return <GithubStar css={styles.menuItemIcon} />;
 			default:
@@ -79,20 +78,20 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 			<Link to="/install" css={styles.link}>
 				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<InstallDesktopIcon css={styles.menuItemIcon} />
+					<MonitorDownIcon css={styles.menuItemIcon} />
 					<span css={styles.menuItemText}>Install CLI</span>
 				</MenuItem>
 			</Link>
 
 			<Link to="/settings/account" css={styles.link}>
 				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<AccountIcon css={styles.menuItemIcon} />
+					<CircleUserIcon css={styles.menuItemIcon} />
 					<span css={styles.menuItemText}>{Language.accountLabel}</span>
 				</MenuItem>
 			</Link>
 
 			<MenuItem css={styles.menuItem} onClick={onSignOut}>
-				<LogoutIcon css={styles.menuItemIcon} />
+				<LogOutIcon css={styles.menuItemIcon} />
 				<span css={styles.menuItemText}>{Language.signOutLabel}</span>
 			</MenuItem>
 
@@ -126,7 +125,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						target="_blank"
 						rel="noreferrer"
 					>
-						{buildInfo?.version} <LaunchIcon />
+						{buildInfo?.version} <SquareArrowOutUpRightIcon />
 					</a>
 				</Tooltip>
 
@@ -151,15 +150,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						</Tooltip>
 						<CopyButton
 							text={buildInfo.deployment_id}
-							buttonStyles={css`
-                width: 16px;
-                height: 16px;
-
-                svg {
-                  width: 16px;
-                  height: 16px;
-                }
-              `}
+							label="Copy deployment ID"
 						/>
 					</div>
 				)}
@@ -181,7 +172,7 @@ const GithubStar: FC<SvgIconProps> = (props) => (
 		fill="currentColor"
 		{...props}
 	>
-		<path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path>
+		<path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
 	</svg>
 );
 

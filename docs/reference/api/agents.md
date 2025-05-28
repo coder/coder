@@ -470,6 +470,38 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace agent reinitialization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/reinit`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "reason": "prebuild_claimed",
+  "workspaceID": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ReinitializationEvent](schemas.md#agentsdkreinitializationevent) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent by ID
 
 ### Code samples
@@ -501,6 +533,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "command": "string",
       "display_name": "string",
       "external": true,
+      "group": "string",
       "health": "disabled",
       "healthcheck": {
         "interval": 0,
@@ -577,6 +610,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
+  "parent_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "scripts": [
@@ -740,6 +777,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
+      "devcontainer_dirty": true,
+      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {
@@ -774,6 +813,51 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 | Status | Meaning                                                 | Description | Schema                                                                                                   |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Recreate devcontainer for workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description          |
+|------------------|------|--------------|----------|----------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID   |
+| `container`      | path | string       | true     | Container ID or name |
+
+### Example responses
+
+> 202 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                       | Description | Schema                                           |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

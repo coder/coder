@@ -1,4 +1,3 @@
-import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import type {
@@ -7,7 +6,9 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { Form, FormFields } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
@@ -16,7 +17,7 @@ import { quietHoursDisplay, timeToCron, validTime } from "utils/schedule";
 import { getPreferredTimezone, timeZones } from "utils/timeZones";
 import * as Yup from "yup";
 
-export interface ScheduleFormValues {
+interface ScheduleFormValues {
 	time: string;
 	timezone: string;
 }
@@ -36,7 +37,7 @@ const validationSchema = Yup.object({
 	timezone: Yup.string().required(),
 });
 
-export interface ScheduleFormProps {
+interface ScheduleFormProps {
 	isLoading: boolean;
 	initialValues: UserQuietHoursScheduleResponse;
 	submitError: unknown;
@@ -137,14 +138,13 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 				/>
 
 				<div>
-					<LoadingButton
-						loading={isLoading}
+					<Button
 						disabled={isLoading || !initialValues.user_can_set}
 						type="submit"
-						variant="contained"
 					>
+						<Spinner loading={isLoading} />
 						Update schedule
-					</LoadingButton>
+					</Button>
 				</div>
 			</FormFields>
 		</Form>

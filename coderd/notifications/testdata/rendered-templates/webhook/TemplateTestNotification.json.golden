@@ -3,7 +3,7 @@
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
     "_version": "1.2",
-    "notification_name": "Test Notification",
+    "notification_name": "Troubleshooting Notification",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
     "user_email": "bobby@coder.com",

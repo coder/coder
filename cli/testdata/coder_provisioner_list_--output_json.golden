@@ -5,9 +5,9 @@
     "key_id": "00000000-0000-0000-0000-000000000001",
     "created_at": "====[timestamp]=====",
     "last_seen_at": "====[timestamp]=====",
-    "name": "test",
+    "name": "test-daemon",
     "version": "v0.0.0-devel",
-    "api_version": "1.4",
+    "api_version": "1.6",
     "provisioners": [
       "echo"
     ],

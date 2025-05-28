@@ -25,7 +25,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
 };
 
-export interface TokensPageViewProps {
+interface TokensPageViewProps {
 	tokens?: APIKeyWithOwner[];
 	getTokensError?: unknown;
 	isLoading: boolean;
@@ -58,7 +58,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 							<TableCell width="20%">Last Used</TableCell>
 							<TableCell width="20%">Expires At</TableCell>
 							<TableCell width="20%">Created At</TableCell>
-							<TableCell width="0%"></TableCell>
+							<TableCell width="0%" />
 						</TableRow>
 					</TableHead>
 					<TableBody>

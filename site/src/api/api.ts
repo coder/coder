@@ -221,11 +221,11 @@ export const watchBuildLogsByTemplateVersionId = (
 
 export const watchWorkspaceAgentLogs = (
 	agentId: string,
-	{ after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
+	params?: WatchWorkspaceAgentLogsParams,
 ) => {
 	const searchParams = new URLSearchParams({
 		follow: "true",
-		after: after.toString(),
+		after: params?.after?.toString() ?? "",
 	});
 
 	/**
@@ -237,32 +237,14 @@ export const watchWorkspaceAgentLogs = (
 		searchParams.set("no_compression", "");
 	}
 
-	const socket = createWebSocket(
-		`/api/v2/workspaceagents/${agentId}/logs`,
+	return new OneWayWebSocket<TypesGen.WorkspaceAgentLog[]>({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
 		searchParams,
-	);
-
-	socket.addEventListener("message", (event) => {
-		const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
-		onMessage(logs);
 	});
-
-	socket.addEventListener("error", () => {
-		onError(new Error("socket errored"));
-	});
-
-	socket.addEventListener("close", () => {
-		onDone?.();
-	});
-
-	return socket;
 };
 
-type WatchWorkspaceAgentLogsOptions = {
-	after: number;
-	onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
-	onDone?: () => void;
-	onError: (error: Error) => void;
+type WatchWorkspaceAgentLogsParams = {
+	after?: number;
 };
 
 type WatchBuildLogsByBuildIdOptions = {
@@ -482,10 +464,10 @@ class ApiMethods {
 		return response.data;
 	};
 
-	checkAuthorization = async (
+	checkAuthorization = async <TResponse extends TypesGen.AuthorizationResponse>(
 		params: TypesGen.AuthorizationRequest,
-	): Promise<TypesGen.AuthorizationResponse> => {
-		const response = await this.axios.post<TypesGen.AuthorizationResponse>(
+	) => {
+		const response = await this.axios.post<TResponse>(
 			"/api/v2/authcheck",
 			params,
 		);
@@ -827,6 +809,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getDeploymentLLMs = async (): Promise<TypesGen.LanguageModelConfig> => {
+		const response = await this.axios.get<TypesGen.LanguageModelConfig>(
+			"/api/v2/deployment/llms",
+		);
+		return response.data;
+	};
+
 	getOrganizationIdpSyncClaimFieldValues = async (
 		organization: string,
 		field: string,
@@ -1011,7 +1000,6 @@ class ApiMethods {
 	};
 
 	templateVersionDynamicParameters = (
-		userId: string,
 		versionId: string,
 		{
 			onMessage,
@@ -1024,7 +1012,7 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/users/${userId}/templateversions/${versionId}/parameters`,
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
 		);
 
 		socket.addEventListener("message", (event) =>
@@ -1177,7 +1165,7 @@ class ApiMethods {
 					)
 				) {
 					const { job } = await this.getWorkspaceBuildByNumber(
-						build.workspace_owner_name,
+						build.workspace_owner_username,
 						build.workspace_name,
 						build.build_number,
 					);
@@ -2446,21 +2434,11 @@ class ApiMethods {
 		const params = new URLSearchParams(
 			labels?.map((label) => ["label", label]),
 		);
-
-		try {
-			const res =
-				await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
-					`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
-				);
-			return res.data;
-		} catch (err) {
-			// If the error is a 403, it means that experimental
-			// containers are not enabled on the agent.
-			if (isAxiosError(err) && err.response?.status === 403) {
-				return { containers: [] };
-			}
-			throw err;
-		}
+		const res =
+			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
+				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
+			);
+		return res.data;
 	};
 
 	getInboxNotifications = async (startingBeforeId?: string) => {
@@ -2488,6 +2466,23 @@ class ApiMethods {
 
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+	};
+
+	createChat = async () => {
+		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
+		return res.data;
+	};
+
+	getChats = async () => {
+		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		return res.data;
+	};
+
+	getChatMessages = async (chatId: string) => {
+		const res = await this.axios.get<TypesGen.ChatMessage[]>(
+			`/api/v2/chats/${chatId}/messages`,
+		);
+		return res.data;
 	};
 }
 

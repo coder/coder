@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -75,7 +76,6 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -84,7 +84,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -95,6 +95,8 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
+
+const defaultTestDaemonName = "test-daemon"
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -135,6 +137,7 @@ type Options struct {
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
+	ProvisionerDaemonVersion    string
 	ProvisionerDaemonTags       map[string]string
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
@@ -351,6 +354,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	auditor.Store(&options.Auditor)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
@@ -362,14 +366,15 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		*options.Logger,
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
+		experiments,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
-	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
-	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
-	hangDetector.Start()
-	t.Cleanup(hangDetector.Close)
+	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
+	defer jobReaperTicker.Stop()
+	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C)
+	jobReaper.Start()
+	t.Cleanup(jobReaper.Close)
 
 	if options.TelemetryReporter == nil {
 		options.TelemetryReporter = telemetry.NewNoop()
@@ -601,7 +606,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	setHandler(rootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
-		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, "test", options.ProvisionerDaemonTags)
+		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
 	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
@@ -645,10 +650,10 @@ func (c *ProvisionerdCloser) Close() error {
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
 func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
-	return NewTaggedProvisionerDaemon(t, coderAPI, "test", nil)
+	return NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, nil)
 }
 
-func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string, provisionerTags map[string]string) io.Closer {
+func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string, provisionerTags map[string]string, opts ...coderd.MemoryProvisionerDaemonOption) io.Closer {
 	t.Helper()
 
 	// t.Cleanup runs in last added, first called order. t.TempDir() will delete
@@ -657,7 +662,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 	// seems t.TempDir() is not safe to call from a different goroutine
 	workDir := t.TempDir()
 
-	echoClient, echoServer := drpc.MemTransportPipe()
+	echoClient, echoServer := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		_ = echoClient.Close()
@@ -676,7 +681,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 
 	connectedCh := make(chan struct{})
 	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags)
+		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags, opts...)
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -1103,6 +1108,69 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	//nolint: revive // returns modified struct
 	w.resourcesMatcher = m
 	return w
+}
+
+// WaitForAgentFn represents a boolean assertion to be made against each agent
+// that a given WorkspaceAgentWaited knows about. Each WaitForAgentFn should apply
+// the check to a single agent, but it should be named for plural, because `func (w WorkspaceAgentWaiter) WaitFor`
+// applies the check to all agents that it is aware of. This ensures that the public API of the waiter
+// reads correctly. For example:
+//
+// waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+// waiter.WaitFor(coderdtest.AgentsReady)
+type WaitForAgentFn func(agent codersdk.WorkspaceAgent) bool
+
+// AgentsReady checks that the latest lifecycle state of an agent is "Ready".
+func AgentsReady(agent codersdk.WorkspaceAgent) bool {
+	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+}
+
+// AgentsNotReady checks that the latest lifecycle state of an agent is anything except "Ready".
+func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
+	return !AgentsReady(agent)
+}
+
+func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
+	w.t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(w.agentNames))
+	for _, name := range w.agentNames {
+		agentNamesMap[name] = struct{}{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
+	require.Eventually(w.t, func() bool {
+		var err error
+		workspace, err := w.client.Workspace(ctx, w.workspaceID)
+		if err != nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				if len(w.agentNames) > 0 {
+					if _, ok := agentNamesMap[agent.Name]; !ok {
+						continue
+					}
+				}
+				for _, criterium := range criteria {
+					if !criterium(agent) {
+						return false
+					}
+				}
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
 }
 
 // Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong

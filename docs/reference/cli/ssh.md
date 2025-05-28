@@ -1,12 +1,22 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # ssh
 
-Start a shell into a workspace
+Start a shell into a workspace or run a command
 
 ## Usage
 
 ```console
-coder ssh [flags] <workspace>
+coder ssh [flags] <workspace> [command]
+```
+
+## Description
+
+```console
+This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.
+
+  - Use `--` to separate and pass flags directly to the command executed via SSH.:
+
+     $ coder ssh <workspace> -- ls -la
 ```
 
 ## Options

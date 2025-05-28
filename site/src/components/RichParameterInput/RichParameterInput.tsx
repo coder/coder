@@ -1,7 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import SettingsIcon from "@mui/icons-material/Settings";
-import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import type { InputBaseComponentProps } from "@mui/material/InputBase";
@@ -10,10 +7,13 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import type { TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { SettingsIcon } from "lucide-react";
+import { CircleAlertIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type {
 	AutofillBuildParameter,
@@ -121,7 +121,7 @@ const styles = {
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface ParameterLabelProps {
+interface ParameterLabelProps {
 	parameter: TemplateVersionParameter;
 	isPreset?: boolean;
 }
@@ -143,14 +143,17 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 			)}
 			{!parameter.mutable && (
 				<Tooltip title="This value cannot be modified after the workspace has been created.">
-					<Pill type="warning" icon={<ErrorOutline />}>
+					<Pill
+						type="warning"
+						icon={<CircleAlertIcon className="size-icon-xs" />}
+					>
 						Immutable
 					</Pill>
 				</Tooltip>
 			)}
 			{isPreset && (
 				<Tooltip title="This value was set by a preset">
-					<Pill type="info" icon={<SettingsIcon />}>
+					<Pill type="info" icon={<SettingsIcon className="size-icon-xs" />}>
 						Preset
 					</Pill>
 				</Tooltip>
@@ -188,10 +191,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 
 type Size = "medium" | "small";
 
-export type RichParameterInputProps = Omit<
-	TextFieldProps,
-	"size" | "onChange"
-> & {
+type RichParameterInputProps = Omit<TextFieldProps, "size" | "onChange"> & {
 	parameter: TemplateVersionParameter;
 	parameterAutofill?: AutofillBuildParameter;
 	onChange: (value: string) => void;
@@ -237,7 +237,9 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 					!hideSuggestion && (
 						<FormHelperText>
 							<Button
-								variant="text"
+								variant="subtle"
+								size="xs"
+								className="p-1 min-w-0"
 								css={styles.suggestion}
 								onClick={() => {
 									onChange(autofillValue);

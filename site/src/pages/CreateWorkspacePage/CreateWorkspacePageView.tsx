@@ -60,7 +60,7 @@ export const Language = {
 		"Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
 } as const;
 
-export interface CreateWorkspacePageViewProps {
+interface CreateWorkspacePageViewProps {
 	mode: CreateWorkspaceMode;
 	defaultName?: string | null;
 	disabledParams?: string[];

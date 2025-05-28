@@ -15,11 +15,11 @@ import { getTemplateVersionFiles } from "utils/templateVersion";
 
 const templateKey = (templateId: string) => ["template", templateId];
 
-export const template = (templateId: string): QueryOptions<Template> => {
+export const template = (templateId: string) => {
 	return {
 		queryKey: templateKey(templateId),
 		queryFn: async () => API.getTemplate(templateId),
-	};
+	} satisfies QueryOptions<Template>;
 };
 
 export const templateByNameKey = (organization: string, name: string) => [
@@ -28,14 +28,11 @@ export const templateByNameKey = (organization: string, name: string) => [
 	name,
 ];
 
-export const templateByName = (
-	organization: string,
-	name: string,
-): QueryOptions<Template> => {
+export const templateByName = (organization: string, name: string) => {
 	return {
 		queryKey: templateByNameKey(organization, name),
 		queryFn: async () => API.getTemplateByName(organization, name),
-	};
+	} satisfies QueryOptions<Template>;
 };
 
 const getTemplatesQueryKey = (
@@ -88,7 +85,9 @@ export const setUserRole = (
 				},
 			}),
 		onSuccess: async (_res, { templateId }) => {
-			await queryClient.invalidateQueries(["templateAcl", templateId]);
+			await queryClient.invalidateQueries({
+				queryKey: ["templateAcl", templateId],
+			});
 		},
 	};
 };
@@ -108,7 +107,9 @@ export const setGroupRole = (
 				},
 			}),
 		onSuccess: async (_res, { templateId }) => {
-			await queryClient.invalidateQueries(["templateAcl", templateId]);
+			await queryClient.invalidateQueries({
+				queryKey: ["templateAcl", templateId],
+			});
 		},
 	};
 };
@@ -139,9 +140,14 @@ export const templateVersionByName = (
 	};
 };
 
+export const templateVersionsQueryKey = (templateId: string) => [
+	"templateVersions",
+	templateId,
+];
+
 export const templateVersions = (templateId: string) => {
 	return {
-		queryKey: ["templateVersions", templateId],
+		queryKey: templateVersionsQueryKey(templateId),
 		queryFn: () => API.getTemplateVersions(templateId),
 	};
 };
@@ -192,9 +198,9 @@ export const updateActiveTemplateVersion = (
 			}),
 		onSuccess: async () => {
 			// invalidated because of `active_version_id`
-			await queryClient.invalidateQueries(
-				templateByNameKey(template.organization_id, template.name),
-			);
+			await queryClient.invalidateQueries({
+				queryKey: templateByNameKey(template.organization_id, template.name),
+			});
 		},
 	};
 };

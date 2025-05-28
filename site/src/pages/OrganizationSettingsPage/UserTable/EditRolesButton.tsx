@@ -1,4 +1,3 @@
-import UserIcon from "@mui/icons-material/PersonOutline";
 import Checkbox from "@mui/material/Checkbox";
 import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
@@ -17,6 +16,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
 const roleDescriptions: Record<string, string> = {
@@ -66,7 +66,7 @@ const Option: FC<OptionProps> = ({
 	);
 };
 
-export interface EditRolesButtonProps {
+interface EditRolesButtonProps {
 	isLoading: boolean;
 	roles: readonly SlimRole[];
 	selectedRoleNames: Set<string>;
@@ -175,7 +175,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 				</fieldset>
 				<div className="p-6 border-t-1 border-solid border-border text-sm">
 					<div className="flex gap-4">
-						<UserIcon className="size-icon-sm" />
+						<UserIcon />
 						<div className="flex flex-col">
 							<strong>Member</strong>
 							<span className="text-xs text-content-secondary">

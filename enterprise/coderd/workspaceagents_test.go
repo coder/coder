@@ -5,12 +5,20 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
+	"regexp"
+	"runtime"
 	"testing"
+	"time"
+
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/serpent"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -71,6 +79,174 @@ func TestBlockNonBrowser(t *testing.T) {
 		require.NoError(t, err)
 		_ = conn.Close()
 	})
+}
+
+func TestReinitializeAgent(t *testing.T) {
+	t.Parallel()
+
+	tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("dbmem cannot currently claim a workspace")
+	}
+
+	if runtime.GOOS == "windows" {
+		t.Skip("test startup script is not supported on windows")
+	}
+
+	startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+
+	db, ps := dbtestutil.NewDB(t)
+	// GIVEN a live enterprise API with the prebuilds feature enabled
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.Prebuilds.ReconciliationInterval = serpent.Duration(time.Second)
+				dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
+			}),
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+
+	// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
+	agentToken := uuid.UUID{3}
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets: []*proto.Preset{
+							{
+								Name: "test-preset",
+								Prebuild: &proto.Prebuild{
+									Instances: 1,
+								},
+							},
+						},
+						Resources: []*proto.Resource{
+							{
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{
+			{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+										Scripts: []*proto.Script{
+											{
+												RunOnStart: true,
+												Script:     startupScript,
+											},
+										},
+										Auth: &proto.Agent_Token{
+											Token: agentToken.String(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Wait for prebuilds to create a prebuilt workspace
+	ctx := context.Background()
+	// ctx := testutil.Context(t, testutil.WaitLong)
+	var (
+		prebuildID uuid.UUID
+	)
+	require.Eventually(t, func() bool {
+		agentAndBuild, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, agentToken)
+		if err != nil {
+			return false
+		}
+		prebuildID = agentAndBuild.WorkspaceBuild.ID
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	prebuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuildID)
+
+	preset, err := db.GetPresetByWorkspaceBuildID(ctx, prebuildID)
+	require.NoError(t, err)
+
+	// GIVEN a running agent
+	logDir := t.TempDir()
+	inv, _ := clitest.New(t,
+		"agent",
+		"--auth", "token",
+		"--agent-token", agentToken.String(),
+		"--agent-url", client.URL.String(),
+		"--log-dir", logDir,
+	)
+	clitest.Start(t, inv)
+
+	// GIVEN the agent is in a happy steady state
+	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, prebuild.WorkspaceID)
+	waiter.WaitFor(coderdtest.AgentsReady)
+
+	// WHEN a workspace is created that can benefit from prebuilds
+	anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	workspace, err := anotherClient.CreateUserWorkspace(ctx, anotherUser.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       version.ID,
+		TemplateVersionPresetID: preset.ID,
+		Name:                    "claimed-workspace",
+	})
+	require.NoError(t, err)
+
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// THEN reinitialization completes
+	waiter.WaitFor(coderdtest.AgentsReady)
+
+	var matches [][]byte
+	require.Eventually(t, func() bool {
+		// THEN the agent script ran again and reused the same agent token
+		contents, err := os.ReadFile(tempAgentLog.Name())
+		if err != nil {
+			return false
+		}
+		// UUID regex pattern (matches UUID v4-like strings)
+		uuidRegex := regexp.MustCompile(`\bCODER_AGENT_TOKEN=(.+)\b`)
+
+		matches = uuidRegex.FindAll(contents, -1)
+		// When an agent reinitializes, we expect it to run startup scripts again.
+		// As such, we expect to have written the agent environment to the temp file twice.
+		// Once on initial startup and then once on reinitialization.
+		return len(matches) == 2
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Equal(t, matches[0], matches[1])
 }
 
 type setupResp struct {

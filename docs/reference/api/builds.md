@@ -69,7 +69,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -88,6 +89,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "command": "string",
               "display_name": "string",
               "external": true,
+              "group": "string",
               "health": "disabled",
               "healthcheck": {
                 "interval": 0,
@@ -164,6 +166,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
+          "parent_id": {
+            "uuid": "string",
+            "valid": true
+          },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -219,7 +225,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 
@@ -298,7 +305,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -317,6 +325,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "command": "string",
               "display_name": "string",
               "external": true,
+              "group": "string",
               "health": "disabled",
               "healthcheck": {
                 "interval": 0,
@@ -393,6 +402,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
+          "parent_id": {
+            "uuid": "string",
+            "valid": true
+          },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -448,7 +461,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 
@@ -661,6 +675,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "command": "string",
             "display_name": "string",
             "external": true,
+            "group": "string",
             "health": "disabled",
             "healthcheck": {
               "interval": 0,
@@ -737,6 +752,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "logs_overflowed": true,
         "name": "string",
         "operating_system": "string",
+        "parent_id": {
+          "uuid": "string",
+          "valid": true
+        },
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "scripts": [
@@ -803,6 +822,7 @@ Status Code **200**
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `»»» external`                  | boolean                                                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» group`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                                                 | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
@@ -859,6 +879,9 @@ Status Code **200**
 | `»» logs_overflowed`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
+| `»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
@@ -997,7 +1020,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -1016,6 +1040,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "command": "string",
               "display_name": "string",
               "external": true,
+              "group": "string",
               "health": "disabled",
               "healthcheck": {
                 "interval": 0,
@@ -1092,6 +1117,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
+          "parent_id": {
+            "uuid": "string",
+            "valid": true
+          },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -1147,7 +1176,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 
@@ -1299,7 +1329,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1318,6 +1349,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -1394,6 +1426,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
+            "parent_id": {
+              "uuid": "string",
+              "valid": true
+            },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1449,7 +1485,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   }
 ]
 ```
@@ -1504,6 +1541,7 @@ Status Code **200**
 | `»»» [any property]`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» type`                        | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»» worker_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» worker_name`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» matched_provisioners`         | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» available`                   | integer                                                                                                | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped.                                                                            |
 | `»» count`                       | integer                                                                                                | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.                                                                                         |
@@ -1517,6 +1555,7 @@ Status Code **200**
 | `»»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `»»»» external`                  | boolean                                                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»»» group`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                                                 | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `»»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
@@ -1573,6 +1612,9 @@ Status Code **200**
 | `»»» logs_overflowed`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
 | `»»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
@@ -1617,6 +1659,7 @@ Status Code **200**
 | `» workspace_owner_avatar_url`   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_owner_id`           | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_owner_name`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `» workspace_owner_username`     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 
 #### Enumerated Values
 
@@ -1700,6 +1743,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 ```json
 {
   "dry_run": true,
+  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1772,7 +1816,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -1791,6 +1836,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "command": "string",
               "display_name": "string",
               "external": true,
+              "group": "string",
               "health": "disabled",
               "healthcheck": {
                 "interval": 0,
@@ -1867,6 +1913,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
+          "parent_id": {
+            "uuid": "string",
+            "valid": true
+          },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -1922,7 +1972,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+  "workspace_owner_name": "string",
+  "workspace_owner_username": "string"
 }
 ```
 

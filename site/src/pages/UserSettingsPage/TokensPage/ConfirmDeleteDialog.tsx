@@ -5,7 +5,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { useDeleteToken } from "./hooks";
 
-export interface ConfirmDeleteDialogProps {
+interface ConfirmDeleteDialogProps {
 	queryKey: (string | boolean)[];
 	token: APIKeyWithOwner | undefined;
 	setToken: (arg: APIKeyWithOwner | undefined) => void;
@@ -18,7 +18,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 }) => {
 	const tokenName = token?.token_name;
 
-	const { mutate: deleteToken, isLoading: isDeleting } =
+	const { mutate: deleteToken, isPending: isDeleting } =
 		useDeleteToken(queryKey);
 
 	const onDeleteSuccess = () => {

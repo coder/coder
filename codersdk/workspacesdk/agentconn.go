@@ -387,6 +387,26 @@ func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// RecreateDevcontainer recreates a devcontainer with the given container.
+// This is a blocking call and will wait for the container to be recreated.
+func (c *AgentConn) RecreateDevcontainer(ctx context.Context, containerIDOrName string) (codersdk.Response, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/containers/devcontainers/container/"+containerIDOrName+"/recreate", nil)
+	if err != nil {
+		return codersdk.Response{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return codersdk.Response{}, codersdk.ReadBodyAsError(res)
+	}
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return codersdk.Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
+}
+
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *AgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)

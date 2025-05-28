@@ -20,7 +20,7 @@ const collapsibleSummaryVariants = cva(
 	},
 );
 
-export interface CollapsibleSummaryProps
+interface CollapsibleSummaryProps
 	extends VariantProps<typeof collapsibleSummaryVariants> {
 	/**
 	 * The label to display for the collapsible section

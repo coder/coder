@@ -1,13 +1,5 @@
 import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import BuildingIcon from "@mui/icons-material/Build";
-import DownloadIcon from "@mui/icons-material/CloudDownload";
-import UploadIcon from "@mui/icons-material/CloudUpload";
-import CollectedIcon from "@mui/icons-material/Compare";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import LatencyIcon from "@mui/icons-material/SettingsEthernet";
-import WebTerminalIcon from "@mui/icons-material/WebAsset";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -24,6 +16,13 @@ import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { CloudDownloadIcon } from "lucide-react";
+import { CloudUploadIcon } from "lucide-react";
+import { GitCompareArrowsIcon } from "lucide-react";
+import { GaugeIcon } from "lucide-react";
+import { AppWindowIcon } from "lucide-react";
+import { RotateCwIcon, WrenchIcon } from "lucide-react";
+import { CircleAlertIcon } from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,
@@ -39,7 +38,7 @@ import { getDisplayWorkspaceStatus } from "utils/workspace";
 
 const bannerHeight = 36;
 
-export interface DeploymentBannerViewProps {
+interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;
 	stats?: DeploymentStats;
 	fetchStats?: () => void;
@@ -151,7 +150,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						to="/health"
 						css={[styles.statusBadge, styles.unhealthy]}
 					>
-						<ErrorIcon />
+						<CircleAlertIcon className="size-icon-sm" />
 					</Link>
 				) : (
 					<div css={styles.statusBadge}>
@@ -198,14 +197,14 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				<div css={styles.values}>
 					<Tooltip title="Data sent to workspaces">
 						<div css={styles.value}>
-							<DownloadIcon />
+							<CloudDownloadIcon className="size-icon-xs" />
 							{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
 						</div>
 					</Tooltip>
 					<ValueSeparator />
 					<Tooltip title="Data sent from workspaces">
 						<div css={styles.value}>
-							<UploadIcon />
+							<CloudUploadIcon className="size-icon-xs" />
 							{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
 						</div>
 					</Tooltip>
@@ -218,7 +217,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						}
 					>
 						<div css={styles.value}>
-							<LatencyIcon />
+							<GaugeIcon className="size-icon-xs" />
 							{displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
 						</div>
 					</Tooltip>
@@ -270,7 +269,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					<ValueSeparator />
 					<Tooltip title="Web Terminal Sessions">
 						<div css={styles.value}>
-							<WebTerminalIcon />
+							<AppWindowIcon className="size-icon-xs" />
 							{typeof stats?.session_count.reconnecting_pty === "undefined"
 								? "-"
 								: stats?.session_count.reconnecting_pty}
@@ -290,7 +289,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			>
 				<Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
 					<div css={styles.value}>
-						<CollectedIcon />
+						<GitCompareArrowsIcon className="size-icon-xs" />
 						{lastAggregated}
 					</div>
 				</Tooltip>
@@ -322,7 +321,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						}}
 						variant="text"
 					>
-						<RefreshIcon />
+						<RotateCwIcon className="size-icon-xs" />
 						{timeUntilRefresh}s
 					</Button>
 				</Tooltip>
@@ -344,7 +343,7 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	let statusText = displayStatus.text;
 	let icon = displayStatus.icon;
 	if (status === "starting") {
-		icon = <BuildingIcon />;
+		icon = <WrenchIcon className="size-icon-xs" />;
 		statusText = "Building";
 	}
 
@@ -372,9 +371,9 @@ const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
 
 	return (
 		<Stack direction="row" spacing={1} alignItems="center">
-			<ErrorIcon
-				css={{ width: 16, height: 16 }}
-				htmlColor={theme.roles.error.outline}
+			<CircleAlertIcon
+				className="size-icon-sm"
+				css={{ color: theme.roles.error.outline }}
 			/>
 			{children}
 		</Stack>

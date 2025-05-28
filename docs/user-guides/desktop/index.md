@@ -1,4 +1,4 @@
-# Coder Desktop (Early Access)
+# Coder Desktop (Beta)
 
 Use Coder Desktop to work on your workspaces as though they're on your LAN, no
 port-forwarding required.
@@ -22,7 +22,7 @@ You can install Coder Desktop on macOS or Windows.
 
    Alternatively, you can manually install Coder Desktop from the [releases page](https://github.com/coder/coder-desktop-macos/releases).
 
-1. Open **Coder Desktop** from the Applications directory. When macOS asks if you want to open it, select **Open**.
+1. Open **Coder Desktop** from the Applications directory.
 
 1. The application is treated as a system VPN. macOS will prompt you to confirm with:
 
@@ -79,11 +79,11 @@ Before you can use Coder Desktop, you will need to sign in.
 
    ## macOS
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png)
 
    ## Windows
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png)
 
    </div>
 
@@ -97,19 +97,19 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. In your web browser, you may be prompted to sign in to Coder with your credentials:
 
-   <Image height="412px" src="../../images/templates/coder-login-web.png" alt="Sign in to your Coder deployment" align="center" />
+   ![Sign in to your Coder deployment](../../images/templates/coder-login-web.png)
 
 1. Copy the session token to the clipboard:
 
-   <Image height="350px" src="../../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
+   ![Copy session token](../../images/templates/coder-session-token.png)
 
 1. Paste the token in the **Session Token** field of the **Sign In** screen, then select **Sign In**:
 
    ![Paste the session token in to sign in](../../images/user-guides/desktop/coder-desktop-session-token.png)
 
-1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted.
+1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted:
 
-   <Image height="350px" src="../../images/user-guides/desktop/mac-allow-vpn.png" alt="Copy session token" align="center" />
+   ![Copy session token](../../images/user-guides/desktop/mac-allow-vpn.png)
 
 1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the **Coder Connect** toggle to enable the connection.
 
@@ -129,28 +129,80 @@ While active, Coder Connect will list the workspaces you own and will configure 
 
 To copy the `.coder` hostname of a workspace agent, you can click the copy icon beside it.
 
-On macOS you can use `ping6` in your terminal to verify the connection to your workspace:
-
-   ```shell
-   ping6 -c 5 your-workspace.coder
-   ```
-
-On Windows, you can use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
-
-   ```shell
-   ping -n 5 your-workspace.coder
-   ```
-
-Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
-
 You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
 
    ```shell
    ssh your-workspace.coder
    ```
 
+Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
+
 > [!NOTE]
 > Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
+
+### Ping your workspace
+
+<div class="tabs">
+
+### macOS
+
+Use `ping6` in your terminal to verify the connection to your workspace:
+
+   ```shell
+   ping6 -c 5 your-workspace.coder
+   ```
+
+### Windows
+
+Use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
+
+   ```shell
+   ping -n 5 your-workspace.coder
+   ```
+
+</div>
+
+## Sync a local directory with your workspace
+
+Coder Desktop file sync provides bidirectional synchronization between a local directory and your workspace.
+You can work offline, add screenshots to documentation, or use local development tools while keeping your files in sync with your workspace.
+
+1. Create a new local directory.
+
+   If you select an existing clone of your repository, Desktop will recognize it as conflicting files.
+
+1. In the Coder Desktop app, select **File sync**.
+
+   ![Coder Desktop File Sync screen](../../images/user-guides/desktop/coder-desktop-file-sync.png)
+
+1. Select the **+** in the corner to select the local path, workspace, and remote path, then select **Add**:
+
+   ![Coder Desktop File Sync add paths](../../images/user-guides/desktop/coder-desktop-file-sync-add.png)
+
+1. File sync clones your workspace directory to your local directory, then watches for changes:
+
+   ![Coder Desktop File Sync watching](../../images/user-guides/desktop/coder-desktop-file-sync-watching.png)
+
+   For more information about the current status, hover your mouse over the status.
+
+File sync excludes version control system directories like `.git/` from synchronization, so keep your Git-cloned repository wherever you run Git commands.
+This means that if you use an IDE with a built-in terminal to edit files on your remote workspace, that should be the Git clone and your local directory should be for file syncs.
+
+> [!NOTE]
+> Coder Desktop uses `alpha` and `beta` to distinguish between the:
+>
+> - Local directory: `alpha`
+> - Remote directory: `beta`
+
+### File sync conflicts
+
+File sync shows a `Conflicts` status when it detects conflicting files.
+
+You can hover your mouse over the status for the list of conflicts:
+
+![Desktop file sync conflicts mouseover](../../images/user-guides/desktop/coder-desktop-file-sync-conflicts-mouseover.png)
+
+If you encounter a synchronization conflict, delete the conflicting file that contains changes you don't want to keep.
 
 ## Accessing web apps in a secure browser context
 

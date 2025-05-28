@@ -31,8 +31,18 @@ func WithRemoveExistingContainer() DevcontainerCLIUpOptions {
 	}
 }
 
+// WithOutput sets stdout and stderr writers for Up command logs.
+func WithOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
+	return func(o *devcontainerCLIUpConfig) {
+		o.stdout = stdout
+		o.stderr = stderr
+	}
+}
+
 type devcontainerCLIUpConfig struct {
 	removeExistingContainer bool
+	stdout                  io.Writer
+	stderr                  io.Writer
 }
 
 func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) devcontainerCLIUpConfig {
@@ -78,18 +88,28 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	}
 	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
 
-	var stdout bytes.Buffer
-	cmd.Stdout = io.MultiWriter(&stdout, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))})
-	cmd.Stderr = &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}
+	// Capture stdout for parsing and stream logs for both default and provided writers.
+	var stdoutBuf bytes.Buffer
+	stdoutWriters := []io.Writer{&stdoutBuf, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}
+	if conf.stdout != nil {
+		stdoutWriters = append(stdoutWriters, conf.stdout)
+	}
+	cmd.Stdout = io.MultiWriter(stdoutWriters...)
+	// Stream stderr logs and provided writer if any.
+	stderrWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}}
+	if conf.stderr != nil {
+		stderrWriters = append(stderrWriters, conf.stderr)
+	}
+	cmd.Stderr = io.MultiWriter(stderrWriters...)
 
 	if err := cmd.Run(); err != nil {
-		if _, err2 := parseDevcontainerCLILastLine(ctx, logger, stdout.Bytes()); err2 != nil {
+		if _, err2 := parseDevcontainerCLILastLine(ctx, logger, stdoutBuf.Bytes()); err2 != nil {
 			err = errors.Join(err, err2)
 		}
 		return "", err
 	}
 
-	result, err := parseDevcontainerCLILastLine(ctx, logger, stdout.Bytes())
+	result, err := parseDevcontainerCLILastLine(ctx, logger, stdoutBuf.Bytes())
 	if err != nil {
 		return "", err
 	}

@@ -2,12 +2,12 @@ import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
 import type { QueryKey, UseQueryOptions } from "react-query";
 
 export const disabledRefetchOptions = {
-	cacheTime: Number.POSITIVE_INFINITY,
+	gcTime: Number.POSITIVE_INFINITY,
 	staleTime: Number.POSITIVE_INFINITY,
 	refetchOnMount: false,
 	refetchOnReconnect: false,
 	refetchOnWindowFocus: false,
-} as const satisfies UseQueryOptions;
+} as const satisfies Partial<UseQueryOptions>;
 
 type UseQueryOptionsWithMetadata<
 	TMetadata extends MetadataValue = MetadataValue,

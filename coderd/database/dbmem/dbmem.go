@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	insecurerand "math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to reap
 	"reflect"
 	"regexp"
 	"slices"
@@ -530,6 +531,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 
 			OwnerAvatarUrl: extended.OwnerAvatarUrl,
 			OwnerUsername:  extended.OwnerUsername,
+			OwnerName:      extended.OwnerName,
 
 			OrganizationName:        extended.OrganizationName,
 			OrganizationDisplayName: extended.OrganizationDisplayName,
@@ -627,6 +629,7 @@ func (q *FakeQuerier) extendWorkspace(w database.WorkspaceTable) database.Worksp
 		return u.ID == w.OwnerID
 	})
 	extended.OwnerUsername = owner.Username
+	extended.OwnerName = owner.Name
 	extended.OwnerAvatarUrl = owner.AvatarURL
 
 	return extended
@@ -1378,6 +1381,12 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(
 	}
 
 	return jobs, nil
+}
+
+// isDeprecated returns true if the template is deprecated.
+// A template is considered deprecated when it has a deprecation message.
+func isDeprecated(template database.Template) bool {
+	return template.Deprecated != ""
 }
 
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
@@ -3701,23 +3710,6 @@ func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
 	return string(q.healthSettings), nil
 }
 
-func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	hungJobs := []database.ProvisionerJob{}
-	for _, provisionerJob := range q.provisionerJobs {
-		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
-			// clone the Tags before appending, since maps are reference types and
-			// we don't want the caller to be able to mutate the map we have inside
-			// dbmem!
-			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
-			hungJobs = append(hungJobs, provisionerJob)
-		}
-	}
-	return hungJobs, nil
-}
-
 func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4297,6 +4289,7 @@ func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (da
 				CreatedAt:           preset.CreatedAt,
 				DesiredInstances:    preset.DesiredInstances,
 				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				PrebuildStatus:      preset.PrebuildStatus,
 				TemplateID:          tv.TemplateID,
 				OrganizationID:      tv.OrganizationID,
 			}, nil
@@ -4360,6 +4353,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
@@ -4636,6 +4633,13 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return q.getProvisionerJobByIDNoLock(ctx, id)
 }
 
+func (q *FakeQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
 func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4680,14 +4684,14 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if ids == nil {
-		ids = []uuid.UUID{}
+	if arg.IDs == nil {
+		arg.IDs = []uuid.UUID{}
 	}
-	return q.getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(ctx, ids)
+	return q.getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(ctx, arg.IDs)
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
@@ -4842,6 +4846,13 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 				row.AvailableWorkers = append(row.AvailableWorkers, worker.ID)
 			}
 		}
+
+		// Add daemon name to provisioner job
+		for _, daemon := range q.provisionerDaemons {
+			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+				row.WorkerName = daemon.Name
+			}
+		}
 		rows = append(rows, row)
 	}
 
@@ -4869,6 +4880,33 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 		}
 	}
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerJobsToBeReaped(_ context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	maxJobs := arg.MaxJobs
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if !provisionerJob.CompletedAt.Valid {
+			if (provisionerJob.StartedAt.Valid && provisionerJob.UpdatedAt.Before(arg.HungSince)) ||
+				(!provisionerJob.StartedAt.Valid && provisionerJob.UpdatedAt.Before(arg.PendingSince)) {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
+				hungJobs = append(hungJobs, provisionerJob)
+				if len(hungJobs) >= int(maxJobs) {
+					break
+				}
+			}
+		}
+	}
+	insecurerand.Shuffle(len(hungJobs), func(i, j int) {
+		hungJobs[i], hungJobs[j] = hungJobs[j], hungJobs[i]
+	})
+	return hungJobs, nil
 }
 
 func (q *FakeQuerier) GetProvisionerKeyByHashedSecret(_ context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -7648,6 +7686,30 @@ func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resou
 	return q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	build, err := q.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams(arg))
+	if err != nil {
+		return nil, err
+	}
+
+	resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, build.JobID)
+	if err != nil {
+		return nil, err
+	}
+
+	var resourceIDs []uuid.UUID
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	return q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7995,6 +8057,33 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	if found != nil {
 		return q.extendWorkspace(*found), nil
 	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, resource := range q.workspaceResources {
+		if resource.ID != resourceID {
+			continue
+		}
+
+		for _, build := range q.workspaceBuilds {
+			if build.JobID != resource.JobID {
+				continue
+			}
+
+			for _, workspace := range q.workspaces {
+				if workspace.ID != build.WorkspaceID {
+					continue
+				}
+
+				return q.extendWorkspace(workspace), nil
+			}
+		}
+	}
+
 	return database.Workspace{}, sql.ErrNoRows
 }
 
@@ -9007,6 +9096,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Int32: 0,
 			Valid: true,
 		},
+		PrebuildStatus: database.PrebuildStatusHealthy,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -9313,9 +9403,11 @@ func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Cont
 
 	// Insert the new row
 	row := database.TemplateVersionTerraformValue{
-		TemplateVersionID: templateVersion.ID,
-		CachedPlan:        arg.CachedPlan,
-		UpdatedAt:         arg.UpdatedAt,
+		TemplateVersionID:   templateVersion.ID,
+		UpdatedAt:           arg.UpdatedAt,
+		CachedPlan:          arg.CachedPlan,
+		CachedModuleFiles:   arg.CachedModuleFiles,
+		ProvisionerdVersion: arg.ProvisionerdVersion,
 	}
 	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
 	return nil
@@ -9569,6 +9661,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 
 	agent := database.WorkspaceAgent{
 		ID:                       arg.ID,
+		ParentID:                 arg.ParentID,
 		CreatedAt:                arg.CreatedAt,
 		UpdatedAt:                arg.UpdatedAt,
 		ResourceID:               arg.ResourceID,
@@ -9587,6 +9680,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 		DisplayApps:              arg.DisplayApps,
 		DisplayOrder:             arg.DisplayOrder,
+		APIKeyScope:              arg.APIKeyScope,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -10831,6 +10925,25 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, preset := range q.presets {
+		if preset.ID == arg.PresetID {
+			preset.PrebuildStatus = arg.Status
+			return nil
+		}
+	}
+
+	return xerrors.Errorf("preset %v does not exist", arg.PresetID)
+}
+
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10910,6 +11023,30 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
+		job.JobStatus = provisionerJobStatus(job)
+		q.provisionerJobs[index] = job
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateProvisionerJobWithCompleteWithStartedAtByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, job := range q.provisionerJobs {
+		if arg.ID != job.ID {
+			continue
+		}
+		job.UpdatedAt = arg.UpdatedAt
+		job.CompletedAt = arg.CompletedAt
+		job.Error = arg.Error
+		job.ErrorCode = arg.ErrorCode
+		job.StartedAt = arg.StartedAt
 		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
@@ -11050,6 +11187,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.GroupACL = arg.GroupACL
 		tpl.AllowUserCancelWorkspaceJobs = arg.AllowUserCancelWorkspaceJobs
 		tpl.MaxPortSharingLevel = arg.MaxPortSharingLevel
+		tpl.UseClassicParameterFlow = arg.UseClassicParameterFlow
 		q.templates[idx] = tpl
 		return nil
 	}
@@ -13021,7 +13159,17 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
 			continue
 		}
-		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
+		// Filters templates based on the search query filter 'Deprecated' status
+		// Matching SQL logic:
+		// -- Filter by deprecated
+		// AND CASE
+		//   WHEN :deprecated IS NOT NULL THEN
+		//     CASE
+		//       WHEN :deprecated THEN deprecated != ''
+		//       ELSE deprecated = ''
+		//     END
+		//   ELSE true
+		if arg.Deprecated.Valid && arg.Deprecated.Bool != isDeprecated(template) {
 			continue
 		}
 		if arg.FuzzyName != "" {

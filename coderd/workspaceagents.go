@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
@@ -35,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -892,6 +894,92 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, cts)
 }
 
+// @Summary Recreate devcontainer for workspace agent
+// @ID recreate-devcontainer-for-workspace-agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Produce json
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param container path string true "Container ID or name"
+// @Success 202 {object} codersdk.Response
+// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate [post]
+func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+
+	container := chi.URLParam(r, "container")
+	if container == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Container ID or name is required.",
+			Validations: []codersdk.ValidationError{
+				{Field: "container", Detail: "Container ID or name is required."},
+			},
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(dialCtx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	m, err := agentConn.RecreateDevcontainer(ctx, container)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+				Message: "Failed to recreate devcontainer from agent.",
+				Detail:  "Request timed out.",
+			})
+			return
+		}
+		// If the agent returns a codersdk.Error, we can return that directly.
+		if cerr, ok := codersdk.AsError(err); ok {
+			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error recreating devcontainer.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusAccepted, m)
+}
+
 // @Summary Get connection info for workspace agent
 // @ID get-connection-info-for-workspace-agent
 // @Security CoderSessionToken
@@ -1181,6 +1269,60 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 	apiSource := convertLogSources(sources)[0]
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiSource)
+}
+
+// @Summary Get workspace agent reinitialization
+// @ID get-workspace-agent-reinitialization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} agentsdk.ReinitializationEvent
+// @Router /workspaceagents/me/reinit [get]
+func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	log := api.Logger.Named("workspace_agent_reinit_watcher").With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+	)
+
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		log.Error(ctx, "failed to retrieve workspace from agent token", slog.Error(err))
+		httpapi.InternalServerError(rw, xerrors.New("failed to determine workspace from agent token"))
+	}
+
+	log.Info(ctx, "agent waiting for reinit instruction")
+
+	reinitEvents := make(chan agentsdk.ReinitializationEvent)
+	cancel, err = prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
+	if err != nil {
+		log.Error(ctx, "subscribe to prebuild claimed channel", slog.Error(err))
+		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
+		return
+	}
+	defer cancel()
+
+	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
+
+	err = transmitter.Transmit(ctx, reinitEvents)
+	switch {
+	case errors.Is(err, agentsdk.ErrTransmissionSourceClosed):
+		log.Info(ctx, "agent reinitialization subscription closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case errors.Is(err, agentsdk.ErrTransmissionTargetClosed):
+		log.Info(ctx, "agent connection closed", slog.F("workspace_agent_id", workspaceAgent.ID))
+	case errors.Is(err, context.Canceled):
+		log.Info(ctx, "agent reinitialization", slog.Error(err))
+	case err != nil:
+		log.Error(ctx, "failed to stream agent reinit events", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error streaming agent reinitialization events.",
+			Detail:  err.Error(),
+		})
+	}
 }
 
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
@@ -1577,6 +1719,15 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
 		})
+		return
+	}
+
+	// Pre-check if the caller can read the external auth links for the owner of the
+	// workspace. Do this up front because a sql.ErrNoRows is expected if the user is
+	// in the flow of authenticating. If no row is present, the auth check is delayed
+	// until the user authenticates. It is preferred to reject early.
+	if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(workspace.OwnerID)) {
+		httpapi.Forbidden(rw)
 		return
 	}
 

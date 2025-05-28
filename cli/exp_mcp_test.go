@@ -133,26 +133,29 @@ func TestExpMcpServer(t *testing.T) {
 		require.Equal(t, 1.0, initializeResponse["id"])
 		require.NotNil(t, initializeResponse["result"])
 	})
+}
 
-	t.Run("NoCredentials", func(t *testing.T) {
-		t.Parallel()
+func TestExpMcpServerNoCredentials(t *testing.T) {
+	// Ensure that no credentials are set from the environment.
+	t.Setenv("CODER_AGENT_TOKEN", "")
+	t.Setenv("CODER_AGENT_TOKEN_FILE", "")
+	t.Setenv("CODER_SESSION_TOKEN", "")
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		cancelCtx, cancel := context.WithCancel(ctx)
-		t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cancelCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 
-		client := coderdtest.New(t, nil)
-		inv, root := clitest.New(t, "exp", "mcp", "server")
-		inv = inv.WithContext(cancelCtx)
+	client := coderdtest.New(t, nil)
+	inv, root := clitest.New(t, "exp", "mcp", "server")
+	inv = inv.WithContext(cancelCtx)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-		clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t)
+	inv.Stdin = pty.Input()
+	inv.Stdout = pty.Output()
+	clitest.SetupConfig(t, client, root)
 
-		err := inv.Run()
-		assert.ErrorContains(t, err, "are not logged in")
-	})
+	err := inv.Run()
+	assert.ErrorContains(t, err, "are not logged in")
 }
 
 //nolint:tparallel,paralleltest

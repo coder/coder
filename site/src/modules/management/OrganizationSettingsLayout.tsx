@@ -24,7 +24,7 @@ export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
 >(undefined);
 
-export type OrganizationSettingsValue = Readonly<{
+type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
 	organizationPermissionsByOrganizationId: Record<
 		string,

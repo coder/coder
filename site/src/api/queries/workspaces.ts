@@ -5,27 +5,32 @@ import type {
 	ProvisionerLogLevel,
 	UsageAppName,
 	Workspace,
+	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "api/typesGenerated";
 import type { Dayjs } from "dayjs";
+import {
+	type WorkspacePermissions,
+	workspaceChecks,
+} from "modules/workspaces/permissions";
 import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
 	QueryClient,
 	QueryOptions,
 	UseMutationOptions,
+	UseQueryOptions,
 } from "react-query";
+import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
-export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
-	"workspace",
-	owner,
-	name,
-	"settings",
-];
+export const workspaceByOwnerAndNameKey = (
+	ownerUsername: string,
+	name: string,
+) => ["workspace", ownerUsername, name, "settings"];
 
 export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	return {
@@ -48,7 +53,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 			return API.createWorkspace(userId, req);
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -107,7 +112,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -274,7 +279,7 @@ const updateWorkspaceBuild = async (
 	queryClient: QueryClient,
 ) => {
 	const workspaceKey = workspaceByOwnerAndNameKey(
-		build.workspace_owner_name,
+		build.workspace_owner_username,
 		build.workspace_name,
 	);
 	const previousData = queryClient.getQueryData<Workspace>(workspaceKey);
@@ -337,24 +342,18 @@ export const buildLogs = (workspace: Workspace) => {
 	};
 };
 
-export const agentLogsKey = (workspaceId: string, agentId: string) => [
-	"workspaces",
-	workspaceId,
-	"agents",
-	agentId,
-	"logs",
-];
+export const agentLogsKey = (agentId: string) => ["agents", agentId, "logs"];
 
-export const agentLogs = (workspaceId: string, agentId: string) => {
+export const agentLogs = (agentId: string) => {
 	return {
-		queryKey: agentLogsKey(workspaceId, agentId),
+		queryKey: agentLogsKey(agentId),
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
-	};
+	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
 };
 
 // workspace usage options
-export interface WorkspaceUsageOptions {
+interface WorkspaceUsageOptions {
 	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;
@@ -388,5 +387,16 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 		// ...disabledRefetchOptions,
 		refetchInterval: 60000,
 		refetchIntervalInBackground: true,
+	};
+};
+
+export const workspacePermissions = (workspace?: Workspace) => {
+	return {
+		...checkAuthorization<WorkspacePermissions>({
+			checks: workspace ? workspaceChecks(workspace) : {},
+		}),
+		queryKey: ["workspaces", workspace?.id, "permissions"],
+		enabled: !!workspace,
+		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

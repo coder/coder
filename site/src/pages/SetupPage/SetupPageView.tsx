@@ -1,8 +1,7 @@
 import GitHubIcon from "@mui/icons-material/GitHub";
-import LoadingButton from "@mui/lab/LoadingButton";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
-import Button from "@mui/material/Button";
+import MuiButton from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -11,10 +10,12 @@ import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PasswordField } from "components/PasswordField/PasswordField";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
@@ -103,7 +104,7 @@ const iconStyles = {
 	height: 16,
 };
 
-export interface SetupPageViewProps {
+interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	error?: unknown;
 	isLoading?: boolean;
@@ -172,7 +173,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 				<FormFields>
 					{authMethods?.github.enabled && (
 						<>
-							<Button
+							<MuiButton
 								fullWidth
 								component="a"
 								href="/api/v2/users/oauth2/github/callback"
@@ -182,7 +183,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								size="xlarge"
 							>
 								{Language.githubCreate}
-							</Button>
+							</MuiButton>
 							<div className="flex items-center gap-4">
 								<div className="h-[1px] w-full bg-border" />
 								<div className="shrink-0 text-xs uppercase text-content-secondary tracking-wider">
@@ -376,15 +377,16 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						</Alert>
 					)}
 
-					<LoadingButton
-						fullWidth
-						loading={isLoading}
+					<Button
+						className="w-full"
+						disabled={isLoading}
 						type="submit"
 						data-testid="create"
-						size="xlarge"
+						size="lg"
 					>
+						<Spinner loading={isLoading} />
 						{Language.create}
-					</LoadingButton>
+					</Button>
 				</FormFields>
 			</VerticalForm>
 		</SignInLayout>

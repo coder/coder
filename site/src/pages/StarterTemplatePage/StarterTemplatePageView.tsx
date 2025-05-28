@@ -1,9 +1,7 @@
 import { useTheme } from "@emotion/react";
-import PlusIcon from "@mui/icons-material/AddOutlined";
-import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
-import Button from "@mui/material/Button";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -14,10 +12,11 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 
-export interface StarterTemplatePageViewProps {
+interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
 	error?: unknown;
 }
@@ -45,22 +44,17 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 			<PageHeader
 				actions={
 					<>
-						<Button
-							component="a"
-							target="_blank"
-							href={starterTemplate.url}
-							rel="noreferrer"
-							startIcon={<ViewCodeIcon />}
-						>
-							View source code
+						<Button asChild variant="outline" size="sm">
+							<a target="_blank" href={starterTemplate.url} rel="noreferrer">
+								<ExternalLinkIcon />
+								View source code
+							</a>
 						</Button>
-						<Button
-							variant="contained"
-							component={Link}
-							to={`/templates/new?exampleId=${starterTemplate.id}`}
-							startIcon={<PlusIcon />}
-						>
-							Use template
+						<Button asChild size="sm">
+							<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
+								<PlusIcon />
+								Use template
+							</Link>
 						</Button>
 					</>
 				}

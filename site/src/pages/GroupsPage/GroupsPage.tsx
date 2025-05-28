@@ -1,4 +1,3 @@
-import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";
@@ -12,6 +11,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { PlusIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
@@ -25,14 +25,14 @@ import { GroupsPageView } from "./GroupsPageView";
 const GroupsPage: FC = () => {
 	const { template_rbac: groupsEnabled } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
-	const groupsQuery = useQuery(
-		organization ? groupsByOrganization(organization.name) : { enabled: false },
-	);
-	const permissionsQuery = useQuery(
-		organization
-			? organizationsPermissions([organization.id])
-			: { enabled: false },
-	);
+	const groupsQuery = useQuery({
+		...groupsByOrganization(organization?.name ?? ""),
+		enabled: !!organization,
+	});
+	const permissionsQuery = useQuery({
+		...organizationsPermissions([organization?.id ?? ""]),
+		enabled: !!organization,
+	});
 
 	useEffect(() => {
 		if (groupsQuery.error) {
@@ -95,7 +95,7 @@ const GroupsPage: FC = () => {
 				{groupsEnabled && permissions.createGroup && (
 					<Button asChild>
 						<RouterLink to="create">
-							<GroupAdd />
+							<PlusIcon className="size-icon-sm" />
 							Create group
 						</RouterLink>
 					</Button>

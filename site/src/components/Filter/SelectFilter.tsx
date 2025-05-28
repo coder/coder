@@ -20,7 +20,7 @@ export type SelectFilterOption = {
 	value: string;
 };
 
-export type SelectFilterProps = {
+type SelectFilterProps = {
 	options: SelectFilterOption[] | undefined;
 	selectedOption?: SelectFilterOption;
 	// Used to add a accessibility label to the select
@@ -53,6 +53,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				<SelectMenuButton
 					startIcon={selectedOption?.startIcon}
 					css={{ flexBasis: width, flexGrow: 1 }}
+					className="shrink-0"
 					aria-label={label}
 				>
 					{selectedOption?.label ?? placeholder}
@@ -108,7 +109,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 						</div>
 					)
 				) : (
-					<Loader size={16} />
+					<Loader size="sm" />
 				)}
 			</SelectMenuContent>
 		</SelectMenu>

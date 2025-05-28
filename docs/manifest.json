@@ -143,6 +143,11 @@
 									"title": "JetBrains Gateway in an air-gapped environment",
 									"description": "Use JetBrains Gateway in an air-gapped offline environment",
 									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+								},
+								{
+									"title": "JetBrains Toolbox",
+									"description": "Access Coder workspaces through JetBrains Toolbox",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-toolbox.md"
 								}
 							]
 						},
@@ -193,7 +198,7 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Management",
@@ -504,6 +509,12 @@
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								},
 								{
+									"title": "Configure a template for dev containers",
+									"description": "How to use configure your template for dev containers",
+									"path": "./admin/templates/extending-templates/devcontainers.md",
+									"state": ["early access"]
+								},
+								{
 									"title": "Process Logging",
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
@@ -545,7 +556,7 @@
 					]
 				},
 				{
-					"title": "External Auth",
+					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
 					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"
@@ -1455,7 +1466,7 @@
 						},
 						{
 							"title": "ssh",
-							"description": "Start a shell into a workspace",
+							"description": "Start a shell into a workspace or run a command",
 							"path": "reference/cli/ssh.md"
 						},
 						{
@@ -1625,6 +1636,7 @@
 						},
 						{
 							"title": "users create",
+							"description": "Create a new user.",
 							"path": "reference/cli/users_create.md"
 						},
 						{
@@ -1639,6 +1651,7 @@
 						},
 						{
 							"title": "users list",
+							"description": "Prints the list of users.",
 							"path": "reference/cli/users_list.md"
 						},
 						{

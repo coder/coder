@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import DeleteIcon from "@mui/icons-material/Delete";
 import GitHub from "@mui/icons-material/GitHub";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
@@ -29,6 +28,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { TrashIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
@@ -236,7 +236,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 											onClick={() => onDeleteUser(user)}
 											disabled={user.id === actorID}
 										>
-											<DeleteIcon />
+											<TrashIcon className="size-icon-xs" />
 											Delete&hellip;
 										</DropdownMenuItem>
 									</DropdownMenuContent>

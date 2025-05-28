@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -43,6 +44,7 @@ type Executor struct {
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	notificationsEnqueuer notifications.Enqueuer
 	reg                   prometheus.Registerer
+	experiments           codersdk.Experiments
 
 	metrics executorMetrics
 }
@@ -59,7 +61,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -73,6 +75,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg p
 		accessControlStore:    acs,
 		notificationsEnqueuer: enqueuer,
 		reg:                   reg,
+		experiments:           exp,
 		metrics: executorMetrics{
 			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
 				Namespace: "coderd",
@@ -258,6 +261,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						builder := wsbuilder.New(ws, nextTransition).
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
+							Experiments(e.experiments).
 							Reason(reason)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&
@@ -349,13 +353,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						nextBuildReason = string(nextBuild.Reason)
 					}
 
+					templateVersionMessage := activeTemplateVersion.Message
+					if templateVersionMessage == "" {
+						templateVersionMessage = "None provided"
+					}
+
 					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
 							"name":                     ws.Name,
 							"initiator":                "autobuild",
 							"reason":                   nextBuildReason,
 							"template_version_name":    activeTemplateVersion.Name,
-							"template_version_message": activeTemplateVersion.Message,
+							"template_version_message": templateVersionMessage,
 						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,

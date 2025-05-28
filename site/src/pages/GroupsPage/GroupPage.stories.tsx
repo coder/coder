@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import { spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
 import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
 import { organizationMembersKey } from "api/queries/organizations";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -52,11 +53,9 @@ export const LoadingGroup: Story = {
 };
 
 export const GroupError: Story = {
-	parameters: {
-		queries: [
-			{ ...groupQuery(new Error("test group error")), isError: true },
-			permissionsQuery({}),
-		],
+	beforeEach: () => {
+		spyOn(API, "getGroup").mockRejectedValue(new Error("test group error"));
+		spyOn(API, "checkAuthorization").mockResolvedValue({});
 	},
 };
 
@@ -89,16 +88,19 @@ export const EveryoneGroup: Story = {
 };
 
 export const MembersError: Story = {
-	parameters: {
-		queries: [
-			groupQuery(MockGroup),
-			permissionsQuery({ canUpdateGroup: true }),
-			{ ...membersQuery(new Error("test members error")), isError: true },
-		],
+	beforeEach() {
+		spyOn(API, "getGroup").mockResolvedValue(MockGroup);
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canUpdateGroup: true,
+		});
+		spyOn(API, "getOrganizationPaginatedMembers").mockRejectedValue(
+			new Error("test members error"),
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+		const combobox = await canvas.findByRole("combobox");
+		await userEvent.click(combobox);
 	},
 };
 
@@ -115,7 +117,8 @@ export const NoMembers: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+		const combobox = await canvas.findByRole("combobox");
+		await userEvent.click(combobox);
 	},
 };
 

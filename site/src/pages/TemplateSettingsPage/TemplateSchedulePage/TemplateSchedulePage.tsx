@@ -25,22 +25,21 @@ const TemplateSchedulePage: FC = () => {
 
 	const {
 		mutate: updateTemplate,
-		isLoading: isSubmitting,
+		isPending: isSubmitting,
 		error: submitError,
-	} = useMutation(
-		(data: UpdateTemplateMeta) => API.updateTemplateMeta(template.id, data),
-		{
-			onSuccess: async () => {
-				await queryClient.invalidateQueries(
-					templateByNameKey(organizationName, templateName),
-				);
-				displaySuccess("Template updated successfully");
-				// clear browser storage of workspaces impending deletion
-				localStorage.removeItem("dismissedWorkspaceList"); // workspaces page
-				localStorage.removeItem("dismissedWorkspace"); // workspace page
-			},
+	} = useMutation({
+		mutationFn: (data: UpdateTemplateMeta) =>
+			API.updateTemplateMeta(template.id, data),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: templateByNameKey(organizationName, templateName),
+			});
+			displaySuccess("Template updated successfully");
+			// clear browser storage of workspaces impending deletion
+			localStorage.removeItem("dismissedWorkspaceList"); // workspaces page
+			localStorage.removeItem("dismissedWorkspace"); // workspace page
 		},
-	);
+	});
 
 	return (
 		<>

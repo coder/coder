@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
-import Business from "@mui/icons-material/Business";
-import Person from "@mui/icons-material/Person";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthMessage, ProvisionerDaemon } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
+import { Building2Icon } from "lucide-react";
+import { UserIcon } from "lucide-react";
 import type { FC } from "react";
 import { createDayString } from "utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
@@ -19,7 +19,12 @@ export const Provisioner: FC<ProvisionerProps> = ({
 }) => {
 	const theme = useTheme();
 	const daemonScope = provisioner.tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+	const iconScope =
+		daemonScope === "organization" ? (
+			<Building2Icon className="size-icon-sm" />
+		) : (
+			<UserIcon className="size-icon-sm" />
+		);
 
 	const extraTags = Object.entries(provisioner.tags).filter(
 		([key]) => key !== "scope" && key !== "owner",

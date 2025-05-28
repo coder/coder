@@ -25,13 +25,14 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 ## Prerequisites
 
 - [**Premium license**](../../licensing/index.md)
-- **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.0`.
+- **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.1`.
 - **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
 ## Enable prebuilt workspaces for template presets
 
 In your template, add a `prebuilds` block within a `coder_workspace_preset` definition to identify the number of prebuilt
-instances your Coder deployment should maintain:
+instances your Coder deployment should maintain, and optionally configure a `expiration_policy` block to set a TTL
+(Time To Live) for unclaimed prebuilt workspaces to ensure stale resources are automatically cleaned up.
 
    ```hcl
    data "coder_workspace_preset" "goland" {
@@ -42,13 +43,19 @@ instances your Coder deployment should maintain:
        memory        = 16
      }
      prebuilds {
-       instances = 3  # Number of prebuilt workspaces to maintain
+       instances = 3   # Number of prebuilt workspaces to maintain
+       expiration_policy {
+          ttl = 86400  # Time (in seconds) after which unclaimed prebuilds are expired (1 day)
+      }
      }
    }
    ```
 
 After you publish a new template version, Coder will automatically provision and maintain prebuilt workspaces through an
 internal reconciliation loop (similar to Kubernetes) to ensure the defined `instances` count are running.
+
+The `expiration_policy` block ensures that any prebuilt workspaces left unclaimed for more than `ttl` seconds is considered
+expired and automatically cleaned up.
 
 ## Prebuilt workspace lifecycle
 
@@ -75,7 +82,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
 
    Prebuilt workspaces that fail during provisioning are retried with a backoff to prevent transient failures.
 
-1. When a developer requests a new workspace, the claiming process occurs:
+1. When a developer creates a new workspace, the claiming process occurs:
 
    1. Developer selects a template and preset that has prebuilt workspaces configured.
    1. If an eligible prebuilt workspace exists, ownership transfers from the `prebuilds` user to the requesting user.
@@ -84,12 +91,25 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
       datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
 
-   The developer doesn't see the claiming process — the workspace will just be ready faster than usual.
+   The claiming process is transparent to the developer — the workspace will just be ready faster than usual.
 
 You can view available prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 
 ![A prebuilt workspace in the dashboard](../../../images/admin/templates/extend-templates/prebuilt/prebuilt-workspaces.png)
 _Note the search term `owner:prebuilds`._
+
+Unclaimed prebuilt workspaces can be interacted with in the same way as any other workspace.
+However, if a Prebuilt workspace is stopped, the reconciliation loop will not destroy it.
+This gives template admins the ability to park problematic prebuilt workspaces in a stopped state for further investigation.
+
+### Expiration Policy
+
+Prebuilt workspaces support expiration policies through the `ttl` setting inside the `expiration_policy` block.
+This value defines the Time To Live (TTL) of a prebuilt workspace, i.e., the duration in seconds that an unclaimed
+prebuilt workspace can remain before it is considered expired and eligible for cleanup.
+
+Expired prebuilt workspaces are removed during the reconciliation loop to avoid stale environments and resource waste.
+New prebuilt workspaces are only created to maintain the desired count if needed.
 
 ### Template updates and the prebuilt workspace lifecycle
 
@@ -138,7 +158,7 @@ To prevent this, add a `lifecycle` block with `ignore_changes`:
 ```hcl
 resource "docker_container" "workspace" {
   lifecycle {
-    ignore_changes = all
+    ignore_changes = [env, image] # include all fields which caused drift
   }
 
   count = data.coder_workspace.me.start_count
@@ -147,21 +167,23 @@ resource "docker_container" "workspace" {
 }
 ```
 
-For more targeted control, specify which attributes to ignore:
-
-```hcl
-resource "docker_container" "workspace" {
-  lifecycle {
-    ignore_changes = [name]
-  }
-
-  count = data.coder_workspace.me.start_count
-  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  ...
-}
-```
+Limit the scope of `ignore_changes` to include only the fields specified in the notification.
+If you include too many fields, Terraform might ignore changes that wouldn't otherwise cause drift.
 
 Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
+
+_A note on "immutable" attributes: Terraform providers may specify `ForceNew` on their resources' attributes. Any change
+to these attributes require the replacement (destruction and recreation) of the managed resource instance, rather than an in-place update.
+For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance#ami-1) attribute on the `aws_instance` resource
+has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
+since the AMI cannot be changed in-place._
+
+#### Updating claimed prebuilt workspace templates
+
+Once a prebuilt workspace has been claimed, and if its template uses `ignore_changes`, users may run into an issue where the agent
+does not reconnect after a template update. This shortcoming is described in [this issue](https://github.com/coder/coder/issues/17840)
+and will be addressed before the next release (v2.23). In the interim, a simple workaround is to restart the workspace
+when it is in this problematic state.
 
 ### Current limitations
 
@@ -171,13 +193,13 @@ The prebuilt workspaces feature has these current limitations:
 
   Prebuilt workspaces can only be used with the default organization.
 
-  [coder/internal#364](https://github.com/coder/internal/issues/364)
+  [View issue](https://github.com/coder/internal/issues/364)
 
 - **Autoscaling**
 
   Prebuilt workspaces remain running until claimed. There's no automated mechanism to reduce instances during off-hours.
 
-  [coder/internal#312](https://github.com/coder/internal/issues/312)
+  [View issue](https://github.com/coder/internal/issues/312)
 
 ### Monitoring and observability
 

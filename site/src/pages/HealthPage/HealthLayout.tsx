@@ -31,7 +31,7 @@ export const HealthLayout: FC = () => {
 		...health(),
 		refetchInterval: 30_000,
 	});
-	const { mutate: forceRefresh, isLoading: isRefreshing } = useMutation(
+	const { mutate: forceRefresh, isPending: isRefreshing } = useMutation(
 		refreshHealth(queryClient),
 	);
 	const sections = {

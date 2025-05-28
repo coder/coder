@@ -1,10 +1,10 @@
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import LaunchOutlinedIcon from "@mui/icons-material/LaunchOutlined";
 import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
+import { SquareArrowOutUpRightIcon } from "lucide-react";
 
-export interface ShareIconProps {
+interface ShareIconProps {
 	app: TypesGen.WorkspaceApp;
 }
 
@@ -12,7 +12,7 @@ export const ShareIcon = ({ app }: ShareIconProps) => {
 	if (app.external) {
 		return (
 			<Tooltip title="Open external URL">
-				<LaunchOutlinedIcon />
+				<SquareArrowOutUpRightIcon />
 			</Tooltip>
 		);
 	}

@@ -7,7 +7,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import type { FC, ReactNode } from "react";
 
-export interface FullPageHorizontalFormProps {
+interface FullPageHorizontalFormProps {
 	title: string;
 	detail?: ReactNode;
 	onCancel?: () => void;

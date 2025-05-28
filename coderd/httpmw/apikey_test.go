@@ -508,6 +508,102 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
+	t.Run("APIKeyExpiredOAuthExpired", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db                = dbmem.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, -1),
+				LoginType: database.LoginTypeOIDC,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:      user.ID,
+				LoginType:   database.LoginTypeOIDC,
+				OAuthExpiry: dbtime.Now().AddDate(0, 0, -1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		// Include a valid oauth token for refreshing. If this token is invalid,
+		// it is difficult to tell an auth failure from an expired api key, or
+		// an expired oauth key.
+		oauthToken := &oauth2.Token{
+			AccessToken:  "wow",
+			RefreshToken: "moo",
+			Expiry:       dbtime.Now().AddDate(0, 0, 1),
+		}
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				OIDC: &testutil.OAuth2Config{
+					Token: oauthToken,
+				},
+			},
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
+	t.Run("APIKeyExpiredOAuthNotExpired", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db                = dbmem.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, -1),
+				LoginType: database.LoginTypeOIDC,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOIDC,
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		oauthToken := &oauth2.Token{
+			AccessToken:  "wow",
+			RefreshToken: "moo",
+			Expiry:       dbtime.Now().AddDate(0, 0, 1),
+		}
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				OIDC: &testutil.OAuth2Config{
+					Token: oauthToken,
+				},
+			},
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
 	t.Run("OAuthRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -553,7 +649,67 @@ func TestAPIKey(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
-		require.Equal(t, oauthToken.Expiry, gotAPIKey.ExpiresAt)
+		// Note that OAuth expiry is independent of APIKey expiry, so an OIDC refresh DOES NOT affect the expiry of the
+		// APIKey
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+
+		gotLink, err := db.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+		require.Equal(t, gotLink.OAuthRefreshToken, "moo")
+	})
+
+	t.Run("OAuthExpiredNoRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx               = testutil.Context(t, testutil.WaitShort)
+			db                = dbmem.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
+				LoginType: database.LoginTypeGithub,
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		_, err := db.InsertUserLink(ctx, database.InsertUserLinkParams{
+			UserID:           user.ID,
+			LoginType:        database.LoginTypeGithub,
+			OAuthExpiry:      dbtime.Now().AddDate(0, 0, -1),
+			OAuthAccessToken: "letmein",
+		})
+		require.NoError(t, err)
+
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		oauthToken := &oauth2.Token{
+			AccessToken:  "wow",
+			RefreshToken: "moo",
+			Expiry:       dbtime.Now().AddDate(0, 0, 1),
+		}
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				Github: &testutil.OAuth2Config{
+					Token: oauthToken,
+				},
+			},
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
 	t.Run("RemoteIPUpdates", func(t *testing.T) {
