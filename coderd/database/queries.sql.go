@@ -7663,17 +7663,21 @@ pending_jobs AS (
 	WHERE
 		job_status = 'pending'
 ),
+online_provisioner_daemons AS (
+	SELECT id, tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($2::bigint || ' ms')::interval)
+),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY pd.id ORDER BY pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY pd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN provisioner_daemons pd
-					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
+			INNER JOIN online_provisioner_daemons opd
+					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -7705,6 +7709,11 @@ ORDER BY
 	fj.created_at
 `
 
+type GetProvisionerJobsByIDsWithQueuePositionParams struct {
+	IDs             []uuid.UUID `db:"ids" json:"ids"`
+	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
+}
+
 type GetProvisionerJobsByIDsWithQueuePositionRow struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
@@ -7713,8 +7722,8 @@ type GetProvisionerJobsByIDsWithQueuePositionRow struct {
 	QueueSize      int64          `db:"queue_size" json:"queue_size"`
 }
 
-func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDsWithQueuePosition, pq.Array(ids))
+func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg GetProvisionerJobsByIDsWithQueuePositionParams) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDsWithQueuePosition, pq.Array(arg.IDs), arg.StaleIntervalMS)
 	if err != nil {
 		return nil, err
 	}
