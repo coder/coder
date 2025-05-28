@@ -572,7 +572,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database),
+		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},

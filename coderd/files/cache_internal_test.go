@@ -3,12 +3,12 @@ package files
 import (
 	"context"
 	"io/fs"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -21,12 +21,12 @@ func TestConcurrency(t *testing.T) {
 
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	var fetches atomic.Int64
-	c := newTestCache(func(_ context.Context, _ uuid.UUID) (fs.FS, error) {
+	c := newTestCache(func(_ context.Context, _ uuid.UUID) (fs.FS, int64, error) {
 		fetches.Add(1)
 		// Wait long enough before returning to make sure that all of the goroutines
 		// will be waiting in line, ensuring that no one duplicated a fetch.
 		time.Sleep(testutil.IntervalMedium)
-		return emptyFS, nil
+		return emptyFS, 0, nil
 	})
 
 	batches := 1000
@@ -61,8 +61,8 @@ func TestRelease(t *testing.T) {
 	t.Parallel()
 
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
-	c := newTestCache(func(_ context.Context, _ uuid.UUID) (fs.FS, error) {
-		return emptyFS, nil
+	c := newTestCache(func(_ context.Context, _ uuid.UUID) (fs.FS, int64, error) {
+		return emptyFS, 0, nil
 	})
 
 	batches := 100
@@ -95,10 +95,6 @@ func TestRelease(t *testing.T) {
 	require.Equal(t, len(c.data), 0)
 }
 
-func newTestCache(fetcher func(context.Context, uuid.UUID) (fs.FS, error)) Cache {
-	return Cache{
-		lock:    sync.Mutex{},
-		data:    make(map[uuid.UUID]*cacheEntry),
-		fetcher: fetcher,
-	}
+func newTestCache(fetcher func(context.Context, uuid.UUID) (fs.FS, int64, error)) *Cache {
+	return New(fetcher, prometheus.NewRegistry())
 }
