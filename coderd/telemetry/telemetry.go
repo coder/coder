@@ -28,6 +28,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
@@ -47,7 +48,8 @@ type Options struct {
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
-	URL *url.URL
+	URL         *url.URL
+	Experiments codersdk.Experiments
 
 	DeploymentID     string
 	DeploymentConfig *codersdk.DeploymentValues
@@ -684,6 +686,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
+		if !r.options.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
+			return nil
+		}
+
 		metrics, err := r.options.Database.GetPrebuildMetrics(ctx)
 		if err != nil {
 			return xerrors.Errorf("get prebuild metrics: %w", err)

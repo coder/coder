@@ -370,6 +370,85 @@ func TestTelemetryItem(t *testing.T) {
 	require.Equal(t, item.Value, "new_value")
 }
 
+func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db := dbmem.New()
+
+	deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+		opts.Database = &mockDB{Store: opts.Database}
+		opts.Experiments = codersdk.Experiments{
+			codersdk.ExperimentWorkspacePrebuilds,
+		}
+		return opts
+	})
+
+	require.NotNil(t, deployment)
+	require.NotNil(t, snapshot)
+
+	require.Len(t, snapshot.PrebuiltWorkspaces, 3)
+
+	eventCounts := make(map[telemetry.PrebuiltWorkspaceEventType]int)
+	for _, event := range snapshot.PrebuiltWorkspaces {
+		eventCounts[event.EventType] = event.Count
+		require.NotEqual(t, uuid.Nil, event.ID)
+		require.False(t, event.CreatedAt.IsZero())
+	}
+
+	require.Equal(t, 5, eventCounts[telemetry.PrebuiltWorkspaceEventTypeCreated])
+	require.Equal(t, 2, eventCounts[telemetry.PrebuiltWorkspaceEventTypeFailed])
+	require.Equal(t, 3, eventCounts[telemetry.PrebuiltWorkspaceEventTypeClaimed])
+}
+
+type mockDB struct {
+	database.Store
+}
+
+func (m *mockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return []database.GetPrebuildMetricsRow{
+		{
+			TemplateName:     "template1",
+			PresetName:       "preset1",
+			OrganizationName: "org1",
+			CreatedCount:     3,
+			FailedCount:      1,
+			ClaimedCount:     2,
+		},
+		{
+			TemplateName:     "template2",
+			PresetName:       "preset2",
+			OrganizationName: "org1",
+			CreatedCount:     2,
+			FailedCount:      1,
+			ClaimedCount:     1,
+		},
+	}, nil
+}
+
+func TestPrebuiltWorkspacesTelemetryEmpty(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db := dbmem.New()
+
+	deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+		opts.Database = &emptyMockDB{Store: opts.Database}
+		return opts
+	})
+
+	require.NotNil(t, deployment)
+	require.NotNil(t, snapshot)
+
+	require.Len(t, snapshot.PrebuiltWorkspaces, 0)
+}
+
+type emptyMockDB struct {
+	database.Store
+}
+
+func (m *emptyMockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return []database.GetPrebuildMetricsRow{}, nil
+}
+
 func TestShouldReportTelemetryDisabled(t *testing.T) {
 	t.Parallel()
 	// Description                            | telemetryEnabled (db) | telemetryEnabled (is) | Report Telemetry Disabled |
