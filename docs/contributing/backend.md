@@ -56,7 +56,7 @@ A template named docker-amd64 (or docker-arm64 on ARM systems) is created automa
 ## Platform Architecture
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
-* [General Concepts](../admin/infrastructure/validated-architectures.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
+* [General Concepts](../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
 
 * [Architecture](../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
 
@@ -92,20 +92,37 @@ The Coder backend is organized into multiple packages and directories, each with
 * [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
 * [cli](https://github.com/coder/coder/tree/main/cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/cliui), and [testdata](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/testdata) contains golden files for common CLI calls
 * [cmd](https://github.com/coder/coder/tree/main/cmd): entry points for CLI and services, including `coderd`
-* [coderd](https://github.com/coder/coder/tree/main/coderd): the main API server implementation
+* [coderd](https://github.com/coder/coder/tree/main/coderd): the main API server implementation with [chi](https://github.com/go-chi/chi) endpoints
   * [audit](https://github.com/coder/coder/tree/main/coderd/audit): audit log logic, defines target resources, actions and extra fields
   * [autobuild](https://github.com/coder/coder/tree/main/coderd/autobuild): core logic of the workspace autobuild executor, periodically evaluates workspaces for next transition actions
-  * `httpmw`: shared HTTP middleware
-  * `prebuilds`: prebuilt workspace logic
-  * `provisionerdserver`: interface to provisioner processes
-  * `rbac`: role-based access control
-  * `telemetry`: metrics and observability
-  * `tracing`: distributed tracing support
-  * `workspaceapps`: app lifecycle in workspaces
-  * `wsbuilder`: workspace build system
-* `database`: schema migrations and query logic
+  * [httpmw](https://github.com/coder/coder/tree/main/coderd/httpmw): HTTP middlewares mainly used to extract parameters from HTTP requests (e.g. current user, template, workspace, OAuth2 account, etc.) and storing them in the request context
+  * [prebuilds](https://github.com/coder/coder/tree/main/coderd/prebuilds): common interfaces for prebuild workspaces, feature implementation is in [enterprise/prebuilds](https://github.com/coder/coder/tree/main/enterprise/coderd/prebuilds)
+  * [provisionerdserver](https://github.com/coder/coder/tree/main/coderd/provisionerdserver): DRPC server for [provisionerd](https://github.com/coder/coder/tree/main/provisionerd) instances, used to validate and extract Terraform data and resources, and store them in the database.
+  * [rbac](https://github.com/coder/coder/tree/main/coderd/rbac): RBAC engine for `coderd`, including authz layer, role definitions and custom roles. Built on top of [Open Policy Agent](https://github.com/open-policy-agent/opa) and Rego policies.
+  * [telemetry](https://github.com/coder/coder/tree/main/coderd/telemetry): records a snapshot with various workspace data for telemetry purposes. Once recorded the reporter sends it to the configured telemetry endpoint.
+  * [tracing](https://github.com/coder/coder/tree/main/coderd/tracing): extends telemetry with tracing data consistent with [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md)
+  * [workspaceapps](https://github.com/coder/coder/tree/main/coderd/workspaceapps): core logic of a secure proxy to expose workspace apps deployed in a workspace
+  * [wsbuilder](https://github.com/coder/coder/tree/main/coderd/wsbuilder): wrapper for business logic of creating a workspace build. It encapsulates all database operations required to insert a build record in a transaction.
+* [database](https://github.com/coder/coder/tree/main/coderd/database): schema migrations, query logic, in-memory database, etc.
+  * [db2sdk](https://github.com/coder/coder/tree/main/coderd/database/db2sdk)
+  * [dbauthz](https://github.com/coder/coder/tree/main/coderd/database/dbauthz)
+  * [dbauthz](https://github.com/coder/coder/tree/main/coderd/database/dbauthz)
+  * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake)
+  * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake)
+  * [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen)
+  * [dbmem](https://github.com/coder/coder/tree/main/coderd/database/dbmem)
+  * [dbmetrics](https://github.com/coder/coder/tree/main/coderd/database/dbmetrics)
+  * [dbmetrics](https://github.com/coder/coder/tree/main/coderd/database/dbmetrics)
+  * [dbmock](https://github.com/coder/coder/tree/main/coderd/database/dbmock)
+  * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge)
+  * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge)
+  * [gen](https://github.com/coder/coder/tree/main/coderd/database/gen)
+  * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations)
+  * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub)
+  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries)
 * `dogfood`: internal testing and validation tools
 * `enterprise`: enterprise-only features and extensions
+TODO
 * `nix`: Nix utility scripts and definitions
 * `provisioner`, `provisionerd`, `provisionersdk`: components for infrastructure provisioning
 * `pty`: terminal emulation for remote shells
