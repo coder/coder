@@ -131,12 +131,12 @@ The Coder backend is organized into multiple packages and directories, each with
 
 The Coder backend includes a rich suite of unit and end-to-end tests. A variety of helper utilities are used throughout the codebase to make testing easier, more consistent, and closer to real behavior.
 
-### [clitest](https://github.com/coder/coder/tree/main/clitest)
+### [clitest](https://github.com/coder/coder/tree/main/cli/clitest)
 * Spawns an in-memory `serpent.Command` instance for unit testing
 * Configures an authorized `codersdk` client
 * Once a `serpent.Invocation` is created, tests can execute commands as if invoked by a real user
 
-### [ptytest](https://github.com/coder/coder/tree/main/ptytest)
+### [ptytest](https://github.com/coder/coder/tree/main/pty/ptytest)
 * `ptytest` attaches to a `serpent.Invocation` and simulates TTY input/output
 * `pty` provides matchers and "write" operations for interacting with pseudo-terminals
 
@@ -145,9 +145,9 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
 * Can start an embedded provisioner daemon
 * Supports multi-user testing via `CreateFirstUser` and `CreateAnotherUser`
 * Includes "busy wait" helpers like `AwaitTemplateVersionJobCompleted`
+* [oidctest](https://github.com/coder/coder/tree/main/coderd/coderdtest/oidctest) can start a fake OIDC provider
 
-### `testutil`
-
+### [testutil](https://github.com/coder/coder/tree/main/testutil)
 General-purpose testing utilities, including:
 * `chan.go`: helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
 * `duration.go`: set timeouts for test execution
@@ -156,11 +156,11 @@ General-purpose testing utilities, including:
 * `prometheus.go`: validate Prometheus metrics with expected values
 * `pty.go`: read output from a terminal until a condition is met
 
-### `dbtestutil`
+### [dbtestutil](https://github.com/coder/coder/tree/main/coderd/database/dbtestutil)
 * Allows choosing between real and in-memory database backends for tests
 * `WillUsePostgres` is useful for skipping tests in CI environments that don't run Postgres
 
-### `quartz`
+### [quartz](https://github.com/coder/quartz/tree/main)
 * Provides a mockable clock or ticker interface
 * Allows manual time advancement
 * Useful for testing time-sensitive or timeout-related logic
