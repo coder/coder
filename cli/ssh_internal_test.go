@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	fakeOwnerName     = "fake-owner-name"
+	fakeOwnerUsername = "fake-owner-name"
 	fakeServerURL     = "https://fake-foo-url"
 	fakeWorkspaceName = "fake-workspace-name"
 )
@@ -41,7 +41,7 @@ func TestVerifyWorkspaceOutdated(t *testing.T) {
 	t.Run("Up-to-date", func(t *testing.T) {
 		t.Parallel()
 
-		workspace := codersdk.Workspace{Name: fakeWorkspaceName, OwnerName: fakeOwnerName}
+		workspace := codersdk.Workspace{Name: fakeWorkspaceName, OwnerUsername: fakeOwnerUsername}
 
 		_, outdated := verifyWorkspaceOutdated(&client, workspace)
 
@@ -50,7 +50,7 @@ func TestVerifyWorkspaceOutdated(t *testing.T) {
 	t.Run("Outdated", func(t *testing.T) {
 		t.Parallel()
 
-		workspace := codersdk.Workspace{Name: fakeWorkspaceName, OwnerName: fakeOwnerName, Outdated: true}
+		workspace := codersdk.Workspace{Name: fakeWorkspaceName, OwnerUsername: fakeOwnerUsername, Outdated: true}
 
 		updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(&client, workspace)
 
@@ -65,10 +65,10 @@ func TestBuildWorkspaceLink(t *testing.T) {
 	serverURL, err := url.Parse(fakeServerURL)
 	require.NoError(t, err)
 
-	workspace := codersdk.Workspace{Name: fakeWorkspaceName, OwnerName: fakeOwnerName}
+	workspace := codersdk.Workspace{Name: fakeWorkspaceName, OwnerUsername: fakeOwnerUsername}
 	workspaceLink := buildWorkspaceLink(serverURL, workspace)
 
-	assert.Equal(t, workspaceLink.String(), fakeServerURL+"/@"+fakeOwnerName+"/"+fakeWorkspaceName)
+	assert.Equal(t, workspaceLink.String(), fakeServerURL+"/@"+fakeOwnerUsername+"/"+fakeWorkspaceName)
 }
 
 func TestCloserStack_Mainline(t *testing.T) {
