@@ -375,29 +375,73 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db := dbmem.New()
 
-	deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
-		opts.Database = &mockDB{Store: opts.Database}
-		opts.Experiments = codersdk.Experiments{
-			codersdk.ExperimentWorkspacePrebuilds,
-		}
-		return opts
-	})
-
-	require.NotNil(t, deployment)
-	require.NotNil(t, snapshot)
-
-	require.Len(t, snapshot.PrebuiltWorkspaces, 3)
-
-	eventCounts := make(map[telemetry.PrebuiltWorkspaceEventType]int)
-	for _, event := range snapshot.PrebuiltWorkspaces {
-		eventCounts[event.EventType] = event.Count
-		require.NotEqual(t, uuid.Nil, event.ID)
-		require.False(t, event.CreatedAt.IsZero())
+	cases := []struct {
+		name                    string
+		experimentEnabled       bool
+		storeFn                 func(store database.Store) database.Store
+		expectedSnapshotEntries int
+		expectedCreated         int
+		expectedFailed          int
+		expectedClaimed         int
+	}{
+		{
+			name:              "experiment enabled",
+			experimentEnabled: true,
+			storeFn: func(store database.Store) database.Store {
+				return &mockDB{Store: store}
+			},
+			expectedSnapshotEntries: 3,
+			expectedCreated:         5,
+			expectedFailed:          2,
+			expectedClaimed:         3,
+		},
+		{
+			name:              "experiment enabled, prebuilds not used",
+			experimentEnabled: true,
+			storeFn: func(store database.Store) database.Store {
+				return &emptyMockDB{Store: store}
+			},
+		},
+		{
+			name:              "experiment disabled",
+			experimentEnabled: false,
+			storeFn: func(store database.Store) database.Store {
+				return &mockDB{Store: store}
+			},
+		},
 	}
 
-	require.Equal(t, 5, eventCounts[telemetry.PrebuiltWorkspaceEventTypeCreated])
-	require.Equal(t, 2, eventCounts[telemetry.PrebuiltWorkspaceEventTypeFailed])
-	require.Equal(t, 3, eventCounts[telemetry.PrebuiltWorkspaceEventTypeClaimed])
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+				opts.Database = tc.storeFn(db)
+				if tc.experimentEnabled {
+					opts.Experiments = codersdk.Experiments{
+						codersdk.ExperimentWorkspacePrebuilds,
+					}
+				}
+				return opts
+			})
+
+			require.NotNil(t, deployment)
+			require.NotNil(t, snapshot)
+
+			require.Len(t, snapshot.PrebuiltWorkspaces, tc.expectedSnapshotEntries)
+
+			eventCounts := make(map[telemetry.PrebuiltWorkspaceEventType]int)
+			for _, event := range snapshot.PrebuiltWorkspaces {
+				eventCounts[event.EventType] = event.Count
+				require.NotEqual(t, uuid.Nil, event.ID)
+				require.False(t, event.CreatedAt.IsZero())
+			}
+
+			require.Equal(t, tc.expectedCreated, eventCounts[telemetry.PrebuiltWorkspaceEventTypeCreated])
+			require.Equal(t, tc.expectedFailed, eventCounts[telemetry.PrebuiltWorkspaceEventTypeFailed])
+			require.Equal(t, tc.expectedClaimed, eventCounts[telemetry.PrebuiltWorkspaceEventTypeClaimed])
+		})
+	}
 }
 
 type mockDB struct {
@@ -423,22 +467,6 @@ func (m *mockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetr
 			ClaimedCount:     1,
 		},
 	}, nil
-}
-
-func TestPrebuiltWorkspacesTelemetryEmpty(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	db := dbmem.New()
-
-	deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
-		opts.Database = &emptyMockDB{Store: opts.Database}
-		return opts
-	})
-
-	require.NotNil(t, deployment)
-	require.NotNil(t, snapshot)
-
-	require.Len(t, snapshot.PrebuiltWorkspaces, 0)
 }
 
 type emptyMockDB struct {
