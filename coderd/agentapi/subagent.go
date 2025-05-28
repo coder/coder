@@ -86,7 +86,7 @@ func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.Delete
 		return nil, err
 	}
 
-	if err := a.Database.DeleteWorkspaceAgentByID(ctx, subAgentID); err != nil {
+	if err := a.Database.DeleteWorkspaceSubAgentByID(ctx, subAgentID); err != nil {
 		return nil, err
 	}
 

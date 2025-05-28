@@ -1389,6 +1389,20 @@ func isDeprecated(template database.Template) bool {
 	return template.Deprecated != ""
 }
 
+func (q *FakeQuerier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == id && agent.ParentID.Valid {
+			q.workspaceAgents = append(q.workspaceAgents[:i], q.workspaceAgents[i+1:]...)
+			return nil
+		}
+	}
+
+	return nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2500,20 +2514,6 @@ func (q *FakeQuerier) DeleteWebpushSubscriptions(_ context.Context, ids []uuid.U
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, agent := range q.workspaceAgents {
-		if agent.ID == id {
-			q.workspaceAgents = append(q.workspaceAgents[:i], q.workspaceAgents[i+1:]...)
-			return nil
-		}
-	}
-
-	return nil
-}
-
 func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2551,6 +2551,20 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 				continue
 			}
 			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
+func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == id && agent.ParentID.Valid {
+			q.workspaceAgents = slices.Delete(q.workspaceAgents, i, i+1)
+			return nil
 		}
 	}
 

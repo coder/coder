@@ -14159,12 +14159,12 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold 
 	return err
 }
 
-const deleteWorkspaceAgentByID = `-- name: DeleteWorkspaceAgentByID :exec
-DELETE FROM workspace_agents WHERE id = $1
+const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
+DELETE FROM workspace_agents WHERE id = $1 AND parent_id IS NOT NULL
 `
 
-func (q *sqlQuerier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentByID, id)
+func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceSubAgentByID, id)
 	return err
 }
 

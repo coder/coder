@@ -334,5 +334,5 @@ ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timing
 -- name: GetWorkspaceAgentsByParentID :many
 SELECT * FROM workspace_agents WHERE parent_id = @parent_id::uuid;
 
--- name: DeleteWorkspaceAgentByID :exec
-DELETE FROM workspace_agents WHERE id = $1;
+-- name: DeleteWorkspaceSubAgentByID :exec
+DELETE FROM workspace_agents WHERE id = $1 AND parent_id IS NOT NULL;

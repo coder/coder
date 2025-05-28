@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -152,10 +153,10 @@ func TestSubAgentAPI(t *testing.T) {
 					agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
 					require.NoError(t, err)
 
-					require.Equal(t, tt.agentName, agent.Name)
-					require.Equal(t, tt.agentDir, agent.Directory)
-					require.Equal(t, tt.agentArch, agent.Architecture)
-					require.Equal(t, tt.agentOS, agent.OperatingSystem)
+					assert.Equal(t, tt.agentName, agent.Name)
+					assert.Equal(t, tt.agentDir, agent.Directory)
+					assert.Equal(t, tt.agentArch, agent.Architecture)
+					assert.Equal(t, tt.agentOS, agent.OperatingSystem)
 				}
 			})
 		}

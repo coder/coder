@@ -4033,7 +4033,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead).
 			Returns(slice.New(a, b))
 	}))
-	s.Run("DeleteWorkspaceAgentByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteWorkspaceSubAgentByID", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.User(s.T(), db, database.User{})
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
