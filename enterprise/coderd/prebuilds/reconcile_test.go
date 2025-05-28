@@ -1034,7 +1034,8 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			require.Equal(t, database.WorkspaceTransitionDelete, workspaceBuilds[0].Transition)
 			require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[1].Transition)
 
-			// Metric is deleted after preset became outdated.
+			// The metric is still set to 1, even though the preset has become outdated.
+			// This happens because the old value hasn't been overwritten by a newer preset yet.
 			mf, err = registry.Gather()
 			require.NoError(t, err)
 			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
@@ -1042,7 +1043,9 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 				"preset_name":   preset.Name,
 				"org_name":      org.Name,
 			})
-			require.Nil(t, metric)
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
 		})
 	}
 }
@@ -1137,7 +1140,7 @@ func TestRunLoop(t *testing.T) {
 	trap := clock.Trap().NewTicker()
 	go reconciler.Run(ctx)
 	// wait until ticker is initialized
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 	// start 1st iteration of ReconciliationLoop
 	// NOTE: at this point MustWait waits that iteration is started (ReconcileAll is called), but it doesn't wait until it completes
 	clock.Advance(cfg.ReconciliationInterval.Value()).MustWait(ctx)

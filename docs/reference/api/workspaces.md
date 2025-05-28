@@ -144,6 +144,7 @@ of the template will be used.
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -279,7 +280,8 @@ of the template will be used.
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   },
   "name": "string",
   "next_start_at": "2019-08-24T14:15:22Z",
@@ -427,6 +429,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -562,7 +565,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   },
   "name": "string",
   "next_start_at": "2019-08-24T14:15:22Z",
@@ -736,6 +740,7 @@ of the template will be used.
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -871,7 +876,8 @@ of the template will be used.
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   },
   "name": "string",
   "next_start_at": "2019-08-24T14:15:22Z",
@@ -1022,6 +1028,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "command": "string",
                     "display_name": "string",
                     "external": true,
+                    "group": "string",
                     "health": "disabled",
                     "healthcheck": {},
                     "hidden": true,
@@ -1140,7 +1147,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "workspace_name": "string",
         "workspace_owner_avatar_url": "string",
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-        "workspace_owner_name": "string"
+        "workspace_owner_name": "string",
+        "workspace_owner_username": "string"
       },
       "name": "string",
       "next_start_at": "2019-08-24T14:15:22Z",
@@ -1289,6 +1297,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -1424,7 +1433,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   },
   "name": "string",
   "next_start_at": "2019-08-24T14:15:22Z",
@@ -1688,6 +1698,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -1823,7 +1834,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
+    "workspace_owner_name": "string",
+    "workspace_owner_username": "string"
   },
   "name": "string",
   "next_start_at": "2019-08-24T14:15:22Z",

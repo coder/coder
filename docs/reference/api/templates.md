@@ -2299,6 +2299,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "command": "string",
             "display_name": "string",
             "external": true,
+            "group": "string",
             "health": "disabled",
             "healthcheck": {
               "interval": 0,
@@ -2445,6 +2446,7 @@ Status Code **200**
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `»»» external`                  | boolean                                                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» group`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                                                 | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
@@ -2572,6 +2574,33 @@ Status Code **200**
 | `workspace_transition`    | `start`            |
 | `workspace_transition`    | `stop`             |
 | `workspace_transition`    | `delete`           |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Open dynamic parameters WebSocket by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/dynamic-parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `user`            | path | string(uuid) | true     | Template version ID |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2827,6 +2856,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "command": "string",
             "display_name": "string",
             "external": true,
+            "group": "string",
             "health": "disabled",
             "healthcheck": {
               "interval": 0,
@@ -2973,6 +3003,7 @@ Status Code **200**
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `»»» external`                  | boolean                                                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» group`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                                                 | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
@@ -3338,32 +3369,5 @@ Status Code **200**
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Open dynamic parameters WebSocket by template version
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/templateversions/{templateversion}/parameters \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /users/{user}/templateversions/{templateversion}/parameters`
-
-### Parameters
-
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `user`            | path | string(uuid) | true     | Template version ID |
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-
-### Responses
-
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

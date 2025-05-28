@@ -156,6 +156,32 @@ export const Slider: Story = {
 	},
 };
 
+export const ErrorFormType: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "error",
+			type: "string",
+			diagnostics: [
+				{
+					severity: "error",
+					summary: "This is an error",
+					detail:
+						"This is a longer error message. This is a longer error message. This is a longer error message. This is a longer error message. This is a longer error message. This is a longer error message.",
+					extra: { code: "" },
+				},
+				{
+					severity: "error",
+					summary: "This is an error",
+					detail:
+						"This is a longer error message. This is a longer error message. This is a longer error message. This is a longer error message. This is a longer error message. This is a longer error message.",
+					extra: { code: "" },
+				},
+			],
+		},
+	},
+};
+
 export const Disabled: Story = {
 	args: {
 		parameter: {
