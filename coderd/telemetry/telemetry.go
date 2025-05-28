@@ -683,6 +683,48 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		metrics, err := r.options.Database.GetPrebuildMetrics(ctx)
+		if err != nil {
+			return xerrors.Errorf("get prebuild metrics: %w", err)
+		}
+
+		var totalCreated, totalFailed, totalClaimed int64
+		for _, metric := range metrics {
+			totalCreated += metric.CreatedCount
+			totalFailed += metric.FailedCount
+			totalClaimed += metric.ClaimedCount
+		}
+
+		snapshot.PrebuiltWorkspaces = make([]PrebuiltWorkspace, 0, 3)
+		now := dbtime.Now()
+
+		if totalCreated > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeCreated,
+				Count:     int(totalCreated),
+			})
+		}
+		if totalFailed > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeFailed,
+				Count:     int(totalFailed),
+			})
+		}
+		if totalClaimed > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeClaimed,
+				Count:     int(totalClaimed),
+			})
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -1152,6 +1194,7 @@ type Snapshot struct {
 	Organizations                        []Organization                        `json:"organizations"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
+	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1722,6 +1765,21 @@ type UserTailnetConnection struct {
 	DeviceID            *string    `json:"device_id"`
 	DeviceOS            *string    `json:"device_os"`
 	CoderDesktopVersion *string    `json:"coder_desktop_version"`
+}
+
+type PrebuiltWorkspaceEventType string
+
+const (
+	PrebuiltWorkspaceEventTypeCreated PrebuiltWorkspaceEventType = "created"
+	PrebuiltWorkspaceEventTypeFailed  PrebuiltWorkspaceEventType = "failed"
+	PrebuiltWorkspaceEventTypeClaimed PrebuiltWorkspaceEventType = "claimed"
+)
+
+type PrebuiltWorkspace struct {
+	ID        uuid.UUID                  `json:"id"`
+	CreatedAt time.Time                  `json:"created_at"`
+	EventType PrebuiltWorkspaceEventType `json:"event_type"`
+	Count     int                        `json:"count"`
 }
 
 type noopReporter struct{}
