@@ -119,9 +119,8 @@ The Coder backend is organized into multiple packages and directories, each with
 * [enterprise](https://github.com/coder/coder/tree/main/enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
   * [coderd](https://github.com/coder/coder/tree/main/enterprise/coderd)
     * [prebuilds](https://github.com/coder/coder/tree/main/enterprise/coderd/prebuilds): core logic of prebuilt workspaces - reconciliation loop
-* [provisioner](https://github.com/coder/coder/tree/main/provisioner):
-* [provisionerd](https://github.com/coder/coder/tree/main/provisionerd):
-* [provisionersdk](https://github.com/coder/coder/tree/main/provisionersdk):
+* [provisioner](https://github.com/coder/coder/tree/main/provisioner): supported implementation of provisioners, Terraform and "echo" (for testing purposes)
+* [provisionerd](https://github.com/coder/coder/tree/main/provisionerd): core logic of provisioner runner to interact provisionerd server, depending on a job acquired it calls template import, dry run or a workspace build
 * [pty](https://github.com/coder/coder/tree/main/pty): terminal emulation for agent shell
 * [support](https://github.com/coder/coder/tree/main/support): compile a support bundle with diagnostics
 * [tailnet](https://github.com/coder/coder/tree/main/tailnet): core logic of Tailnet controller to maintain DERP maps, coordinate connections with agents and peers
