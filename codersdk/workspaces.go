@@ -70,7 +70,7 @@ type Workspace struct {
 }
 
 func (w Workspace) FullName() string {
-	return fmt.Sprintf("%s/%s", w.OwnerName, w.Name)
+	return fmt.Sprintf("%s/%s", w.OwnerUsername, w.Name)
 }
 
 type WorkspaceHealth struct {
