@@ -242,9 +242,11 @@ const TerminalPage: FC = () => {
 
 		let disposed = false;
 
-		// Open the web socket and hook it up to the terminal.
 		terminalWebsocketUrl(
-			proxy.preferredPathAppURL,
+			// When on development mode we can bypass the proxy and connect directly.
+			process.env.NODE_ENV !== "development"
+				? proxy.preferredPathAppURL
+				: undefined,
 			reconnectionToken,
 			workspaceAgent.id,
 			command,
@@ -330,7 +332,7 @@ const TerminalPage: FC = () => {
 				<title>
 					{workspace.data
 						? pageTitle(
-								`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
+								`Terminal · ${workspace.data.owner_username}/${workspace.data.name}`,
 							)
 						: ""}
 				</title>

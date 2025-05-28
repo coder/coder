@@ -174,7 +174,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+				<title>
+					{pageTitle(`${workspace.owner_username}/${workspace.name}`)}
+				</title>
 				<link
 					rel="alternate icon"
 					type="image/png"

@@ -73,7 +73,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	// Quota
 	const hasDailyCost = workspace.latest_build.daily_cost > 0;
 	const { data: quota } = useQuery({
-		...workspaceQuota(workspace.organization_name, workspace.owner_name),
+		...workspaceQuota(workspace.organization_name, workspace.owner_username),
 
 		// Don't need to tie the enabled condition to showOrganizations because
 		// even if the customer hasn't enabled the orgs enterprise feature, all
@@ -116,7 +116,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 			<div css={styles.topbarLeft}>
 				<TopbarData>
 					<OwnerBreadcrumb
-						ownerName={workspace.owner_name}
+						ownerName={workspace.owner_username}
 						ownerAvatarUrl={workspace.owner_avatar_url}
 					/>
 

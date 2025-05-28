@@ -54,7 +54,7 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	if workspace.Favorite {
 		favIco = "★"
 	}
-	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
+	workspaceName := favIco + " " + workspace.OwnerUsername + "/" + workspace.Name
 	return workspaceListRow{
 		Favorite:         workspace.Favorite,
 		Workspace:        workspace,

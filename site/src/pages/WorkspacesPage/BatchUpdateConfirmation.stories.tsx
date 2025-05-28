@@ -26,7 +26,7 @@ const workspaces = [
 		...MockRunningOutdatedWorkspace,
 		id: "6",
 		owner_id: MockUserMember.id,
-		owner_name: MockUserMember.username,
+		owner_username: MockUserMember.username,
 	},
 ];
 
