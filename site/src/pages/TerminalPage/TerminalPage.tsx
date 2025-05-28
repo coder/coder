@@ -244,7 +244,9 @@ const TerminalPage: FC = () => {
 
 		// Open the web socket and hook it up to the terminal.
 		terminalWebsocketUrl(
-			proxy.preferredPathAppURL,
+			process.env.NODE_ENV !== "development"
+				? proxy.preferredPathAppURL
+				: undefined,
 			reconnectionToken,
 			workspaceAgent.id,
 			command,

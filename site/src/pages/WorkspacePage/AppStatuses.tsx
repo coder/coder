@@ -29,42 +29,7 @@ import {
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
-
-const getStatusColor = (state: APIWorkspaceAppStatus["state"]) => {
-	switch (state) {
-		case "complete":
-			return "text-content-success";
-		case "failure":
-			return "text-content-warning";
-		case "working":
-			return "text-highlight-sky";
-		default:
-			return "text-content-secondary";
-	}
-};
-
-const getStatusIcon = (
-	state: APIWorkspaceAppStatus["state"],
-	isLatest: boolean,
-	className?: string,
-) => {
-	const iconClassName = cn(["size-[18px]", getStatusColor(state), className]);
-
-	switch (state) {
-		case "complete":
-			return <CircleCheckIcon className={iconClassName} />;
-		case "failure":
-			return <CircleAlertIcon className={iconClassName} />;
-		case "working":
-			return isLatest ? (
-				<Spinner size="sm" loading />
-			) : (
-				<HourglassIcon className={iconClassName} />
-			);
-		default:
-			return <TriangleAlertIcon className={iconClassName} />;
-	}
-};
+import { AppStatusIcon } from "modules/apps/AppStatusIcon";
 
 const formatURI = (uri: string) => {
 	if (uri.startsWith("file://")) {
@@ -150,7 +115,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			>
 				<div className="flex flex-col">
 					<span className="text-sm font-medium text-content-primary flex items-center gap-2">
-						{getStatusIcon(latestStatus.state, true)}
+						<AppStatusIcon status={latestStatus} latest />
 						{latestStatus.message}
 					</span>
 					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
@@ -227,7 +192,11 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						>
 							<div className="flex items-center justify-between w-full text-content-secondary">
 								<span className="text-xs flex items-center gap-2">
-									{getStatusIcon(status.state, false, "size-icon-xs w-[18px]")}
+									<AppStatusIcon
+										status={latestStatus}
+										latest={false}
+										className="size-icon-xs w-[18px]"
+									/>
 									{status.message}
 								</span>
 								<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">

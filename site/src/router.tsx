@@ -326,6 +326,7 @@ const ProvisionerJobsPage = lazy(
 		),
 );
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
+const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 
 const RoutesWithSuspense = () => {
 	return (
@@ -591,6 +592,7 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
+				<Route path="/tasks/:username/:workspace" element={<TaskPage />} />
 			</Route>
 		</Route>,
 	),
