@@ -21,8 +21,8 @@ BEGIN
 	JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
 	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 	WHERE workspace_builds.id = workspace_build_id
-	  AND workspace_agents.name = NEW.name
-	  AND workspace_agents.id != NEW.id;
+		AND workspace_agents.name = NEW.name
+		AND workspace_agents.id != NEW.id;
 
 	-- If there's already an agent with this name, raise an error
 	IF agents_with_name > 0 THEN
@@ -38,3 +38,8 @@ CREATE TRIGGER workspace_agent_name_unique_trigger
 	BEFORE INSERT OR UPDATE OF name, resource_id ON workspace_agents
 	FOR EACH ROW
 	EXECUTE FUNCTION check_workspace_agent_name_unique();
+
+COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS
+'Use a trigger instead of a unique constraint because existing data may violate
+the uniqueness requirement. A trigger allows us to enforce uniqueness going
+forward without requiring a migration to clean up historical data.';
