@@ -17,7 +17,7 @@ import {
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export type ExternalAuthSettingsPageViewProps = {
+type ExternalAuthSettingsPageViewProps = {
 	config: DeploymentValues;
 };
 

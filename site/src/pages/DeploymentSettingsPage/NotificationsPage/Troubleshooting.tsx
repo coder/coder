@@ -7,13 +7,11 @@ import type { FC } from "react";
 import { useMutation } from "react-query";
 
 export const Troubleshooting: FC = () => {
-	const { mutate: sendTestNotificationApi, isLoading } = useMutation(
-		API.postTestNotification,
-		{
-			onSuccess: () => displaySuccess("Test notification sent"),
-			onError: () => displayError("Failed to send test notification"),
-		},
-	);
+	const { mutate: sendTestNotificationApi, isPending } = useMutation({
+		mutationFn: API.postTestNotification,
+		onSuccess: () => displaySuccess("Test notification sent"),
+		onError: () => displayError("Failed to send test notification"),
+	});
 
 	const theme = useTheme();
 	return (
@@ -33,12 +31,12 @@ export const Troubleshooting: FC = () => {
 					<Button
 						variant="outline"
 						size="sm"
-						disabled={isLoading}
+						disabled={isPending}
 						onClick={() => {
 							sendTestNotificationApi();
 						}}
 					>
-						<Spinner loading={isLoading} />
+						<Spinner loading={isPending} />
 						Send notification
 					</Button>
 				</span>

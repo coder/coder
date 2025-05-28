@@ -35,7 +35,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 	if (isDismissed) {
 		return (
 			<Button
-				disabled={healthSettingsQuery.isLoading || enableMutation.isLoading}
+				disabled={healthSettingsQuery.isLoading || enableMutation.isPending}
 				variant="outline"
 				onClick={async () => {
 					const updatedSettings = dismissed_healthchecks.filter(
@@ -48,7 +48,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 					displaySuccess("Warnings enabled successfully!");
 				}}
 			>
-				<Spinner loading={enableMutation.isLoading}>
+				<Spinner loading={enableMutation.isPending}>
 					<NotificationsOffOutlined />
 				</Spinner>
 				Enable warnings
@@ -58,7 +58,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 
 	return (
 		<Button
-			disabled={healthSettingsQuery.isLoading || dismissMutation.isLoading}
+			disabled={healthSettingsQuery.isLoading || dismissMutation.isPending}
 			variant="outline"
 			onClick={async () => {
 				const updatedSettings = [...dismissed_healthchecks, props.healthcheck];
@@ -68,7 +68,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				displaySuccess("Warnings dismissed successfully!");
 			}}
 		>
-			<Spinner loading={dismissMutation.isLoading}>
+			<Spinner loading={dismissMutation.isPending}>
 				<NotificationOutlined />
 			</Spinner>
 			Dismiss warnings

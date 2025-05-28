@@ -78,7 +78,8 @@ func TestWorkspaceBuild(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 	wb, err := client.WorkspaceBuild(testutil.Context(t, testutil.WaitShort), workspace.LatestBuild.ID)
 	require.NoError(t, err)
-	require.Equal(t, up.Username, wb.WorkspaceOwnerName)
+	require.Equal(t, up.Username, wb.WorkspaceOwnerUsername)
+	require.Equal(t, up.Name, wb.WorkspaceOwnerName)
 	require.Equal(t, up.AvatarURL, wb.WorkspaceOwnerAvatarURL)
 }
 

@@ -5880,6 +5880,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dynamic-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Open dynamic parameters WebSocket by template version",
+                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
@@ -7735,43 +7772,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/{user}/templateversions/{templateversion}/parameters": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Open dynamic parameters WebSocket by template version",
-                "operationId": "open-dynamic-parameters-websocket-by-template-version",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "templateversion",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                }
-            }
-        },
         "/users/{user}/webpush/subscription": {
             "post": {
                 "security": [
@@ -8613,6 +8613,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -8636,8 +8639,11 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 }
             }
@@ -12643,9 +12649,11 @@ const docTemplate = `{
                 "web-push",
                 "dynamic-parameters",
                 "workspace-prebuilds",
-                "agentic-chat"
+                "agentic-chat",
+                "ai-tasks"
             ],
             "x-enum-comments": {
+                "ExperimentAITasks": "Enables the new AI tasks feature.",
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
@@ -12663,7 +12671,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentDynamicParameters",
                 "ExperimentWorkspacePrebuilds",
-                "ExperimentAgenticChat"
+                "ExperimentAgenticChat",
+                "ExperimentAITasks"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -14326,6 +14335,10 @@ const docTemplate = `{
         "codersdk.PrebuildsConfig": {
             "type": "object",
             "properties": {
+                "failure_hard_limit": {
+                    "description": "FailureHardLimit defines the maximum number of consecutive failed prebuild attempts allowed\nbefore a preset is considered to be in a hard limit state. When a preset hits this limit,\nno new prebuilds will be created until the limit is reset.\nFailureHardLimit is disabled when set to zero.",
+                    "type": "integer"
+                },
                 "reconciliation_backoff_interval": {
                     "description": "ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval\nwhen errors occur during reconciliation.",
                     "type": "integer"
@@ -17188,6 +17201,14 @@ const docTemplate = `{
                     "description": "DevcontainerDirty is true if the devcontainer configuration has changed\nsince the container was created. This is used to determine if the\ncontainer needs to be rebuilt.",
                     "type": "boolean"
                 },
+                "devcontainer_status": {
+                    "description": "DevcontainerStatus is the status of the devcontainer, if this\ncontainer is a devcontainer. This is used to determine if the\ndevcontainer is running, stopped, starting, or in an error state.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerStatus"
+                        }
+                    ]
+                },
                 "id": {
                     "description": "ID is the unique identifier of the container.",
                     "type": "string"
@@ -17251,6 +17272,21 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentDevcontainerStatus": {
+            "type": "string",
+            "enum": [
+                "running",
+                "stopped",
+                "starting",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentDevcontainerStatusRunning",
+                "WorkspaceAgentDevcontainerStatusStopped",
+                "WorkspaceAgentDevcontainerStatusStarting",
+                "WorkspaceAgentDevcontainerStatusError"
+            ]
         },
         "codersdk.WorkspaceAgentHealth": {
             "type": "object",
@@ -17534,6 +17570,9 @@ const docTemplate = `{
                     "description": "External specifies whether the URL should be opened externally on\nthe client or not.",
                     "type": "boolean"
                 },
+                "group": {
+                    "type": "string"
+                },
                 "health": {
                     "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
                 },
@@ -17808,6 +17847,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_name": {
+                    "type": "string"
+                },
+                "workspace_owner_username": {
                     "type": "string"
                 }
             }

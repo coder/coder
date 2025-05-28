@@ -25,4 +25,4 @@ Bypass prompts.
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-A list of roles to give to the user. This removes any existing roles the user may have. The available roles are: auditor, member, owner, template-admin, user-admin.
+A list of roles to give to the user. This removes any existing roles the user may have.

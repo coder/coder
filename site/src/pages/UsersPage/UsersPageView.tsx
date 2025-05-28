@@ -16,7 +16,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 
-export interface UsersPageViewProps {
+interface UsersPageViewProps {
 	users?: readonly TypesGen.User[];
 	roles?: TypesGen.AssignableRoles[];
 	isUpdatingUserRoles?: boolean;

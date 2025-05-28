@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
@@ -9,6 +8,7 @@ import { createChat, getChats } from "api/queries/chats";
 import { deploymentLanguageModels } from "api/queries/deployment";
 import type { LanguageModelConfig } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useAgenticChat } from "contexts/useAgenticChat";
@@ -24,7 +24,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Outlet, useNavigate, useParams } from "react-router-dom";
 
-export interface ChatContext {
+interface ChatContext {
 	selectedModel: string;
 	modelConfig: LanguageModelConfig;
 
@@ -38,7 +38,7 @@ export const useChatContext = (): ChatContext => {
 	return context;
 };
 
-export const ChatContext = createContext<ChatContext | undefined>(undefined);
+const ChatContext = createContext<ChatContext | undefined>(undefined);
 
 const SELECTED_MODEL_KEY = "coder_chat_selected_model";
 
@@ -167,16 +167,12 @@ export const ChatLayout: FC = () => {
 						Chats
 					</div>
 					<Button
-						variant="outlined"
-						size="small"
-						startIcon={<PlusIcon className="size-icon-sm" />}
+						variant="outline"
+						size="sm"
 						onClick={handleNewChat}
-						disabled={createChatMutation.isLoading}
-						css={{
-							lineHeight: 1.5,
-							padding: theme.spacing(0.5, 1.5),
-						}}
+						disabled={createChatMutation.isPending}
 					>
+						<PlusIcon />
 						New Chat
 					</Button>
 				</div>

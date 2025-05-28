@@ -10,7 +10,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { type ComponentProps, type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
-export type OrganizationAutocompleteProps = {
+type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
 	label?: string;
 	className?: string;
@@ -29,24 +29,26 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [selected, setSelected] = useState<Organization | null>(null);
-
 	const organizationsQuery = useQuery(organizations());
+	const checks =
+		check &&
+		organizationsQuery.data &&
+		Object.fromEntries(
+			organizationsQuery.data.map((org) => [
+				org.id,
+				{
+					...check,
+					object: { ...check.object, organization_id: org.id },
+				},
+			]),
+		);
 
-	const permissionsQuery = useQuery(
-		check && organizationsQuery.data
-			? checkAuthorization({
-					checks: Object.fromEntries(
-						organizationsQuery.data.map((org) => [
-							org.id,
-							{
-								...check,
-								object: { ...check.object, organization_id: org.id },
-							},
-						]),
-					),
-				})
-			: { enabled: false },
-	);
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: checks ?? {},
+		}),
+		enabled: Boolean(check && organizationsQuery.data),
+	});
 
 	// If an authorization check was provided, filter the organizations based on
 	// the results of that check.

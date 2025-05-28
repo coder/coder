@@ -807,6 +807,12 @@ type PrebuildsConfig struct {
 	// ReconciliationBackoffLookback determines the time window to look back when calculating
 	// the number of failed prebuilds, which influences the backoff strategy.
 	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
+
+	// FailureHardLimit defines the maximum number of consecutive failed prebuild attempts allowed
+	// before a preset is considered to be in a hard limit state. When a preset hits this limit,
+	// no new prebuilds will be created until the limit is reset.
+	// FailureHardLimit is disabled when set to zero.
+	FailureHardLimit serpent.Int64 `json:"failure_hard_limit" typescript:"failure_hard_limit"`
 }
 
 const (
@@ -3086,6 +3092,17 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true,
 		},
+		{
+			Name:        "Failure Hard Limit",
+			Description: "Maximum number of consecutive failed prebuilds before a preset hits the hard limit; disabled when set to zero.",
+			Flag:        "workspace-prebuilds-failure-hard-limit",
+			Env:         "CODER_WORKSPACE_PREBUILDS_FAILURE_HARD_LIMIT",
+			Value:       &c.Prebuilds.FailureHardLimit,
+			Default:     "3",
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "failure_hard_limit",
+			Hidden:      true,
+		},
 	}
 
 	return opts
@@ -3329,6 +3346,7 @@ const (
 	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
+	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
 
 // ExperimentsSafe should include all experiments that are safe for

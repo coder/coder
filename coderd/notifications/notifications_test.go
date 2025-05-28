@@ -341,8 +341,8 @@ func TestBackpressure(t *testing.T) {
 
 	// Start the notifier.
 	mgr.Run(ctx)
-	syncTrap.MustWait(ctx).Release()
-	fetchTrap.MustWait(ctx).Release()
+	syncTrap.MustWait(ctx).MustRelease(ctx)
+	fetchTrap.MustWait(ctx).MustRelease(ctx)
 
 	// THEN:
 
@@ -1248,6 +1248,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 						"docker_container[0]": "env, hostname",
 					},
 				},
+			},
+		},
+		{
+			name: "PrebuildFailureLimitReached",
+			id:   notifications.PrebuildFailureLimitReached,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"org":              "cern",
+					"template":         "docker",
+					"template_version": "angry_torvalds",
+					"preset":           "particle-accelerator",
+				},
+				Data: map[string]any{},
 			},
 		},
 	}

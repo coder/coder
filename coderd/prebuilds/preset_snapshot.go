@@ -31,21 +31,28 @@ const (
 // PresetSnapshot is a filtered view of GlobalSnapshot focused on a single preset.
 // It contains the raw data needed to calculate the current state of a preset's prebuilds,
 // including running prebuilds, in-progress builds, and backoff information.
+// - Running: prebuilds running and non-expired
+// - Expired: prebuilds running and expired due to the preset's TTL
+// - InProgress: prebuilds currently in progress
+// - Backoff: holds failure info to decide if prebuild creation should be backed off
 type PresetSnapshot struct {
-	Preset     database.GetTemplatePresetsWithPrebuildsRow
-	Running    []database.GetRunningPrebuiltWorkspacesRow
-	InProgress []database.CountInProgressPrebuildsRow
-	Backoff    *database.GetPresetsBackoffRow
+	Preset        database.GetTemplatePresetsWithPrebuildsRow
+	Running       []database.GetRunningPrebuiltWorkspacesRow
+	Expired       []database.GetRunningPrebuiltWorkspacesRow
+	InProgress    []database.CountInProgressPrebuildsRow
+	Backoff       *database.GetPresetsBackoffRow
+	IsHardLimited bool
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,
 // calculated from a PresetSnapshot. While PresetSnapshot contains raw data,
 // ReconciliationState contains derived metrics that are directly used to
 // determine what actions are needed (create, delete, or backoff).
-// For example, it calculates how many prebuilds are eligible, how many are
-// extraneous, and how many are in various transition states.
+// For example, it calculates how many prebuilds are expired, eligible,
+// how many are extraneous, and how many are in various transition states.
 type ReconciliationState struct {
-	Actual     int32 // Number of currently running prebuilds
+	Actual     int32 // Number of currently running prebuilds, i.e., non-expired, expired and extraneous prebuilds
+	Expired    int32 // Number of currently running prebuilds that exceeded their allowed time-to-live (TTL)
 	Desired    int32 // Number of prebuilds desired as defined in the preset
 	Eligible   int32 // Number of prebuilds that are ready to be claimed
 	Extraneous int32 // Number of extra running prebuilds beyond the desired count
@@ -77,7 +84,8 @@ func (ra *ReconciliationActions) IsNoop() bool {
 }
 
 // CalculateState computes the current state of prebuilds for a preset, including:
-// - Actual: Number of currently running prebuilds
+// - Actual: Number of currently running prebuilds, i.e., non-expired and expired prebuilds
+// - Expired: Number of currently running expired prebuilds
 // - Desired: Number of prebuilds desired as defined in the preset
 // - Eligible: Number of prebuilds that are ready to be claimed
 // - Extraneous: Number of extra running prebuilds beyond the desired count
@@ -91,23 +99,28 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	var (
 		actual     int32
 		desired    int32
+		expired    int32
 		eligible   int32
 		extraneous int32
 	)
 
-	// #nosec G115 - Safe conversion as p.Running slice length is expected to be within int32 range
-	actual = int32(len(p.Running))
+	// #nosec G115 - Safe conversion as p.Running and p.Expired slice length is expected to be within int32 range
+	actual = int32(len(p.Running) + len(p.Expired))
+
+	// #nosec G115 - Safe conversion as p.Expired slice length is expected to be within int32 range
+	expired = int32(len(p.Expired))
 
 	if p.isActive() {
 		desired = p.Preset.DesiredInstances.Int32
 		eligible = p.countEligible()
-		extraneous = max(actual-desired, 0)
+		extraneous = max(actual-expired-desired, 0)
 	}
 
 	starting, stopping, deleting := p.countInProgress()
 
 	return &ReconciliationState{
 		Actual:     actual,
+		Expired:    expired,
 		Desired:    desired,
 		Eligible:   eligible,
 		Extraneous: extraneous,
@@ -125,6 +138,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 // 3. For active presets, it calculates the number of prebuilds to create or delete based on:
 //   - The desired number of instances
 //   - Currently running prebuilds
+//   - Currently running expired prebuilds
 //   - Prebuilds in transition states (starting/stopping/deleting)
 //   - Any extraneous prebuilds that need to be removed
 //
@@ -132,7 +146,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 // - ActionTypeBackoff: Only BackoffUntil is set, indicating when to retry
 // - ActionTypeCreate: Only Create is set, indicating how many prebuilds to create
 // - ActionTypeDelete: Only DeleteIDs is set, containing IDs of prebuilds to delete
-func (p PresetSnapshot) CalculateActions(clock quartz.Clock, backoffInterval time.Duration) (*ReconciliationActions, error) {
+func (p PresetSnapshot) CalculateActions(clock quartz.Clock, backoffInterval time.Duration) ([]*ReconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
@@ -157,45 +171,77 @@ func (p PresetSnapshot) isActive() bool {
 	return p.Preset.UsingActiveVersion && !p.Preset.Deleted && !p.Preset.Deprecated
 }
 
-// handleActiveTemplateVersion deletes excess prebuilds if there are too many,
-// otherwise creates new ones to reach the desired count.
-func (p PresetSnapshot) handleActiveTemplateVersion() (*ReconciliationActions, error) {
+// handleActiveTemplateVersion determines the reconciliation actions for a preset with an active template version.
+// It ensures the system moves towards the desired number of healthy prebuilds.
+//
+// The reconciliation follows this order:
+//  1. Delete expired prebuilds: These are no longer valid and must be removed first.
+//  2. Delete extraneous prebuilds: After expired ones are removed, if the number of running non-expired prebuilds
+//     still exceeds the desired count, the oldest prebuilds are deleted to reduce excess.
+//  3. Create missing prebuilds: If the number of non-expired, non-starting prebuilds is still below the desired count,
+//     create the necessary number of prebuilds to reach the target.
+//
+// The function returns a list of actions to be executed to achieve the desired state.
+func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*ReconciliationActions, err error) {
 	state := p.CalculateState()
 
-	// If we have more prebuilds than desired, delete the oldest ones
-	if state.Extraneous > 0 {
-		return &ReconciliationActions{
-			ActionType: ActionTypeDelete,
-			DeleteIDs:  p.getOldestPrebuildIDs(int(state.Extraneous)),
-		}, nil
+	// If we have expired prebuilds, delete them
+	if state.Expired > 0 {
+		var deleteIDs []uuid.UUID
+		for _, expired := range p.Expired {
+			deleteIDs = append(deleteIDs, expired.ID)
+		}
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  deleteIDs,
+			})
 	}
+
+	// If we still have more prebuilds than desired, delete the oldest ones
+	if state.Extraneous > 0 {
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  p.getOldestPrebuildIDs(int(state.Extraneous)),
+			})
+	}
+
+	// Number of running prebuilds excluding the recently deleted Expired
+	runningValid := state.Actual - state.Expired
 
 	// Calculate how many new prebuilds we need to create
 	// We subtract starting prebuilds since they're already being created
-	prebuildsToCreate := max(state.Desired-state.Actual-state.Starting, 0)
+	prebuildsToCreate := max(state.Desired-runningValid-state.Starting, 0)
+	if prebuildsToCreate > 0 {
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeCreate,
+				Create:     prebuildsToCreate,
+			})
+	}
 
-	return &ReconciliationActions{
-		ActionType: ActionTypeCreate,
-		Create:     prebuildsToCreate,
-	}, nil
+	return actions, nil
 }
 
 // handleInactiveTemplateVersion deletes all running prebuilds except those already being deleted
 // to avoid duplicate deletion attempts.
-func (p PresetSnapshot) handleInactiveTemplateVersion() (*ReconciliationActions, error) {
+func (p PresetSnapshot) handleInactiveTemplateVersion() ([]*ReconciliationActions, error) {
 	prebuildsToDelete := len(p.Running)
 	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
 
-	return &ReconciliationActions{
-		ActionType: ActionTypeDelete,
-		DeleteIDs:  deleteIDs,
+	return []*ReconciliationActions{
+		{
+			ActionType: ActionTypeDelete,
+			DeleteIDs:  deleteIDs,
+		},
 	}, nil
 }
 
 // needsBackoffPeriod checks if we should delay prebuild creation due to recent failures.
 // If there were failures, it calculates a backoff period based on the number of failures
 // and returns true if we're still within that period.
-func (p PresetSnapshot) needsBackoffPeriod(clock quartz.Clock, backoffInterval time.Duration) (*ReconciliationActions, bool) {
+func (p PresetSnapshot) needsBackoffPeriod(clock quartz.Clock, backoffInterval time.Duration) ([]*ReconciliationActions, bool) {
 	if p.Backoff == nil || p.Backoff.NumFailed == 0 {
 		return nil, false
 	}
@@ -204,9 +250,11 @@ func (p PresetSnapshot) needsBackoffPeriod(clock quartz.Clock, backoffInterval t
 		return nil, false
 	}
 
-	return &ReconciliationActions{
-		ActionType:   ActionTypeBackoff,
-		BackoffUntil: backoffUntil,
+	return []*ReconciliationActions{
+		{
+			ActionType:   ActionTypeBackoff,
+			BackoffUntil: backoffUntil,
+		},
 	}, true
 }
 

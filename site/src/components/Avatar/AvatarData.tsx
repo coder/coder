@@ -1,7 +1,7 @@
 import { Avatar } from "components/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
-export interface AvatarDataProps {
+interface AvatarDataProps {
 	title: ReactNode;
 	subtitle?: ReactNode;
 	src?: string;

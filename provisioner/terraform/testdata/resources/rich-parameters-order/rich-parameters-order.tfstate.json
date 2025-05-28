@@ -16,6 +16,7 @@
             "description": null,
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "1f22af56-31b6-40d1-acc9-652a5e5c8a8d",
             "mutable": false,
@@ -23,6 +24,7 @@
             "option": null,
             "optional": false,
             "order": 55,
+            "styling": "{}",
             "type": "string",
             "validation": [],
             "value": ""
@@ -43,6 +45,7 @@
             "description": "blah blah",
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "bc6ed4d8-ea44-4afc-8641-7b0bf176145d",
             "mutable": false,
@@ -50,6 +53,7 @@
             "option": null,
             "optional": true,
             "order": 99,
+            "styling": "{}",
             "type": "string",
             "validation": [],
             "value": "ok"
@@ -66,6 +70,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,

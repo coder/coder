@@ -1343,6 +1343,67 @@ func AllPortShareProtocolValues() []PortShareProtocol {
 	}
 }
 
+type PrebuildStatus string
+
+const (
+	PrebuildStatusHealthy          PrebuildStatus = "healthy"
+	PrebuildStatusHardLimited      PrebuildStatus = "hard_limited"
+	PrebuildStatusValidationFailed PrebuildStatus = "validation_failed"
+)
+
+func (e *PrebuildStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PrebuildStatus(s)
+	case string:
+		*e = PrebuildStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PrebuildStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPrebuildStatus struct {
+	PrebuildStatus PrebuildStatus `json:"prebuild_status"`
+	Valid          bool           `json:"valid"` // Valid is true if PrebuildStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPrebuildStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PrebuildStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PrebuildStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPrebuildStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PrebuildStatus), nil
+}
+
+func (e PrebuildStatus) Valid() bool {
+	switch e {
+	case PrebuildStatusHealthy,
+		PrebuildStatusHardLimited,
+		PrebuildStatusValidationFailed:
+		return true
+	}
+	return false
+}
+
+func AllPrebuildStatusValues() []PrebuildStatus {
+	return []PrebuildStatus{
+		PrebuildStatusHealthy,
+		PrebuildStatusHardLimited,
+		PrebuildStatusValidationFailed,
+	}
+}
+
 // The status of a provisioner daemon.
 type ProvisionerDaemonStatus string
 
@@ -3117,6 +3178,7 @@ type Template struct {
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
@@ -3209,6 +3271,7 @@ type TemplateVersion struct {
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -3248,12 +3311,13 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	Name                string        `db:"name" json:"name"`
-	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                string         `db:"name" json:"name"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3381,6 +3445,7 @@ type UserStatusChange struct {
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
+	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
@@ -3413,6 +3478,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OwnerName               string           `db:"owner_name" json:"owner_name"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
@@ -3611,8 +3677,9 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool               `db:"hidden" json:"hidden"`
-	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	Hidden       bool               `db:"hidden" json:"hidden"`
+	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
@@ -3692,6 +3759,7 @@ type WorkspaceBuild struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
 }
 
 type WorkspaceBuildParameter struct {
