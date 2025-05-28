@@ -115,6 +115,7 @@ The Coder backend is organized into multiple packages and directories, each with
   * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
   * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/blob/docs-backend-contrib-guide/coderd/database/queries.sql.go)
   * [sqlc.yaml](https://github.com/coder/coder/tree/main/coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
+* [codersdk](https://github.com/coder/coder/tree/main/codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
 * [dogfood](https://github.com/coder/coder/tree/main/dogfood): Terraform definition of the dogfood cluster deployment
 * [enterprise](https://github.com/coder/coder/tree/main/enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
   * [coderd](https://github.com/coder/coder/tree/main/enterprise/coderd)
@@ -128,7 +129,41 @@ The Coder backend is organized into multiple packages and directories, each with
 
 ## Testing
 
-TODO
+The Coder backend includes a rich suite of unit and end-to-end tests. A variety of helper utilities are used throughout the codebase to make testing easier, more consistent, and closer to real behavior.
+
+### `clitest`
+* Spawns an in-memory `serpent.Command` instance for unit testing
+* Configures an authorized `codersdk` client
+* Once a `serpent.Invocation` is created, tests can execute commands as if invoked by a real user
+
+### `ptytest`
+* `ptytest` attaches to a `serpent.Invocation` and simulates TTY input/output
+* `pty` provides matchers and "write" operations for interacting with pseudo-terminals
+
+### `coderdtest`
+* Provides shortcuts to spin up an in-memory `coderd` instance
+* Can start an embedded provisioner daemon
+* Supports multi-user testing via `CreateFirstUser` and `CreateAnotherUser`
+* Includes "busy wait" helpers like `AwaitTemplateVersionJobCompleted`
+
+### `testutil`
+
+General-purpose testing utilities, including:
+* `chan.go`: helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
+* `duration.go`: set timeouts for test execution
+* `eventually.go`: repeatedly poll for a condition using a ticker
+* `port.go`: select a free random port
+* `prometheus.go`: validate Prometheus metrics with expected values
+* `pty.go`: read output from a terminal until a condition is met
+
+### `dbtestutil`
+* Allows choosing between real and in-memory database backends for tests
+* `WillUsePostgres` is useful for skipping tests in CI environments that don't run Postgres
+
+### `quartz`
+* Provides a mockable clock or ticker interface
+* Allows manual time advancement
+* Useful for testing time-sensitive or timeout-related logic
 
 ## Quiz
 
