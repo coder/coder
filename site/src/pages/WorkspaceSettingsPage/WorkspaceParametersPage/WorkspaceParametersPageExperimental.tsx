@@ -9,7 +9,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -21,14 +20,7 @@ import {
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp, Undo2 } from "lucide-react";
 import type { FC } from "react";
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -53,16 +45,17 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
+	const sendMessage = useEffectEvent((formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
+			owner_id: workspace.owner_id,
 			inputs: formValues,
 		};
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
 		}
-	}, []);
+	});
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -76,7 +69,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!workspace.latest_build.template_version_id) return;
 
 		const socket = API.templateVersionDynamicParameters(
-			workspace.owner_id,
 			workspace.latest_build.template_version_id,
 			{
 				onMessage,
@@ -103,11 +95,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [
-		workspace.owner_id,
-		workspace.latest_build.template_version_id,
-		onMessage,
-	]);
+	}, [workspace.latest_build.template_version_id, onMessage]);
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
@@ -176,11 +164,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			<header className="flex flex-col items-start gap-2">
 				<span className="flex flex-row items-center gap-2">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
-					<FeatureStageBadge
-						className="mt-1"
-						contentType={"beta"}
-						labelText="Dynamic parameters"
-					/>
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -222,7 +205,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse.diagnostics}
-					isSubmitting={updateParameters.isLoading}
+					isSubmitting={updateParameters.isPending}
 					onSubmit={handleSubmit}
 					onCancel={() =>
 						navigate(`/@${workspace.owner_name}/${workspace.name}`)

@@ -23,7 +23,7 @@
       "workspace_id": "===========[workspace ID]===========",
       "workspace_name": "test-workspace",
       "workspace_owner_id": "==========[first user ID]===========",
-      "workspace_owner_name": "testuser",
+      "workspace_owner_username": "testuser",
       "template_version_id": "============[version ID]============",
       "template_version_name": "===========[version name]===========",
       "build_number": 1,

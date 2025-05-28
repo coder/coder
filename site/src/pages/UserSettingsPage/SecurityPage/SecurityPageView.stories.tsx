@@ -25,7 +25,7 @@ const defaultArgs: ComponentProps<typeof SecurityPageView> = {
 			authMethods: MockAuthMethodsPasswordOnly,
 			closeConfirmation: action("closeConfirmation"),
 			confirm: action("confirm"),
-			error: undefined,
+			error: null,
 			isConfirming: false,
 			isUpdating: false,
 			openConfirmation: action("openConfirmation"),

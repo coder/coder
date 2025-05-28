@@ -37,7 +37,7 @@ export const workspaceBuildsKey = (workspaceId: string) => [
 export const infiniteWorkspaceBuilds = (
 	workspaceId: string,
 	req?: WorkspaceBuildsRequest,
-): UseInfiniteQueryOptions<WorkspaceBuild[]> => {
+) => {
 	const limit = req?.limit ?? 25;
 
 	return {
@@ -48,13 +48,17 @@ export const infiniteWorkspaceBuilds = (
 			}
 			return pages.length + 1;
 		},
-		queryFn: ({ pageParam = 0 }) => {
+		initialPageParam: 0,
+		queryFn: ({ pageParam }) => {
+			if (typeof pageParam !== "number") {
+				throw new Error("pageParam must be a number");
+			}
 			return API.getWorkspaceBuilds(workspaceId, {
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 			});
 		},
-	};
+	} satisfies UseInfiniteQueryOptions<WorkspaceBuild[]>;
 };
 
 // We use readyAgentsCount to invalidate the query when an agent connects

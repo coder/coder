@@ -14,6 +14,8 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 const TemplateSettingsPage: FC = () => {
+	const { experiments } = useDashboard();
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const { template: templateName } = useParams() as { template: string };
 	const navigate = useNavigate();
 	const getLink = useLinks();
@@ -28,35 +30,33 @@ const TemplateSettingsPage: FC = () => {
 
 	const {
 		mutate: updateTemplate,
-		isLoading: isSubmitting,
+		isPending: isSubmitting,
 		error: submitError,
-	} = useMutation(
-		(data: UpdateTemplateMeta) => {
+	} = useMutation({
+		mutationFn: (data: UpdateTemplateMeta) => {
 			return API.updateTemplateMeta(template.id, data);
 		},
-		{
-			onSuccess: async (data) => {
-				// This update has a chance to return a 304 which means nothing was updated.
-				// In this case, the return payload will be empty and we should use the
-				// original template data.
-				if (!data) {
-					data = template;
-				} else {
-					// Only invalid the query if data is returned, indicating at least one field was updated.
-					//
-					// we use data.name because an admin may have updated templateName to something new
-					await queryClient.invalidateQueries(
-						templateByNameKey(template.organization_name, data.name),
-					);
-				}
-				displaySuccess("Template updated successfully");
-				navigate(getLink(linkToTemplate(data.organization_name, data.name)));
-			},
-			onError: (error) => {
-				displayError(getErrorMessage(error, "Failed to update template"));
-			},
+		onSuccess: async (data) => {
+			// This update has a chance to return a 304 which means nothing was updated.
+			// In this case, the return payload will be empty and we should use the
+			// original template data.
+			if (!data) {
+				data = template;
+			} else {
+				// Only invalid the query if data is returned, indicating at least one field was updated.
+				//
+				// we use data.name because an admin may have updated templateName to something new
+				await queryClient.invalidateQueries({
+					queryKey: templateByNameKey(template.organization_name, data.name),
+				});
+			}
+			displaySuccess("Template updated successfully");
+			navigate(getLink(linkToTemplate(data.organization_name, data.name)));
 		},
-	);
+		onError: (error) => {
+			displayError(getErrorMessage(error, "Failed to update template"));
+		},
+	});
 
 	return (
 		<>
@@ -81,6 +81,7 @@ const TemplateSettingsPage: FC = () => {
 				accessControlEnabled={accessControlEnabled}
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				sharedPortControlsEnabled={sharedPortControlsEnabled}
+				isDynamicParametersEnabled={isDynamicParametersEnabled}
 			/>
 		</>
 	);

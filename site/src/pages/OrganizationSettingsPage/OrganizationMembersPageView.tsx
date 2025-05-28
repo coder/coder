@@ -51,7 +51,7 @@ interface OrganizationMembersPageViewProps {
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	membersQuery: PaginationResultInfo & {
-		isPreviousData: boolean;
+		isPlaceholderData: boolean;
 	};
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;

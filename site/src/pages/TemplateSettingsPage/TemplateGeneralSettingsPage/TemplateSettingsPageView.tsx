@@ -3,7 +3,7 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
-export interface TemplateSettingsPageViewProps {
+interface TemplateSettingsPageViewProps {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -15,6 +15,7 @@ export interface TemplateSettingsPageViewProps {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
+	isDynamicParametersEnabled: boolean;
 }
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
@@ -27,6 +28,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	sharedPortControlsEnabled,
+	isDynamicParametersEnabled,
 }) => {
 	return (
 		<>
@@ -44,6 +46,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 				accessControlEnabled={accessControlEnabled}
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				portSharingControlsEnabled={sharedPortControlsEnabled}
+				isDynamicParametersEnabled={isDynamicParametersEnabled}
 			/>
 		</>
 	);

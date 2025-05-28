@@ -23,7 +23,7 @@ import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
-export interface AgentMetadataViewProps {
+interface AgentMetadataViewProps {
 	metadata: WorkspaceAgentMetadata[];
 }
 

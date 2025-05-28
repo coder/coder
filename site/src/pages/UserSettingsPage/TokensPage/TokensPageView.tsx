@@ -25,7 +25,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
 };
 
-export interface TokensPageViewProps {
+interface TokensPageViewProps {
 	tokens?: APIKeyWithOwner[];
 	getTokensError?: unknown;
 	isLoading: boolean;

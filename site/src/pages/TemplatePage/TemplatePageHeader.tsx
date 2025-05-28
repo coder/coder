@@ -163,7 +163,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	);
 };
 
-export type TemplatePageHeaderProps = {
+type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;

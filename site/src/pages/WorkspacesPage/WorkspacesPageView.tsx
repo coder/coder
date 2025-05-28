@@ -40,8 +40,7 @@ const Language = {
 };
 
 type TemplateQuery = UseQueryResult<Template[]>;
-
-export interface WorkspacesPageViewProps {
+interface WorkspacesPageViewProps {
 	error: unknown;
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];

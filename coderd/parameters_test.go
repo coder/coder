@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -32,7 +33,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/public_key/main.tf")
 	require.NoError(t, err)
@@ -57,7 +58,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
@@ -210,6 +211,127 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		// test to make it obvious what this test is doing.
 		require.Zero(t, setup.api.FileCache.Count())
 	})
+
+	t.Run("RebuildParameters", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			plan:                     nil,
+			static:                   nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		require.Len(t, preview.Parameters, 1)
+		require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
+		require.True(t, preview.Parameters[0].Value.Valid)
+		require.Equal(t, "CL", preview.Parameters[0].Value.Value)
+		_ = stream.Close(websocket.StatusGoingAway)
+
+		wrk := coderdtest.CreateWorkspace(t, setup.client, setup.template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  preview.Parameters[0].Name,
+					Value: "GO",
+				},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+
+		params, err := setup.client.WorkspaceBuildParameters(ctx, wrk.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, params, 1)
+		require.Equal(t, "jetbrains_ide", params[0].Name)
+		require.Equal(t, "GO", params[0].Value)
+
+		// A helper function to assert params
+		doTransition := func(t *testing.T, trans codersdk.WorkspaceTransition) {
+			t.Helper()
+
+			fooVal := coderdtest.RandomUsername(t)
+			bld, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: setup.template.ActiveVersionID,
+				Transition:        trans,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					// No validation, so this should work as is.
+					// Overwrite the value on each transition
+					{Name: "foo", Value: fooVal},
+				},
+				EnableDynamicParameters: ptr.Ref(true),
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+
+			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
+			require.NoError(t, err)
+			require.ElementsMatch(t, latestParams, []codersdk.WorkspaceBuildParameter{
+				{Name: "jetbrains_ide", Value: "GO"},
+				{Name: "foo", Value: fooVal},
+			})
+		}
+
+		// Restart the workspace, then delete. Asserting params on all builds.
+		doTransition(t, codersdk.WorkspaceTransitionStop)
+		doTransition(t, codersdk.WorkspaceTransitionStart)
+		doTransition(t, codersdk.WorkspaceTransitionDelete)
+	})
+
+	t.Run("BadOwner", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			plan:                     nil,
+			static:                   nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		err = stream.Send(codersdk.DynamicParametersRequest{
+			ID: 1,
+			Inputs: map[string]string{
+				"jetbrains_ide": "GO",
+			},
+			OwnerID: uuid.New(),
+		})
+		require.NoError(t, err)
+
+		preview = testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, 1, preview.ID)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Extra.Code, "owner_not_found")
+	})
 }
 
 type setupDynamicParamsTestParams struct {
@@ -225,9 +347,10 @@ type setupDynamicParamsTestParams struct {
 }
 
 type dynamicParamsTest struct {
-	client *codersdk.Client
-	api    *coderd.API
-	stream *wsjson.Stream[codersdk.DynamicParametersResponse, codersdk.DynamicParametersRequest]
+	client   *codersdk.Client
+	api      *coderd.API
+	stream   *wsjson.Stream[codersdk.DynamicParametersResponse, codersdk.DynamicParametersRequest]
+	template codersdk.Template
 }
 
 func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dynamicParamsTest {
@@ -242,7 +365,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	files := echo.WithExtraFiles(map[string][]byte{
 		"main.tf": args.mainTF,
@@ -259,10 +382,10 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
-	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
 	if args.expectWebsocketError {
 		require.Errorf(t, err, "expected error forming websocket")
 	} else {
@@ -280,9 +403,10 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	})
 
 	return dynamicParamsTest{
-		client: ownerClient,
-		stream: stream,
-		api:    api,
+		client:   ownerClient,
+		api:      api,
+		stream:   stream,
+		template: tpl,
 	}
 }
 

@@ -8,7 +8,7 @@ import {
 	relativeTimeWithoutSuffix,
 } from "utils/time";
 
-export type WorkspaceDormantBadgeProps = {
+type WorkspaceDormantBadgeProps = {
 	workspace: Workspace;
 };
 

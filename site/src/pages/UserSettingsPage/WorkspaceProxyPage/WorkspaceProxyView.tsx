@@ -19,7 +19,7 @@ import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC } from "react";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
-export interface WorkspaceProxyViewProps {
+interface WorkspaceProxyViewProps {
 	proxies?: readonly Region[];
 	proxyLatencies?: Record<string, ProxyLatencyReport>;
 	getWorkspaceProxiesError?: unknown;

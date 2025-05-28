@@ -9,7 +9,7 @@ import type { FC } from "react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
-export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
+interface EnterpriseSnackbarProps extends MuiSnackbarProps {
 	/** Called when the snackbar should close, either from timeout or clicking close */
 	onClose: () => void;
 	/** Variant of snackbar, for theming */

@@ -9,7 +9,7 @@ import {
 import { Link } from "components/Link/Link";
 import type { FC, ReactNode } from "react";
 
-export interface RequirePermissionProps {
+interface RequirePermissionProps {
 	children?: ReactNode;
 	isFeatureVisible: boolean;
 }

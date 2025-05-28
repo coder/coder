@@ -108,6 +108,7 @@ type agentAppAttributes struct {
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
+	Group       string                     `mapstructure:"group"`
 	Hidden      bool                       `mapstructure:"hidden"`
 	OpenIn      string                     `mapstructure:"open_in"`
 }
@@ -532,6 +533,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
+						Group:        attrs.Group,
 						Hidden:       attrs.Hidden,
 						OpenIn:       openIn,
 					})
@@ -897,14 +899,21 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			)
 		}
 		var prebuildInstances int32
+		var expirationPolicy *proto.ExpirationPolicy
 		if len(preset.Prebuilds) > 0 {
 			prebuildInstances = int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].Instances)))
+			if len(preset.Prebuilds[0].ExpirationPolicy) > 0 {
+				expirationPolicy = &proto.ExpirationPolicy{
+					Ttl: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].ExpirationPolicy[0].TTL))),
+				}
+			}
 		}
 		protoPreset := &proto.Preset{
 			Name:       preset.Name,
 			Parameters: presetParameters,
 			Prebuild: &proto.Prebuild{
-				Instances: prebuildInstances,
+				Instances:        prebuildInstances,
+				ExpirationPolicy: expirationPolicy,
 			},
 		}
 

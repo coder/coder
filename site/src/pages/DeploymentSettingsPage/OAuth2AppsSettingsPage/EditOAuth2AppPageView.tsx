@@ -30,7 +30,7 @@ import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
-export type MutatingResource = {
+type MutatingResource = {
 	updateApp: boolean;
 	createSecret: boolean;
 	deleteApp: boolean;

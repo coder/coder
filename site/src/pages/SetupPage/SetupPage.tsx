@@ -56,7 +56,7 @@ export const SetupPage: FC = () => {
 			</Helmet>
 			<SetupPageView
 				authMethods={authMethodsQuery.data}
-				isLoading={isSigningIn || createFirstUserMutation.isLoading}
+				isLoading={isSigningIn || createFirstUserMutation.isPending}
 				error={createFirstUserMutation.error}
 				onSubmit={async (firstUser) => {
 					await createFirstUserMutation.mutateAsync(firstUser);

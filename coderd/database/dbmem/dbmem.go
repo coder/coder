@@ -531,6 +531,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 
 			OwnerAvatarUrl: extended.OwnerAvatarUrl,
 			OwnerUsername:  extended.OwnerUsername,
+			OwnerName:      extended.OwnerName,
 
 			OrganizationName:        extended.OrganizationName,
 			OrganizationDisplayName: extended.OrganizationDisplayName,
@@ -628,6 +629,7 @@ func (q *FakeQuerier) extendWorkspace(w database.WorkspaceTable) database.Worksp
 		return u.ID == w.OwnerID
 	})
 	extended.OwnerUsername = owner.Username
+	extended.OwnerName = owner.Name
 	extended.OwnerAvatarUrl = owner.AvatarURL
 
 	return extended
@@ -4682,14 +4684,14 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if ids == nil {
-		ids = []uuid.UUID{}
+	if arg.IDs == nil {
+		arg.IDs = []uuid.UUID{}
 	}
-	return q.getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(ctx, ids)
+	return q.getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(ctx, arg.IDs)
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {

@@ -19,7 +19,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 
-export interface AgentSSHButtonProps {
+interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
 }
@@ -84,7 +84,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	);
 };
 
-export interface AgentDevcontainerSSHButtonProps {
+interface AgentDevcontainerSSHButtonProps {
 	workspace: string;
 	container: string;
 }

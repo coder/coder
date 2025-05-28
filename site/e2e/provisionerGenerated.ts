@@ -104,8 +104,18 @@ export interface RichParameterValue {
   value: string;
 }
 
+/**
+ * ExpirationPolicy defines the policy for expiring unclaimed prebuilds.
+ * If a prebuild remains unclaimed for longer than ttl seconds, it is deleted and
+ * recreated to prevent staleness.
+ */
+export interface ExpirationPolicy {
+  ttl: number;
+}
+
 export interface Prebuild {
   instances: number;
+  expirationPolicy: ExpirationPolicy | undefined;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -262,6 +272,7 @@ export interface App {
   order: number;
   hidden: boolean;
   openIn: AppOpenIn;
+  group: string;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -544,10 +555,22 @@ export const RichParameterValue = {
   },
 };
 
+export const ExpirationPolicy = {
+  encode(message: ExpirationPolicy, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.ttl !== 0) {
+      writer.uint32(8).int32(message.ttl);
+    }
+    return writer;
+  },
+};
+
 export const Prebuild = {
   encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.instances !== 0) {
       writer.uint32(8).int32(message.instances);
+    }
+    if (message.expirationPolicy !== undefined) {
+      ExpirationPolicy.encode(message.expirationPolicy, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },
@@ -911,6 +934,9 @@ export const App = {
     }
     if (message.openIn !== 0) {
       writer.uint32(96).int32(message.openIn);
+    }
+    if (message.group !== "") {
+      writer.uint32(106).string(message.group);
     }
     return writer;
   },

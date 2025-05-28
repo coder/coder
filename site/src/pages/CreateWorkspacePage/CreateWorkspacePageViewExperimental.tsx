@@ -26,14 +26,9 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import {
-	ArrowLeft,
-	CircleAlert,
-	CircleHelp,
-	TriangleAlert,
-	Undo2,
-} from "lucide-react";
+import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
+import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -61,7 +56,7 @@ import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-export interface CreateWorkspacePageViewExperimentalProps {
+interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
@@ -84,7 +79,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Record<string, string>) => void;
+	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.User;
 	setOwner: (user: TypesGen.User) => void;
@@ -285,9 +280,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.values.rich_parameter_values,
 	]);
 
-	// send the last user modified parameter and all touched parameters to the websocket
+	// include any modified parameters and all touched parameters to the websocket request
 	const sendDynamicParamsRequest = (
 		parameters: Array<{ parameter: PreviewParameter; value: string }>,
+		ownerId?: string,
 	) => {
 		const formInputs: Record<string, string> = {};
 		const formParameters = form.values.rich_parameter_values ?? [];
@@ -308,7 +304,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 			}
 		}
 
-		sendMessage(formInputs);
+		sendMessage(formInputs, ownerId);
+	};
+
+	const handleOwnerChange = (user: TypesGen.User) => {
+		setOwner(user);
+		sendDynamicParamsRequest([], user.id);
 	};
 
 	const handleChange = async (
@@ -367,11 +368,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
-						<FeatureStageBadge
-							className="mt-1"
-							contentType={"beta"}
-							labelText="Dynamic parameters"
-						/>
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -491,7 +487,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<UserAutocomplete
 											value={owner}
 											onChange={(user) => {
-												setOwner(user ?? defaultOwner);
+												handleOwnerChange(user ?? defaultOwner);
 											}}
 											size="medium"
 										/>
@@ -663,46 +659,5 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</form>
 			</div>
 		</>
-	);
-};
-
-interface DiagnosticsProps {
-	diagnostics: PreviewParameter["diagnostics"];
-}
-
-const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
-	return (
-		<div className="flex flex-col gap-4">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? "text-content-primary border-border-destructive bg-content-destructive/15"
-														: "text-content-primary border-border-warning bg-content-warning/15"
-												}`}
-				>
-					<div className="flex flex-row items-start">
-						{diagnostic.severity === "error" && (
-							<CircleAlert
-								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						{diagnostic.severity === "warning" && (
-							<TriangleAlert
-								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						<div className="flex flex-col gap-3">
-							<p className="m-0">{diagnostic.summary}</p>
-							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
-						</div>
-					</div>
-				</div>
-			))}
-		</div>
 	);
 };

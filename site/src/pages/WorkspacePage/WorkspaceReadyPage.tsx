@@ -57,7 +57,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		open: boolean;
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 	}>({ open: false });
-	const { mutate: mutateRestartWorkspace, isLoading: isRestarting } =
+	const { mutate: mutateRestartWorkspace, isPending: isRestarting } =
 		useMutation({
 			mutationFn: API.restartWorkspace,
 		});
@@ -127,7 +127,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		// timings. To refetch the timings, I found the best way was to compare the
 		// expected amount of script timings that run on start, with the current
 		// amount of script timings returned in the response.
-		refetchInterval: (data) => {
+		refetchInterval: ({ state }) => {
+			const { data } = state;
 			const expectedScriptTimingsCount = workspace.latest_build.resources
 				.flatMap((r) => r.agents)
 				.flatMap((a) => a?.scripts ?? [])

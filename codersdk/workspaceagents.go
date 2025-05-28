@@ -399,6 +399,17 @@ type WorkspaceAgentDevcontainersResponse struct {
 	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
 }
 
+// WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
+type WorkspaceAgentDevcontainerStatus string
+
+// WorkspaceAgentDevcontainerStatus enums.
+const (
+	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
+	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
+	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
+)
+
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
@@ -408,9 +419,9 @@ type WorkspaceAgentDevcontainer struct {
 	ConfigPath      string    `json:"config_path,omitempty"`
 
 	// Additional runtime fields.
-	Running   bool                     `json:"running"`
-	Dirty     bool                     `json:"dirty"`
-	Container *WorkspaceAgentContainer `json:"container,omitempty"`
+	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
+	Dirty     bool                             `json:"dirty"`
+	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
 }
 
 // WorkspaceAgentContainer describes a devcontainer of some sort
@@ -439,6 +450,10 @@ type WorkspaceAgentContainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
+	// DevcontainerStatus is the status of the devcontainer, if this
+	// container is a devcontainer. This is used to determine if the
+	// devcontainer is running, stopped, starting, or in an error state.
+	DevcontainerStatus WorkspaceAgentDevcontainerStatus `json:"devcontainer_status,omitempty"`
 	// DevcontainerDirty is true if the devcontainer configuration has changed
 	// since the container was created. This is used to determine if the
 	// container needs to be rebuilt.
@@ -507,16 +522,20 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
-func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) error {
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) (Response, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
 	if err != nil {
-		return err
+		return Response{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	if res.StatusCode != http.StatusAccepted {
+		return Response{}, ReadBodyAsError(res)
 	}
-	return nil
+	var m Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
