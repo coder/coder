@@ -165,6 +165,8 @@ func TestScriptCompleted(t *testing.T) {
 		})
 		if tt.expectError != "" {
 			require.Contains(t, err.Error(), tt.expectError, "expected error did not match")
+		} else {
+			require.NoError(t, err, "expected no error but got one")
 		}
 	}
 }
