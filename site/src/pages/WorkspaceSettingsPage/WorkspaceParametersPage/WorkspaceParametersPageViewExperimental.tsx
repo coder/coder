@@ -16,11 +16,11 @@ import {
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
 import { docs } from "utils/docs";
-import { AutofillBuildParameter } from "utils/richParameters";
+import type { AutofillBuildParameter } from "utils/richParameters";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
-	originalParameters?: WorkspaceBuildParameter[];
+	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
@@ -36,7 +36,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	WorkspaceParametersPageViewExperimentalProps
 > = ({
 	workspace,
-	originalParameters,
+	autofillParameters,
 	parameters,
 	diagnostics,
 	canChangeVersions,
@@ -45,16 +45,9 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	sendMessage,
 	onCancel,
 }) => {
-
-	const autoFillValues: AutofillBuildParameter[] = originalParameters!.map((p) => ({
-		...p,
-		source: "active_build",
-	}))
 	const autofillByName = Object.fromEntries(
-		autoFillValues.map((param) => [param.name, param]),
+		autofillParameters.map((param) => [param.name, param]),
 	);
-
-		
 	const initialTouched = parameters.reduce(
 		(touched, parameter) => {
 			if (autofillByName[parameter.name] !== undefined) {
@@ -64,11 +57,13 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		},
 		{} as Record<string, boolean>,
 	);
-
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
-			rich_parameter_values: getInitialParameterValues(parameters, autoFillValues),
+			rich_parameter_values: getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			),
 		},
 		initialTouched,
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
@@ -76,7 +71,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		validateOnChange: true,
 		validateOnBlur: true,
 	});
-
 	// Group parameters by ephemeral status
 	const ephemeralParameters = parameters.filter((p) => p.ephemeral);
 	const standardParameters = parameters.filter((p) => !p.ephemeral);
