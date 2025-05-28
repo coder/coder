@@ -25,7 +25,7 @@ git clone https://github.com/coder/coder.git
 cd coder
 ```
 
-2. Run the development script to spin up the local environment:
+1. Run the development script to spin up the local environment:
 
 ```sh
 ./scripts/develop.sh
@@ -35,7 +35,7 @@ This will start two processes:
 * http://localhost:3000 — the backend API server, used primarily for backend development.
 * http://localhost:8080 — the Node.js frontend dev server, useful if you're also touching frontend code.
 
-3. Verify Your Session
+1. Verify Your Session
 
 Confirm that you're logged in by running:
 
@@ -45,7 +45,7 @@ Confirm that you're logged in by running:
 
 This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
 
-4. Create a Quick Workspace
+1. Create a Quick Workspace
 
 A template named docker-amd64 (or docker-arm64 on ARM systems) is created automatically. To spin up a workspace quickly, use:
 
