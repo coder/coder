@@ -47,43 +47,43 @@ func (c *Cache) registerMetrics(registerer prometheus.Registerer) *Cache {
 	c.currentCacheSize = f.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
-		Name:      "open_files_size_current",
-		Help:      "The current size of all files currently open in the file cache.",
+		Name:      "open_files_size_bytes_current",
+		Help:      "The current amount of memory of all files currently open in the file cache.",
 	})
 
 	c.totalCacheSize = f.NewCounter(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
-		Name:      "open_files_size_total",
-		Help:      "The total size of all files opened in the file cache.",
+		Name:      "open_files_size_bytes_total",
+		Help:      "The total amount of memory ever opened in the file cache. This number never decrements.",
 	})
 
 	c.currentOpenFiles = f.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
 		Name:      "open_files_current",
-		Help:      "The number of unique files currently open in the file cache.",
+		Help:      "The count of unique files currently open in the file cache.",
 	})
 
 	c.totalOpenedFiles = f.NewCounter(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
 		Name:      "open_files_total",
-		Help:      "The number of unique files opened in the file cache.",
+		Help:      "The total count of unique files ever opened in the file cache.",
 	})
 
 	c.currentOpenFileReferences = f.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
 		Name:      "open_file_refs_current",
-		Help:      "The number of file references currently open in the file cache.",
+		Help:      "The count of file references currently open in the file cache. Multiple references can be held for the same file.",
 	})
 
 	c.totalOpenFileReferences = f.NewCounter(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
 		Name:      "open_file_refs_total",
-		Help:      "The number of file references currently open in the file cache.",
+		Help:      "The total number of file references ever opened in the file cache.",
 	})
 
 	return c
