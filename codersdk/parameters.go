@@ -114,6 +114,8 @@ type DynamicParametersRequest struct {
 	// ID so that the client can match it to the request.
 	ID     int               `json:"id"`
 	Inputs map[string]string `json:"inputs"`
+	// OwnerID if uuid.Nil, it defaults to `codersdk.Me`
+	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 
 type DynamicParametersResponse struct {
@@ -123,8 +125,8 @@ type DynamicParametersResponse struct {
 	// TODO: Workspace tags
 }
 
-func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, userID, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
-	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/users/%s/templateversions/%s/parameters", userID, version), nil)
+func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
+	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version), nil)
 	if err != nil {
 		return nil, err
 	}

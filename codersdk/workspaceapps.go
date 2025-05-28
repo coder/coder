@@ -83,6 +83,7 @@ type WorkspaceApp struct {
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck,omitempty"`
 	Health      WorkspaceAppHealth `json:"health"`
+	Group       string             `json:"group,omitempty"`
 	Hidden      bool               `json:"hidden"`
 	OpenIn      WorkspaceAppOpenIn `json:"open_in"`
 

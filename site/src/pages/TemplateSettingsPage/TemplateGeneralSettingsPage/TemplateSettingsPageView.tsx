@@ -15,6 +15,7 @@ interface TemplateSettingsPageViewProps {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
+	isDynamicParametersEnabled: boolean;
 }
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
@@ -27,6 +28,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	sharedPortControlsEnabled,
+	isDynamicParametersEnabled,
 }) => {
 	return (
 		<>
@@ -44,6 +46,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 				accessControlEnabled={accessControlEnabled}
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				portSharingControlsEnabled={sharedPortControlsEnabled}
+				isDynamicParametersEnabled={isDynamicParametersEnabled}
 			/>
 		</>
 	);
