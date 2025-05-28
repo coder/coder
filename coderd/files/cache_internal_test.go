@@ -66,7 +66,7 @@ func TestConcurrency(t *testing.T) {
 	// Verify all the counts & metrics are correct.
 	require.Equal(t, batches, c.Count())
 	require.Equal(t, batches*fileSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_bytes_current"), nil))
-	require.Equal(t, batches*fileSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_size_bytes_stotal"), nil))
+	require.Equal(t, batches*fileSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_size_bytes_total"), nil))
 	require.Equal(t, batches, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_current"), nil))
 	require.Equal(t, batches, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_total"), nil))
 	require.Equal(t, batches*batchSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_file_refs_current"), nil))
@@ -103,7 +103,7 @@ func TestRelease(t *testing.T) {
 			require.Equal(t, opened, c.Count())
 			require.Equal(t, opened, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_current"), nil))
 			// Current file size is unique files * file size.
-			require.Equal(t, opened*fileSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_current"), nil))
+			require.Equal(t, opened*fileSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_bytes_current"), nil))
 			// The number of refs is the current iteration of both loops.
 			require.Equal(t, ((opened-1)*batchSize)+(batchIdx+1), promhelp.GaugeValue(t, reg, cachePromMetricName("open_file_refs_current"), nil))
 		}
@@ -129,7 +129,7 @@ func TestRelease(t *testing.T) {
 			// File ref still exists, so the counts should not change yet.
 			require.Equal(t, stillOpen, c.Count())
 			require.Equal(t, stillOpen, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_current"), nil))
-			require.Equal(t, stillOpen*fileSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_current"), nil))
+			require.Equal(t, stillOpen*fileSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_bytes_current"), nil))
 		}
 	}
 
@@ -139,12 +139,12 @@ func TestRelease(t *testing.T) {
 	// Verify all the counts & metrics are correct.
 	// All existing files are closed
 	require.Equal(t, 0, c.Count())
-	require.Equal(t, 0, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_current"), nil))
+	require.Equal(t, 0, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_size_bytes_current"), nil))
 	require.Equal(t, 0, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_current"), nil))
 	require.Equal(t, 0, promhelp.GaugeValue(t, reg, cachePromMetricName("open_file_refs_current"), nil))
 
 	// Total counts remain
-	require.Equal(t, batches*fileSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_size_total"), nil))
+	require.Equal(t, batches*fileSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_size_bytes_total"), nil))
 	require.Equal(t, batches, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_total"), nil))
 	require.Equal(t, batches*batchSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_file_refs_total"), nil))
 }
