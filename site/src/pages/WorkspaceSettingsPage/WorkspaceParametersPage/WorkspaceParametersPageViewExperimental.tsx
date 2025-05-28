@@ -19,6 +19,7 @@ import { docs } from "utils/docs";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
+	originalParameters?: WorkspaceBuildParameter[];
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
@@ -34,6 +35,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	WorkspaceParametersPageViewExperimentalProps
 > = ({
 	workspace,
+	originalParameters,
 	parameters,
 	diagnostics,
 	canChangeVersions,
@@ -45,7 +47,10 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
-			rich_parameter_values: getInitialParameterValues(parameters),
+			rich_parameter_values: getInitialParameterValues(parameters, originalParameters!.map((p) => ({
+			...p,
+			source: "active_build",
+		}))),
 		},
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,

@@ -39,6 +39,11 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const experimentalFormContext = useContext(ExperimentalFormContext);
 
+	const { data: originalParameters, isLoading: originalParametersLoading } = useQuery({
+		queryKey: ["workspace", "build", workspace.id, "parameters"],
+		queryFn: () => API.getWorkspaceBuildParameters(workspace.latest_build.id),
+	});
+
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const wsResponseId = useRef<number>(-1);
@@ -149,6 +154,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const error = wsError || updateParameters.error;
 
 	if (
+		originalParametersLoading ||
 		!latestResponse ||
 		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
 	) {
@@ -203,6 +209,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				<WorkspaceParametersPageViewExperimental
 					workspace={workspace}
 					canChangeVersions={canChangeVersions}
+					originalParameters={originalParameters!}
 					parameters={sortedParams}
 					diagnostics={latestResponse.diagnostics}
 					isSubmitting={updateParameters.isPending}
