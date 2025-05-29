@@ -53,7 +53,7 @@ export const Section: FC<SectionProps> = ({
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}
-											size="lg"
+											size="md"
 											css={{ marginBottom: "5px" }}
 										/>
 									)}
