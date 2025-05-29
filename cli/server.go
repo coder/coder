@@ -864,6 +864,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				BuiltinPostgres:  builtinPostgres,
 				DeploymentID:     deploymentID,
 				Database:         options.Database,
+				Experiments:      coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value()),
 				Logger:           logger.Named("telemetry"),
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,

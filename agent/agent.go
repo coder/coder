@@ -95,8 +95,8 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC25(ctx context.Context) (
-		proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
+	ConnectRPC26(ctx context.Context) (
+		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 	)
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
@@ -908,7 +908,7 @@ func (a *agent) run() (retErr error) {
 	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC25(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC26(a.hardCtx)
 	if err != nil {
 		return err
 	}

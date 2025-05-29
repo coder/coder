@@ -466,6 +466,13 @@ func (m queryMetricsStore) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.
 	return r0
 }
 
+func (m queryMetricsStore) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceSubAgentByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceSubAgentByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DisableForeignKeysAndTriggers(ctx)
@@ -1758,6 +1765,13 @@ func (m queryMetricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Cont
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStatsAndLabels").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentsByParentID(ctx context.Context, dollar_1 uuid.UUID) ([]database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsByParentID(ctx, dollar_1)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsByParentID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

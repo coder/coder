@@ -318,7 +318,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 												{prompt}
 											</span>
 											<RouterLink
-												to={`/tasks/${workspace.owner_name}/${workspace.name}`}
+												to={`/tasks/${workspace.owner_username}/${workspace.name}`}
 												className="absolute inset-0"
 											>
 												<span className="sr-only">Access task</span>

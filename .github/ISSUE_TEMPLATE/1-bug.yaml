@@ -2,6 +2,7 @@ name: "🐞 Bug"
 description: "File a bug report."
 title: "bug: "
 labels: ["needs-triage"]
+type: "Bug"
 body:
   - type: checkboxes
     id: existing_issues
