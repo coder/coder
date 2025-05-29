@@ -38,8 +38,7 @@ To use the default configuration:
    CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
    ```
 
-1. **Configure Organization Restrictions (Optional)**
-   If you want to limit sign-ups to specific GitHub organizations, set:
+1. (Optional) If you want to limit sign-ups to specific GitHub organizations, set:
 
    ```shell
    CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
