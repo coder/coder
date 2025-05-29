@@ -140,15 +140,10 @@ locals {
   }
 
   user_groups = data.coder_workspace_owner.me.groups
-  user_region = try(
-    local.default_regions[
-    one([
-      for g in local.user_groups : g
-      if contains(keys(local.default_regions), g)
-    ])
-    ],
-    "us-pittsburgh" # fallback value if no group matches
-  )
+  user_region = coalescelist([
+    for g in local.user_groups : 
+      local.default_regions[g] if contains(keys(local.default_regions), g)
+  ], ["us-pittsburgh"])[0]
 }
 
 
