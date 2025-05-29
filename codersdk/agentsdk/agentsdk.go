@@ -104,10 +104,10 @@ type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 type Manifest struct {
 	AgentID   uuid.UUID `json:"agent_id"`
 	AgentName string    `json:"agent_name"`
-	// OwnerName and WorkspaceID are used by an open-source user to identify the workspace.
+	// OwnerUsername and WorkspaceID are used by an open-source user to identify the workspace.
 	// We do not provide insurance that this will not be removed in the future,
 	// but if it's easy to persist lets keep it around.
-	OwnerName     string    `json:"owner_name"`
+	OwnerUsername string    `json:"owner_username"`
 	WorkspaceID   uuid.UUID `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
 	// GitAuthConfigs stores the number of Git configurations
@@ -258,11 +258,23 @@ func (c *Client) ConnectRPC24(ctx context.Context) (
 }
 
 // ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
-// maximally compatible with Coderd Release Versions from 2.xx+ // TODO(DanielleMaywood): Update version
+// maximally compatible with Coderd Release Versions from 2.23+
 func (c *Client) ConnectRPC25(ctx context.Context) (
 	proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.24+
+func (c *Client) ConnectRPC26(ctx context.Context) (
+	proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6))
 	if err != nil {
 		return nil, nil, err
 	}

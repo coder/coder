@@ -319,6 +319,28 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeSubAgentAPI,
+			FriendlyName: "Sub Agent API",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "subagentapi"},
+					DisplayName: "Sub Agent API",
+					Site:        []rbac.Permission{},
+					Org: map[string][]rbac.Permission{
+						orgID.String(): {},
+					},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+					}),
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -435,6 +457,12 @@ func AsNotifier(ctx context.Context) context.Context {
 // updating resource monitors.
 func AsResourceMonitor(ctx context.Context) context.Context {
 	return As(ctx, subjectResourceMonitor)
+}
+
+// AsSubAgentAPI returns a context with an actor that has permissions required for
+// handling the lifecycle of sub agents.
+func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
+	return As(ctx, subjectSubAgentAPI(userID, orgID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -1507,6 +1535,19 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	}
 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
+}
+
+func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionDeleteAgent, workspace); err != nil {
+		return err
+	}
+
+	return q.db.DeleteWorkspaceSubAgentByID(ctx, id)
 }
 
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
@@ -3036,6 +3077,19 @@ func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt tim
 
 func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
+}
+
+func (q *querier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, parentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByParentID(ctx, parentID)
 }
 
 // GetWorkspaceAgentsByResourceIDs

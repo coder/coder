@@ -1301,14 +1301,57 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-workspace-resource",
 							Type: "aws_instance",
 						}},
-						Timings: []*sdkproto.Timing{{
-							Stage:    "test",
-							Source:   "test-source",
-							Resource: "test-resource",
-							Action:   "test-action",
-							Start:    timestamppb.Now(),
-							End:      timestamppb.Now(),
-						}},
+						Timings: []*sdkproto.Timing{
+							{
+								Stage:    "test",
+								Source:   "test-source",
+								Resource: "test-resource",
+								Action:   "test-action",
+								Start:    timestamppb.Now(),
+								End:      timestamppb.Now(),
+							},
+							{
+								Stage:    "test2",
+								Source:   "test-source2",
+								Resource: "test-resource2",
+								Action:   "test-action2",
+								// Start: omitted
+								// End: omitted
+							},
+							{
+								Stage:    "test3",
+								Source:   "test-source3",
+								Resource: "test-resource3",
+								Action:   "test-action3",
+								Start:    timestamppb.Now(),
+								End:      nil,
+							},
+							{
+								Stage:    "test3",
+								Source:   "test-source3",
+								Resource: "test-resource3",
+								Action:   "test-action3",
+								Start:    nil,
+								End:      timestamppb.Now(),
+							},
+							{
+								Stage:    "test4",
+								Source:   "test-source4",
+								Resource: "test-resource4",
+								Action:   "test-action4",
+								Start:    timestamppb.New(time.Time{}),
+								End:      timestamppb.Now(),
+							},
+							{
+								Stage:    "test5",
+								Source:   "test-source5",
+								Resource: "test-resource5",
+								Action:   "test-action5",
+								Start:    timestamppb.Now(),
+								End:      timestamppb.New(time.Time{}),
+							},
+							nil, // nil timing should be ignored
+						},
 					},
 				},
 			})

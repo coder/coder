@@ -1771,7 +1771,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	// Verify manifest API response.
 	require.Equal(t, workspace.ID, manifest.WorkspaceID)
-	require.Equal(t, workspace.OwnerName, manifest.OwnerName)
+	require.Equal(t, workspace.OwnerUsername, manifest.OwnerUsername)
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
 	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
@@ -2613,7 +2613,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC25(ctx)
+	aAPI, _, err := client.ConnectRPC26(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

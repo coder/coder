@@ -1754,8 +1754,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			JobID: jobID,
 		}
 		for _, t := range jobType.WorkspaceBuild.Timings {
-			if t.Start == nil || t.End == nil {
-				s.Logger.Warn(ctx, "timings entry has nil start or end time", slog.F("entry", t.String()))
+			start := t.GetStart()
+			if !start.IsValid() || start.AsTime().IsZero() {
+				s.Logger.Warn(ctx, "timings entry has nil or zero start time", slog.F("job_id", job.ID.String()), slog.F("workspace_id", workspace.ID), slog.F("workspace_build_id", workspaceBuild.ID), slog.F("user_id", workspace.OwnerID))
+				continue
+			}
+
+			end := t.GetEnd()
+			if !end.IsValid() || end.AsTime().IsZero() {
+				s.Logger.Warn(ctx, "timings entry has nil or zero end time, skipping", slog.F("job_id", job.ID.String()), slog.F("workspace_id", workspace.ID), slog.F("workspace_build_id", workspaceBuild.ID), slog.F("user_id", workspace.OwnerID))
 				continue
 			}
 
@@ -1784,7 +1791,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		// after being started.
 		//
 		// Agent timeouts could be minutes apart, resulting in an unresponsive
-		// experience, so we'll notify after every unique timeout seconds.
+		// experience, so we'll notify after every unique timeout seconds
 		if !input.DryRun && workspaceBuild.Transition == database.WorkspaceTransitionStart && len(agentTimeouts) > 0 {
 			timeouts := maps.Keys(agentTimeouts)
 			slices.Sort(timeouts)

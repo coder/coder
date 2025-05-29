@@ -12,7 +12,7 @@ type Story = StoryObj<typeof VSCodeDesktopButton>;
 
 export const Default: Story = {
 	args: {
-		userName: MockWorkspace.owner_name,
+		userName: MockWorkspace.owner_username,
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
 		displayApps: [

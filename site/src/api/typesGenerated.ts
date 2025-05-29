@@ -3278,7 +3278,8 @@ export interface Workspace {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly owner_id: string;
-	readonly owner_name: string;
+	readonly owner_name?: string;
+	readonly owner_username: string;
 	readonly owner_avatar_url: string;
 	readonly organization_id: string;
 	readonly organization_name: string;

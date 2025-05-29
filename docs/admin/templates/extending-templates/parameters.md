@@ -478,13 +478,13 @@ The "Options" column in the table below indicates whether the form type requires
 | `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
 | `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list. Default for `string` or `number` parameters with options. |
 | `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
-| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                      |
 | `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                           |
 | `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                |
 | `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
 | `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                            |
 | `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                         |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |                                                                                              |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |
+| `error`        |                                            | No      | Used to display an error message when a parameter  form_type is unknown                                                      |
 
 ### Form Type Examples
 

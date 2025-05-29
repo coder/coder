@@ -1034,8 +1034,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			require.Equal(t, database.WorkspaceTransitionDelete, workspaceBuilds[0].Transition)
 			require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[1].Transition)
 
-			// The metric is still set to 1, even though the preset has become outdated.
-			// This happens because the old value hasn't been overwritten by a newer preset yet.
+			// Metric is deleted after preset became outdated.
 			mf, err = registry.Gather()
 			require.NoError(t, err)
 			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
@@ -1043,9 +1042,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 				"preset_name":   preset.Name,
 				"org_name":      org.Name,
 			})
-			require.NotNil(t, metric)
-			require.NotNil(t, metric.GetGauge())
-			require.EqualValues(t, 1, metric.GetGauge().GetValue())
+			require.Nil(t, metric)
 		})
 	}
 }

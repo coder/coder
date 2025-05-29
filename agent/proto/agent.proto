@@ -377,6 +377,35 @@ message ReportConnectionRequest {
 	Connection connection = 1;
 }
 
+message SubAgent {
+	string name = 1;
+	bytes id = 2;
+	bytes auth_token = 3;
+}
+
+message CreateSubAgentRequest {
+	string name = 1;
+	string directory = 2;
+	string architecture = 3;
+	string operating_system = 4;
+}
+
+message CreateSubAgentResponse {
+	SubAgent agent = 1;
+}
+
+message DeleteSubAgentRequest {
+	bytes id = 1;
+}
+
+message DeleteSubAgentResponse {}
+
+message ListSubAgentsRequest {}
+
+message ListSubAgentsResponse {
+	repeated SubAgent agents = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -391,4 +420,7 @@ service Agent {
 	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
+	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
+	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
+	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 }

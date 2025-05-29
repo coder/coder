@@ -91,8 +91,8 @@ func Test_buildAppLinkURL(t *testing.T) {
 			name:    "without subdomain",
 			baseURL: "https://coder.tld",
 			workspace: codersdk.Workspace{
-				Name:      "Test-Workspace",
-				OwnerName: "username",
+				Name:          "Test-Workspace",
+				OwnerUsername: "username",
 			},
 			agent: codersdk.WorkspaceAgent{
 				Name: "a-workspace-agent",
@@ -108,8 +108,8 @@ func Test_buildAppLinkURL(t *testing.T) {
 			name:    "with command",
 			baseURL: "https://coder.tld",
 			workspace: codersdk.Workspace{
-				Name:      "Test-Workspace",
-				OwnerName: "username",
+				Name:          "Test-Workspace",
+				OwnerUsername: "username",
 			},
 			agent: codersdk.WorkspaceAgent{
 				Name: "a-workspace-agent",
@@ -123,8 +123,8 @@ func Test_buildAppLinkURL(t *testing.T) {
 			name:    "with subdomain",
 			baseURL: "ftps://coder.tld",
 			workspace: codersdk.Workspace{
-				Name:      "Test-Workspace",
-				OwnerName: "username",
+				Name:          "Test-Workspace",
+				OwnerUsername: "username",
 			},
 			agent: codersdk.WorkspaceAgent{
 				Name: "a-workspace-agent",
@@ -141,8 +141,8 @@ func Test_buildAppLinkURL(t *testing.T) {
 			name:    "with subdomain, but not apps host",
 			baseURL: "https://coder.tld",
 			workspace: codersdk.Workspace{
-				Name:      "Test-Workspace",
-				OwnerName: "username",
+				Name:          "Test-Workspace",
+				OwnerUsername: "username",
 			},
 			agent: codersdk.WorkspaceAgent{
 				Name: "a-workspace-agent",

@@ -1027,8 +1027,8 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 					BytesPerTick: bytesPerTick,
 					Duration:     strategy.timeout,
 					TickInterval: tickInterval,
-					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agent.Name),
-					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agent.Name),
+					ReadMetrics:  metrics.ReadMetrics(ws.OwnerUsername, ws.Name, agent.Name),
+					WriteMetrics: metrics.WriteMetrics(ws.OwnerUsername, ws.Name, agent.Name),
 					SSH:          ssh,
 					Echo:         ssh,
 					App:          appConfig,
@@ -1420,7 +1420,7 @@ func isScaleTestUser(user codersdk.User) bool {
 }
 
 func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
-	return strings.HasPrefix(workspace.OwnerName, "scaletest-") ||
+	return strings.HasPrefix(workspace.OwnerUsername, "scaletest-") ||
 		strings.HasPrefix(workspace.Name, "scaletest-")
 }
 
@@ -1592,7 +1592,7 @@ func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, work
 
 		c.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost, "*", agent.Apps[i].SubdomainName, 1))
 	} else {
-		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
+		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerUsername, workspace.Name, agent.Name, agent.Apps[i].Slug)
 	}
 
 	return c, nil
