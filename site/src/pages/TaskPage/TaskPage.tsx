@@ -329,7 +329,7 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	return (
 		<main className="flex-1 flex flex-col">
 			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{emmbedApps
+				{embeddedApps
 					.filter((app) => !app.external)
 					.map((app) => (
 						<TaskAppButton
