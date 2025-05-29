@@ -1594,12 +1594,14 @@ func writeCoderConnectNetInfo(ctx context.Context, networkInfoDir string) error 
 // Converts workspace name input to owner/workspace.agent format
 // Possible valid input formats:
 // workspace
+// workspace.agent
 // owner/workspace
 // owner--workspace
 // owner/workspace--agent
 // owner/workspace.agent
 // owner--workspace--agent
 // owner--workspace.agent
+// agent.workspace.owner - for parity with Coder Connect
 func normalizeWorkspaceInput(input string) string {
 	// Split on "/", "--", and "."
 	parts := workspaceNameRe.Split(input, -1)
@@ -1608,8 +1610,15 @@ func normalizeWorkspaceInput(input string) string {
 	case 1:
 		return input // "workspace"
 	case 2:
+		if strings.Contains(input, ".") {
+			return fmt.Sprintf("%s.%s", parts[0], parts[1]) // "workspace.agent"
+		}
 		return fmt.Sprintf("%s/%s", parts[0], parts[1]) // "owner/workspace"
 	case 3:
+		// If the only separator is a dot, it's the Coder Connect format
+		if !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0]) // "owner/workspace.agent"
+		}
 		return fmt.Sprintf("%s/%s.%s", parts[0], parts[1], parts[2]) // "owner/workspace.agent"
 	default:
 		return input // Fallback
