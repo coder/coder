@@ -52,9 +52,9 @@ import (
 //
 // API v2.6:
 //   - Shipped in Coder v2.24.0
-//   - Addded support for CreateSubAgent RPC on the Agent API.
-//   - Addded support for DeleteSubAgent RPC on the Agent API.
-//   - Addded support for ListSubAgents RPC on the Agent API.
+//   - Added support for CreateSubAgent RPC on the Agent API.
+//   - Added support for DeleteSubAgent RPC on the Agent API.
+//   - Added support for ListSubAgents RPC on the Agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 6
