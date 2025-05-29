@@ -130,11 +130,33 @@ data "coder_parameter" "image_type" {
   }
 }
 
+locals {
+  default_regions = {
+    "North America": "us-pittsburgh"
+    "Europe": "eu-helsinki"
+    "Australia": "ap-sydney"
+    "South America": "sa-saopaulo"
+    "Africa": "za-cpt"
+  }
+
+  user_groups = data.coder_workspace_owner.me.groups
+  user_region = try(
+    local.default_regions[
+    one([
+      for g in local.user_groups : g
+      if contains(keys(local.default_regions), g)
+    ])
+    ],
+    "us-pittsburgh" # fallback value if no group matches
+  )
+}
+
+
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
   icon    = "/emojis/1f30e.png"
-  default = "us-pittsburgh"
+  default = local.user_region
   option {
     icon  = "/emojis/1f1fa-1f1f8.png"
     name  = "Pittsburgh"
