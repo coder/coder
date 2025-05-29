@@ -5,8 +5,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
@@ -46,13 +45,10 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			</PopoverTrigger>
 
 			<PopoverContent
-				horizontal="right"
+				align="end"
 				css={{
-					".MuiPaper-root": {
-						minWidth: "auto",
-						width: 180,
-						boxShadow: theme.shadows[6],
-					},
+					width: 180,
+					boxShadow: theme.shadows[6],
 				}}
 			>
 				<DeploymentDropdownContent
@@ -60,21 +56,21 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 					canViewOrganizations={canViewOrganizations}
 					canViewAuditLog={canViewAuditLog}
 					canViewHealth={canViewHealth}
+					onClose={() => {}}
 				/>
 			</PopoverContent>
 		</Popover>
 	);
 };
 
-const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
+const DeploymentDropdownContent: FC<DeploymentDropdownProps & { onClose?: () => void }> = ({
 	canViewDeployment,
 	canViewOrganizations,
 	canViewAuditLog,
 	canViewHealth,
+	onClose,
 }) => {
-	const popover = usePopover();
-
-	const onPopoverClose = () => popover.setOpen(false);
+	const onPopoverClose = () => onClose?.();
 
 	return (
 		<nav>

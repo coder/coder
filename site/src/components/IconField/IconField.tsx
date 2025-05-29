@@ -9,7 +9,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, Suspense, lazy, useState } from "react";
 
@@ -97,7 +97,7 @@ export const IconField: FC<IconFieldProps> = ({
 						<ChevronDownIcon />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent id="emoji" horizontal="right">
+				<PopoverContent id="emoji" align="end">
 					<Suspense fallback={<Loader />}>
 						<EmojiPicker
 							onEmojiSelect={(emoji) => {

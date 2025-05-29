@@ -5,8 +5,8 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import type { FC } from "react";
+} from "components/Popover/Popover";
+import { type FC, useState } from "react";
 import { isUUID } from "utils/uuid";
 
 interface PillListProps {
@@ -36,9 +36,14 @@ interface OverflowPillProps {
 const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	const theme = useTheme();
 
+	const [open, setOpen] = useState(false);
+	
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger 
+				onMouseEnter={() => setOpen(true)}
+				onMouseLeave={() => setOpen(false)}
+			>
 				<Pill
 					css={{
 						backgroundColor: theme.palette.background.paper,
@@ -51,27 +56,17 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 			</PopoverTrigger>
 
 			<PopoverContent
-				disableRestoreFocus
-				disableScrollLock
+				align="center"
+				side="top"
 				css={{
-					".MuiPaper-root": {
-						display: "flex",
-						flexFlow: "column wrap",
-						columnGap: 8,
-						rowGap: 12,
-						padding: "12px 16px",
-						alignContent: "space-around",
-						minWidth: "auto",
-						backgroundColor: theme.palette.background.default,
-					},
-				}}
-				anchorOrigin={{
-					vertical: -4,
-					horizontal: "center",
-				}}
-				transformOrigin={{
-					vertical: "bottom",
-					horizontal: "center",
+					display: "flex",
+					flexFlow: "column wrap",
+					columnGap: 8,
+					rowGap: 12,
+					padding: "12px 16px",
+					alignContent: "space-around",
+					minWidth: "auto",
+					backgroundColor: theme.palette.background.default,
 				}}
 			>
 				{roles.map((role) => (

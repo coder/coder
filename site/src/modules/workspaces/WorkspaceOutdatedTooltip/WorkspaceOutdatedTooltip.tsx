@@ -14,7 +14,7 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { usePopover } from "components/deprecated/Popover/Popover";
+import { useContext } from "react";
 import { InfoIcon } from "lucide-react";
 import { RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -44,7 +44,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
 const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({ workspace }) => {
 	const getLink = useLinks();
 	const theme = useTheme();
-	const popover = usePopover();
+	const popover = { open: true };
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: popover.open,
@@ -66,7 +66,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({ workspace }) => {
 
 	return (
 		<>
-			<HelpTooltipContent disablePortal={false}>
+			<HelpTooltipContent>
 				<HelpTooltipTitle>Outdated</HelpTooltipTitle>
 				<HelpTooltipText>
 					This workspace version is outdated and a newer version is available.

@@ -13,10 +13,10 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -82,23 +82,28 @@ export const CreateOrganizationPageView: FC<
 					)}
 
 					<Badges>
-						<Popover mode="hover">
-							{isEntitled && (
-								<PopoverTrigger>
-									<span>
-										<PremiumBadge />
-									</span>
-								</PopoverTrigger>
-							)}
-
-							<PopoverContent css={{ transform: "translateY(-28px)" }}>
+						{isEntitled && (() => {
+							const [open, setOpen] = useState(false);
+							return (
+								<Popover open={open} onOpenChange={setOpen}>
+									<PopoverTrigger 
+										onMouseEnter={() => setOpen(true)}
+										onMouseLeave={() => setOpen(false)}
+									>
+										<span>
+											<PremiumBadge />
+										</span>
+									</PopoverTrigger>
+									<PopoverContent css={{ marginBottom: "28px" }}>
 								<PopoverPaywall
 									message="Organizations"
 									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
 									documentationLink={docs("/admin/users/organizations")}
 								/>
 							</PopoverContent>
-						</Popover>
+								</Popover>
+							);
+						})()}
 					</Badges>
 
 					<header className="flex flex-col items-center">

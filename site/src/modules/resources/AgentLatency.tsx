@@ -7,7 +7,7 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { PopoverTrigger } from "components/Popover/Popover";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 

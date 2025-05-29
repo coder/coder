@@ -12,7 +12,6 @@ import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
-import { usePopover } from "components/deprecated/Popover/Popover";
 import { BookOpenTextIcon } from "lucide-react";
 import { BugIcon } from "lucide-react";
 import { CircleUserIcon } from "lucide-react";
@@ -35,16 +34,15 @@ interface UserDropdownContentProps {
 	onSignOut: () => void;
 }
 
-export const UserDropdownContent: FC<UserDropdownContentProps> = ({
+export const UserDropdownContent: FC<UserDropdownContentProps & { onClose?: () => void }> = ({
 	user,
 	buildInfo,
 	supportLinks,
 	onSignOut,
+	onClose,
 }) => {
-	const popover = usePopover();
-
 	const onPopoverClose = () => {
-		popover.setOpen(false);
+		onClose?.();
 	};
 
 	const renderMenuIcon = (icon: string): JSX.Element => {

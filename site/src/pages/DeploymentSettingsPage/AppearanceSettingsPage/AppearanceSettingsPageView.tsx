@@ -17,9 +17,9 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -66,25 +66,30 @@ export const AppearanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<Badges>
-				<Popover mode="hover">
-					{isEntitled && !isPremium ? (
-						<EnterpriseBadge />
-					) : (
-						<PopoverTrigger>
-							<span>
-								<PremiumBadge />
-							</span>
-						</PopoverTrigger>
-					)}
-
-					<PopoverContent css={{ transform: "translateY(-28px)" }}>
+				{isEntitled && !isPremium ? (
+					<EnterpriseBadge />
+				) : (() => {
+					const [open, setOpen] = useState(false);
+					return (
+						<Popover open={open} onOpenChange={setOpen}>
+							<PopoverTrigger 
+								onMouseEnter={() => setOpen(true)}
+								onMouseLeave={() => setOpen(false)}
+							>
+								<span>
+									<PremiumBadge />
+								</span>
+							</PopoverTrigger>
+							<PopoverContent css={{ marginBottom: "28px" }}>
 						<PopoverPaywall
 							message="Appearance"
 							description="With a Premium license, you can customize the appearance and branding of your deployment."
 							documentationLink="https://coder.com/docs/admin/appearance"
 						/>
 					</PopoverContent>
-				</Popover>
+						</Popover>
+					);
+				})()}
 			</Badges>
 
 			<Fieldset

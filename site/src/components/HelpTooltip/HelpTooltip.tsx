@@ -10,11 +10,8 @@ import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
-	type PopoverContentProps,
-	type PopoverProps,
 	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { ExternalLinkIcon } from "lucide-react";
 import { CircleHelpIcon } from "lucide-react";
 import {
@@ -22,8 +19,36 @@ import {
 	type HTMLAttributes,
 	type PropsWithChildren,
 	type ReactNode,
+	createContext,
 	forwardRef,
+	useContext,
+	useState,
 } from "react";
+
+type PopoverContextValue = {
+	open: boolean;
+	setOpen: (open: boolean) => void;
+};
+
+const PopoverContext = createContext<PopoverContextValue | undefined>(undefined);
+
+const usePopover = () => {
+	const context = useContext(PopoverContext);
+	if (!context) {
+		throw new Error(
+			"Popover compound components cannot be rendered outside the Popover component"
+		);
+	}
+	return context;
+};
+
+type PopoverProps = PropsWithChildren<{
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	mode?: "hover" | "click";
+}>;
+
+type PopoverContentProps = React.ComponentPropsWithoutRef<typeof PopoverContent>;
 
 type Icon = typeof CircleHelpIcon;
 
@@ -31,8 +56,26 @@ type Size = "small" | "medium";
 
 export const HelpTooltipIcon = CircleHelpIcon;
 
-export const HelpTooltip: FC<PopoverProps> = (props) => {
-	return <Popover mode="hover" {...props} />;
+export const HelpTooltip: FC<PopoverProps> = ({ children, open, onOpenChange, ...props }) => {
+	const [internalOpen, setInternalOpen] = useState(open ?? false);
+	
+	const isControlled = open !== undefined;
+	const isOpen = isControlled ? open : internalOpen;
+	
+	const handleOpenChange = (newOpen: boolean) => {
+		if (!isControlled) {
+			setInternalOpen(newOpen);
+		}
+		onOpenChange?.(newOpen);
+	};
+	
+	return (
+		<PopoverContext.Provider value={{ open: isOpen, setOpen: handleOpenChange }}>
+			<Popover open={isOpen} onOpenChange={handleOpenChange} {...props}>
+				{children}
+			</Popover>
+		</PopoverContext.Provider>
+	);
 };
 
 export const HelpTooltipContent: FC<PopoverContentProps> = (props) => {
@@ -42,12 +85,10 @@ export const HelpTooltipContent: FC<PopoverContentProps> = (props) => {
 		<PopoverContent
 			{...props}
 			css={{
-				"& .MuiPaper-root": {
-					fontSize: 14,
-					width: 304,
-					padding: 20,
-					color: theme.palette.text.secondary,
-				},
+				fontSize: 14,
+				width: 304,
+				padding: 20,
+				color: theme.palette.text.secondary,
 			}}
 		/>
 	);

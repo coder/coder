@@ -5,7 +5,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { type FC, useState } from "react";
 import { UserDropdownContent } from "./UserDropdownContent";
 
@@ -37,13 +37,10 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 			</PopoverTrigger>
 
 			<PopoverContent
-				horizontal="right"
+				align="end"
 				css={{
-					".MuiPaper-root": {
-						minWidth: "auto",
-						width: 260,
-						boxShadow: theme.shadows[6],
-					},
+					width: 260,
+					boxShadow: theme.shadows[6],
 				}}
 			>
 				<UserDropdownContent

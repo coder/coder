@@ -6,9 +6,8 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
-import type { FC, ReactNode } from "react";
+} from "components/Popover/Popover";
+import { type FC, ReactNode, useState } from "react";
 import type { ThemeRole } from "theme/roles";
 
 export type NotificationItem = {
@@ -30,24 +29,26 @@ export const Notifications: FC<NotificationsProps> = ({
 	icon,
 }) => {
 	const theme = useTheme();
+	const [open, setOpen] = useState(false);
 
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger
+				onMouseEnter={() => setOpen(true)}
+				onMouseLeave={() => setOpen(false)}
+			>
 				<div
 					css={styles.pillContainer}
 					data-testid={`${severity}-notifications`}
 				>
-					<NotificationPill items={items} severity={severity} icon={icon} />
+					<NotificationPill items={items} severity={severity} icon={icon} isOpen={open} />
 				</div>
 			</PopoverTrigger>
 			<PopoverContent
-				horizontal="right"
+				align="end"
 				css={{
-					"& .MuiPaper-root": {
-						borderColor: theme.roles[severity].outline,
-						maxWidth: 400,
-					},
+					borderColor: theme.roles[severity].outline,
+					maxWidth: 400,
 				}}
 			>
 				{items.map((n) => (
@@ -58,19 +59,22 @@ export const Notifications: FC<NotificationsProps> = ({
 	);
 };
 
-const NotificationPill: FC<NotificationsProps> = ({
+type NotificationPillProps = NotificationsProps & {
+	isOpen?: boolean;
+};
+
+const NotificationPill: FC<NotificationPillProps> = ({
 	items,
 	severity,
 	icon,
+	isOpen,
 }) => {
-	const popover = usePopover();
-
 	return (
 		<Pill
 			icon={icon}
 			css={(theme) => ({
 				"& svg": { color: theme.roles[severity].outline },
-				borderColor: popover.open ? theme.roles[severity].outline : undefined,
+				borderColor: isOpen ? theme.roles[severity].outline : undefined,
 			})}
 		>
 			{items.length}
