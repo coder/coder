@@ -1179,6 +1179,16 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	}
 
 	for _, t := range provisionerTimings {
+		// Ref: #15432: agent script timings must not have a zero start or end time.
+		if t.StartedAt.IsZero() || t.EndedAt.IsZero() {
+			api.Logger.Debug(ctx, "ignoring provisioner timing with zero start or end time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_build_id", build.ID),
+				slog.F("provisioner_job_id", t.JobID),
+			)
+			continue
+		}
+
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
 			JobID:     t.JobID,
 			Stage:     codersdk.TimingStage(t.Stage),
@@ -1190,6 +1200,17 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		})
 	}
 	for _, t := range agentScriptTimings {
+		// Ref: #15432: agent script timings must not have a zero start or end time.
+		if t.StartedAt.IsZero() || t.EndedAt.IsZero() {
+			api.Logger.Debug(ctx, "ignoring agent script timing with zero start or end time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_agent_id", t.WorkspaceAgentID),
+				slog.F("workspace_build_id", build.ID),
+				slog.F("workspace_agent_script_id", t.ScriptID),
+			)
+			continue
+		}
+
 		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
 			StartedAt:          t.StartedAt,
 			EndedAt:            t.EndedAt,
@@ -1202,6 +1223,14 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		})
 	}
 	for _, agent := range agents {
+		if agent.FirstConnectedAt.Time.IsZero() {
+			api.Logger.Debug(ctx, "ignoring agent connection timing with zero first connected time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_agent_id", agent.ID),
+				slog.F("workspace_build_id", build.ID),
+			)
+			continue
+		}
 		res.AgentConnectionTimings = append(res.AgentConnectionTimings, codersdk.AgentConnectionTiming{
 			WorkspaceAgentID:   agent.ID.String(),
 			WorkspaceAgentName: agent.Name,
