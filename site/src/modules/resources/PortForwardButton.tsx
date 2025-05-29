@@ -562,11 +562,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 const classNames = {
 	paper: (css, theme) => css`
-    padding: 0;
-    width: 404px;
-    color: ${theme.palette.text.secondary};
-    margin-top: 4px;
-  `,
+		padding: 0;
+		width: 404px;
+		color: ${theme.palette.text.secondary};
+		margin-top: 4px;
+	`,
 } satisfies Record<string, ClassName>;
 
 const styles = {

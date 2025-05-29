@@ -26,10 +26,11 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                                   uuid.UUID           `json:"id" format:"uuid"`
-	CreatedAt                            time.Time           `json:"created_at" format:"date-time"`
-	UpdatedAt                            time.Time           `json:"updated_at" format:"date-time"`
-	OwnerID                              uuid.UUID           `json:"owner_id" format:"uuid"`
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
+	// OwnerName is the username of the owner of the workspace.
 	OwnerName                            string              `json:"owner_name"`
 	OwnerAvatarURL                       string              `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid"`
@@ -49,7 +50,6 @@ type Workspace struct {
 	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
-
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	// and a value has been specified for time_til_dormant_autodelete on its template.
