@@ -342,7 +342,7 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="sm" variant="subtle">
-								Open in
+								Open in IDE
 								<ChevronDownIcon />
 							</Button>
 						</DropdownMenuTrigger>
