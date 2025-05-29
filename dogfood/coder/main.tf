@@ -132,11 +132,11 @@ data "coder_parameter" "image_type" {
 
 locals {
   default_regions = {
-    "North America": "us-pittsburgh"
-    "Europe": "eu-helsinki"
-    "Australia": "ap-sydney"
-    "South America": "sa-saopaulo"
-    "Africa": "za-cpt"
+    "north-america": "us-pittsburgh"
+    "europe": "eu-helsinki"
+    "australia": "ap-sydney"
+    "south-america": "sa-saopaulo"
+    "africa": "za-cpt"
   }
 
   user_groups = data.coder_workspace_owner.me.groups
