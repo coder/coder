@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn } from "@storybook/test";
+import { spyOn, userEvent, within } from "@storybook/test";
 import { API } from "api/api";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
@@ -263,5 +263,24 @@ export const HideApp: Story = {
 				},
 			],
 		},
+	},
+};
+
+export const GroupApp: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			apps: [
+				{
+					...M.MockWorkspaceApp,
+					group: "group",
+				},
+			],
+		},
+	},
+
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByText("group"));
 	},
 };
