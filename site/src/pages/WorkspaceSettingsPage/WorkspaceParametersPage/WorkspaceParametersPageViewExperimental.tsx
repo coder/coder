@@ -5,6 +5,7 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
@@ -14,8 +15,12 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
-export type WorkspaceParametersPageViewExperimentalProps = {
+import { docs } from "utils/docs";
+import type { AutofillBuildParameter } from "utils/richParameters";
+
+type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
+	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
@@ -31,6 +36,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	WorkspaceParametersPageViewExperimentalProps
 > = ({
 	workspace,
+	autofillParameters,
 	parameters,
 	diagnostics,
 	canChangeVersions,
@@ -39,17 +45,32 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	sendMessage,
 	onCancel,
 }) => {
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
-			rich_parameter_values: getInitialParameterValues(parameters),
+			rich_parameter_values: getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			),
 		},
+		initialTouched,
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
 		validateOnBlur: true,
 	});
-
 	// Group parameters by ephemeral status
 	const ephemeralParameters = parameters.filter((p) => p.ephemeral);
 	const standardParameters = parameters.filter((p) => !p.ephemeral);
@@ -139,6 +160,13 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							<p className="text-sm text-content-secondary m-0">
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+									)}
+								>
+									View docs
+								</Link>
 							</p>
 						</hgroup>
 						{standardParameters.map((parameter, index) => {

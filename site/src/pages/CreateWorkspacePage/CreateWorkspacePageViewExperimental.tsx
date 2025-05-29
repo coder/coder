@@ -7,6 +7,7 @@ import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import { Pill } from "components/Pill/Pill";
 import {
 	Select,
@@ -17,10 +18,17 @@ import {
 } from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
+import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -36,6 +44,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
@@ -47,7 +56,7 @@ import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-export interface CreateWorkspacePageViewExperimentalProps {
+interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
@@ -70,7 +79,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Record<string, string>) => void;
+	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.User;
 	setOwner: (user: TypesGen.User) => void;
@@ -271,9 +280,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.values.rich_parameter_values,
 	]);
 
-	// send the last user modified parameter and all touched parameters to the websocket
+	// include any modified parameters and all touched parameters to the websocket request
 	const sendDynamicParamsRequest = (
 		parameters: Array<{ parameter: PreviewParameter; value: string }>,
+		ownerId?: string,
 	) => {
 		const formInputs: Record<string, string> = {};
 		const formParameters = form.values.rich_parameter_values ?? [];
@@ -294,7 +304,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 			}
 		}
 
-		sendMessage(formInputs);
+		sendMessage(formInputs, ownerId);
+	};
+
+	const handleOwnerChange = (user: TypesGen.User) => {
+		setOwner(user);
+		sendDynamicParamsRequest([], user.id);
 	};
 
 	const handleChange = async (
@@ -337,7 +352,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</button>
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
-				<header className="flex flex-col items-start gap-2 mt-10">
+				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2">
 						<Avatar
 							variant="icon"
@@ -351,17 +366,40 @@ export const CreateWorkspacePageViewExperimental: FC<
 								: template.name}
 						</p>
 					</div>
-					<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
 
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 
 					{experimentalFormContext && (
 						<Button
 							size="sm"
-							variant="subtle"
+							variant="outline"
 							onClick={experimentalFormContext.toggleOptedOut}
 						>
-							Go back to the classic workspace creation flow
+							<Undo2 />
+							Use the classic workspace creation flow
 						</Button>
 					)}
 				</header>
@@ -449,7 +487,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<UserAutocomplete
 											value={owner}
 											onChange={(user) => {
-												setOwner(user ?? defaultOwner);
+												handleOwnerChange(user ?? defaultOwner);
 											}}
 											size="medium"
 										/>
@@ -501,6 +539,13 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<p className="text-sm text-content-secondary m-0">
 									These are the settings used by your template. Immutable
 									parameters cannot be modified once the workspace is created.
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										)}
+									>
+										View docs
+									</Link>
 								</p>
 							</hgroup>
 							{diagnostics.length > 0 && (
@@ -614,46 +659,5 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</form>
 			</div>
 		</>
-	);
-};
-
-interface DiagnosticsProps {
-	diagnostics: PreviewParameter["diagnostics"];
-}
-
-const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
-	return (
-		<div className="flex flex-col gap-4">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? "text-content-primary border-border-destructive bg-content-destructive/15"
-														: "text-content-primary border-border-warning bg-content-warning/15"
-												}`}
-				>
-					<div className="flex flex-row items-start">
-						{diagnostic.severity === "error" && (
-							<CircleAlert
-								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						{diagnostic.severity === "warning" && (
-							<TriangleAlert
-								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						<div className="flex flex-col gap-3">
-							<p className="m-0">{diagnostic.summary}</p>
-							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
-						</div>
-					</div>
-				</div>
-			))}
-		</div>
 	);
 };

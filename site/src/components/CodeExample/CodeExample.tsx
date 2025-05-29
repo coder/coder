@@ -3,7 +3,7 @@ import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
 
-export interface CodeExampleProps {
+interface CodeExampleProps {
 	code: string;
 	secret?: boolean;
 	className?: string;

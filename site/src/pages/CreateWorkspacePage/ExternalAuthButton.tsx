@@ -12,7 +12,7 @@ import {
 import { Check, Redo } from "lucide-react";
 import type { FC } from "react";
 
-export interface ExternalAuthButtonProps {
+interface ExternalAuthButtonProps {
 	auth: TemplateVersionExternalAuth;
 	displayRetry: boolean;
 	isLoading: boolean;

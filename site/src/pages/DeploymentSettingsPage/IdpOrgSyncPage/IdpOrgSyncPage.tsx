@@ -36,9 +36,10 @@ const IdpOrgSyncPage: FC = () => {
 		setField(settingsQuery.data.field);
 	}, [settingsQuery.data]);
 
-	const fieldValuesQuery = useQuery(
-		field ? deploymentIdpSyncFieldValues(field) : { enabled: false },
-	);
+	const fieldValuesQuery = useQuery({
+		...deploymentIdpSyncFieldValues(field),
+		enabled: !!field,
+	});
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),

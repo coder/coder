@@ -23,7 +23,7 @@ import {
 } from "theme/constants";
 import { Section } from "../Section";
 
-export interface AppearanceFormProps {
+interface AppearanceFormProps {
 	isUpdating?: boolean;
 	error?: unknown;
 	initialValues: UpdateUserAppearanceSettingsRequest;

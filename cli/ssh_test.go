@@ -107,12 +107,14 @@ func TestSSH(t *testing.T) {
 
 		cases := []string{
 			"myworkspace",
+			"myworkspace.dev",
 			"myuser/myworkspace",
 			"myuser--myworkspace",
 			"myuser/myworkspace--dev",
 			"myuser/myworkspace.dev",
 			"myuser--myworkspace--dev",
 			"myuser--myworkspace.dev",
+			"dev.myworkspace.myuser",
 		}
 
 		for _, tc := range cases {
@@ -2056,12 +2058,6 @@ func TestSSH_Container(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		ctrl := gomock.NewController(t)
 		mLister := acmock.NewMockLister(ctrl)
-		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
-		})
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-
 		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
 				{
@@ -2070,7 +2066,12 @@ func TestSSH_Container(t *testing.T) {
 				},
 			},
 			Warnings: nil,
-		}, nil)
+		}, nil).AnyTimes()
+		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+			o.ExperimentalDevcontainersEnabled = true
+			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
+		})
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		cID := uuid.NewString()
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", cID)

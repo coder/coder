@@ -23,7 +23,7 @@ const linkVariants = cva(
 	},
 );
 
-export interface LinkProps
+interface LinkProps
 	extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
 		VariantProps<typeof linkVariants> {
 	asChild?: boolean;

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -78,7 +79,8 @@ func TestWorkspaceBuild(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 	wb, err := client.WorkspaceBuild(testutil.Context(t, testutil.WaitShort), workspace.LatestBuild.ID)
 	require.NoError(t, err)
-	require.Equal(t, up.Username, wb.WorkspaceOwnerName)
+	require.Equal(t, up.Username, wb.WorkspaceOwnerUsername)
+	require.Equal(t, up.Name, wb.WorkspaceOwnerName)
 	require.Equal(t, up.AvatarURL, wb.WorkspaceOwnerAvatarURL)
 }
 
@@ -1735,7 +1737,8 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			JobID: build.JobID,
 		})
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
+			ResourceID:       resource.ID,
+			FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Hour)},
 		})
 
 		// When: fetching timings for the build
@@ -1766,7 +1769,8 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agents := make([]database.WorkspaceAgent, 5)
 		for i := range agents {
 			agents[i] = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ResourceID: resource.ID,
+				ResourceID:       resource.ID,
+				FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Duration(i) * time.Hour)},
 			})
 		}
 

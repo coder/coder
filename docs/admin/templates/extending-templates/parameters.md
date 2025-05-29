@@ -392,13 +392,13 @@ parameters in one of two ways:
 
   Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 
-## Dynamic Parameters
+## Dynamic Parameters (Early Access)
 
 Dynamic Parameters enhances Coder's existing parameter system with real-time validation,
 conditional parameter behavior, and richer input types.
 This feature allows template authors to create more interactive and responsive workspace creation experiences.
 
-### Enable Dynamic Parameters (Early Access)
+### Enable Dynamic Parameters
 
 To use Dynamic Parameters, enable the experiment flag or set the environment variable.
 
@@ -478,18 +478,17 @@ The "Options" column in the table below indicates whether the form type requires
 | `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
 | `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list. Default for `string` or `number` parameters with options. |
 | `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
-| `key-value`    | `string`                                   | No      | For entering key-value pairs (as JSON).                                                                                      |
 | `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                           |
-| `password`     | `string`                                   | No      | Masked input field for sensitive information.                                                                                |
 | `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                |
 | `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
 | `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                            |
 | `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                         |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |                                                                                              |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |
+| `error`        |                                            | No      | Used to display an error message when a parameter  form_type is unknown                                                      |
 
 ### Form Type Examples
 
-<details><summary>`checkbox`: A single checkbox for boolean values</summary>
+<details><summary>checkbox: A single checkbox for boolean values</summary>
 
 ```tf
 data "coder_parameter" "enable_gpu" {
@@ -503,7 +502,7 @@ data "coder_parameter" "enable_gpu" {
 
 </details>
 
-<details><summary>`dropdown`: A searchable select menu for choosing a single option from a list</summary>
+<details><summary>dropdown: A searchable select menu for choosing a single option from a list</summary>
 
 ```tf
 data "coder_parameter" "region" {
@@ -526,7 +525,7 @@ data "coder_parameter" "region" {
 
 </details>
 
-<details><summary>`input`: A standard text input field</summary>
+<details><summary>input: A standard text input field</summary>
 
 ```tf
 data "coder_parameter" "custom_domain" {
@@ -540,7 +539,7 @@ data "coder_parameter" "custom_domain" {
 
 </details>
 
-<details><summary>`key-value`: Input for entering key-value pairs</summary>
+<details><summary>key-value: Input for entering key-value pairs</summary>
 
 ```tf
 data "coder_parameter" "environment_vars" {
@@ -554,7 +553,7 @@ data "coder_parameter" "environment_vars" {
 
 </details>
 
-<details><summary>`multi-select`: Checkboxes for selecting multiple options from a list</summary>
+<details><summary>multi-select: Checkboxes for selecting multiple options from a list</summary>
 
 ```tf
 data "coder_parameter" "tools" {
@@ -581,7 +580,7 @@ data "coder_parameter" "tools" {
 
 </details>
 
-<details><summary>`password`: A text input that masks sensitive information</summary>
+<details><summary>password: A text input that masks sensitive information</summary>
 
 ```tf
 data "coder_parameter" "api_key" {
@@ -595,7 +594,7 @@ data "coder_parameter" "api_key" {
 
 </details>
 
-<details><summary>`radio`: Radio buttons for selecting a single option with high visibility</summary>
+<details><summary>radio: Radio buttons for selecting a single option with high visibility</summary>
 
 ```tf
 data "coder_parameter" "environment" {
@@ -618,7 +617,7 @@ data "coder_parameter" "environment" {
 
 </details>
 
-<details><summary>`slider`: A slider for selecting numeric values within a range</summary>
+<details><summary>slider: A slider for selecting numeric values within a range</summary>
 
 ```tf
 data "coder_parameter" "cpu_cores" {
@@ -636,7 +635,7 @@ data "coder_parameter" "cpu_cores" {
 
 </details>
 
-<details><summary>`switch`: A toggle switch for boolean values</summary>
+<details><summary>switch: A toggle switch for boolean values</summary>
 
 ```tf
 data "coder_parameter" "advanced_mode" {
@@ -650,7 +649,7 @@ data "coder_parameter" "advanced_mode" {
 
 </details>
 
-<details><summary>`textarea`: A multi-line text input field for longer content</summary>
+<details><summary>textarea: A multi-line text input field for longer content</summary>
 
 ```tf
 data "coder_parameter" "init_script" {

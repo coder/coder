@@ -18,7 +18,12 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { type FileTree, existsFile, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
@@ -50,9 +55,9 @@ const TemplateVersionEditorPage: FC = () => {
 	);
 	const activeTemplateVersionQuery = useQuery({
 		...templateVersionOptions,
-		keepPreviousData: true,
-		refetchInterval(data) {
-			return data?.job.status === "pending" ? 1_000 : false;
+		placeholderData: keepPreviousData,
+		refetchInterval({ state }) {
+			return state.data?.job.status === "pending" ? 1_000 : false;
 		},
 	});
 	const { data: activeTemplateVersion } = activeTemplateVersionQuery;
@@ -79,9 +84,9 @@ const TemplateVersionEditorPage: FC = () => {
 	const publishVersionMutation = useMutation({
 		mutationFn: publishVersion,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(
-				templateByNameKey(organizationName, templateName),
-			);
+			await queryClient.invalidateQueries({
+				queryKey: templateByNameKey(organizationName, templateName),
+			});
 		},
 	});
 	const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
@@ -183,7 +188,7 @@ const TemplateVersionEditorPage: FC = () => {
 						navigateToVersion(publishedVersion);
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}
-					isPublishing={publishVersionMutation.isLoading}
+					isPublishing={publishVersionMutation.isPending}
 					publishingError={publishVersionMutation.error}
 					publishedVersion={lastSuccessfulPublishedVersion}
 					onCreateWorkspace={() => {
@@ -199,8 +204,8 @@ const TemplateVersionEditorPage: FC = () => {
 						);
 					}}
 					isBuilding={
-						createTemplateVersionMutation.isLoading ||
-						uploadFileMutation.isLoading ||
+						createTemplateVersionMutation.isPending ||
+						uploadFileMutation.isPending ||
 						activeTemplateVersion.job.status === "running" ||
 						activeTemplateVersion.job.status === "pending"
 					}
@@ -345,9 +350,9 @@ const publishVersion = async (options: {
 		publishActions.push(API.patchTemplateVersion(version.id, data));
 	}
 
-	if (isActiveVersion) {
+	if (version.template_id && isActiveVersion) {
 		publishActions.push(
-			API.updateActiveTemplateVersion(version.template_id!, {
+			API.updateActiveTemplateVersion(version.template_id, {
 				id: version.id,
 			}),
 		);

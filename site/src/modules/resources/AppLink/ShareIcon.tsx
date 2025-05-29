@@ -4,7 +4,7 @@ import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 
-export interface ShareIconProps {
+interface ShareIconProps {
 	app: TypesGen.WorkspaceApp;
 }
 

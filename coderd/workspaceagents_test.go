@@ -1325,14 +1325,14 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 			{
 				name: "test response",
 				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
-					mcl.EXPECT().List(gomock.Any()).Return(testResponse, nil).Times(1)
+					mcl.EXPECT().List(gomock.Any()).Return(testResponse, nil).AnyTimes()
 					return testResponse, nil
 				},
 			},
 			{
 				name: "error response",
 				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
-					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError).Times(1)
+					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError).AnyTimes()
 					return codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError
 				},
 			},
@@ -1344,7 +1344,10 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				ctrl := gomock.NewController(t)
 				mcl := acmock.NewMockLister(ctrl)
 				expected, expectedErr := tc.setupMock(mcl)
-				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+					Logger: &logger,
+				})
 				user := coderdtest.CreateFirstUser(t, client)
 				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 					OrganizationID: user.OrganizationID,
@@ -1353,6 +1356,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 					return agents
 				}).Do()
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.Logger = logger.Named("agent")
 					o.ExperimentalDevcontainersEnabled = true
 					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
 				})
@@ -1422,7 +1426,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
-					}, nil).Times(1)
+					}, nil).AnyTimes()
 					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
 					return 0
 				},
@@ -1430,7 +1434,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 			{
 				name: "Container does not exist",
 				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
-					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).Times(1)
+					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).AnyTimes()
 					return http.StatusNotFound
 				},
 			},
@@ -1439,7 +1443,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{plainContainer},
-					}, nil).Times(1)
+					}, nil).AnyTimes()
 					return http.StatusNotFound
 				},
 			},
@@ -1451,7 +1455,10 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				mcl := acmock.NewMockLister(ctrl)
 				mdccli := acmock.NewMockDevcontainerCLI(ctrl)
 				wantStatus := tc.setupMock(mcl, mdccli)
-				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+					Logger: &logger,
+				})
 				user := coderdtest.CreateFirstUser(t, client)
 				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 					OrganizationID: user.OrganizationID,
@@ -1460,6 +1467,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					return agents
 				}).Do()
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.Logger = logger.Named("agent")
 					o.ExperimentalDevcontainersEnabled = true
 					o.ContainerAPIOptions = append(
 						o.ContainerAPIOptions,
@@ -1475,7 +1483,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 
 				ctx := testutil.Context(t, testutil.WaitLong)
 
-				err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, devContainer.ID)
+				_, err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, devContainer.ID)
 				if wantStatus > 0 {
 					cerr, ok := codersdk.AsError(err)
 					require.True(t, ok, "expected error to be a coder error")
@@ -1763,7 +1771,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	// Verify manifest API response.
 	require.Equal(t, workspace.ID, manifest.WorkspaceID)
-	require.Equal(t, workspace.OwnerName, manifest.OwnerName)
+	require.Equal(t, workspace.OwnerUsername, manifest.OwnerUsername)
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
 	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
@@ -2605,7 +2613,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC25(ctx)
+	aAPI, _, err := client.ConnectRPC26(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

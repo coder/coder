@@ -6,7 +6,7 @@ import { useClickable } from "hooks/useClickable";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 
-export interface FileUploadProps {
+interface FileUploadProps {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
 	onRemove?: () => void;

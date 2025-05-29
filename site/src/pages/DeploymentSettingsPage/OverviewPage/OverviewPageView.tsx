@@ -19,7 +19,7 @@ import { Alert } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 
-export type OverviewPageViewProps = {
+type OverviewPageViewProps = {
 	deploymentOptions: SerpentOption[];
 	dailyActiveUsers: DAUsResponse | undefined;
 	readonly invalidExperiments: Experiments | string[];

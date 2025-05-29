@@ -8,7 +8,6 @@ import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/Annou
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router-dom";
-import { dashboardContentBottomPadding } from "theme/constants";
 import { docs } from "utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
@@ -24,23 +23,10 @@ export const DashboardLayout: FC = () => {
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
 
-			<div
-				css={{
-					display: "flex",
-					minHeight: "100%",
-					flexDirection: "column",
-				}}
-			>
+			<div className="flex flex-col min-h-full">
 				<Navbar />
 
-				<div
-					css={{
-						flex: 1,
-						paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
-						display: "flex",
-						flexDirection: "column",
-					}}
-				>
+				<div className="flex flex-col flex-1">
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>
@@ -111,7 +97,6 @@ export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
 		<div
 			{...attrs}
 			css={{
-				marginBottom: `-${dashboardContentBottomPadding}px`,
 				flex: 1,
 				display: "flex",
 				flexDirection: "column",

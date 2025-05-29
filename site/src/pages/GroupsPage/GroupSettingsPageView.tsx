@@ -132,7 +132,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	);
 };
 
-export type SettingsGroupPageViewProps = {
+type SettingsGroupPageViewProps = {
 	onCancel: () => void;
 	onSubmit: (data: FormData) => void;
 	group: Group | undefined;

@@ -1108,6 +1108,92 @@ func AllParameterDestinationSchemeValues() []ParameterDestinationScheme {
 	}
 }
 
+// Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. Always include the empty string for using the default form type.
+type ParameterFormType string
+
+const (
+	ParameterFormTypeValue0      ParameterFormType = ""
+	ParameterFormTypeError       ParameterFormType = "error"
+	ParameterFormTypeRadio       ParameterFormType = "radio"
+	ParameterFormTypeDropdown    ParameterFormType = "dropdown"
+	ParameterFormTypeInput       ParameterFormType = "input"
+	ParameterFormTypeTextarea    ParameterFormType = "textarea"
+	ParameterFormTypeSlider      ParameterFormType = "slider"
+	ParameterFormTypeCheckbox    ParameterFormType = "checkbox"
+	ParameterFormTypeSwitch      ParameterFormType = "switch"
+	ParameterFormTypeTagSelect   ParameterFormType = "tag-select"
+	ParameterFormTypeMultiSelect ParameterFormType = "multi-select"
+)
+
+func (e *ParameterFormType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParameterFormType(s)
+	case string:
+		*e = ParameterFormType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParameterFormType: %T", src)
+	}
+	return nil
+}
+
+type NullParameterFormType struct {
+	ParameterFormType ParameterFormType `json:"parameter_form_type"`
+	Valid             bool              `json:"valid"` // Valid is true if ParameterFormType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullParameterFormType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ParameterFormType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ParameterFormType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullParameterFormType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ParameterFormType), nil
+}
+
+func (e ParameterFormType) Valid() bool {
+	switch e {
+	case ParameterFormTypeValue0,
+		ParameterFormTypeError,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect:
+		return true
+	}
+	return false
+}
+
+func AllParameterFormTypeValues() []ParameterFormType {
+	return []ParameterFormType{
+		ParameterFormTypeValue0,
+		ParameterFormTypeError,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect,
+	}
+}
+
 type ParameterScope string
 
 const (
@@ -3178,6 +3264,7 @@ type Template struct {
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
@@ -3270,6 +3357,7 @@ type TemplateVersion struct {
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -3306,6 +3394,8 @@ type TemplateVersionParameter struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
+	// Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.
+	FormType ParameterFormType `db:"form_type" json:"form_type"`
 }
 
 type TemplateVersionPreset struct {
@@ -3443,6 +3533,7 @@ type UserStatusChange struct {
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
+	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
@@ -3475,6 +3566,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OwnerName               string           `db:"owner_name" json:"owner_name"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
@@ -3673,8 +3765,9 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool               `db:"hidden" json:"hidden"`
-	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	Hidden       bool               `db:"hidden" json:"hidden"`
+	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
@@ -3754,6 +3847,7 @@ type WorkspaceBuild struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
 }
 
 type WorkspaceBuildParameter struct {

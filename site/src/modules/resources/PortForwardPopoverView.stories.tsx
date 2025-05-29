@@ -28,7 +28,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 	args: {
 		agent: MockWorkspaceAgent,
 		template: MockTemplate,
-		workspaceID: MockWorkspace.id,
+		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
 		host: "coder.com",
 	},
@@ -40,14 +40,7 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: MockSharedPortsResponse,
-			},
-		],
+		sharedPorts: MockSharedPortsResponse.shares,
 	},
 };
 
@@ -58,28 +51,14 @@ export const WithManyPorts: Story = {
 			network: "",
 			port: 3000 + i,
 		})),
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: MockSharedPortsResponse,
-			},
-		],
+		sharedPorts: MockSharedPortsResponse.shares,
 	},
 };
 
 export const Empty: Story = {
 	args: {
 		listeningPorts: [],
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: { shares: [] },
-			},
-		],
+		sharedPorts: [],
 	},
 };
 
@@ -87,20 +66,14 @@ export const AGPLPortSharing: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
 		portSharingControlsEnabled: false,
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: MockSharedPortsResponse,
-			},
-		],
+		sharedPorts: MockSharedPortsResponse.shares,
 	},
 };
 
 export const EnterprisePortSharingControlsOwner: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
+		sharedPorts: [],
 		template: {
 			...MockTemplate,
 			max_port_share_level: "owner",
@@ -115,17 +88,8 @@ export const EnterprisePortSharingControlsAuthenticated: Story = {
 			...MockTemplate,
 			max_port_share_level: "authenticated",
 		},
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: {
-					shares: MockSharedPortsResponse.shares.filter((share) => {
-						return share.share_level === "authenticated";
-					}),
-				},
-			},
-		],
+		sharedPorts: MockSharedPortsResponse.shares.filter((share) => {
+			return share.share_level === "authenticated";
+		}),
 	},
 };

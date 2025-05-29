@@ -6,7 +6,7 @@ import { useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
 
-export interface BuildAvatarProps {
+interface BuildAvatarProps {
 	build: WorkspaceBuild;
 	size?: AvatarProps["size"];
 }

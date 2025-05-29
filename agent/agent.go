@@ -95,8 +95,8 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC25(ctx context.Context) (
-		proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
+	ConnectRPC26(ctx context.Context) (
+		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 	)
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
@@ -908,7 +908,7 @@ func (a *agent) run() (retErr error) {
 	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC25(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC26(a.hardCtx)
 	if err != nil {
 		return err
 	}
@@ -1176,12 +1176,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
-				if containerAPI := a.containerAPI.Load(); containerAPI != nil {
-					// Inform the container API that the agent is ready.
-					// This allows us to start watching for changes to
-					// the devcontainer configuration files.
-					containerAPI.SignalReady()
-				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)
@@ -1206,7 +1200,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		network := a.network
 		a.closeMutex.Unlock()
 		if network == nil {
-			keySeed, err := SSHKeySeed(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName)
+			keySeed, err := SSHKeySeed(manifest.OwnerUsername, manifest.WorkspaceName, manifest.AgentName)
 			if err != nil {
 				return xerrors.Errorf("generate SSH key seed: %w", err)
 			}

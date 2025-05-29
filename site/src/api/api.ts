@@ -1000,7 +1000,6 @@ class ApiMethods {
 	};
 
 	templateVersionDynamicParameters = (
-		userId: string,
 		versionId: string,
 		{
 			onMessage,
@@ -1013,7 +1012,7 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/users/${userId}/templateversions/${versionId}/parameters`,
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
 		);
 
 		socket.addEventListener("message", (event) =>
@@ -1166,7 +1165,7 @@ class ApiMethods {
 					)
 				) {
 					const { job } = await this.getWorkspaceBuildByNumber(
-						build.workspace_owner_name,
+						build.workspace_owner_username,
 						build.workspace_name,
 						build.build_number,
 					);

@@ -43,7 +43,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { StarIcon } from "lucide-react";
+import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
@@ -84,7 +84,7 @@ import {
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
-export interface WorkspacesTableProps {
+interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
@@ -138,16 +138,22 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 			) || {}
 		);
 	}, [workspaces]);
-	const hasAppStatus = useMemo(
+	const hasActivity = useMemo(
 		() => Object.keys(workspaceIDToAppByStatus).length > 0,
 		[workspaceIDToAppByStatus],
 	);
+	const tableColumnSize = {
+		name: "w-2/6",
+		template: hasActivity ? "w-1/6" : "w-2/6",
+		status: hasActivity ? "w-1/6" : "w-2/6",
+		activity: "w-2/6",
+	};
 
 	return (
 		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead className={hasAppStatus ? "w-1/6" : "w-2/6"}>
+					<TableHead className={tableColumnSize.name}>
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
 								<Checkbox
@@ -171,10 +177,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							Name
 						</div>
 					</TableHead>
-					{hasAppStatus && <TableHead className="w-2/6">Activity</TableHead>}
-					<TableHead className="w-2/6">Template</TableHead>
-					<TableHead className="w-2/6">Status</TableHead>
-					<TableHead className="w-0" />
+					<TableHead className={tableColumnSize.template}>Template</TableHead>
+					<TableHead className={tableColumnSize.status}>Status</TableHead>
+					{hasActivity && (
+						<TableHead className={tableColumnSize.activity}>Activity</TableHead>
+					)}
+					<TableHead className="w-0">
+						<span className="sr-only">Actions</span>
+					</TableHead>
 				</TableRow>
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
@@ -229,7 +239,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									<AvatarData
 										title={
 											<Stack direction="row" spacing={0.5} alignItems="center">
-												{workspace.name}
+												<span className="whitespace-nowrap">
+													{workspace.name}
+												</span>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
 												)}
@@ -241,13 +253,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										subtitle={
 											<div>
 												<span className="sr-only">Owner: </span>
-												{workspace.owner_name}
+												{workspace.owner_username}
 											</div>
 										}
 										avatar={
 											<Avatar
 												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_name}
+												fallback={workspace.owner_username}
 												size="lg"
 											/>
 										}
@@ -255,20 +267,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								</div>
 							</TableCell>
 
-							{hasAppStatus && (
-								<TableCell>
-									<WorkspaceAppStatus
-										workspace={workspace}
-										agent={workspaceIDToAppByStatus[workspace.id]?.agent}
-										app={workspaceIDToAppByStatus[workspace.id]?.app}
-										status={workspace.latest_app_status}
-									/>
-								</TableCell>
-							)}
-
 							<TableCell>
 								<AvatarData
-									title={getDisplayWorkspaceTemplateName(workspace)}
+									title={
+										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+											{getDisplayWorkspaceTemplateName(workspace)}
+										</span>
+									}
 									subtitle={
 										dashboard.showOrganizations && (
 											<>
@@ -289,6 +294,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
+
+							{hasActivity && (
+								<TableCell>
+									<WorkspaceAppStatus status={workspace.latest_app_status} />
+								</TableCell>
+							)}
 
 							<WorkspaceActionsCell
 								workspace={workspace}
@@ -316,7 +327,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 }) => {
 	const navigate = useNavigate();
 
-	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
+	const workspacePageLink = `/@${workspace.owner_username}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
 	const { role, hover, ...clickableProps } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
@@ -399,7 +410,7 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 						<WorkspaceDormantBadge workspace={workspace} />
 					)}
 				</WorkspaceStatusIndicator>
-				<span className="text-xs font-medium text-content-secondary ml-6">
+				<span className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap">
 					{lastUsedMessage(workspace.last_used_at)}
 				</span>
 			</div>
@@ -478,9 +489,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	});
 
 	const isRetrying =
-		startWorkspaceMutation.isLoading ||
-		stopWorkspaceMutation.isLoading ||
-		deleteWorkspaceMutation.isLoading;
+		startWorkspaceMutation.isPending ||
+		stopWorkspaceMutation.isPending ||
+		deleteWorkspaceMutation.isPending;
 
 	const retry = () => {
 		switch (workspace.latest_build.transition) {
@@ -504,14 +515,17 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			}}
 		>
 			<div className="flex gap-1 justify-end">
-				{workspace.latest_build.status === "running" && (
-					<WorkspaceApps workspace={workspace} />
-				)}
+				{workspace.latest_build.status === "running" &&
+					(workspace.latest_app_status ? (
+						<WorkspaceAppStatusLinks workspace={workspace} />
+					) : (
+						<WorkspaceApps workspace={workspace} />
+					))}
 
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
-						isLoading={startWorkspaceMutation.isLoading}
+						isLoading={startWorkspaceMutation.isPending}
 						label="Start workspace"
 					>
 						<PlayIcon />
@@ -534,7 +548,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				{abilities.canCancel && (
 					<PrimaryAction
 						onClick={cancelBuildMutation.mutate}
-						isLoading={cancelBuildMutation.isLoading}
+						isLoading={cancelBuildMutation.isPending}
 						label="Cancel build"
 					>
 						<BanIcon />
@@ -633,7 +647,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				isLoading={!token}
 				label="Open VSCode"
 				href={getVSCodeHref("vscode", {
-					owner: workspace.owner_name,
+					owner: workspace.owner_username,
 					workspace: workspace.name,
 					agent: agent.name,
 					token: token ?? "",
@@ -652,7 +666,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				label="Open VSCode Insiders"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
-					owner: workspace.owner_name,
+					owner: workspace.owner_username,
 					workspace: workspace.name,
 					agent: agent.name,
 					token: token ?? "",
@@ -677,7 +691,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 
 	if (builtinApps.has("web_terminal")) {
 		const href = getTerminalHref({
-			username: workspace.owner_name,
+			username: workspace.owner_username,
 			workspace: workspace.name,
 			agent: agent.name,
 		});
@@ -699,6 +713,38 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	buttons.push();
 
 	return buttons;
+};
+
+type WorkspaceAppStatusLinksProps = {
+	workspace: Workspace;
+};
+
+const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
+	workspace,
+}) => {
+	const status = workspace.latest_app_status;
+	const agent = workspace.latest_build.resources
+		.flatMap((r) => r.agents)
+		.find((a) => a?.id === status?.agent_id);
+	const app = agent?.apps.find((a) => a.id === status?.app_id);
+
+	return (
+		<>
+			{agent && app && (
+				<IconAppLink app={app} workspace={workspace} agent={agent} />
+			)}
+
+			{status?.uri && status?.uri !== "n/a" && (
+				<BaseIconLink label={status.uri} href={status.uri} target="_blank">
+					{status.uri.startsWith("file://") ? (
+						<FileIcon />
+					) : (
+						<ExternalLinkIcon />
+					)}
+				</BaseIconLink>
+			)}
+		</>
+	);
 };
 
 type IconAppLinkProps = {
@@ -730,6 +776,7 @@ type BaseIconLinkProps = PropsWithChildren<{
 	href: string;
 	isLoading?: boolean;
 	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+	target?: string;
 }>;
 
 const BaseIconLink: FC<BaseIconLinkProps> = ({
@@ -737,6 +784,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 	isLoading,
 	label,
 	children,
+	target,
 	onClick,
 }) => {
 	return (
@@ -745,6 +793,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 				<TooltipTrigger asChild>
 					<Button variant="outline" size="icon-lg" asChild>
 						<a
+							target={target}
 							className={isLoading ? "animate-pulse" : ""}
 							href={href}
 							onClick={(e) => {

@@ -38,8 +38,8 @@ import {
 } from "./permissions";
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
-export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
+type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePageExperimental: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -73,33 +73,34 @@ const CreateWorkspacePageExperimental: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
-	const templateVersionPresetsQuery = useQuery(
-		templateQuery.data
-			? templateVersionPresets(templateQuery.data.active_version_id)
-			: { enabled: false },
-	);
-	const permissionsQuery = useQuery(
-		templateQuery.data
-			? checkAuthorization({
-					checks: createWorkspaceChecks(templateQuery.data.organization_id),
-				})
-			: { enabled: false },
-	);
+	const templateVersionPresetsQuery = useQuery({
+		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
+		enabled: !!templateQuery.data,
+	});
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
+		}),
+		enabled: !!templateQuery.data,
+	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		const request: DynamicParametersRequest = {
-			id: wsResponseId.current + 1,
-			inputs: formValues,
-		};
-		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
-			wsResponseId.current = wsResponseId.current + 1;
-		}
-	}, []);
+	const sendMessage = useEffectEvent(
+		(formValues: Record<string, string>, ownerId?: string) => {
+			const request: DynamicParametersRequest = {
+				id: wsResponseId.current + 1,
+				owner_id: ownerId ?? owner.id,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				wsResponseId.current = wsResponseId.current + 1;
+			}
+		},
+	);
 
 	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)
@@ -147,35 +148,31 @@ const CreateWorkspacePageExperimental: FC = () => {
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(
-			owner.id,
-			realizedVersionId,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
+		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
+			onMessage,
+			onError: (error) => {
+				if (ws.current === socket) {
+					setWsError(error);
+				}
 			},
-		);
+			onClose: () => {
+				if (ws.current === socket) {
+					setWsError(
+						new DetailedError(
+							"Websocket connection for dynamic parameters unexpectedly closed.",
+							"Refresh the page to reset the form.",
+						),
+					);
+				}
+			},
+		});
 
 		ws.current = socket;
 
 		return () => {
 			socket.close();
 		};
-	}, [owner.id, realizedVersionId, onMessage]);
+	}, [realizedVersionId, onMessage]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -192,13 +189,13 @@ const CreateWorkspacePageExperimental: FC = () => {
 		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
-	const title = autoCreateWorkspaceMutation.isLoading
+	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
 		: "Create workspace";
 
 	const onCreateWorkspace = useCallback(
 		(workspace: Workspace) => {
-			navigate(`/@${workspace.owner_name}/${workspace.name}`);
+			navigate(`/@${workspace.owner_username}/${workspace.name}`);
 		},
 		[navigate],
 	);
@@ -308,7 +305,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
-					creatingWorkspace={createWorkspaceMutation.isLoading}
+					creatingWorkspace={createWorkspaceMutation.isPending}
 					sendMessage={sendMessage}
 					onCancel={() => {
 						navigate(-1);
@@ -344,15 +341,11 @@ const useExternalAuth = (versionId: string | undefined) => {
 		setExternalAuthPollingState("polling");
 	}, []);
 
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
-		versionId
-			? {
-					...templateVersionExternalAuth(versionId),
-					refetchInterval:
-						externalAuthPollingState === "polling" ? 1000 : false,
-				}
-			: { enabled: false },
-	);
+	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
+		...templateVersionExternalAuth(versionId ?? ""),
+		enabled: !!versionId,
+		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+	});
 
 	const allSignedIn = externalAuth?.every((it) => it.authenticated);
 
