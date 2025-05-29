@@ -38,6 +38,8 @@ This will start two processes:
 * http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
 * http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
 
+Additionally, it starts a local PostgreSQL instance, creates both an admin and a member user account, and installs a default Docker-based template.
+
 1. Verify Your Session
 
 Confirm that you're logged in by running:
