@@ -2,6 +2,12 @@ import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { WorkspaceApp, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -14,7 +20,12 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import { ArrowLeftIcon, LayoutGridIcon, RotateCcwIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	ChevronDownIcon,
+	LayoutGridIcon,
+	RotateCcwIcon,
+} from "lucide-react";
 import { AppStatusIcon } from "modules/apps/AppStatusIcon";
 import { getAppHref } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
@@ -307,23 +318,59 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	return (
 		<main className="flex-1 flex flex-col">
 			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{apps.map((app) => (
-					<TaskAppButton
-						key={app.id}
-						task={task}
-						app={app}
-						active={app.id === activeAppId}
-						onClick={(e) => {
-							if (app.external) {
-								return;
-							}
+				{apps
+					.filter((app) => !app.external)
+					.map((app) => (
+						<TaskAppButton
+							key={app.id}
+							task={task}
+							app={app}
+							active={app.id === activeAppId}
+							onClick={(e) => {
+								if (app.external) {
+									return;
+								}
 
-							e.preventDefault();
-							setActiveAppId(app.id);
-							setIframeSrc(e.currentTarget.href);
-						}}
-					/>
-				))}
+								e.preventDefault();
+								setActiveAppId(app.id);
+								setIframeSrc(e.currentTarget.href);
+							}}
+						/>
+					))}
+
+				<div className="ml-auto">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="sm" variant="subtle">
+								Open in
+								<ChevronDownIcon />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent>
+							{apps
+								.filter((app) => app.external)
+								.map((app) => {
+									const link = useAppLink(app, {
+										agent,
+										workspace: task.workspace,
+									});
+
+									return (
+										<DropdownMenuItem key={app.id} asChild>
+											<RouterLink to={link.href}>
+												{app.icon ? (
+													<ExternalImage src={app.icon} />
+												) : (
+													<LayoutGridIcon />
+												)}
+												{link.label}
+											</RouterLink>
+										</DropdownMenuItem>
+									);
+								})}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
 			</div>
 
 			<div className="flex-1">
