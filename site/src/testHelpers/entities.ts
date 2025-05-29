@@ -1416,7 +1416,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 	owner_id: MockUserOwner.id,
 	organization_id: MockOrganization.id,
 	organization_name: "default",
-	owner_name: MockUserOwner.username,
+	owner_username: MockUserOwner.username,
 	owner_avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
 	autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
 	ttl_ms: 2 * 60 * 60 * 1000,
@@ -1604,6 +1604,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
 	{
 		name: "first_parameter",
 		type: "string",
+		form_type: "input",
 		description: "This is first parameter",
 		description_plaintext: "Markdown: This is first parameter",
 		default_value: "abc",
@@ -1618,6 +1619,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
 	{
 		name: "second_parameter",
 		type: "number",
+		form_type: "input",
 		description: "This is second parameter",
 		description_plaintext: "Markdown: This is second parameter",
 		default_value: "2",
@@ -1635,6 +1637,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 	{
 		name: "third_parameter",
 		type: "string",
+		form_type: "input",
 		description: "This is third parameter",
 		description_plaintext: "Markdown: This is third parameter",
 		default_value: "aaa",
@@ -1651,6 +1654,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
 	{
 		name: "fourth_parameter",
 		type: "string",
+		form_type: "input",
 		description: "This is fourth parameter",
 		description_plaintext: "Markdown: This is fourth parameter",
 		default_value: "def",
@@ -1664,6 +1668,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
 	type: "number",
+	form_type: "input",
 	description: "This is fifth parameter",
 	description_plaintext: "Markdown: This is fifth parameter",
 	default_value: "5",

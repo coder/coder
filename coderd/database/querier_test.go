@@ -4954,6 +4954,37 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 	})
 }
 
+func TestGetWorkspaceAgentsByParentID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace agent
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// When: We attempt to select agents with a null parent id
+		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)
+		require.NoError(t, err)
+
+		// Then: We expect to see no agents.
+		require.Len(t, agents, 0)
+	})
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)

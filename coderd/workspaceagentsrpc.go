@@ -128,9 +128,10 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	defer monitor.close()
 
 	agentAPI := agentapi.New(agentapi.Options{
-		AgentID:     workspaceAgent.ID,
-		OwnerID:     workspace.OwnerID,
-		WorkspaceID: workspace.ID,
+		AgentID:        workspaceAgent.ID,
+		OwnerID:        workspace.OwnerID,
+		WorkspaceID:    workspace.ID,
+		OrganizationID: workspace.OrganizationID,
 
 		Ctx:                               api.ctx,
 		Log:                               logger,

@@ -2543,6 +2543,20 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
+func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == id && agent.ParentID.Valid {
+			q.workspaceAgents = slices.Delete(q.workspaceAgents, i, i+1)
+			return nil
+		}
+	}
+
+	return nil
+}
+
 func (*FakeQuerier) DisableForeignKeysAndTriggers(_ context.Context) error {
 	// This is a no-op in the in-memory database.
 	return nil
@@ -7679,6 +7693,22 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 	return stats, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceAgents := make([]database.WorkspaceAgent, 0)
+	for _, agent := range q.workspaceAgents {
+		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID {
+			continue
+		}
+
+		workspaceAgents = append(workspaceAgents, agent)
+	}
+
+	return workspaceAgents, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -9363,6 +9393,7 @@ func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		DisplayName:         arg.DisplayName,
 		Description:         arg.Description,
 		Type:                arg.Type,
+		FormType:            arg.FormType,
 		Mutable:             arg.Mutable,
 		DefaultValue:        arg.DefaultValue,
 		Icon:                arg.Icon,

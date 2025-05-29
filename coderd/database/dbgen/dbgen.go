@@ -215,6 +215,17 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
 	})
 	require.NoError(t, err, "insert workspace agent")
+	if orig.FirstConnectedAt.Valid || orig.LastConnectedAt.Valid || orig.DisconnectedAt.Valid || orig.LastConnectedReplicaID.Valid {
+		err = db.UpdateWorkspaceAgentConnectionByID(genCtx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:                     agt.ID,
+			FirstConnectedAt:       takeFirst(orig.FirstConnectedAt, agt.FirstConnectedAt),
+			LastConnectedAt:        takeFirst(orig.LastConnectedAt, agt.LastConnectedAt),
+			DisconnectedAt:         takeFirst(orig.DisconnectedAt, agt.DisconnectedAt),
+			LastConnectedReplicaID: takeFirst(orig.LastConnectedReplicaID, agt.LastConnectedReplicaID),
+			UpdatedAt:              takeFirst(orig.UpdatedAt, agt.UpdatedAt),
+		})
+		require.NoError(t, err, "update workspace agent first connected at")
+	}
 	return agt
 }
 
@@ -981,6 +992,7 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 		Name:                takeFirst(orig.Name, testutil.GetRandomName(t)),
 		Description:         takeFirst(orig.Description, testutil.GetRandomName(t)),
 		Type:                takeFirst(orig.Type, "string"),
+		FormType:            orig.FormType, // empty string is ok!
 		Mutable:             takeFirst(orig.Mutable, false),
 		DefaultValue:        takeFirst(orig.DefaultValue, testutil.GetRandomName(t)),
 		Icon:                takeFirst(orig.Icon, testutil.GetRandomName(t)),
