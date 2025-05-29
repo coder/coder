@@ -4,7 +4,7 @@
     "created_at": "====[timestamp]=====",
     "updated_at": "====[timestamp]=====",
     "owner_id": "==========[first user ID]===========",
-    "owner_username": "testuser",
+    "owner_name": "testuser",
     "owner_avatar_url": "",
     "organization_id": "===========[first org ID]===========",
     "organization_name": "coder",

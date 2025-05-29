@@ -305,7 +305,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					return xerrors.Errorf("get agent connection info: %w", err)
 				}
 				coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
-					workspaceAgent.Name, workspace.Name, workspace.OwnerUsername, connInfo.HostnameSuffix)
+					workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
 				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost)
 				if exists {
 					defer cancel()
@@ -1022,7 +1022,7 @@ func verifyWorkspaceOutdated(client *codersdk.Client, workspace codersdk.Workspa
 
 // Build the user workspace link which navigates to the Coder web UI.
 func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
-	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerUsername, workspace.Name)})
+	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerName, workspace.Name)})
 }
 
 // runLocal runs a command on the local machine.

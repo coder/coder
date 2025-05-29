@@ -28,7 +28,7 @@ import TerminalPage from "./TerminalPage";
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 	return {
 		key: workspaceByOwnerAndNameKey(
-			MockWorkspace.owner_username,
+			MockWorkspace.owner_name,
 			MockWorkspace.name,
 		),
 		data: {
@@ -54,7 +54,7 @@ const meta = {
 		reactRouter: reactRouterParameters({
 			location: {
 				pathParams: {
-					username: `@${MockWorkspace.owner_username}`,
+					username: `@${MockWorkspace.owner_name}`,
 					workspace: MockWorkspace.name,
 				},
 			},

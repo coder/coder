@@ -142,7 +142,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			<div className="flex gap-4 flex-wrap mt-4">
 				<VSCodeDevContainerButton
-					userName={workspace.owner_username}
+					userName={workspace.owner_name}
 					workspaceName={workspace.name}
 					devContainerName={container.name}
 					devContainerFolder={containerFolder}
@@ -154,7 +154,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					workspaceName={workspace.name}
 					agentName={agent.name}
 					containerName={container.name}
-					userName={workspace.owner_username}
+					userName={workspace.owner_name}
 				/>
 				{wildcardHostname !== "" &&
 					container.ports.map((port) => {
@@ -170,7 +170,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 									port.host_port,
 									agent.name,
 									workspace.name,
-									workspace.owner_username,
+									workspace.owner_name,
 									location.protocol === "https" ? "https" : "http",
 								)
 							: "";
