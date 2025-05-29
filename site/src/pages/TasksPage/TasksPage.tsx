@@ -222,7 +222,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 								return (
 									<SelectItem value={template.id} key={template.id}>
 										<span className="overflow-hidden text-ellipsis block">
-											{template.display_name ?? template.name}
+											{template.display_name || template.name}
 										</span>
 									</SelectItem>
 								);
