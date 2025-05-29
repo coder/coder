@@ -54,7 +54,7 @@ const renderWorkspacePage = async (
 
 	renderWithAuth(<WorkspacePage />, {
 		...options,
-		route: `/@${workspace.owner_username}/${workspace.name}`,
+		route: `/@${workspace.owner_name}/${workspace.name}`,
 		path: "/:username/:workspace",
 	});
 

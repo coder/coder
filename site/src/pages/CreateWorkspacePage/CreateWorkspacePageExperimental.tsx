@@ -195,7 +195,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const onCreateWorkspace = useCallback(
 		(workspace: Workspace) => {
-			navigate(`/@${workspace.owner_username}/${workspace.name}`);
+			navigate(`/@${workspace.owner_name}/${workspace.name}`);
 		},
 		[navigate],
 	);

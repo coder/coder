@@ -403,7 +403,7 @@ func buildVSCodeWorkspaceLink(
 ) (*url.URL, url.Values) {
 	qp := url.Values{}
 	qp.Add("url", clientURL)
-	qp.Add("owner", workspace.OwnerUsername)
+	qp.Add("owner", workspace.OwnerName)
 	qp.Add("workspace", workspace.Name)
 	qp.Add("agent", workspaceAgent.Name)
 
@@ -435,7 +435,7 @@ func buildVSCodeWorkspaceDevContainerLink(
 
 	qp := url.Values{}
 	qp.Add("url", clientURL)
-	qp.Add("owner", workspace.OwnerUsername)
+	qp.Add("owner", workspace.OwnerName)
 	qp.Add("workspace", workspace.Name)
 	qp.Add("agent", workspaceAgent.Name)
 	qp.Add("devContainerName", containerName)
@@ -596,7 +596,7 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 	u.Path = fmt.Sprintf(
 		"%s/@%s/%s.%s/apps/%s/",
 		preferredPathBase,
-		workspace.OwnerUsername,
+		workspace.OwnerName,
 		workspace.Name,
 		agent.Name,
 		url.PathEscape(app.Slug),
@@ -606,7 +606,7 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		u.Path = fmt.Sprintf(
 			"%s/@%s/%s.%s/terminal",
 			preferredPathBase,
-			workspace.OwnerUsername,
+			workspace.OwnerName,
 			workspace.Name,
 			agent.Name,
 		)

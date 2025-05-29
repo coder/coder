@@ -144,7 +144,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				rich_parameter_values: buildParameters,
 			}),
 		onSuccess: () => {
-			navigate(`/@${workspace.owner_username}/${workspace.name}`);
+			navigate(`/@${workspace.owner_name}/${workspace.name}`);
 		},
 	});
 
@@ -250,7 +250,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					isSubmitting={updateParameters.isPending}
 					onSubmit={handleSubmit}
 					onCancel={() =>
-						navigate(`/@${workspace.owner_username}/${workspace.name}`)
+						navigate(`/@${workspace.owner_name}/${workspace.name}`)
 					}
 					sendMessage={sendMessage}
 				/>

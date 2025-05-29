@@ -126,7 +126,7 @@ const TaskPage = () => {
 					</span>
 					<Button size="sm" variant="outline" asChild className="mt-4">
 						<RouterLink
-							to={`/@${task.workspace.owner_username}/${task.workspace.name}/builds/${task.workspace.latest_build.build_number}`}
+							to={`/@${task.workspace.owner_name}/${task.workspace.name}/builds/${task.workspace.latest_build.build_number}`}
 						>
 							View logs
 						</RouterLink>
@@ -227,7 +227,7 @@ const TaskPage = () => {
 			</Helmet>
 
 			<section className="h-full flex flex-col">
-				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0">
+				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0 justify-between">
 					<div className="flex items-center gap-4">
 						<TooltipProvider>
 							<Tooltip>
@@ -247,11 +247,19 @@ const TaskPage = () => {
 							<h1 className="m-0 text-sm font-medium">{task.prompt}</h1>
 							<span className="text-xs text-content-secondary">
 								Created by{" "}
-								{task.workspace.owner_name ?? task.workspace.owner_username}{" "}
+								{task.workspace.owner_name ?? task.workspace.owner_name}{" "}
 								{timeFrom(new Date(task.workspace.created_at))}
 							</span>
 						</div>
 					</div>
+
+					<Button variant="outline" asChild>
+						<RouterLink
+							to={`/@${task.workspace.owner_username}/${task.workspace.name}`}
+						>
+							View workspace
+						</RouterLink>
+					</Button>
 				</header>
 
 				{content}

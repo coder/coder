@@ -12,7 +12,7 @@ type Story = StoryObj<typeof VSCodeDevContainerButton>;
 
 export const Default: Story = {
 	args: {
-		userName: MockWorkspace.owner_username,
+		userName: MockWorkspace.owner_name,
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
 		devContainerName: "musing_ride",
@@ -29,7 +29,7 @@ export const Default: Story = {
 
 export const VSCodeOnly: Story = {
 	args: {
-		userName: MockWorkspace.owner_username,
+		userName: MockWorkspace.owner_name,
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
 		devContainerName: "nifty_borg",
@@ -45,7 +45,7 @@ export const VSCodeOnly: Story = {
 
 export const InsidersOnly: Story = {
 	args: {
-		userName: MockWorkspace.owner_username,
+		userName: MockWorkspace.owner_name,
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
 		devContainerName: "amazing_swartz",
