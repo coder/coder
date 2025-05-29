@@ -10,8 +10,6 @@ The purpose of this guide is to help you:
 * Navigate the codebase with confidence and adhere to established best practices.
 * Contribute meaningful changes - whether you're fixing bugs, implementing features, or reviewing code.
 
-By aligning on tools, workflows, and conventions, we reduce cognitive overhead, improve collaboration across teams, and accelerate our ability to deliver high-quality software.
-
 Need help or have questions? Join the conversation on our [Discord server](https://discord.com/invite/coder) — we’re always happy to support contributors.
 
 ## Quickstart
