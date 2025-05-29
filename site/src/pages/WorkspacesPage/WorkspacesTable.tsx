@@ -253,13 +253,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										subtitle={
 											<div>
 												<span className="sr-only">Owner: </span>
-												{workspace.owner_username}
+												{workspace.owner_name}
 											</div>
 										}
 										avatar={
 											<Avatar
 												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_username}
+												fallback={workspace.owner_name}
 												size="lg"
 											/>
 										}
@@ -327,7 +327,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 }) => {
 	const navigate = useNavigate();
 
-	const workspacePageLink = `/@${workspace.owner_username}/${workspace.name}`;
+	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
 	const { role, hover, ...clickableProps } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
@@ -647,7 +647,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				isLoading={!token}
 				label="Open VSCode"
 				href={getVSCodeHref("vscode", {
-					owner: workspace.owner_username,
+					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
 					token: token ?? "",
@@ -666,7 +666,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				label="Open VSCode Insiders"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
-					owner: workspace.owner_username,
+					owner: workspace.owner_name,
 					workspace: workspace.name,
 					agent: agent.name,
 					token: token ?? "",
@@ -691,7 +691,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 
 	if (builtinApps.has("web_terminal")) {
 		const href = getTerminalHref({
-			username: workspace.owner_username,
+			username: workspace.owner_name,
 			workspace: workspace.name,
 			agent: agent.name,
 		});

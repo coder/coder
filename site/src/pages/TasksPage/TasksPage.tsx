@@ -318,7 +318,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 												{prompt}
 											</span>
 											<RouterLink
-												to={`/tasks/${workspace.owner_username}/${workspace.name}`}
+												to={`/tasks/${workspace.owner_name}/${workspace.name}`}
 												className="absolute inset-0"
 											>
 												<span className="sr-only">Access task</span>
@@ -341,7 +341,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 							</TableCell>
 							<TableCell>
 								<AvatarData
-									title={workspace.owner_username}
+									title={workspace.owner_name}
 									subtitle={
 										<span className="block first-letter:uppercase">
 											{relativeTime(new Date(workspace.created_at))}

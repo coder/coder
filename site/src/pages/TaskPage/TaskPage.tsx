@@ -126,7 +126,7 @@ const TaskPage = () => {
 					</span>
 					<Button size="sm" variant="outline" asChild className="mt-4">
 						<RouterLink
-							to={`/@${task.workspace.owner_username}/${task.workspace.name}/builds/${task.workspace.latest_build.build_number}`}
+							to={`/@${task.workspace.owner_name}/${task.workspace.name}/builds/${task.workspace.latest_build.build_number}`}
 						>
 							View logs
 						</RouterLink>
@@ -247,7 +247,7 @@ const TaskPage = () => {
 							<h1 className="m-0 text-sm font-medium">{task.prompt}</h1>
 							<span className="text-xs text-content-secondary">
 								Created by{" "}
-								{task.workspace.owner_name ?? task.workspace.owner_username}{" "}
+								{task.workspace.owner_name ?? task.workspace.owner_name}{" "}
 								{timeFrom(new Date(task.workspace.created_at))}
 							</span>
 						</div>

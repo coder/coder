@@ -16,7 +16,7 @@ import {
 	type Update,
 } from "./BatchUpdateConfirmation";
 
-const workspaces = [
+const workspaces: Workspace[] = [
 	{ ...MockRunningOutdatedWorkspace, id: "1" },
 	{ ...MockDormantOutdatedWorkspace, id: "2" },
 	{ ...MockOutdatedWorkspace, id: "3" },
@@ -26,7 +26,7 @@ const workspaces = [
 		...MockRunningOutdatedWorkspace,
 		id: "6",
 		owner_id: MockUserMember.id,
-		owner_username: MockUserMember.username,
+		owner_name: MockUserMember.username,
 	},
 ];
 

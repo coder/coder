@@ -287,7 +287,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										port,
 										agent.name,
 										workspace.name,
-										workspace.owner_username,
+										workspace.owner_name,
 										listeningPortProtocol,
 									);
 									window.open(url, "_blank");
@@ -328,7 +328,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							port.port,
 							agent.name,
 							workspace.name,
-							workspace.owner_username,
+							workspace.owner_name,
 							listeningPortProtocol,
 						);
 						const label =
@@ -417,7 +417,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								share.port,
 								agent.name,
 								workspace.name,
-								workspace.owner_username,
+								workspace.owner_name,
 								share.protocol,
 							);
 							const label = share.port;
