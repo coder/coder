@@ -255,7 +255,7 @@ const TaskPage = () => {
 
 					<Button variant="outline" asChild>
 						<RouterLink
-							to={`/@${task.workspace.owner_username}/${task.workspace.name}`}
+							to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
 						>
 							View workspace
 						</RouterLink>
