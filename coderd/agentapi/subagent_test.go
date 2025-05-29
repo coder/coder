@@ -147,7 +147,9 @@ func TestSubAgentAPI(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 
-					agentID, err := uuid.FromBytes(createResp.Id)
+					require.NotNil(t, createResp.Agent)
+
+					agentID, err := uuid.FromBytes(createResp.Agent.Id)
 					require.NoError(t, err)
 
 					agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
@@ -340,7 +342,7 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 
 			listedChildAgents := listResp.Agents
-			slices.SortFunc(listedChildAgents, func(a, b *proto.ListSubAgentsResponse_SubAgent) int {
+			slices.SortFunc(listedChildAgents, func(a, b *proto.SubAgent) int {
 				return cmp.Compare(string(a.Id), string(b.Id))
 			})
 

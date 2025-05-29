@@ -72,8 +72,11 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	}
 
 	return &agentproto.CreateSubAgentResponse{
-		Id:        subAgent.ID[:],
-		AuthToken: subAgent.AuthToken[:],
+		Agent: &agentproto.SubAgent{
+			Name:      subAgent.Name,
+			Id:        subAgent.ID[:],
+			AuthToken: subAgent.AuthToken[:],
+		},
 	}, nil
 }
 
@@ -102,12 +105,13 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 		return nil, err
 	}
 
-	agents := make([]*agentproto.ListSubAgentsResponse_SubAgent, len(workspaceAgents))
+	agents := make([]*agentproto.SubAgent, len(workspaceAgents))
 
 	for i, agent := range workspaceAgents {
-		agents[i] = &agentproto.ListSubAgentsResponse_SubAgent{
-			Name: agent.Name,
-			Id:   agent.ID[:],
+		agents[i] = &agentproto.SubAgent{
+			Name:      agent.Name,
+			Id:        agent.ID[:],
+			AuthToken: agent.AuthToken[:],
 		}
 	}
 

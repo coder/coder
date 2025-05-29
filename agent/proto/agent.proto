@@ -377,6 +377,12 @@ message ReportConnectionRequest {
 	Connection connection = 1;
 }
 
+message SubAgent {
+	string name = 1;
+	bytes id = 2;
+	bytes auth_token = 3;
+}
+
 message CreateSubAgentRequest {
 	string name = 1;
 	string directory = 2;
@@ -385,8 +391,7 @@ message CreateSubAgentRequest {
 }
 
 message CreateSubAgentResponse {
-	bytes id = 1;
-	bytes auth_token = 2;
+	SubAgent agent = 1;
 }
 
 message DeleteSubAgentRequest {
@@ -398,11 +403,6 @@ message DeleteSubAgentResponse {}
 message ListSubAgentsRequest {}
 
 message ListSubAgentsResponse {
-	message SubAgent {
-		string name = 1;
-		bytes id = 2;
-	}
-
 	repeated SubAgent agents = 1;
 }
 
