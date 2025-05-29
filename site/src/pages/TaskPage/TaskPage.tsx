@@ -323,7 +323,7 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		return src;
 	});
 
-	const emmbedApps = apps.filter((app) => !app.external);
+	const embeddedApps = apps.filter((app) => !app.external);
 	const externalApps = apps.filter((app) => app.external);
 
 	return (
