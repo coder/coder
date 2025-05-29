@@ -35,7 +35,7 @@ rm -rf ~/JetBrains/backends/IU/*.tar.gz
 Add the following command to your template's `startup_script`:
 
 ```shell
-~/JetBrains/backends/IU/ideaIU-243.26053.27/bin/remote-dev-server.sh registerBackendLocationForGateway
+~/JetBrains/*/bin/remote-dev-server.sh registerBackendLocationForGateway
 ```
 
 ## Configure JetBrains Gateway Module
@@ -46,7 +46,7 @@ If you are using our [jetbrains-gateway](https://registry.coder.com/modules/code
 module "jetbrains_gateway" {
   count          = data.coder_workspace.me.start_count
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.28"
+  version        = "1.0.29"
   agent_id       = coder_agent.main.id
   folder         = "/home/coder/example"
   jetbrains_ides = ["IU"]
@@ -54,8 +54,8 @@ module "jetbrains_gateway" {
   latest         = false
   jetbrains_ide_versions = {
     "IU" = {
-      build_number = "243.26053.27"
-      version      = "2024.3"
+      build_number = "251.25410.129"
+      version      = "2025.1"
     }
   }
 }
@@ -63,7 +63,7 @@ module "jetbrains_gateway" {
 resource "coder_agent" "main" {
     ...
     startup_script = <<-EOF
-    ~/JetBrains/backends/IU/ideaIU-243.26053.27/bin/remote-dev-server.sh registerBackendLocationForGateway
+    ~/JetBrains/*/bin/remote-dev-server.sh registerBackendLocationForGateway
     EOF
 }
 ```
@@ -73,45 +73,21 @@ resource "coder_agent" "main" {
 If you are using Docker based workspaces, you can add the command to your Dockerfile:
 
 ```dockerfile
-FROM ubuntu
+FROM codercom/enterprise-base:ubuntu
 
-# Combine all apt operations in a single RUN command
-# Install only necessary packages
-# Clean up apt cache in the same layer
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    golang \
-    sudo \
-    vim \
-    wget \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# JetBrains IDE installation (configurable)
+ARG IDE_CODE=IU
+ARG IDE_VERSION=2025.1
 
-# Create user in a single layer
-ARG USER=coder
-RUN useradd --groups sudo --no-create-home --shell /bin/bash ${USER} \
-    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/${USER} \
-    && chmod 0440 /etc/sudoers.d/${USER}
-
-USER ${USER}
-WORKDIR /home/${USER}
-
-# Install JetBrains Gateway in a single RUN command to reduce layers
-# Download, extract, use, and clean up in the same layer
+# Fetch and install IDE dynamically
 RUN mkdir -p ~/JetBrains \
-    && wget -q https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz -P /tmp \
-    && tar -xzf /tmp/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz -C /tmp \
-    && /tmp/jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader \
-       --products-filter IU \
-       --build-filter 243.26053.27 \
-       --platforms-filter linux-x64 \
-       --download-backends ~/JetBrains \
-    && tar -xzf ~/JetBrains/backends/IU/*.tar.gz -C ~/JetBrains/backends/IU \
-    && rm -f ~/JetBrains/backends/IU/*.tar.gz \
-    && rm -rf /tmp/jetbrains-clients-downloader-linux-x86_64-1867* \
-    && rm -rf /tmp/*.tar.gz
+    && IDE_URL=$(curl -s "https://data.services.jetbrains.com/products/releases?code=${IDE_CODE}&majorVersion=${IDE_VERSION}&latest=true" | jq -r ".${IDE_CODE}[0].downloads.linux.link") \
+    && IDE_NAME=$(curl -s "https://data.services.jetbrains.com/products/releases?code=${IDE_CODE}&majorVersion=${IDE_VERSION}&latest=true" | jq -r ".${IDE_CODE}[0].name") \
+    && echo "Installing ${IDE_NAME}..." \
+    && wget -q ${IDE_URL} -P /tmp \
+    && tar -xzf /tmp/$(basename ${IDE_URL}) -C ~/JetBrains \
+    && rm -f /tmp/$(basename ${IDE_URL}) \
+    && echo "${IDE_NAME} installed successfully"
 ```
 
 ## Next steps
