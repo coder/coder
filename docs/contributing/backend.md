@@ -48,7 +48,9 @@ Confirm that you're logged in by running:
 
 This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
 
-1. Create a Quick Workspace
+> `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
+
+1. Create Your First Workspace
 
 A template named docker-amd64 (or docker-arm64 on ARM systems) is created automatically. To spin up a workspace quickly, use:
 
