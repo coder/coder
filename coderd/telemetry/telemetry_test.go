@@ -373,7 +373,7 @@ func TestTelemetryItem(t *testing.T) {
 func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	cases := []struct {
 		name                    string
