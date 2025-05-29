@@ -132,6 +132,7 @@ data "coder_parameter" "image_type" {
 
 locals {
   default_regions = {
+    // keys should match group names
     "north-america" : "us-pittsburgh"
     "europe" : "eu-helsinki"
     "australia" : "ap-sydney"
