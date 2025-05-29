@@ -1380,12 +1380,12 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// When we call without includes_deleted, we don't expect to get the workspace back
-		_, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{})
+		_, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.ErrorContains(t, err, "404")
 
 		// Then:
 		// When we call with includes_deleted, we should get the workspace back
-		workspaceNew, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		workspaceNew, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 
@@ -1403,7 +1403,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// We can fetch the most recent workspace
-		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{})
+		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 
@@ -1417,7 +1417,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// When we fetch the deleted workspace, we get the most recently deleted one
-		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
@@ -1902,7 +1902,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, len(workspaces))
 		for _, found := range res.Workspaces {
-			require.Equal(t, found.OwnerUsername, sdkUser.Username)
+			require.Equal(t, found.OwnerName, sdkUser.Username)
 		}
 	})
 	t.Run("IDs", func(t *testing.T) {
@@ -2034,7 +2034,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 		// single workspace
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerUsername, workspace.Name),
+			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)

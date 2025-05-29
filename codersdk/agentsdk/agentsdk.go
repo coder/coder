@@ -107,7 +107,7 @@ type Manifest struct {
 	// OwnerUsername and WorkspaceID are used by an open-source user to identify the workspace.
 	// We do not provide insurance that this will not be removed in the future,
 	// but if it's easy to persist lets keep it around.
-	OwnerUsername string    `json:"owner_username"`
+	OwnerName     string    `json:"owner_name"`
 	WorkspaceID   uuid.UUID `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
 	// GitAuthConfigs stores the number of Git configurations

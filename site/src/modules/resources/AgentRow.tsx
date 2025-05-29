@@ -216,7 +216,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							<>
 								{showVSCode && (
 									<VSCodeDesktopButton
-										userName={workspace.owner_username}
+										userName={workspace.owner_name}
 										workspaceName={workspace.name}
 										agentName={agent.name}
 										folderPath={agent.expanded_directory}
@@ -238,7 +238,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							<TerminalLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
-								userName={workspace.owner_username}
+								userName={workspace.owner_name}
 							/>
 						)}
 					</section>

@@ -38,7 +38,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	return Manifest{
 		AgentID:                  agentID,
 		AgentName:                manifest.AgentName,
-		OwnerUsername:            manifest.OwnerUsername,
+		OwnerName:                manifest.OwnerUsername,
 		WorkspaceID:              workspaceID,
 		WorkspaceName:            manifest.WorkspaceName,
 		Apps:                     apps,
@@ -64,7 +64,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 	return &proto.Manifest{
 		AgentId:       manifest.AgentID[:],
 		AgentName:     manifest.AgentName,
-		OwnerUsername: manifest.OwnerUsername,
+		OwnerUsername: manifest.OwnerName,
 		WorkspaceId:   manifest.WorkspaceID[:],
 		WorkspaceName: manifest.WorkspaceName,
 		// #nosec G115 - Safe conversion for GitAuthConfigs which is expected to be small and positive

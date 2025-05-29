@@ -39,7 +39,7 @@ const WorkspaceParametersPage: FC = () => {
 				rich_parameter_values: buildParameters,
 			}),
 		onSuccess: () => {
-			navigate(`/${workspace.owner_username}/${workspace.name}`);
+			navigate(`/${workspace.owner_name}/${workspace.name}`);
 		},
 	});
 

@@ -17019,9 +17019,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "owner_name": {
-                    "type": "string"
-                },
-                "owner_username": {
+                    "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 },
                 "template_active_version_id": {

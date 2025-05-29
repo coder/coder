@@ -287,7 +287,7 @@ const DormantWorkspaces: FC<DormantWorkspacesProps> = ({ workspaces }) => {
 									<span
 										css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
 									>
-										{workspace.owner_username}
+										{workspace.owner_name}
 									</span>
 								</Stack>
 								<Stack direction="row" alignItems="center" spacing={1}>
