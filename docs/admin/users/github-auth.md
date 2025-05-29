@@ -16,7 +16,7 @@ to this data by administering the GitHub app.
 ## Default Configuration
 
 > [!IMPORTANT]
-> The default GitHub app grants Coder access to your organizations' GitHub data.
+> Installation of the default GitHub app grants Coder (the company) access to your organization's GitHub data.
 >
 > For production environments, we strongly recommend that you
 > [configure your own GitHub OAuth app](#step-1-configure-the-oauth-application-in-github)
