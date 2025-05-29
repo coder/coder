@@ -1495,6 +1495,13 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
+CREATE TABLE template_version_preset_prebuild_schedules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    preset_id uuid NOT NULL,
+    cron_expression text NOT NULL,
+    instances integer NOT NULL
+);
+
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
@@ -1502,7 +1509,8 @@ CREATE TABLE template_version_presets (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
-    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL
+    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
+    autoscaling_timezone text DEFAULT 'UTC'::text NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -2499,6 +2507,9 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2951,6 +2962,9 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

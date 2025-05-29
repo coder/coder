@@ -366,6 +366,11 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return nil
 		}
 
+		presetPrebuildSchedules, err := db.GetPresetPrebuildSchedules(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get preset prebuild schedules: %w", err)
+		}
+
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -388,10 +393,12 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 
 		state = prebuilds.NewGlobalSnapshot(
 			presetsWithPrebuilds,
+			presetPrebuildSchedules,
 			allRunningPrebuilds,
 			allPrebuildsInProgress,
 			presetsBackoff,
 			hardLimitedPresets,
+			c.clock,
 		)
 		return nil
 	}, &database.TxOptions{
@@ -434,7 +441,11 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		}
 	}
 
-	state := ps.CalculateState()
+	state, err := ps.CalculateState()
+	if err != nil {
+		logger.Error(ctx, "failed to calculate state for preset", slog.Error(err))
+		return err
+	}
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
 		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err))
@@ -608,7 +619,11 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-		desired := ps.Preset.DesiredInstances.Int32
+		desired, err := ps.CalculateDesiredInstances(c.clock.Now())
+		if err != nil {
+			return xerrors.Errorf("failed to calculate desired instances: %w", err)
+		}
+
 		if action.Create > desired {
 			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
 				slog.F("create_count", action.Create), slog.F("desired_count", desired))

@@ -521,6 +521,151 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	}
 }
 
+func TestPrebuildAutoscaling(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	templateDeleted := false
+
+	// The test includes 2 presets, each with 2 schedules.
+	// It checks that the number of created prebuilds match expectations for various provided times,
+	// based on the corresponding schedules.
+	testCases := []struct {
+		name string
+		// now specifies the current time.
+		now time.Time
+		// expected prebuild counts for preset1 and preset2, respectively.
+		expectedPrebuildCounts []int
+	}{
+		{
+			name:                   "Before the 1st schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 01:00:00 UTC"),
+			expectedPrebuildCounts: []int{1, 1},
+		},
+		{
+			name:                   "1st schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 03:00:00 UTC"),
+			expectedPrebuildCounts: []int{2, 1},
+		},
+		{
+			name:                   "2nd schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 07:00:00 UTC"),
+			expectedPrebuildCounts: []int{3, 1},
+		},
+		{
+			name:                   "3rd schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 11:00:00 UTC"),
+			expectedPrebuildCounts: []int{1, 4},
+		},
+		{
+			name:                   "4th schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 15:00:00 UTC"),
+			expectedPrebuildCounts: []int{1, 5},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			clock := quartz.NewMock(t)
+			clock.Set(tc.now)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+			templateVersionID := setupTestDBTemplateVersion(
+				ctx,
+				t,
+				clock,
+				db,
+				pubSub,
+				org.ID,
+				ownerID,
+				template.ID,
+			)
+			preset1 := setupTestDBPresetWithAutoscaling(
+				t,
+				db,
+				templateVersionID,
+				1,
+				uuid.New().String(),
+				"UTC",
+			)
+			preset2 := setupTestDBPresetWithAutoscaling(
+				t,
+				db,
+				templateVersionID,
+				1,
+				uuid.New().String(),
+				"UTC",
+			)
+
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:       preset1.ID,
+				CronExpression: "* 2-4 * * 1-5",
+				Instances:      2,
+			})
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:       preset1.ID,
+				CronExpression: "* 6-8 * * 1-5",
+				Instances:      3,
+			})
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:       preset2.ID,
+				CronExpression: "* 10-12 * * 1-5",
+				Instances:      4,
+			})
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:       preset2.ID,
+				CronExpression: "* 14-16 * * 1-5",
+				Instances:      5,
+			})
+
+			err := controller.ReconcileAll(ctx)
+			require.NoError(t, err)
+
+			// get workspace builds
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
+			for _, workspace := range workspaces {
+				workspaceIDs = append(workspaceIDs, workspace.ID)
+			}
+			workspaceBuilds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+			require.NoError(t, err)
+
+			// calculate number of workspace builds per preset
+			var (
+				preset1PrebuildCount int
+				preset2PrebuildCount int
+			)
+			for _, workspaceBuild := range workspaceBuilds {
+				if preset1.ID == workspaceBuild.TemplateVersionPresetID.UUID {
+					preset1PrebuildCount++
+				}
+				if preset2.ID == workspaceBuild.TemplateVersionPresetID.UUID {
+					preset2PrebuildCount++
+				}
+			}
+
+			require.Equal(t, tc.expectedPrebuildCounts[0], preset1PrebuildCount)
+			require.Equal(t, tc.expectedPrebuildCounts[1], preset2PrebuildCount)
+		})
+	}
+}
+
 func TestInvalidPreset(t *testing.T) {
 	t.Parallel()
 
@@ -1223,7 +1368,8 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.Len(t, snapshot.Presets, 1)
 	presetState, err := snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	state := presetState.CalculateState()
+	state, err := presetState.CalculateState()
+	require.NoError(t, err)
 	actions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(actions))
@@ -1247,7 +1393,8 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.NoError(t, err)
 	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	newState := presetState.CalculateState()
+	newState, err := presetState.CalculateState()
+	require.NoError(t, err)
 	newActions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(newActions))
@@ -1265,7 +1412,8 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.NoError(t, err)
 	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	state = presetState.CalculateState()
+	state, err = presetState.CalculateState()
+	require.NoError(t, err)
 	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(actions))
@@ -1288,7 +1436,8 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.NoError(t, err)
 	presetState, err = snapshot.FilterByPreset(preset.ID)
 	require.NoError(t, err)
-	state = presetState.CalculateState()
+	state, err = presetState.CalculateState()
+	require.NoError(t, err)
 	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(actions))
@@ -1538,6 +1687,32 @@ func setupTestDBTemplateVersion(
 	return templateVersion.ID
 }
 
+func setupTestDBPresetWithAutoscaling(
+	t *testing.T,
+	db database.Store,
+	templateVersionID uuid.UUID,
+	desiredInstances int32,
+	presetName string,
+	autoscalingTimezone string,
+) database.TemplateVersionPreset {
+	t.Helper()
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersionID,
+		Name:              presetName,
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: desiredInstances,
+		},
+		AutoscalingTimezone: autoscalingTimezone,
+	})
+	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: preset.ID,
+		Names:                   []string{"test"},
+		Values:                  []string{"test"},
+	})
+	return preset
+}
+
 func setupTestDBPreset(
 	t *testing.T,
 	db database.Store,
@@ -1696,4 +1871,11 @@ func allJobStatusesExcept(except ...database.ProvisionerJobStatus) []database.Pr
 	return slice.Filter(except, func(status database.ProvisionerJobStatus) bool {
 		return !slice.Contains(allJobStatuses, status)
 	})
+}
+
+func mustParseTime(t *testing.T, layout, value string) time.Time {
+	t.Helper()
+	parsedTime, err := time.Parse(layout, value)
+	require.NoError(t, err)
+	return parsedTime
 }

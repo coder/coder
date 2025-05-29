@@ -5,7 +5,8 @@ INSERT INTO template_version_presets (
 	name,
 	created_at,
 	desired_instances,
-	invalidate_after_secs
+	invalidate_after_secs,
+	autoscaling_timezone
 )
 VALUES (
 	@id,
@@ -13,7 +14,8 @@ VALUES (
 	@name,
 	@created_at,
 	@desired_instances,
-	@invalidate_after_secs
+	@invalidate_after_secs,
+	@autoscaling_timezone
 ) RETURNING *;
 
 -- name: InsertPresetParameters :many
@@ -24,6 +26,18 @@ SELECT
 	unnest(@names :: TEXT[]),
 	unnest(@values :: TEXT[])
 RETURNING *;
+
+-- name: InsertPresetPrebuildSchedule :one
+INSERT INTO template_version_preset_prebuild_schedules (
+	preset_id,
+	cron_expression,
+	instances
+)
+VALUES (
+	@preset_id,
+	@cron_expression,
+	@instances
+) RETURNING *;
 
 -- name: UpdatePresetPrebuildStatus :exec
 UPDATE template_version_presets
@@ -69,3 +83,6 @@ SELECT tvp.*, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = @preset_id;
+
+-- name: GetPresetPrebuildSchedules :many
+SELECT * FROM template_version_preset_prebuild_schedules;

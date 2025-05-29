@@ -2085,7 +2085,13 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
-		var desiredInstances, ttl sql.NullInt32
+		var (
+			desiredInstances     sql.NullInt32
+			ttl                  sql.NullInt32
+			autoscalingEnabled   bool
+			autoscalingTimezone  string
+			autoscalingSchedules []*sdkproto.Schedule
+		)
 		if protoPreset != nil && protoPreset.Prebuild != nil {
 			desiredInstances = sql.NullInt32{
 				Int32: protoPreset.Prebuild.Instances,
@@ -2097,6 +2103,11 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 					Valid: true,
 				}
 			}
+			if protoPreset.Prebuild.Autoscaling != nil {
+				autoscalingEnabled = true
+				autoscalingTimezone = protoPreset.Prebuild.Autoscaling.Timezone
+				autoscalingSchedules = protoPreset.Prebuild.Autoscaling.Schedule
+			}
 		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
 			ID:                  uuid.New(),
@@ -2105,9 +2116,23 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			CreatedAt:           t,
 			DesiredInstances:    desiredInstances,
 			InvalidateAfterSecs: ttl,
+			AutoscalingTimezone: autoscalingTimezone,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
+		}
+
+		if autoscalingEnabled {
+			for _, schedule := range autoscalingSchedules {
+				_, err := tx.InsertPresetPrebuildSchedule(ctx, database.InsertPresetPrebuildScheduleParams{
+					PresetID:       dbPreset.ID,
+					CronExpression: schedule.Cron,
+					Instances:      schedule.Instances,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to insert preset prebuild schedule: %w", err)
+				}
+			}
 		}
 
 		var presetParameterNames []string

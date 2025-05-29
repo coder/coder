@@ -1259,9 +1259,20 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
 		DesiredInstances:    seed.DesiredInstances,
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
+		AutoscalingTimezone: seed.AutoscalingTimezone,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
+}
+
+func PresetPrebuildSchedule(t testing.TB, db database.Store, seed database.InsertPresetPrebuildScheduleParams) database.TemplateVersionPresetPrebuildSchedule {
+	schedule, err := db.InsertPresetPrebuildSchedule(genCtx, database.InsertPresetPrebuildScheduleParams{
+		PresetID:       seed.PresetID,
+		CronExpression: seed.CronExpression,
+		Instances:      seed.Instances,
+	})
+	require.NoError(t, err, "insert preset")
+	return schedule
 }
 
 func PresetParameter(t testing.TB, db database.Store, seed database.InsertPresetParametersParams) []database.TemplateVersionPresetParameter {

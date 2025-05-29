@@ -155,6 +155,21 @@ func (s Schedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
 }
 
+// IsWithinRange interprets a cron spec as a continuous time range,
+// and returns whether the provided time value falls within that range.
+//
+// For example, the expression "* 9-18 * * 1-5" should represent a continuous time range
+// from 09:00 to 18:59, Monday through Friday.
+// However, due to minor implementation imprecision, it is interpreted as
+// a range from 08:59:00 to 18:58:59, Monday through Friday.
+func (s Schedule) IsWithinRange(t time.Time) bool {
+	// Get the next scheduled time
+	next := s.Next(t)
+
+	// If the next time is more than a minute away, we're not within range
+	return next.Sub(t) <= time.Minute
+}
+
 var (
 	t0   = time.Date(1970, 1, 1, 1, 1, 1, 0, time.UTC)
 	tMax = t0.Add(168 * time.Hour)
