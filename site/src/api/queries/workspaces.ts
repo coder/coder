@@ -267,7 +267,7 @@ export const activate = (workspace: Workspace, queryClient: QueryClient) => {
 		},
 		onSuccess: (updatedWorkspace: Workspace) => {
 			queryClient.setQueryData(
-				workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+				workspaceByOwnerAndNameKey(workspace.owner_username, workspace.name),
 				updatedWorkspace,
 			);
 		},
@@ -316,12 +316,12 @@ export const toggleFavorite = (
 		},
 		onSuccess: async () => {
 			queryClient.setQueryData(
-				workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+				workspaceByOwnerAndNameKey(workspace.owner_username, workspace.name),
 				{ ...workspace, favorite: !workspace.favorite },
 			);
 			await queryClient.invalidateQueries({
 				queryKey: workspaceByOwnerAndNameKey(
-					workspace.owner_name,
+					workspace.owner_username,
 					workspace.name,
 				),
 			});

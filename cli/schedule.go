@@ -327,7 +327,7 @@ func scheduleListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) s
 		}
 	}
 	return scheduleListRow{
-		WorkspaceName: workspace.OwnerName + "/" + workspace.Name,
+		WorkspaceName: workspace.OwnerUsername + "/" + workspace.Name,
 		StartsAt:      autostartDisplay,
 		StartsNext:    nextStartDisplay,
 		StopsAfter:    autostopDisplay,

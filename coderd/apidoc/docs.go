@@ -17004,6 +17004,9 @@ const docTemplate = `{
                 "owner_name": {
                     "type": "string"
                 },
+                "owner_username": {
+                    "type": "string"
+                },
                 "template_active_version_id": {
                     "type": "string",
                     "format": "uuid"

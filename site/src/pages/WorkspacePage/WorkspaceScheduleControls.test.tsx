@@ -13,7 +13,7 @@ import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 const Wrapper: FC = () => {
 	const { data: workspace } = useQuery(
-		workspaceByOwnerAndName(MockWorkspace.owner_name, MockWorkspace.name),
+		workspaceByOwnerAndName(MockWorkspace.owner_username, MockWorkspace.name),
 	);
 
 	if (!workspace) {

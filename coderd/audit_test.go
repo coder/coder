@@ -139,7 +139,7 @@ func TestAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 		buildNumberString := strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10)
 		require.Equal(t, auditLogs.AuditLogs[0].ResourceLink, fmt.Sprintf("/@%s/%s/builds/%s",
-			workspace.OwnerName, workspace.Name, buildNumberString))
+			workspace.OwnerUsername, workspace.Name, buildNumberString))
 	})
 
 	t.Run("Organization", func(t *testing.T) {

@@ -21,7 +21,7 @@ func TestManifest(t *testing.T) {
 	manifest := agentsdk.Manifest{
 		AgentID:            uuid.New(),
 		AgentName:          "test-agent",
-		OwnerName:          "test-owner",
+		OwnerUsername:      "test-owner",
 		WorkspaceID:        uuid.New(),
 		WorkspaceName:      "test-workspace",
 		GitAuthConfigs:     3,
@@ -144,7 +144,7 @@ func TestManifest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, manifest.AgentID, back.AgentID)
 	require.Equal(t, manifest.AgentName, back.AgentName)
-	require.Equal(t, manifest.OwnerName, back.OwnerName)
+	require.Equal(t, manifest.OwnerUsername, back.OwnerUsername)
 	require.Equal(t, manifest.WorkspaceID, back.WorkspaceID)
 	require.Equal(t, manifest.WorkspaceName, back.WorkspaceName)
 	require.Equal(t, manifest.GitAuthConfigs, back.GitAuthConfigs)
