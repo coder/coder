@@ -273,7 +273,8 @@ func TestSubAgentAPI(t *testing.T) {
 			})
 
 			// Then: We expect it to fail and for the agent to still exist.
-			require.Error(t, err)
+			var notAuthorizedError dbauthz.NotAuthorizedError
+			require.ErrorAs(t, err, &notAuthorizedError)
 
 			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID) //nolint:gocritic // this is a test.
 			require.NoError(t, err)
