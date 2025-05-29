@@ -816,6 +816,20 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentPortSharesByTemplate(ctx, t
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentPortSharesByTemplate", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentPortSharesByTemplate), ctx, templateID)
 }
 
+// DeleteWorkspaceSubAgentByID mocks base method.
+func (m *MockStore) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceSubAgentByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceSubAgentByID indicates an expected call of DeleteWorkspaceSubAgentByID.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceSubAgentByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceSubAgentByID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceSubAgentByID), ctx, id)
+}
+
 // DisableForeignKeysAndTriggers mocks base method.
 func (m *MockStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	m.ctrl.T.Helper()
@@ -3691,6 +3705,21 @@ func (m *MockStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, cr
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentUsageStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentUsageStatsAndLabels), ctx, createdAt)
+}
+
+// GetWorkspaceAgentsByParentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentsByParentID", ctx, parentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentsByParentID indicates an expected call of GetWorkspaceAgentsByParentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentsByParentID(ctx, parentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentsByParentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentsByParentID), ctx, parentID)
 }
 
 // GetWorkspaceAgentsByResourceIDs mocks base method.
