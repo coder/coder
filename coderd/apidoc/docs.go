@@ -5880,6 +5880,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dynamic-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Open dynamic parameters WebSocket by template version",
+                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
@@ -7731,43 +7768,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
                         }
-                    }
-                }
-            }
-        },
-        "/users/{user}/templateversions/{templateversion}/parameters": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Open dynamic parameters WebSocket by template version",
-                "operationId": "open-dynamic-parameters-websocket-by-template-version",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "templateversion",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
                     }
                 }
             }
@@ -16095,6 +16095,23 @@ const docTemplate = `{
                 "ephemeral": {
                     "type": "boolean"
                 },
+                "form_type": {
+                    "description": "FormType has an enum value of empty string, ` + "`" + `\"\"` + "`" + `.\nKeep the leading comma in the enums struct tag.",
+                    "type": "string",
+                    "enum": [
+                        "",
+                        "radio",
+                        "dropdown",
+                        "input",
+                        "textarea",
+                        "slider",
+                        "checkbox",
+                        "switch",
+                        "tag-select",
+                        "multi-select",
+                        "error"
+                    ]
+                },
                 "icon": {
                     "type": "string"
                 },
@@ -17002,6 +17019,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "owner_name": {
+                    "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 },
                 "template_active_version_id": {
@@ -17569,6 +17587,9 @@ const docTemplate = `{
                 "external": {
                     "description": "External specifies whether the URL should be opened externally on\nthe client or not.",
                     "type": "boolean"
+                },
+                "group": {
+                    "type": "string"
                 },
                 "health": {
                     "$ref": "#/definitions/codersdk.WorkspaceAppHealth"

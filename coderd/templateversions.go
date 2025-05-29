@@ -31,14 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
-	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // @Summary Get template version by ID
@@ -53,7 +51,10 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -182,7 +183,10 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -301,7 +305,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	templateVersionParameters, err := db2sdk.TemplateVersionParameters(dbTemplateVersionParameters)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting template version parameter.",
@@ -733,7 +737,10 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{jobUUID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{jobUUID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
@@ -865,7 +872,10 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		for _, version := range versions {
 			jobIDs = append(jobIDs, version.JobID)
 		}
-		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching provisioner job.",
@@ -933,7 +943,10 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1013,7 +1026,10 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		})
 		return
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1115,7 +1131,10 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{previousTemplateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{previousTemplateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1846,67 +1865,6 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Warnings:            warnings,
 		MatchedProvisioners: matchedProvisioners,
 	}
-}
-
-func convertTemplateVersionParameters(dbParams []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	params := make([]codersdk.TemplateVersionParameter, 0)
-	for _, dbParameter := range dbParams {
-		param, err := convertTemplateVersionParameter(dbParameter)
-		if err != nil {
-			return nil, err
-		}
-		params = append(params, param)
-	}
-	return params, nil
-}
-
-func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
-	var protoOptions []*sdkproto.RichParameterOption
-	err := json.Unmarshal(param.Options, &protoOptions)
-	if err != nil {
-		return codersdk.TemplateVersionParameter{}, err
-	}
-	options := make([]codersdk.TemplateVersionParameterOption, 0)
-	for _, option := range protoOptions {
-		options = append(options, codersdk.TemplateVersionParameterOption{
-			Name:        option.Name,
-			Description: option.Description,
-			Value:       option.Value,
-			Icon:        option.Icon,
-		})
-	}
-
-	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
-	if err != nil {
-		return codersdk.TemplateVersionParameter{}, err
-	}
-
-	var validationMin, validationMax *int32
-	if param.ValidationMin.Valid {
-		validationMin = &param.ValidationMin.Int32
-	}
-	if param.ValidationMax.Valid {
-		validationMax = &param.ValidationMax.Int32
-	}
-
-	return codersdk.TemplateVersionParameter{
-		Name:                 param.Name,
-		DisplayName:          param.DisplayName,
-		Description:          param.Description,
-		DescriptionPlaintext: descriptionPlaintext,
-		Type:                 param.Type,
-		Mutable:              param.Mutable,
-		DefaultValue:         param.DefaultValue,
-		Icon:                 param.Icon,
-		Options:              options,
-		ValidationRegex:      param.ValidationRegex,
-		ValidationMin:        validationMin,
-		ValidationMax:        validationMax,
-		ValidationError:      param.ValidationError,
-		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
-		Required:             param.Required,
-		Ephemeral:            param.Ephemeral,
-	}, nil
 }
 
 func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) []codersdk.TemplateVersionVariable {

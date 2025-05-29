@@ -80,17 +80,21 @@ pending_jobs AS (
 	WHERE
 		job_status = 'pending'
 ),
+online_provisioner_daemons AS (
+	SELECT id, tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
+),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY pd.id ORDER BY pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY pd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN provisioner_daemons pd
-					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
+			INNER JOIN online_provisioner_daemons opd
+					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1736,7 +1737,8 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			JobID: build.JobID,
 		})
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
+			ResourceID:       resource.ID,
+			FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Hour)},
 		})
 
 		// When: fetching timings for the build
@@ -1767,7 +1769,8 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agents := make([]database.WorkspaceAgent, 5)
 		for i := range agents {
 			agents[i] = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ResourceID: resource.ID,
+				ResourceID:       resource.ID,
+				FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Duration(i) * time.Hour)},
 			})
 		}
 

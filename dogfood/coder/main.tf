@@ -267,14 +267,11 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count    = data.coder_workspace.me.start_count
-  source   = "git::https://github.com/coder/modules.git//jetbrains?ref=jetbrains"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
-  options  = ["WS", "GO"]
-  default  = "GO"
-  latest   = true
-  channel  = "eap"
+  count         = data.coder_workspace.me.start_count
+  source        = "git::https://github.com/coder/registry.git//registry/coder/modules/jetbrains?ref=jetbrains"
+  agent_id      = coder_agent.dev.id
+  folder        = local.repo_dir
+  major_version = "latest"
 }
 
 module "filebrowser" {

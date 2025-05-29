@@ -34,7 +34,13 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { Info, LinkIcon, Settings, TriangleAlert } from "lucide-react";
+import {
+	CircleAlert,
+	Info,
+	LinkIcon,
+	Settings,
+	TriangleAlert,
+} from "lucide-react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
@@ -78,6 +84,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 						value={value}
 						onChange={onChange}
 						disabled={disabled}
+						isPreset={isPreset}
 					/>
 				) : (
 					<ParameterField
@@ -89,7 +96,9 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 					/>
 				)}
 			</div>
-			<ParameterDiagnostics diagnostics={parameter.diagnostics} />
+			{parameter.form_type !== "error" && (
+				<ParameterDiagnostics diagnostics={parameter.diagnostics} />
+			)}
 		</div>
 	);
 };
@@ -223,6 +232,7 @@ interface DebouncedParameterFieldProps {
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
+	isPreset?: boolean;
 }
 
 const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
@@ -231,6 +241,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	onChange,
 	disabled,
 	id,
+	isPreset,
 }) => {
 	const [localValue, setLocalValue] = useState(
 		value !== undefined ? value : validValue(parameter.value),
@@ -243,19 +254,26 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 	// This is necessary in the case of fields being set by preset parameters
 	useEffect(() => {
-		if (value !== undefined && value !== prevValueRef.current) {
+		if (isPreset && value !== undefined && value !== prevValueRef.current) {
 			setLocalValue(value);
 			prevValueRef.current = value;
 		}
-	}, [value]);
+	}, [value, isPreset]);
 
 	useEffect(() => {
-		if (prevDebouncedValueRef.current !== undefined) {
+		// Only call onChangeEvent if debouncedLocalValue is different from the previously committed value
+		// and it's not the initial undefined state.
+		if (
+			prevDebouncedValueRef.current !== undefined &&
+			prevDebouncedValueRef.current !== debouncedLocalValue
+		) {
 			onChangeEvent(debouncedLocalValue);
 		}
 
+		// Update the ref to the current debounced value for the next comparison
 		prevDebouncedValueRef.current = debouncedLocalValue;
 	}, [debouncedLocalValue, onChangeEvent]);
+
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const resizeTextarea = useEffectEvent(() => {
@@ -505,9 +523,13 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						max={parameter.validations[0]?.validation_max ?? 100}
 						disabled={disabled}
 					/>
-					<span className="w-4 font-medium">{parameter.value.value}</span>
+					<span className="w-4 font-medium">
+						{Number.isFinite(Number(value)) ? value : "0"}
+					</span>
 				</div>
 			);
+		case "error":
+			return <Diagnostics diagnostics={parameter.diagnostics} />;
 	}
 };
 
@@ -830,5 +852,47 @@ const parameterError = (
 	return validation_error.validation_error.replace(
 		/{min}|{max}|{value}/g,
 		(match) => r.get(match) || "",
+	);
+};
+
+interface DiagnosticsProps {
+	diagnostics: PreviewParameter["diagnostics"];
+}
+
+// Displays a diagnostic with a border, icon and background color
+export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
+	return (
+		<div className="flex flex-col gap-4">
+			{diagnostics.map((diagnostic, index) => (
+				<div
+					key={`diagnostic-${diagnostic.summary}-${index}`}
+					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
+                        ${
+													diagnostic.severity === "error"
+														? "text-content-primary border-border-destructive bg-content-destructive/15"
+														: "text-content-primary border-border-warning bg-content-warning/15"
+												}`}
+				>
+					<div className="flex flex-row items-start">
+						{diagnostic.severity === "error" && (
+							<CircleAlert
+								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
+								aria-hidden="true"
+							/>
+						)}
+						{diagnostic.severity === "warning" && (
+							<TriangleAlert
+								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
+								aria-hidden="true"
+							/>
+						)}
+						<div className="flex flex-col gap-3">
+							<p className="m-0">{diagnostic.summary}</p>
+							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
+						</div>
+					</div>
+				</div>
+			))}
+		</div>
 	);
 };

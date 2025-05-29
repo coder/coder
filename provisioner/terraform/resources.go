@@ -108,6 +108,7 @@ type agentAppAttributes struct {
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
+	Group       string                     `mapstructure:"group"`
 	Hidden      bool                       `mapstructure:"hidden"`
 	OpenIn      string                     `mapstructure:"open_in"`
 }
@@ -532,6 +533,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
+						Group:        attrs.Group,
 						Hidden:       attrs.Hidden,
 						OpenIn:       openIn,
 					})
@@ -755,10 +757,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if param.Default != nil {
 			defaultVal = *param.Default
 		}
+
+		pft, err := proto.FormType(param.FormType)
+		if err != nil {
+			return nil, xerrors.Errorf("decode form_type for coder_parameter.%s: %w", resource.Name, err)
+		}
+
 		protoParam := &proto.RichParameter{
 			Name:         param.Name,
 			DisplayName:  param.DisplayName,
 			Description:  param.Description,
+			FormType:     pft,
 			Type:         param.Type,
 			Mutable:      param.Mutable,
 			DefaultValue: defaultVal,

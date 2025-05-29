@@ -365,6 +365,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"sharing_level":         ActionIgnore,
 		"slug":                  ActionIgnore,
 		"external":              ActionIgnore,
+		"display_group":         ActionIgnore,
 		"display_order":         ActionIgnore,
 		"hidden":                ActionIgnore,
 		"open_in":               ActionIgnore,

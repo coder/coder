@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { disabledRefetchOptions } from "./util";
 
 export const deploymentConfigQueryKey = ["deployment", "config"];
 
@@ -26,6 +27,7 @@ export const deploymentStats = () => {
 
 export const deploymentSSHConfig = () => {
 	return {
+		...disabledRefetchOptions,
 		queryKey: ["deployment", "sshConfig"],
 		queryFn: API.getDeploymentSSHConfig,
 	};

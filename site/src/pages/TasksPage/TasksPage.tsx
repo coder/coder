@@ -43,10 +43,13 @@ import {
 import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
+import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Link as RouterLink } from "react-router-dom";
+import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
 
@@ -138,7 +141,7 @@ const TasksPage: FC = () => {
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
-				{content}
+				<main className="pb-8">{content}</main>
 			</Margins>
 		</>
 	);
@@ -219,7 +222,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 								return (
 									<SelectItem value={template.id} key={template.id}>
 										<span className="overflow-hidden text-ellipsis block">
-											{template.display_name ?? template.name}
+											{template.display_name || template.name}
 										</span>
 									</SelectItem>
 								);
@@ -306,13 +309,21 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 					const app = agent?.apps.find((a) => a.id === status?.app_id);
 
 					return (
-						<TableRow key={workspace.id}>
+						<TableRow key={workspace.id} className="relative" hover>
 							<TableCell>
 								<AvatarData
 									title={
-										<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
-											{prompt}
-										</span>
+										<>
+											<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
+												{prompt}
+											</span>
+											<RouterLink
+												to={`/tasks/${workspace.owner_name}/${workspace.name}`}
+												className="absolute inset-0"
+											>
+												<span className="sr-only">Access task</span>
+											</RouterLink>
+										</>
 									}
 									subtitle={templateDisplayName}
 									avatar={
@@ -400,7 +411,10 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 			key={app.id}
 			label={`Open ${link.label}`}
 			href={link.href}
-			onClick={link.onClick}
+			onClick={(e) => {
+				link.onClick?.(e);
+				e.stopPropagation();
+			}}
 		>
 			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
 		</BaseIconLink>
@@ -430,7 +444,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 					<Button variant="outline" size="icon-lg" asChild>
 						<a
 							target={target}
-							className={isLoading ? "animate-pulse" : ""}
+							className={cn(["z-10 relative", { "animate-pulse": isLoading }])}
 							href={href}
 							onClick={(e) => {
 								e.stopPropagation();
@@ -447,13 +461,6 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 		</TooltipProvider>
 	);
 };
-
-type Task = {
-	workspace: Workspace;
-	prompt: string;
-};
-
-const AI_PROMPT_PARAMETER_NAME = "AI Prompt";
 
 export const data = {
 	// TODO: This function is currently inefficient because it fetches all templates

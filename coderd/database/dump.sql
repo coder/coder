@@ -132,6 +132,22 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
     'provisioner_variable'
 );
 
+CREATE TYPE parameter_form_type AS ENUM (
+    '',
+    'error',
+    'radio',
+    'dropdown',
+    'input',
+    'textarea',
+    'slider',
+    'checkbox',
+    'switch',
+    'tag-select',
+    'multi-select'
+);
+
+COMMENT ON TYPE parameter_form_type IS 'Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. Always include the empty string for using the default form type.';
+
 CREATE TYPE parameter_scope AS ENUM (
     'template',
     'import_job',
@@ -315,6 +331,43 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
+
+CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	workspace_build_id uuid;
+	agents_with_name int;
+BEGIN
+	-- Find the workspace build the workspace agent is being inserted into.
+	SELECT workspace_builds.id INTO workspace_build_id
+	FROM workspace_resources
+	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+	WHERE workspace_resources.id = NEW.resource_id;
+
+	-- If the agent doesn't have a workspace build, we'll allow the insert.
+	IF workspace_build_id IS NULL THEN
+		RETURN NEW;
+	END IF;
+
+	-- Count how many agents in this workspace build already have the given agent name.
+	SELECT COUNT(*) INTO agents_with_name
+	FROM workspace_agents
+	JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+	WHERE workspace_builds.id = workspace_build_id
+		AND workspace_agents.name = NEW.name
+		AND workspace_agents.id != NEW.id;
+
+	-- If there's already an agent with this name, raise an error
+	IF agents_with_name > 0 THEN
+		RAISE EXCEPTION 'workspace agent name "%" already exists in this workspace build', NEW.name
+			USING ERRCODE = 'unique_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
 
 CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
@@ -1397,6 +1450,7 @@ CREATE TABLE template_version_parameters (
     display_name text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     ephemeral boolean DEFAULT false NOT NULL,
+    form_type parameter_form_type DEFAULT ''::parameter_form_type NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -1431,6 +1485,8 @@ COMMENT ON COLUMN template_version_parameters.display_name IS 'Display name of t
 COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the order in which to display parameters in user interfaces.';
 
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
+
+COMMENT ON COLUMN template_version_parameters.form_type IS 'Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.';
 
 CREATE TABLE template_version_preset_parameters (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1991,7 +2047,8 @@ CREATE TABLE workspace_apps (
     external boolean DEFAULT false NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
-    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL
+    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
+    display_group text
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
@@ -2771,6 +2828,12 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
+
+CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF name, resource_id ON workspace_agents FOR EACH ROW EXECUTE FUNCTION check_workspace_agent_name_unique();
+
+COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
+the uniqueness requirement. A trigger allows us to enforce uniqueness going
+forward without requiring a migration to clean up historical data.';
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

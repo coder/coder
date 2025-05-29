@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { deploymentSSHConfig } from "api/queries/deployment";
 import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
@@ -15,20 +16,21 @@ import {
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 
 interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
-	sshPrefix?: string;
 }
 
 export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	workspaceName,
 	agentName,
-	sshPrefix,
 }) => {
 	const paper = useClassName(classNames.paper, []);
+	const { data } = useQuery(deploymentSSHConfig());
+	const sshPrefix = data?.hostname_prefix;
 
 	return (
 		<Popover>

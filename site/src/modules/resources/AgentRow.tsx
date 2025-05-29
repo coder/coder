@@ -15,6 +15,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
@@ -43,46 +44,32 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
 
-export interface AgentRowProps {
+interface AgentRowProps {
 	agent: WorkspaceAgent;
 	workspace: Workspace;
-	showApps: boolean;
-	showBuiltinApps?: boolean;
-	sshPrefix?: string;
-	hideSSHButton?: boolean;
-	hideVSCodeDesktopButton?: boolean;
-	serverVersion: string;
-	serverAPIVersion: string;
-	onUpdateAgent: () => void;
 	template: Template;
-	storybookAgentMetadata?: WorkspaceAgentMetadata[];
+	initialMetadata?: WorkspaceAgentMetadata[];
+	onUpdateAgent: () => void;
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
 	workspace,
 	template,
-	showApps,
-	showBuiltinApps = true,
-	hideSSHButton,
-	hideVSCodeDesktopButton,
-	serverVersion,
-	serverAPIVersion,
 	onUpdateAgent,
-	storybookAgentMetadata,
-	sshPrefix,
+	initialMetadata,
 }) => {
 	// Apps visibility
+	const { browser_only } = useFeatureVisibility();
 	const visibleApps = agent.apps.filter((app) => !app.hidden);
-	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
+	const hasAppsToDisplay = !browser_only && visibleApps.length > 0;
 	const shouldDisplayApps =
-		showApps &&
-		((agent.status === "connected" && hasAppsToDisplay) ||
-			agent.status === "connecting");
+		(agent.status === "connected" && hasAppsToDisplay) ||
+		agent.status === "connecting";
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
-	const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
+	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const { proxy } = useProxy();
@@ -184,12 +171,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 					{agent.status === "connected" && (
 						<>
-							<AgentVersion
-								agent={agent}
-								serverVersion={serverVersion}
-								serverAPIVersion={serverAPIVersion}
-								onUpdate={onUpdateAgent}
-							/>
+							<AgentVersion agent={agent} onUpdate={onUpdateAgent} />
 							<AgentLatency agent={agent} />
 						</>
 					)}
@@ -201,28 +183,23 @@ export const AgentRow: FC<AgentRowProps> = ({
 					)}
 				</div>
 
-				{showBuiltinApps && (
-					<div css={{ display: "flex" }}>
-						{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
-							<AgentSSHButton
-								workspaceName={workspace.name}
-								agentName={agent.name}
-								sshPrefix={sshPrefix}
+				<div css={{ display: "flex" }}>
+					{!browser_only && agent.display_apps.includes("ssh_helper") && (
+						<AgentSSHButton
+							workspaceName={workspace.name}
+							agentName={agent.name}
+						/>
+					)}
+					{proxy.preferredWildcardHostname !== "" &&
+						agent.display_apps.includes("port_forwarding_helper") && (
+							<PortForwardButton
+								host={proxy.preferredWildcardHostname}
+								workspace={workspace}
+								agent={agent}
+								template={template}
 							/>
 						)}
-						{proxy.preferredWildcardHostname !== "" &&
-							agent.display_apps.includes("port_forwarding_helper") && (
-								<PortForwardButton
-									host={proxy.preferredWildcardHostname}
-									workspaceName={workspace.name}
-									agent={agent}
-									username={workspace.owner_name}
-									workspaceID={workspace.id}
-									template={template}
-								/>
-							)}
-					</div>
-				)}
+				</div>
 			</header>
 
 			<div css={styles.content}>
@@ -257,7 +234,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							</>
 						)}
 
-						{showBuiltinApps && agent.display_apps.includes("web_terminal") && (
+						{agent.display_apps.includes("web_terminal") && (
 							<TerminalLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
@@ -300,10 +277,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				<AgentMetadata
-					storybookMetadata={storybookAgentMetadata}
-					agent={agent}
-				/>
+				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
 			{hasStartupFeatures && (

@@ -774,6 +774,7 @@ export const DisplayApps: DisplayApp[] = [
 export interface DynamicParametersRequest {
 	readonly id: number;
 	readonly inputs: Record<string, string>;
+	readonly owner_id?: string;
 }
 
 // From codersdk/parameters.go
@@ -2818,6 +2819,7 @@ export interface TemplateVersionParameter {
 	readonly description: string;
 	readonly description_plaintext: string;
 	readonly type: string;
+	readonly form_type: string;
 	readonly mutable: boolean;
 	readonly default_value: string;
 	readonly icon: string;
@@ -3556,6 +3558,7 @@ export interface WorkspaceApp {
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	readonly healthcheck?: Healthcheck;
 	readonly health: WorkspaceAppHealth;
+	readonly group?: string;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
 	readonly statuses: readonly WorkspaceAppStatus[];

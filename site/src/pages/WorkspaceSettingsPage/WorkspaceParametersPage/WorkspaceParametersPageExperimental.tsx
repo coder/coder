@@ -9,7 +9,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -21,19 +20,13 @@ import {
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp, Undo2 } from "lucide-react";
 import type { FC } from "react";
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
@@ -47,26 +40,66 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const experimentalFormContext = useContext(ExperimentalFormContext);
 
+	// autofill the form with the workspace build parameters from the latest build
+	const {
+		data: latestBuildParameters,
+		isLoading: latestBuildParametersLoading,
+	} = useQuery({
+		queryKey: ["workspaceBuilds", workspace.latest_build.id, "parameters"],
+		queryFn: () => API.getWorkspaceBuildParameters(workspace.latest_build.id),
+	});
+
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const initialParamsSentRef = useRef(false);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
+	const autofillParameters: AutofillBuildParameter[] =
+		latestBuildParameters?.map((p) => ({
+			...p,
+			source: "active_build",
+		})) ?? [];
+
+	const sendMessage = useEffectEvent((formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
+			owner_id: workspace.owner_id,
 			inputs: formValues,
 		};
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
 		}
-	}, []);
+	});
+
+	// On page load, sends initial workspace build parameters to the websocket.
+	// This ensures the backend has the form's complete initial state,
+	// vital for rendering dynamic UI elements dependent on initial parameter values.
+	const sendInitialParameters = useEffectEvent(() => {
+		if (initialParamsSentRef.current) return;
+		if (autofillParameters.length === 0) return;
+
+		const initialParamsToSend: Record<string, string> = {};
+		for (const param of autofillParameters) {
+			if (param.name && param.value) {
+				initialParamsToSend[param.name] = param.value;
+			}
+		}
+		if (Object.keys(initialParamsToSend).length === 0) return;
+
+		sendMessage(initialParamsToSend);
+		initialParamsSentRef.current = true;
+	});
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
 			return;
+		}
+
+		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
+			sendInitialParameters();
 		}
 
 		setLatestResponse(response);
@@ -76,7 +109,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!workspace.latest_build.template_version_id) return;
 
 		const socket = API.templateVersionDynamicParameters(
-			workspace.owner_id,
 			workspace.latest_build.template_version_id,
 			{
 				onMessage,
@@ -103,11 +135,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [
-		workspace.owner_id,
-		workspace.latest_build.template_version_id,
-		onMessage,
-	]);
+	}, [workspace.latest_build.template_version_id, onMessage]);
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
@@ -161,6 +189,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const error = wsError || updateParameters.error;
 
 	if (
+		latestBuildParametersLoading ||
 		!latestResponse ||
 		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
 	) {
@@ -176,11 +205,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			<header className="flex flex-col items-start gap-2">
 				<span className="flex flex-row items-center gap-2">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
-					<FeatureStageBadge
-						className="mt-1"
-						contentType={"beta"}
-						labelText="Dynamic parameters"
-					/>
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -219,6 +243,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			{sortedParams.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
 					workspace={workspace}
+					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse.diagnostics}
