@@ -7185,6 +7185,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "description_plaintext": "string",
   "display_name": "string",
   "ephemeral": true,
+  "form_type": "",
   "icon": "string",
   "mutable": true,
   "name": "string",
@@ -7208,29 +7209,41 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                    | Type                                                                                        | Required | Restrictions | Description |
-|-------------------------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `default_value`         | string                                                                                      | false    |              |             |
-| `description`           | string                                                                                      | false    |              |             |
-| `description_plaintext` | string                                                                                      | false    |              |             |
-| `display_name`          | string                                                                                      | false    |              |             |
-| `ephemeral`             | boolean                                                                                     | false    |              |             |
-| `icon`                  | string                                                                                      | false    |              |             |
-| `mutable`               | boolean                                                                                     | false    |              |             |
-| `name`                  | string                                                                                      | false    |              |             |
-| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
-| `required`              | boolean                                                                                     | false    |              |             |
-| `type`                  | string                                                                                      | false    |              |             |
-| `validation_error`      | string                                                                                      | false    |              |             |
-| `validation_max`        | integer                                                                                     | false    |              |             |
-| `validation_min`        | integer                                                                                     | false    |              |             |
-| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
-| `validation_regex`      | string                                                                                      | false    |              |             |
+| Name                    | Type                                                                                        | Required | Restrictions | Description                                                                                        |
+|-------------------------|---------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
+| `default_value`         | string                                                                                      | false    |              |                                                                                                    |
+| `description`           | string                                                                                      | false    |              |                                                                                                    |
+| `description_plaintext` | string                                                                                      | false    |              |                                                                                                    |
+| `display_name`          | string                                                                                      | false    |              |                                                                                                    |
+| `ephemeral`             | boolean                                                                                     | false    |              |                                                                                                    |
+| `form_type`             | string                                                                                      | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag. |
+| `icon`                  | string                                                                                      | false    |              |                                                                                                    |
+| `mutable`               | boolean                                                                                     | false    |              |                                                                                                    |
+| `name`                  | string                                                                                      | false    |              |                                                                                                    |
+| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |                                                                                                    |
+| `required`              | boolean                                                                                     | false    |              |                                                                                                    |
+| `type`                  | string                                                                                      | false    |              |                                                                                                    |
+| `validation_error`      | string                                                                                      | false    |              |                                                                                                    |
+| `validation_max`        | integer                                                                                     | false    |              |                                                                                                    |
+| `validation_min`        | integer                                                                                     | false    |              |                                                                                                    |
+| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |                                                                                                    |
+| `validation_regex`      | string                                                                                      | false    |              |                                                                                                    |
 
 #### Enumerated Values
 
 | Property               | Value          |
 |------------------------|----------------|
+| `form_type`            | ``             |
+| `form_type`            | `radio`        |
+| `form_type`            | `dropdown`     |
+| `form_type`            | `input`        |
+| `form_type`            | `textarea`     |
+| `form_type`            | `slider`       |
+| `form_type`            | `checkbox`     |
+| `form_type`            | `switch`       |
+| `form_type`            | `tag-select`   |
+| `form_type`            | `multi-select` |
+| `form_type`            | `error`        |
 | `type`                 | `string`       |
 | `type`                 | `number`       |
 | `type`                 | `bool`         |

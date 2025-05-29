@@ -28,6 +28,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add new field named `expiration_policy` to `Prebuild`, with a field named
 //     `ttl` to define TTL-based expiration for unclaimed prebuilds.
 //   - Add `group` field to `App`
+//   - Add `form_type` field to parameters
 const (
 	CurrentMajor = 1
 	CurrentMinor = 6

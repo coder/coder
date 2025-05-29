@@ -132,6 +132,22 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
     'provisioner_variable'
 );
 
+CREATE TYPE parameter_form_type AS ENUM (
+    '',
+    'error',
+    'radio',
+    'dropdown',
+    'input',
+    'textarea',
+    'slider',
+    'checkbox',
+    'switch',
+    'tag-select',
+    'multi-select'
+);
+
+COMMENT ON TYPE parameter_form_type IS 'Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. Always include the empty string for using the default form type.';
+
 CREATE TYPE parameter_scope AS ENUM (
     'template',
     'import_job',
@@ -1434,6 +1450,7 @@ CREATE TABLE template_version_parameters (
     display_name text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     ephemeral boolean DEFAULT false NOT NULL,
+    form_type parameter_form_type DEFAULT ''::parameter_form_type NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -1468,6 +1485,8 @@ COMMENT ON COLUMN template_version_parameters.display_name IS 'Display name of t
 COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the order in which to display parameters in user interfaces.';
 
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
+
+COMMENT ON COLUMN template_version_parameters.form_type IS 'Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.';
 
 CREATE TABLE template_version_preset_parameters (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
