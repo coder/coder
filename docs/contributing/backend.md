@@ -16,7 +16,9 @@ Need help or have questions? Join the conversation on our [Discord server](https
 
 ## Quickstart
 
-To get up and running with Coder's backend, make sure you have **Docker installed and running** on your system. Once that's in place, follow these steps:
+To get started with Coder's backend, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix) or launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer). Alternatively, ensure you have the following installed and running on your system: **Docker, Go, Node.js (with pnpm), and make**.
+
+ Once that's in place, follow these steps:
 
 1. Clone the Coder repository and navigate into the project directory:
 
@@ -33,8 +35,8 @@ cd coder
 
 This will start two processes:
 
-* http://localhost:3000 — the backend API server, used primarily for backend development.
-* http://localhost:8080 — the Node.js frontend dev server, useful if you're also touching frontend code.
+* http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
+* http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
 
 1. Verify Your Session
 
