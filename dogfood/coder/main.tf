@@ -132,17 +132,17 @@ data "coder_parameter" "image_type" {
 
 locals {
   default_regions = {
-    "north-america": "us-pittsburgh"
-    "europe": "eu-helsinki"
-    "australia": "ap-sydney"
-    "south-america": "sa-saopaulo"
-    "africa": "za-cpt"
+    "north-america" : "us-pittsburgh"
+    "europe" : "eu-helsinki"
+    "australia" : "ap-sydney"
+    "south-america" : "sa-saopaulo"
+    "africa" : "za-cpt"
   }
 
   user_groups = data.coder_workspace_owner.me.groups
   user_region = coalescelist([
-    for g in local.user_groups : 
-      local.default_regions[g] if contains(keys(local.default_regions), g)
+    for g in local.user_groups :
+    local.default_regions[g] if contains(keys(local.default_regions), g)
   ], ["us-pittsburgh"])[0]
 }
 
