@@ -239,6 +239,13 @@ export const Outdated: Story = {
 };
 
 export const Deprecated: Story = {
+	beforeEach: () => {
+		spyOn(API, "getBuildInfo").mockResolvedValue({
+			...M.MockBuildInfo,
+			version: "v99.999.9999+c1cdf14",
+			agent_api_version: "2.0",
+		});
+	},
 	args: {
 		agent: M.MockWorkspaceAgentDeprecated,
 		workspace: M.MockWorkspace,
