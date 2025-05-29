@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { spyOn } from "@storybook/test";
+import { API } from "api/api";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
@@ -8,8 +10,6 @@ import {
 	withWebSocket,
 } from "testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
-import { spyOn } from "@storybook/test";
-import { API } from "api/api";
 
 const defaultAgentMetadata = [
 	{

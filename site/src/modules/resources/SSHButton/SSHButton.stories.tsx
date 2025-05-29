@@ -1,14 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
 import {
-	MockDeploymentConfig,
 	MockDeploymentSSH,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";
 import { AgentSSHButton } from "./SSHButton";
-import { API } from "api/api";
 
 const meta: Meta<typeof AgentSSHButton> = {
 	title: "modules/resources/AgentSSHButton",
