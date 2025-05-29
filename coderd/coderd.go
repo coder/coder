@@ -1532,17 +1532,19 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
-		if api.DeploymentValues.Dangerous.AllowAllCors {
-			// In this mode, allow all external requests
-			return []string{"*"}
-		}
-		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
-			return (*f)()
-		}
-		// By default we do not add extra websocket connections to the CSP
-		return []string{}
-	}, additionalCSPHeaders)
+	cspMW := httpmw.CSPHeaders(
+		api.Experiments,
+		options.Telemetry.Enabled(), func() []string {
+			if api.DeploymentValues.Dangerous.AllowAllCors {
+				// In this mode, allow all external requests
+				return []string{"*"}
+			}
+			if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
+				return (*f)()
+			}
+			// By default we do not add extra websocket connections to the CSP
+			return []string{}
+		}, additionalCSPHeaders)
 
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on

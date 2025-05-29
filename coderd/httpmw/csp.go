@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // cspDirectives is a map of all csp fetch directives to their values.
@@ -37,6 +39,7 @@ const (
 	CSPDirectiveFormAction  CSPFetchDirective = "form-action"
 	CSPDirectiveMediaSrc    CSPFetchDirective = "media-src"
 	CSPFrameAncestors       CSPFetchDirective = "frame-ancestors"
+	CSPFrameSource          CSPFetchDirective = "frame-src"
 	CSPDirectiveWorkerSrc   CSPFetchDirective = "worker-src"
 )
 
@@ -55,7 +58,7 @@ const (
 //     Example: https://github.com/coder/coder/issues/15118
 //
 //nolint:revive
-func CSPHeaders(telemetry bool, websocketHosts func() []string, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
+func CSPHeaders(experiments codersdk.Experiments, telemetry bool, websocketHosts func() []string, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
@@ -88,11 +91,19 @@ func CSPHeaders(telemetry bool, websocketHosts func() []string, staticAdditions 
 				CSPDirectiveMediaSrc:   {"'self'"},
 				// Report all violations back to the server to log
 				CSPDirectiveReportURI: {"/api/v2/csp/reports"},
-				CSPFrameAncestors:     {"'none'"},
 
 				// Only scripts can manipulate the dom. This prevents someone from
 				// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
 				// "require-trusted-types-for" : []string{"'script'"},
+			}
+
+			if experiments.Enabled(codersdk.ExperimentAITasks) {
+				// AI tasks use iframe embeds of local apps.
+				// TODO: Handle region domains too, not just path based apps
+				cspSrcs.Append(CSPFrameAncestors, `'self'`)
+				cspSrcs.Append(CSPFrameSource, `'self'`)
+			} else {
+				cspSrcs.Append(CSPFrameAncestors, `'none'`)
 			}
 
 			if telemetry {
