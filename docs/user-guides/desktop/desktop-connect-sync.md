@@ -22,7 +22,7 @@ You can also connect to the SSH server in your workspace using any SSH client, s
 Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
 
 > [!NOTE]
-> Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
+> For Coder versions v2.21.3 and earlier: the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
 
 ### Ping your workspace
 
