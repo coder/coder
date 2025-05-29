@@ -26,6 +26,7 @@ import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
@@ -39,11 +40,27 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const experimentalFormContext = useContext(ExperimentalFormContext);
 
+	// autofill the form with the workspace build parameters from the latest build
+	const {
+		data: latestBuildParameters,
+		isLoading: latestBuildParametersLoading,
+	} = useQuery({
+		queryKey: ["workspaceBuilds", workspace.latest_build.id, "parameters"],
+		queryFn: () => API.getWorkspaceBuildParameters(workspace.latest_build.id),
+	});
+
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const initialParamsSentRef = useRef(false);
+
+	const autofillParameters: AutofillBuildParameter[] =
+		latestBuildParameters?.map((p) => ({
+			...p,
+			source: "active_build",
+		})) ?? [];
 
 	const sendMessage = useEffectEvent((formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
@@ -57,9 +74,32 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		}
 	});
 
+	// On page load, sends initial workspace build parameters to the websocket.
+	// This ensures the backend has the form's complete initial state,
+	// vital for rendering dynamic UI elements dependent on initial parameter values.
+	const sendInitialParameters = useEffectEvent(() => {
+		if (initialParamsSentRef.current) return;
+		if (autofillParameters.length === 0) return;
+
+		const initialParamsToSend: Record<string, string> = {};
+		for (const param of autofillParameters) {
+			if (param.name && param.value) {
+				initialParamsToSend[param.name] = param.value;
+			}
+		}
+		if (Object.keys(initialParamsToSend).length === 0) return;
+
+		sendMessage(initialParamsToSend);
+		initialParamsSentRef.current = true;
+	});
+
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
 			return;
+		}
+
+		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
+			sendInitialParameters();
 		}
 
 		setLatestResponse(response);
@@ -149,6 +189,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const error = wsError || updateParameters.error;
 
 	if (
+		latestBuildParametersLoading ||
 		!latestResponse ||
 		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
 	) {
@@ -202,6 +243,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			{sortedParams.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
 					workspace={workspace}
+					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse.diagnostics}
