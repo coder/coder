@@ -315,10 +315,13 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		return src;
 	});
 
+	const emmbedApps = apps.filter((app) => !app.external);
+	const externalApps = apps.filter((app) => app.external);
+
 	return (
 		<main className="flex-1 flex flex-col">
 			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{apps
+				{emmbedApps
 					.filter((app) => !app.external)
 					.map((app) => (
 						<TaskAppButton
@@ -338,39 +341,41 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 						/>
 					))}
 
-				<div className="ml-auto">
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="sm" variant="subtle">
-								Open in IDE
-								<ChevronDownIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent>
-							{apps
-								.filter((app) => app.external)
-								.map((app) => {
-									const link = useAppLink(app, {
-										agent,
-										workspace: task.workspace,
-									});
+				{externalApps.length > 0 && (
+					<div className="ml-auto">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="sm" variant="subtle">
+									Open in IDE
+									<ChevronDownIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent>
+								{externalApps
+									.filter((app) => app.external)
+									.map((app) => {
+										const link = useAppLink(app, {
+											agent,
+											workspace: task.workspace,
+										});
 
-									return (
-										<DropdownMenuItem key={app.id} asChild>
-											<RouterLink to={link.href}>
-												{app.icon ? (
-													<ExternalImage src={app.icon} />
-												) : (
-													<LayoutGridIcon />
-												)}
-												{link.label}
-											</RouterLink>
-										</DropdownMenuItem>
-									);
-								})}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
+										return (
+											<DropdownMenuItem key={app.id} asChild>
+												<RouterLink to={link.href}>
+													{app.icon ? (
+														<ExternalImage src={app.icon} />
+													) : (
+														<LayoutGridIcon />
+													)}
+													{link.label}
+												</RouterLink>
+											</DropdownMenuItem>
+										);
+									})}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
+				)}
 			</div>
 
 			<div className="flex-1">
