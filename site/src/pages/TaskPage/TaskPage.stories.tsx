@@ -131,8 +131,14 @@ export const Active: Story = {
 										{
 											...MockWorkspaceApp,
 											id: "vscode",
-											display_name: "VSCode",
+											display_name: "VS Code Web",
 											icon: "/icon/code.svg",
+										},
+										{
+											...MockWorkspaceApp,
+											id: "zed",
+											display_name: "Zed",
+											icon: "/icon/zed.svg",
 										},
 									],
 								},
