@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestCSPConnect(t *testing.T) {
@@ -20,7 +21,7 @@ func TestCSPConnect(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	rw := httptest.NewRecorder()
 
-	httpmw.CSPHeaders(false, func() []string {
+	httpmw.CSPHeaders(codersdk.Experiments{}, false, func() []string {
 		return expected
 	}, map[httpmw.CSPFetchDirective][]string{
 		httpmw.CSPDirectiveMediaSrc: expectedMedia,
