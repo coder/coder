@@ -1389,20 +1389,6 @@ func isDeprecated(template database.Template) bool {
 	return template.Deprecated != ""
 }
 
-func (q *FakeQuerier) DeleteWorkspaceAgentByID(ctx context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, agent := range q.workspaceAgents {
-		if agent.ID == id && agent.ParentID.Valid {
-			q.workspaceAgents = append(q.workspaceAgents[:i], q.workspaceAgents[i+1:]...)
-			return nil
-		}
-	}
-
-	return nil
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
