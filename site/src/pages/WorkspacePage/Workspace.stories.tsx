@@ -77,7 +77,6 @@ export const Running: Story = {
 		},
 		handleStart: action("start"),
 		handleStop: action("stop"),
-		buildInfo: Mocks.MockBuildInfo,
 		template: Mocks.MockTemplate,
 	},
 };
@@ -219,7 +218,6 @@ export const RunningWithAppStatuses: Story = {
 		},
 		handleStart: action("start"),
 		handleStop: action("stop"),
-		buildInfo: Mocks.MockBuildInfo,
 		template: Mocks.MockTemplate,
 	},
 };
