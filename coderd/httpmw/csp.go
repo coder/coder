@@ -39,6 +39,7 @@ const (
 	CSPDirectiveFormAction  CSPFetchDirective = "form-action"
 	CSPDirectiveMediaSrc    CSPFetchDirective = "media-src"
 	CSPFrameAncestors       CSPFetchDirective = "frame-ancestors"
+	CSPFrameSource          CSPFetchDirective = "frame-src"
 	CSPDirectiveWorkerSrc   CSPFetchDirective = "worker-src"
 )
 
@@ -100,6 +101,7 @@ func CSPHeaders(experiments codersdk.Experiments, telemetry bool, websocketHosts
 				// AI tasks use iframe embeds of local apps.
 				// TODO: Handle region domains too, not just path based apps
 				cspSrcs.Append(CSPFrameAncestors, `'self'`)
+				cspSrcs.Append(CSPFrameSource, `'self'`)
 			} else {
 				cspSrcs.Append(CSPFrameAncestors, `'none'`)
 			}
