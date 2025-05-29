@@ -246,7 +246,8 @@ const TaskPage = () => {
 						<div className="flex flex-col">
 							<h1 className="m-0 text-sm font-medium">{task.prompt}</h1>
 							<span className="text-xs text-content-secondary">
-								Created by {task.workspace.owner_username}{" "}
+								Created by{" "}
+								{task.workspace.owner_name ?? task.workspace.owner_username}{" "}
 								{timeFrom(new Date(task.workspace.created_at))}
 							</span>
 						</div>

@@ -8,6 +8,8 @@ import {
 	withWebSocket,
 } from "testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
+import { spyOn } from "@storybook/test";
+import { API } from "api/api";
 
 const defaultAgentMetadata = [
 	{
@@ -223,6 +225,13 @@ export const ShowingPortForward: Story = {
 };
 
 export const Outdated: Story = {
+	beforeEach: () => {
+		spyOn(API, "getBuildInfo").mockResolvedValue({
+			...M.MockBuildInfo,
+			version: "v99.999.9999+c1cdf14",
+			agent_api_version: "1.0",
+		});
+	},
 	args: {
 		agent: M.MockWorkspaceAgentOutdated,
 		workspace: M.MockWorkspace,

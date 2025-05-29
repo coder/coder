@@ -1,8 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { spyOn, userEvent, within } from "@storybook/test";
+import {
+	MockDeploymentConfig,
+	MockDeploymentSSH,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";
 import { AgentSSHButton } from "./SSHButton";
+import { API } from "api/api";
 
 const meta: Meta<typeof AgentSSHButton> = {
 	title: "modules/resources/AgentSSHButton",
@@ -20,6 +26,9 @@ export const Closed: Story = {
 };
 
 export const Opened: Story = {
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(MockDeploymentSSH);
+	},
 	args: {
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,

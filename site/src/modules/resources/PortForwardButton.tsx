@@ -91,7 +91,6 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 		...workspacePortShares(workspace.id),
 		enabled: agent.status === "connected",
 		select: (res) => res.shares,
-		initialData: { shares: [] },
 	});
 
 	return (
@@ -111,7 +110,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 					agent={agent}
 					workspace={workspace}
 					template={template}
-					sharedPorts={sharedPorts}
+					sharedPorts={sharedPorts ?? []}
 					listeningPorts={listeningPorts ?? []}
 					portSharingControlsEnabled={
 						entitlements.features.control_shared_ports.enabled
