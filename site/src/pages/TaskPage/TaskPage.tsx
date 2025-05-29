@@ -227,7 +227,7 @@ const TaskPage = () => {
 			</Helmet>
 
 			<section className="h-full flex flex-col">
-				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0">
+				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0 justify-between">
 					<div className="flex items-center gap-4">
 						<TooltipProvider>
 							<Tooltip>
@@ -252,6 +252,14 @@ const TaskPage = () => {
 							</span>
 						</div>
 					</div>
+
+					<Button variant="outline" asChild>
+						<RouterLink
+							to={`/@${task.workspace.owner_username}/${task.workspace.name}`}
+						>
+							View workspace
+						</RouterLink>
+					</Button>
 				</header>
 
 				{content}
