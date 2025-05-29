@@ -52,10 +52,10 @@ This should return an empty list of workspaces. If you encounter an error, revie
 
 1. Create Your First Workspace
 
-A template named docker-amd64 (or docker-arm64 on ARM systems) is created automatically. To spin up a workspace quickly, use:
+A template named `docker` is created automatically. To spin up a workspace quickly, use:
 
 ```sh
-./scripts/coder-dev.sh create my-workspace -t docker-amd64
+./scripts/coder-dev.sh create my-workspace -t docker
 ```
 
 ## Platform Architecture
