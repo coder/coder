@@ -8422,8 +8422,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_name": "string",
     "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string",
-    "workspace_owner_username": "string"
+    "workspace_owner_name": "string"
   },
   "name": "string",
   "next_start_at": "2019-08-24T14:15:22Z",
@@ -9414,39 +9413,37 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "workspace_name": "string",
   "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string",
-  "workspace_owner_username": "string"
+  "workspace_owner_name": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `build_number`               | integer                                                           | false    |              |             |
-| `created_at`                 | string                                                            | false    |              |             |
-| `daily_cost`                 | integer                                                           | false    |              |             |
-| `deadline`                   | string                                                            | false    |              |             |
-| `id`                         | string                                                            | false    |              |             |
-| `initiator_id`               | string                                                            | false    |              |             |
-| `initiator_name`             | string                                                            | false    |              |             |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |             |
-| `max_deadline`               | string                                                            | false    |              |             |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
-| `template_version_id`        | string                                                            | false    |              |             |
-| `template_version_name`      | string                                                            | false    |              |             |
-| `template_version_preset_id` | string                                                            | false    |              |             |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |             |
-| `updated_at`                 | string                                                            | false    |              |             |
-| `workspace_id`               | string                                                            | false    |              |             |
-| `workspace_name`             | string                                                            | false    |              |             |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |             |
-| `workspace_owner_id`         | string                                                            | false    |              |             |
-| `workspace_owner_name`       | string                                                            | false    |              |             |
-| `workspace_owner_username`   | string                                                            | false    |              |             |
+| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
+|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `build_number`               | integer                                                           | false    |              |                                                                     |
+| `created_at`                 | string                                                            | false    |              |                                                                     |
+| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
+| `deadline`                   | string                                                            | false    |              |                                                                     |
+| `id`                         | string                                                            | false    |              |                                                                     |
+| `initiator_id`               | string                                                            | false    |              |                                                                     |
+| `initiator_name`             | string                                                            | false    |              |                                                                     |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
+| `max_deadline`               | string                                                            | false    |              |                                                                     |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
+| `template_version_id`        | string                                                            | false    |              |                                                                     |
+| `template_version_name`      | string                                                            | false    |              |                                                                     |
+| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
+| `updated_at`                 | string                                                            | false    |              |                                                                     |
+| `workspace_id`               | string                                                            | false    |              |                                                                     |
+| `workspace_name`             | string                                                            | false    |              |                                                                     |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
+| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
+| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
 
 #### Enumerated Values
 
@@ -10125,8 +10122,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_name": "string",
         "workspace_owner_avatar_url": "string",
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-        "workspace_owner_name": "string",
-        "workspace_owner_username": "string"
+        "workspace_owner_name": "string"
       },
       "name": "string",
       "next_start_at": "2019-08-24T14:15:22Z",
