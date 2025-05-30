@@ -1,5 +1,5 @@
-import type { Meta, StoryObj, } from "@storybook/react";
-import { spyOn, within, expect } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react";
+import { expect, spyOn, within } from "@storybook/test";
 import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
@@ -161,8 +161,8 @@ export const Active: Story = {
 		const zedIframe = await canvas.findByTitle("Zed");
 		const claudeIframe = await canvas.findByTitle("Claude Code");
 
-		expect(vscodeIframe).not.toBeVisible()
-		expect(zedIframe).not.toBeVisible()
-		expect(claudeIframe).toBeVisible()
-	}
+		expect(vscodeIframe).not.toBeVisible();
+		expect(zedIframe).not.toBeVisible();
+		expect(claudeIframe).toBeVisible();
+	},
 };
