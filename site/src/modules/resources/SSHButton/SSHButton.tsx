@@ -22,15 +22,17 @@ import { docs } from "utils/docs";
 interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
+	workspaceOwnerUsername: string;
 }
 
 export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	workspaceName,
 	agentName,
+	workspaceOwnerUsername,
 }) => {
 	const paper = useClassName(classNames.paper, []);
 	const { data } = useQuery(deploymentSSHConfig());
-	const sshPrefix = data?.hostname_prefix;
+	const sshSuffix = data?.hostname_suffix;
 
 	return (
 		<Popover>
@@ -58,7 +60,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 						/>
 						<SSHStep
 							helpText="Connect to the agent:"
-							codeExample={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+							codeExample={`ssh ${workspaceName}.${agentName}.${workspaceOwnerUsername}.${sshSuffix}`}
 						/>
 					</Stack>
 				</ol>
