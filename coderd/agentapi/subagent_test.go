@@ -228,6 +228,201 @@ func TestSubAgentAPI(t *testing.T) {
 					},
 				},
 			},
+			{
+				name: "EmptyAppSlug",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "InvalidAppSlugWithUnderscores",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid_slug_with_underscores",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "InvalidAppSlugWithUppercase",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "InvalidSlug",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "InvalidAppSlugStartsWithHyphen",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "-invalid-app",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "InvalidAppSlugEndsWithHyphen",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid-app-",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "InvalidAppSlugWithDoubleHyphens",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid--app",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "InvalidAppSlugWithSpaces",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid app",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				shouldErr: true,
+			},
+			{
+				name: "AppWithAllSharingLevels",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:  "owner-app",
+						Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
+					},
+					{
+						Slug:  "authenticated-app",
+						Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+					},
+					{
+						Slug:  "public-app",
+						Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "authenticated-app",
+						SharingLevel: database.AppSharingLevelAuthenticated,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+					{
+						Slug:         "owner-app",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+					{
+						Slug:         "public-app",
+						SharingLevel: database.AppSharingLevelPublic,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "AppWithDifferentOpenInOptions",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:   "window-app",
+						OpenIn: proto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+					},
+					{
+						Slug:   "tab-app",
+						OpenIn: proto.CreateSubAgentRequest_App_TAB.Enum(),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "tab-app",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInTab,
+					},
+					{
+						Slug:         "window-app",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "AppWithAllOptionalFields",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "full-app",
+						Command:     ptr.Ref("echo hello"),
+						DisplayName: ptr.Ref("Full Featured App"),
+						External:    ptr.Ref(true),
+						Group:       ptr.Ref("Development"),
+						Hidden:      ptr.Ref(true),
+						Icon:        ptr.Ref("/icon/app.svg"),
+						Order:       ptr.Ref(int32(10)),
+						Subdomain:   ptr.Ref(true),
+						Url:         ptr.Ref("http://localhost:8080"),
+						Healthcheck: &proto.CreateSubAgentRequest_App_Healthcheck{
+							Interval:  30,
+							Threshold: 3,
+							Url:       "http://localhost:8080/health",
+						},
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:                 "full-app",
+						Command:              sql.NullString{Valid: true, String: "echo hello"},
+						DisplayName:          "Full Featured App",
+						External:             true,
+						DisplayGroup:         sql.NullString{Valid: true, String: "Development"},
+						Hidden:               true,
+						Icon:                 "/icon/app.svg",
+						DisplayOrder:         10,
+						Subdomain:            true,
+						Url:                  sql.NullString{Valid: true, String: "http://localhost:8080"},
+						HealthcheckUrl:       "http://localhost:8080/health",
+						HealthcheckInterval:  30,
+						HealthcheckThreshold: 3,
+						Health:               database.WorkspaceAppHealthInitializing,
+						SharingLevel:         database.AppSharingLevelOwner,
+						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "AppWithoutHealthcheck",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug: "no-health-app",
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:                 "no-health-app",
+						Health:               database.WorkspaceAppHealthDisabled,
+						SharingLevel:         database.AppSharingLevelOwner,
+						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
+						HealthcheckUrl:       "",
+						HealthcheckInterval:  0,
+						HealthcheckThreshold: 0,
+					},
+				},
+			},
 		}
 
 		for _, tt := range tests {
