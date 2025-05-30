@@ -12,13 +12,14 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ExternalLinkIcon, Loader2Icon } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { portForwardURL } from "utils/portForward";
@@ -95,7 +96,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			<header className="flex justify-between items-center mb-4">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-xs font-medium text-content-secondary">
-						{container.name}
+						dev container:{" "}
+						<span className="font-semibold">{container.name}</span>
 					</h3>
 					{container.devcontainer_dirty && (
 						<HelpTooltip>
@@ -117,18 +119,11 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					<Button
 						variant="outline"
 						size="sm"
-						className="text-xs font-medium"
 						onClick={handleRecreateDevcontainer}
 						disabled={isRecreating}
 					>
-						{isRecreating ? (
-							<>
-								<Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-								Recreating...
-							</>
-						) : (
-							"Recreate"
-						)}
+						<Spinner loading={isRecreating} />
+						Recreate
 					</Button>
 
 					<AgentDevcontainerSSHButton
