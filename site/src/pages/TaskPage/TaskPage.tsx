@@ -19,7 +19,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useProxy } from "contexts/ProxyContext";
 import {
 	ArrowLeftIcon,
 	ChevronDownIcon,
@@ -27,7 +26,6 @@ import {
 	RotateCcwIcon,
 } from "lucide-react";
 import { AppStatusIcon } from "modules/apps/AppStatusIcon";
-import { getAppHref } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
@@ -312,17 +310,6 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		throw new Error(`Agent for app ${activeAppId} not found in task workspace`);
 	}
 
-	const { proxy } = useProxy();
-	const [iframeSrc, setIframeSrc] = useState(() => {
-		const src = getAppHref(activeApp, {
-			agent,
-			workspace: task.workspace,
-			path: proxy.preferredPathAppURL,
-			host: proxy.preferredWildcardHostname,
-		});
-		return src;
-	});
-
 	const embeddedApps = apps.filter((app) => !app.external);
 	const externalApps = apps.filter((app) => app.external);
 
@@ -344,7 +331,6 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 
 								e.preventDefault();
 								setActiveAppId(app.id);
-								setIframeSrc(e.currentTarget.href);
 							}}
 						/>
 					))}
@@ -387,11 +373,16 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 			</div>
 
 			<div className="flex-1">
-				<iframe
-					title={activeApp.display_name ?? activeApp.slug}
-					className="w-full h-full border-0"
-					src={iframeSrc}
-				/>
+				{embeddedApps.map((app) => {
+					return (
+						<TaskAppIFrame
+							key={app.id}
+							active={activeAppId === app.id}
+							app={app}
+							task={task}
+						/>
+					);
+				})}
 			</div>
 		</main>
 	);
@@ -440,6 +431,37 @@ const TaskAppButton: FC<TaskAppButtonProps> = ({
 				{link.label}
 			</RouterLink>
 		</Button>
+	);
+};
+
+type TaskAppIFrameProps = {
+	task: Task;
+	app: WorkspaceApp;
+	active: boolean;
+};
+
+const TaskAppIFrame: FC<TaskAppIFrameProps> = ({ task, app, active }) => {
+	const agent = task.workspace.latest_build.resources
+		.flatMap((r) => r.agents)
+		.filter((a) => !!a)
+		.find((a) => a.apps.some((a) => a.id === app.id));
+
+	if (!agent) {
+		throw new Error(`Agent for app ${app.id} not found in task workspace`);
+	}
+
+	const link = useAppLink(app, {
+		agent,
+		workspace: task.workspace,
+	});
+
+	return (
+		<iframe
+			src={link.href}
+			title={link.label}
+			loading="eager"
+			className={cn([active ? "block" : "hidden", "w-full h-full border-0"])}
+		/>
 	);
 };
 
