@@ -284,3 +284,11 @@ export const GroupApp: Story = {
 		await userEvent.click(canvas.getByText("group"));
 	},
 };
+
+export const Devcontainer: Story = {
+	beforeEach: () => {
+		spyOn(API, "getAgentContainers").mockResolvedValue({
+			containers: [M.MockWorkspaceAgentContainer],
+		});
+	},
+};

@@ -26,7 +26,11 @@ import type * as ProxyLatency from "./useProxyLatency";
 // here and not inside a unit test.
 jest.mock("contexts/useProxyLatency", () => ({
 	useProxyLatency: () => {
-		return { proxyLatencies: hardCodedLatencies, refetch: jest.fn() };
+		return {
+			proxyLatencies: hardCodedLatencies,
+			refetch: jest.fn(),
+			loaded: true,
+		};
 	},
 }));
 
@@ -115,7 +119,7 @@ describe("ProxyContextGetURLs", () => {
 			preferredPathAppURL,
 			preferredWildcardHostname,
 		) => {
-			const preferred = getPreferredProxy(regions, selected, latencies);
+			const preferred = getPreferredProxy(regions, selected, latencies, true);
 			expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL);
 			expect(preferred.preferredWildcardHostname).toBe(
 				preferredWildcardHostname,
@@ -138,10 +142,22 @@ const TestingComponent = () => {
 
 // TestingScreen just mounts some components that we can check in the unit test.
 const TestingScreen = () => {
-	const { proxy, userProxy, isFetched, isLoading, clearProxy, setProxy } =
-		useProxy();
+	const {
+		proxy,
+		userProxy,
+		isFetched,
+		isLoading,
+		latenciesLoaded,
+		clearProxy,
+		setProxy,
+	} = useProxy();
+
 	return (
 		<>
+			<div
+				data-testid="latenciesLoaded"
+				title={latenciesLoaded.toString()}
+			></div>
 			<div data-testid="isFetched" title={isFetched.toString()}></div>
 			<div data-testid="isLoading" title={isLoading.toString()}></div>
 			<div data-testid="preferredProxy" title={proxy.proxy?.id}></div>
@@ -206,7 +222,6 @@ describe("ProxyContextSelection", () => {
 	};
 
 	it.each([
-		// Not latency behavior
 		[
 			"empty",
 			{
@@ -220,6 +235,7 @@ describe("ProxyContextSelection", () => {
 			"regions_no_selection",
 			{
 				expProxyID: MockPrimaryWorkspaceProxy.id,
+				expUserProxyID: MockPrimaryWorkspaceProxy.id,
 				regions: MockWorkspaceProxies,
 				storageProxy: undefined,
 			},
@@ -261,11 +277,12 @@ describe("ProxyContextSelection", () => {
 				expUserProxyID: MockHealthyWildWorkspaceProxy.id,
 			},
 		],
-		// Latency behavior is disabled, so the primary should be selected.
+		// First page load defers to the proxy by latency
 		[
 			"regions_default_low_latency",
 			{
-				expProxyID: MockPrimaryWorkspaceProxy.id,
+				expProxyID: MockHealthyWildWorkspaceProxy.id,
+				expUserProxyID: MockHealthyWildWorkspaceProxy.id,
 				regions: MockWorkspaceProxies,
 				storageProxy: undefined,
 				latencies: {
@@ -361,6 +378,10 @@ describe("ProxyContextSelection", () => {
 
 			TestingComponent();
 			await waitForLoaderToBeRemoved();
+
+			await screen.findByTestId("latenciesLoaded").then((x) => {
+				expect(x.title).toBe("true");
+			});
 
 			if (afterLoad) {
 				await afterLoad();

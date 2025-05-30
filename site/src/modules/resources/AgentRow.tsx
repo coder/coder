@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
@@ -12,6 +11,7 @@ import type {
 	WorkspaceApp,
 } from "api/typesGenerated";
 import { isAxiosError } from "axios";
+import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
 	DropdownMenu,
@@ -71,7 +71,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
-	const shouldDisplayApps =
+	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
 		agent.status === "connecting";
 	const hasVSCodeApp =
@@ -160,6 +160,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 		},
 	});
 
+	// This is used to show the parent apps of the devcontainer.
+	const [showParentApps, setShowParentApps] = useState(false);
+
+	let shouldDisplayAppsSection = shouldDisplayAgentApps;
+	if (containers && containers.length > 0 && !showParentApps) {
+		shouldDisplayAppsSection = false;
+	}
+
 	return (
 		<Stack
 			key={agent.id}
@@ -191,7 +199,18 @@ export const AgentRow: FC<AgentRowProps> = ({
 					)}
 				</div>
 
-				<div css={{ display: "flex" }}>
+				<div className="flex items-center gap-2">
+					{containers && containers.length > 0 && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowParentApps((show) => !show)}
+						>
+							Show parent apps
+							<DropdownArrow close={showParentApps} margin={false} />
+						</Button>
+					)}
+
 					{!browser_only && agent.display_apps.includes("ssh_helper") && (
 						<AgentSSHButton
 							workspaceName={workspace.name}
@@ -218,9 +237,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{agent.status === "connected" && (
+				{shouldDisplayAppsSection && (
 					<section css={styles.apps}>
-						{shouldDisplayApps && (
+						{shouldDisplayAgentApps && (
 							<>
 								{showVSCode && (
 									<VSCodeDesktopButton
@@ -319,11 +338,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 					<Stack css={{ padding: "12px 16px" }} direction="row" spacing={1}>
 						<Button
-							variant="text"
-							size="small"
-							startIcon={<DropdownArrow close={showLogs} margin={false} />}
+							size="sm"
+							variant="subtle"
 							onClick={() => setShowLogs((v) => !v)}
 						>
+							<DropdownArrow close={showLogs} margin={false} />
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />

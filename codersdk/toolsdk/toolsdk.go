@@ -197,10 +197,9 @@ Bad Tasks
 - "I'm trying to implement <feature-name>"
 
 Use the "state" field to indicate your progress. Periodically report
-progress to keep the user updated. It is not possible to send too many updates!
+progress with state "working" to keep the user updated. It is not possible to send too many updates!
 
-After you complete your work, ALWAYS send a "complete" or "failure" state. Only report
-these states if you are finished, not if you are working on it.
+ONLY report a "complete" or "failure" state if you have FULLY completed the task.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
