@@ -17865,6 +17865,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_name": {
+                    "description": "WorkspaceOwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 }
             }
