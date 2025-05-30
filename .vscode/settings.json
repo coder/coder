@@ -49,8 +49,8 @@
 	"[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
 		"editor.defaultFormatter": "biomejs.biome",
 		"editor.codeActionsOnSave": {
-			"quickfix.biome": "explicit"
-			//   "source.organizeImports.biome": "explicit"
+			"quickfix.biome": "explicit",
+			"source.organizeImports.biome": "explicit"
 		}
 	},
 
@@ -60,5 +60,6 @@
 	"typos.config": ".github/workflows/typos.toml",
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
-	}
+	},
+	"biome.lsp.bin": "/home/coder/coder/site/node_modules/@biomejs/biome/bin/biome"
 }
