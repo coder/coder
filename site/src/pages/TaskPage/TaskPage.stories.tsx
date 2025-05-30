@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn } from "@storybook/test";
+import { expect, spyOn, within } from "@storybook/test";
 import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
@@ -115,9 +115,8 @@ export const Active: Story = {
 											...MockWorkspaceApp,
 											id: "claude-code",
 											display_name: "Claude Code",
+											slug: "claude-code",
 											icon: "/icon/claude.svg",
-											url: `${window.location.protocol}/iframe.html?viewMode=story&id=pages-terminal--ready&args=&globals=`,
-											external: true,
 											statuses: [
 												MockWorkspaceAppStatus,
 												{
@@ -131,11 +130,13 @@ export const Active: Story = {
 										{
 											...MockWorkspaceApp,
 											id: "vscode",
+											slug: "vscode",
 											display_name: "VS Code Web",
 											icon: "/icon/code.svg",
 										},
 										{
 											...MockWorkspaceApp,
+											slug: "zed",
 											id: "zed",
 											display_name: "Zed",
 											icon: "/icon/zed.svg",
@@ -152,5 +153,16 @@ export const Active: Story = {
 				},
 			},
 		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const vscodeIframe = await canvas.findByTitle("VS Code Web");
+		const zedIframe = await canvas.findByTitle("Zed");
+		const claudeIframe = await canvas.findByTitle("Claude Code");
+
+		expect(vscodeIframe).not.toBeVisible();
+		expect(zedIframe).not.toBeVisible();
+		expect(claudeIframe).toBeVisible();
 	},
 };
