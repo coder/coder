@@ -76,70 +76,90 @@ func TestMain(m *testing.M) {
 var topologies = []integration.TestTopology{
 	{
 		// Test that DERP over loopback works.
-		Name:            "BasicLoopbackDERP",
-		SetupNetworking: integration.SetupNetworkingLoopback,
-		Server:          integration.SimpleServerOptions{},
-		StartClient:     integration.StartClientDERP,
-		RunTests:        integration.TestSuite,
+		Name:               "BasicLoopbackDERP",
+		NetworkingProvider: integration.NetworkingLoopback{},
+		Server:             integration.SimpleServerOptions{},
+		ClientStarter:      integration.BasicClientStarter{BlockEndpoints: true},
+		RunTests:           integration.TestSuite,
 	},
 	{
 		// Test that DERP over "easy" NAT works. The server, client 1 and client
 		// 2 are on different networks with their own routers, which are joined
 		// by a bridge.
-		Name:            "EasyNATDERP",
-		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		Server:          integration.SimpleServerOptions{},
-		StartClient:     integration.StartClientDERP,
-		RunTests:        integration.TestSuite,
+		Name:               "EasyNATDERP",
+		NetworkingProvider: integration.NetworkingNAT{StunCount: 0, Client1Hard: false, Client2Hard: false},
+		Server:             integration.SimpleServerOptions{},
+		ClientStarter:      integration.BasicClientStarter{BlockEndpoints: true},
+		RunTests:           integration.TestSuite,
 	},
 	{
 		// Test that direct over "easy" NAT works with IP/ports grabbed from
 		// STUN.
-		Name:            "EasyNATDirect",
-		SetupNetworking: integration.SetupNetworkingEasyNATWithSTUN,
-		Server:          integration.SimpleServerOptions{},
-		StartClient:     integration.StartClientDirect,
-		RunTests:        integration.TestSuite,
+		Name:               "EasyNATDirect",
+		NetworkingProvider: integration.NetworkingNAT{StunCount: 1, Client1Hard: false, Client2Hard: false},
+		Server:             integration.SimpleServerOptions{},
+		ClientStarter:      integration.BasicClientStarter{WaitForDirect: true},
+		RunTests:           integration.TestSuite,
 	},
 	{
 		// Test that direct over hard NAT <=> easy NAT works.
-		Name:            "HardNATEasyNATDirect",
-		SetupNetworking: integration.SetupNetworkingHardNATEasyNATDirect,
-		Server:          integration.SimpleServerOptions{},
-		StartClient:     integration.StartClientDirect,
-		RunTests:        integration.TestSuite,
+		Name:               "HardNATEasyNATDirect",
+		NetworkingProvider: integration.NetworkingNAT{StunCount: 2, Client1Hard: true, Client2Hard: false},
+		Server:             integration.SimpleServerOptions{},
+		ClientStarter:      integration.BasicClientStarter{WaitForDirect: true},
+		RunTests:           integration.TestSuite,
+	},
+	{
+		// Test that direct over normal MTU works.
+		Name:               "DirectMTU1500",
+		NetworkingProvider: integration.TriangleNetwork{InterClientMTU: 1500},
+		Server:             integration.SimpleServerOptions{},
+		ClientStarter: integration.BasicClientStarter{
+			WaitForDirect: true,
+			Service:       integration.UDPEchoService{},
+			LogPackets:    true,
+		},
+		RunTests: integration.TestBigUDP,
+	},
+	{
+		// Test that small MTU works.
+		Name:               "MTU1280",
+		NetworkingProvider: integration.TriangleNetwork{InterClientMTU: 1280},
+		Server:             integration.SimpleServerOptions{},
+		ClientStarter:      integration.BasicClientStarter{Service: integration.UDPEchoService{}, LogPackets: true},
+		RunTests:           integration.TestBigUDP,
 	},
 	{
 		// Test that DERP over WebSocket (as well as DERPForceWebSockets works).
 		// This does not test the actual DERP failure detection code and
 		// automatic fallback.
-		Name:            "DERPForceWebSockets",
-		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		Name:               "DERPForceWebSockets",
+		NetworkingProvider: integration.NetworkingNAT{StunCount: 0, Client1Hard: false, Client2Hard: false},
 		Server: integration.SimpleServerOptions{
 			FailUpgradeDERP:   false,
 			DERPWebsocketOnly: true,
 		},
-		StartClient: integration.StartClientDERPWebSockets,
-		RunTests:    integration.TestSuite,
+		ClientStarter: integration.BasicClientStarter{BlockEndpoints: true, DERPForceWebsockets: true},
+		RunTests:      integration.TestSuite,
 	},
 	{
 		// Test that falling back to DERP over WebSocket works.
-		Name:            "DERPFallbackWebSockets",
-		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		Name:               "DERPFallbackWebSockets",
+		NetworkingProvider: integration.NetworkingNAT{StunCount: 0, Client1Hard: false, Client2Hard: false},
 		Server: integration.SimpleServerOptions{
 			FailUpgradeDERP:   true,
 			DERPWebsocketOnly: false,
 		},
 		// Use a basic client that will try `Upgrade: derp` first.
-		StartClient: integration.StartClientDERP,
-		RunTests:    integration.TestSuite,
+		ClientStarter: integration.BasicClientStarter{BlockEndpoints: true},
+		RunTests:      integration.TestSuite,
 	},
 	{
-		Name:            "BasicLoopbackDERPNGINX",
-		SetupNetworking: integration.SetupNetworkingLoopback,
-		Server:          integration.NGINXServerOptions{},
-		StartClient:     integration.StartClientDERP,
-		RunTests:        integration.TestSuite,
+		Name:               "BasicLoopbackDERPNGINX",
+		NetworkingProvider: integration.NetworkingLoopback{},
+		Server:             integration.NGINXServerOptions{},
+		ClientStarter:      integration.BasicClientStarter{BlockEndpoints: true},
+		RunTests:           integration.TestSuite,
 	},
 }
 
@@ -151,7 +171,6 @@ func TestIntegration(t *testing.T) {
 	}
 
 	for _, topo := range topologies {
-		topo := topo
 		t.Run(topo.Name, func(t *testing.T) {
 			// These can run in parallel because every test should be in an
 			// isolated NetNS.
@@ -166,7 +185,11 @@ func TestIntegration(t *testing.T) {
 			}
 
 			log := testutil.Logger(t)
-			networking := topo.SetupNetworking(t, log)
+			networking := topo.NetworkingProvider.SetupNetworking(t, log)
+
+			tempDir := t.TempDir()
+			// useful for debugging:
+			// networking.Client1.Process.CapturePackets(t, "client1", tempDir)
 
 			// Useful for debugging network namespaces by avoiding cleanup.
 			// t.Cleanup(func() {
@@ -181,7 +204,6 @@ func TestIntegration(t *testing.T) {
 			}
 
 			// Write the DERP maps to a file.
-			tempDir := t.TempDir()
 			client1DERPMapPath := filepath.Join(tempDir, "client1-derp-map.json")
 			client1DERPMap, err := networking.Client1.ResolveDERPMap()
 			require.NoError(t, err, "resolve client 1 DERP map")
@@ -270,7 +292,7 @@ func handleTestSubprocess(t *testing.T) {
 
 			waitForServerAvailable(t, serverURL)
 
-			conn := topo.StartClient(t, logger, serverURL, &derpMap, me, peer)
+			conn := topo.ClientStarter.StartClient(t, logger, serverURL, &derpMap, me, peer)
 
 			if me.ShouldRunTests {
 				// Wait for connectivity.
