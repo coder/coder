@@ -10,6 +10,7 @@ import {
 	getPreferredProxy,
 } from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
+import _ from "lodash";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
@@ -162,29 +163,36 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 	);
 };
 
-export const withProxyProvider =
-	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
-		return (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: getPreferredProxy([], undefined),
-					proxies: [],
-					isLoading: false,
-					isFetched: true,
-					setProxy: () => {
-						return;
-					},
-					clearProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-					...value,
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		);
-	};
+const baselineProxyProvider: ProxyContextValue = {
+	proxyLatencies: MockProxyLatencies,
+	proxy: getPreferredProxy([], undefined),
+	proxies: [],
+	isLoading: false,
+	isFetched: true,
+	setProxy: () => {
+		return;
+	},
+	clearProxy: () => {
+		return;
+	},
+	refetchProxyLatencies: (): Date => {
+		return new Date();
+	},
+};
+
+export const withProxyProvider = (provider?: Partial<ProxyContextValue>) => {
+	// Not using the spread operator to combine the values, because there's a
+	// risk that it will wipe fields from the baseline provider if the incoming
+	// provider isn't defined properly
+	let merged = baselineProxyProvider;
+	if (provider !== undefined) {
+		merged = { ...baselineProxyProvider };
+		_.defaults(merged, [provider]);
+	}
+
+	return (Story: FC) => (
+		<ProxyContext.Provider value={merged}>
+			<Story />
+		</ProxyContext.Provider>
+	);
+};
