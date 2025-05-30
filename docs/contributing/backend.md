@@ -168,9 +168,9 @@ Run `make gen` to generate models.
 There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
-- Partial fixtures
+* Partial fixtures
   [`migrations/testdata/fixtures`](../coderd/database/migrations/testdata/fixtures)
-- Full database dumps
+* Full database dumps
   [`migrations/testdata/full_dumps`](../coderd/database/migrations/testdata/full_dumps)
 
 Both types behave like database migrations (they also
