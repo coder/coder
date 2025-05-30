@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -69,6 +70,72 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert sub agent: %w", err)
+	}
+
+	for _, app := range req.Apps {
+		slug := app.Slug
+		if slug == "" {
+			return nil, xerrors.Errorf("app must have a slug or name set")
+		}
+		if !provisioner.AppSlugRegex.MatchString(slug) {
+			return nil, xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex)
+		}
+
+		health := database.WorkspaceAppHealthDisabled
+		if app.Healthcheck == nil {
+			app.Healthcheck = &agentproto.CreateSubAgentRequest_App_Healthcheck{}
+		}
+		if app.Healthcheck.Url != "" {
+			health = database.WorkspaceAppHealthInitializing
+		}
+
+		sharingLevel := database.AppSharingLevelOwner
+		switch app.GetShare() {
+		case agentproto.CreateSubAgentRequest_App_AUTHENTICATED:
+			sharingLevel = database.AppSharingLevelAuthenticated
+		case agentproto.CreateSubAgentRequest_App_PUBLIC:
+			sharingLevel = database.AppSharingLevelPublic
+		}
+
+		openIn := database.WorkspaceAppOpenInSlimWindow
+		switch app.GetOpenIn() {
+		case agentproto.CreateSubAgentRequest_App_TAB:
+			openIn = database.WorkspaceAppOpenInTab
+		}
+
+		_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
+			ID:          uuid.New(),
+			CreatedAt:   createdAt,
+			AgentID:     subAgent.ID,
+			Slug:        app.Slug,
+			DisplayName: app.GetDisplayName(),
+			Icon:        app.GetIcon(),
+			Command: sql.NullString{
+				Valid:  app.GetCommand() != "",
+				String: app.GetCommand(),
+			},
+			Url: sql.NullString{
+				Valid:  app.GetUrl() != "",
+				String: app.GetUrl(),
+			},
+			External:             app.GetExternal(),
+			Subdomain:            app.GetSubdomain(),
+			SharingLevel:         sharingLevel,
+			HealthcheckUrl:       app.Healthcheck.Url,
+			HealthcheckInterval:  app.Healthcheck.Interval,
+			HealthcheckThreshold: app.Healthcheck.Threshold,
+			Health:               health,
+			DisplayOrder:         app.GetOrder(),
+			Hidden:               app.GetHidden(),
+			OpenIn:               openIn,
+			DisplayGroup: sql.NullString{
+				Valid:  app.GetGroup() != "",
+				String: app.GetGroup(),
+			},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("insert workspace app: %w", err)
+		}
 	}
 
 	return &agentproto.CreateSubAgentResponse{
