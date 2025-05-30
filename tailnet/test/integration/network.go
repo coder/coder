@@ -5,9 +5,11 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -71,11 +73,21 @@ type TestNetworkingProcess struct {
 	NetNS *os.File
 }
 
-// SetupNetworkingLoopback creates a network namespace with a loopback interface
+func (p TestNetworkingProcess) CapturePackets(t *testing.T, name, dir string) {
+	dumpfile := path.Join(dir, name+".pcap")
+	_, _ = ExecBackground(t, name+".pcap", p.NetNS, "tcpdump", []string{
+		"-i", "any",
+		"-w", dumpfile,
+	})
+}
+
+// NetworkingLoopback creates a network namespace with a loopback interface
 // for all tests to share. This is the simplest networking setup. The network
 // namespace only exists for isolation on the host and doesn't serve any routing
 // purpose.
-func SetupNetworkingLoopback(t *testing.T, _ slog.Logger) TestNetworking {
+type NetworkingLoopback struct{}
+
+func (NetworkingLoopback) SetupNetworking(t *testing.T, _ slog.Logger) TestNetworking {
 	// Create a single network namespace for all tests so we can have an
 	// isolated loopback interface.
 	netNSFile := createNetNS(t, uniqNetName(t))
@@ -102,96 +114,25 @@ func SetupNetworkingLoopback(t *testing.T, _ slog.Logger) TestNetworking {
 	}
 }
 
-func easyNAT(t *testing.T) fakeInternet {
-	internet := createFakeInternet(t)
-
-	_, err := commandInNetNS(internet.BridgeNetNS, "sysctl", []string{"-w", "net.ipv4.ip_forward=1"}).Output()
-	require.NoError(t, wrapExitErr(err), "enable IP forwarding in bridge NetNS")
-
-	// Set up iptables masquerade rules to allow each router to NAT packets.
-	leaves := []struct {
-		fakeRouterLeaf
-		clientPort int
-		natPort    int
-	}{
-		{internet.Client1, client1Port, client1RouterPort},
-		{internet.Client2, client2Port, client2RouterPort},
-	}
-	for _, leaf := range leaves {
-		_, err := commandInNetNS(leaf.RouterNetNS, "sysctl", []string{"-w", "net.ipv4.ip_forward=1"}).Output()
-		require.NoError(t, wrapExitErr(err), "enable IP forwarding in router NetNS")
-
-		// All non-UDP traffic should use regular masquerade e.g. for HTTP.
-		_, err = commandInNetNS(leaf.RouterNetNS, "iptables", []string{
-			"-t", "nat",
-			"-A", "POSTROUTING",
-			// Every interface except loopback.
-			"!", "-o", "lo",
-			// Every protocol except UDP.
-			"!", "-p", "udp",
-			"-j", "MASQUERADE",
-		}).Output()
-		require.NoError(t, wrapExitErr(err), "add iptables non-UDP masquerade rule")
-
-		// Outgoing traffic should get NATed to the router's IP.
-		_, err = commandInNetNS(leaf.RouterNetNS, "iptables", []string{
-			"-t", "nat",
-			"-A", "POSTROUTING",
-			"-p", "udp",
-			"--sport", fmt.Sprint(leaf.clientPort),
-			"-j", "SNAT",
-			"--to-source", fmt.Sprintf("%s:%d", leaf.RouterIP, leaf.natPort),
-		}).Output()
-		require.NoError(t, wrapExitErr(err), "add iptables SNAT rule")
-
-		// Incoming traffic should be forwarded to the client's IP.
-		_, err = commandInNetNS(leaf.RouterNetNS, "iptables", []string{
-			"-t", "nat",
-			"-A", "PREROUTING",
-			"-p", "udp",
-			"--dport", fmt.Sprint(leaf.natPort),
-			"-j", "DNAT",
-			"--to-destination", fmt.Sprintf("%s:%d", leaf.ClientIP, leaf.clientPort),
-		}).Output()
-		require.NoError(t, wrapExitErr(err), "add iptables DNAT rule")
-	}
-
-	return internet
-}
-
-// SetupNetworkingEasyNAT creates a fake internet and sets up "easy NAT"
-// forwarding rules.
+// NetworkingNAT creates a fake internet and sets up "NAT"
+// forwarding rules, either easy or hard.
 // See createFakeInternet.
 // NAT is achieved through a single iptables masquerade rule.
-func SetupNetworkingEasyNAT(t *testing.T, _ slog.Logger) TestNetworking {
-	return easyNAT(t).Net
+type NetworkingNAT struct {
+	StunCount   int
+	Client1Hard bool
+	Client2Hard bool
 }
 
-// SetupNetworkingEasyNATWithSTUN does the same as SetupNetworkingEasyNAT, but
-// also creates a namespace and bridge address for a STUN server.
-func SetupNetworkingEasyNATWithSTUN(t *testing.T, _ slog.Logger) TestNetworking {
-	internet := easyNAT(t)
-	internet.Net.STUNs = []TestNetworkingSTUN{
-		prepareSTUNServer(t, &internet, 0),
-	}
-
-	return internet.Net
-}
-
-func SetupNetworkingWithDirectMTU1500(t *testing.T, _ slog.Logger) TestNetworking {
-	triNet := createFakeTriangleNetwork(t)
-	return triNet.Net
-}
-
-// hardNAT creates a fake internet with multiple STUN servers and sets up "hard
-// NAT" forwarding rules. If bothHard is false, only the first client will have
-// hard NAT rules, and the second client will have easy NAT rules.
-//
-//nolint:revive
-func hardNAT(t *testing.T, stunCount int, bothHard bool) fakeInternet {
+// SetupNetworking creates a fake internet with multiple STUN servers and sets up
+// NAT forwarding rules. Client NATs are controlled by the switches ClientXHard, which if true, sets up hard
+// nat.
+func (n NetworkingNAT) SetupNetworking(t *testing.T, l slog.Logger) TestNetworking {
+	logger := l.Named("setup-networking").Leveled(slog.LevelDebug)
 	internet := createFakeInternet(t)
-	internet.Net.STUNs = make([]TestNetworkingSTUN, stunCount)
-	for i := 0; i < stunCount; i++ {
+	logger.Debug(context.Background(), "preparing STUN", slog.F("stun_count", n.StunCount))
+	internet.Net.STUNs = make([]TestNetworkingSTUN, n.StunCount)
+	for i := 0; i < n.StunCount; i++ {
 		internet.Net.STUNs[i] = prepareSTUNServer(t, &internet, i)
 	}
 
@@ -207,8 +148,14 @@ func hardNAT(t *testing.T, stunCount int, bothHard bool) fakeInternet {
 		natStartPortSTUN int
 	}{
 		{
-			fakeRouterLeaf:   internet.Client1,
-			peerIP:           internet.Client2.RouterIP,
+			fakeRouterLeaf: internet.Client1,
+			// If peerIP is empty, we do easy NAT (even for STUN)
+			peerIP: func() string {
+				if n.Client1Hard {
+					return internet.Client2.RouterIP
+				}
+				return ""
+			}(),
 			clientPort:       client1Port,
 			natPortPeer:      client1RouterPort,
 			natStartPortSTUN: client1RouterPortSTUN,
@@ -217,7 +164,7 @@ func hardNAT(t *testing.T, stunCount int, bothHard bool) fakeInternet {
 			fakeRouterLeaf: internet.Client2,
 			// If peerIP is empty, we do easy NAT (even for STUN)
 			peerIP: func() string {
-				if bothHard {
+				if n.Client2Hard {
 					return internet.Client1.RouterIP
 				}
 				return ""
@@ -240,6 +187,9 @@ func hardNAT(t *testing.T, stunCount int, bothHard bool) fakeInternet {
 		// NAT from this client to each STUN server. Only do this if we're doing
 		// hard NAT, as the rule above will also touch STUN traffic in easy NAT.
 		if leaf.peerIP != "" {
+			logger.Debug(context.Background(), "creating NAT to STUN",
+				slog.F("client_ip", leaf.ClientIP), slog.F("peer_ip", leaf.peerIP),
+			)
 			for i, stun := range internet.Net.STUNs {
 				natPort := leaf.natStartPortSTUN + i
 				iptablesNAT(t, leaf.RouterNetNS, leaf.ClientIP, leaf.clientPort, leaf.RouterIP, natPort, stun.IP)
@@ -247,11 +197,7 @@ func hardNAT(t *testing.T, stunCount int, bothHard bool) fakeInternet {
 		}
 	}
 
-	return internet
-}
-
-func SetupNetworkingHardNATEasyNATDirect(t *testing.T, _ slog.Logger) TestNetworking {
-	return hardNAT(t, 2, false).Net
+	return internet.Net
 }
 
 type vethPair struct {
@@ -443,9 +389,11 @@ func createFakeInternet(t *testing.T) fakeInternet {
 	return router
 }
 
-type fakeTriangleNetwork struct {
-	Net TestNetworking
+type TriangleNetwork struct {
+	InterClientMTU int
+}
 
+type fakeTriangleNetwork struct {
 	NamePrefix             string
 	ServerNetNS            *os.File
 	Client1NetNS           *os.File
@@ -455,25 +403,30 @@ type fakeTriangleNetwork struct {
 	Client1Client2VethPair vethPair
 }
 
-// createFakeTriangleNetwork creates multiple namespaces with veth pairs between them
+// SetupNetworking creates multiple namespaces with veth pairs between them
 // with the following topology:
 // .
-// .     ┌─────────────────────────────────────────┐
-// .     │                  Server                 │
-// .     └─────┬────────────────────────────────┬──┘
-// .           │10.0.2.3                        │10.0.3.3
-// .       veth│                            veth│
-// .           │10.0.2.1                        │10.0.3.2
-// .   ┌───────┴──────┐ veth      10.0.1.2┌─────┴───────┐
-// .   │  Client 1    ├───────────────────┤  Client 2   │
-// .   └──────────────┘10.0.1.1           └─────────────┘
-func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
+// .     ┌────────────────────────────────────────────┐
+// .     │                  Server                    │
+// .     └─────┬───────────────────────────────────┬──┘
+// .           │fdac:38fa:ffff:2::3                │fdac:38fa:ffff:3::3
+// .       veth│                               veth│
+// .           │fdac:38fa:ffff:2::1                │fdac:38fa:ffff:3::2
+// .   ┌───────┴──────┐                      ┌─────┴───────┐
+// .   │              │   fdac:38fa:ffff:1::2│             │
+// .   │  Client 1    ├──────────────────────┤  Client 2   │
+// .   │              │fdac:38fa:ffff:1::1   │             │
+// .   └──────────────┘                      └─────────────┘
+func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetworking {
+	logger := l.Named("setup-networking").Leveled(slog.LevelDebug)
 	t.Helper()
 	var (
 		namePrefix = uniqNetName(t) + "_"
 		network    = fakeTriangleNetwork{
 			NamePrefix: namePrefix,
 		}
+		// Unique Local Address prefix
+		ula = "fdac:38fa:ffff:"
 	)
 
 	// Create three network namespaces for server, client1, and client2
@@ -483,8 +436,8 @@ func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
 
 	// Create veth pair between server and client1
 	network.ServerClient1VethPair = vethPair{
-		Outer: namePrefix + "server-client1",
-		Inner: namePrefix + "client1-server",
+		Outer: namePrefix + "s-1",
+		Inner: namePrefix + "1-s",
 	}
 	err := createVethPair(network.ServerClient1VethPair.Outer, network.ServerClient1VethPair.Inner)
 	require.NoErrorf(t, err, "create veth pair %q <-> %q",
@@ -516,7 +469,9 @@ func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
 		Outer: namePrefix + "1-2",
 		Inner: namePrefix + "2-1",
 	}
-	err = createVethPair(network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner)
+	logger.Debug(context.Background(), "creating inter-client link", slog.F("mtu", n.InterClientMTU))
+	err = createVethPair(network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner,
+		withMTU(n.InterClientMTU))
 	require.NoErrorf(t, err, "create veth pair %q <-> %q",
 		network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner)
 
@@ -527,22 +482,19 @@ func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
 	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.Client1Client2VethPair.Inner)
 
 	// Set IP addresses according to the diagram:
-	// Server has 10.0.2.3 and 10.0.3.3 on its interfaces
-	err = setInterfaceIP(network.ServerNetNS, network.ServerClient1VethPair.Outer, "10.0.2.3")
+	err = setInterfaceIP6(network.ServerNetNS, network.ServerClient1VethPair.Outer, ula+"2::3")
 	require.NoErrorf(t, err, "set IP on server-client1 interface")
-	err = setInterfaceIP(network.ServerNetNS, network.ServerClient2VethPair.Outer, "10.0.3.3")
+	err = setInterfaceIP6(network.ServerNetNS, network.ServerClient2VethPair.Outer, ula+"3::3")
 	require.NoErrorf(t, err, "set IP on server-client2 interface")
 
-	// Client1 has 10.0.2.1 (to server) and 10.0.1.1 (to client2)
-	err = setInterfaceIP(network.Client1NetNS, network.ServerClient1VethPair.Inner, "10.0.2.1")
+	err = setInterfaceIP6(network.Client1NetNS, network.ServerClient1VethPair.Inner, ula+"2::1")
 	require.NoErrorf(t, err, "set IP on client1-server interface")
-	err = setInterfaceIP(network.Client1NetNS, network.Client1Client2VethPair.Outer, "10.0.1.1")
+	err = setInterfaceIP6(network.Client1NetNS, network.Client1Client2VethPair.Outer, ula+"1::1")
 	require.NoErrorf(t, err, "set IP on client1-client2 interface")
 
-	// Client2 has 10.0.3.2 (to server) and 10.0.1.2 (to client1)
-	err = setInterfaceIP(network.Client2NetNS, network.ServerClient2VethPair.Inner, "10.0.3.2")
+	err = setInterfaceIP6(network.Client2NetNS, network.ServerClient2VethPair.Inner, ula+"3::2")
 	require.NoErrorf(t, err, "set IP on client2-server interface")
-	err = setInterfaceIP(network.Client2NetNS, network.Client1Client2VethPair.Inner, "10.0.1.2")
+	err = setInterfaceIP6(network.Client2NetNS, network.Client1Client2VethPair.Inner, ula+"1::2")
 	require.NoErrorf(t, err, "set IP on client2-client1 interface")
 
 	// Bring up all interfaces
@@ -564,22 +516,20 @@ func createFakeTriangleNetwork(t *testing.T) fakeTriangleNetwork {
 		// needs to forward IP to a further destination.
 	}
 
-	// Set up the TestNetworking structure
-	network.Net = TestNetworking{
+	return TestNetworking{
 		Server: TestNetworkingServer{
 			Process:    TestNetworkingProcess{NetNS: network.ServerNetNS},
-			ListenAddr: "0.0.0.0:8080", // Server listens on all IPs
+			ListenAddr: "[::]:8080", // Server listens on all IPs
 		},
 		Client1: TestNetworkingClient{
 			Process:         TestNetworkingProcess{NetNS: network.Client1NetNS},
-			ServerAccessURL: "http://10.0.2.3:8080", // Client1 accesses server directly
+			ServerAccessURL: "http://[" + ula + "2::3]:8080", // Client1 accesses server directly
 		},
 		Client2: TestNetworkingClient{
 			Process:         TestNetworkingProcess{NetNS: network.Client2NetNS},
-			ServerAccessURL: "http://10.0.3.3:8080", // Client2 accesses server directly
+			ServerAccessURL: "http://[" + ula + "3::3]:8080", // Client2 accesses server directly
 		},
 	}
-	return network
 }
 
 func uniqNetName(t *testing.T) string {
@@ -712,10 +662,22 @@ func setInterfaceBridge(netNS *os.File, ifaceName, bridgeName string) error {
 	return nil
 }
 
+type linkOption func(attrs netlink.LinkAttrs) netlink.LinkAttrs
+
+func withMTU(mtu int) linkOption {
+	return func(attrs netlink.LinkAttrs) netlink.LinkAttrs {
+		attrs.MTU = mtu
+		return attrs
+	}
+}
+
 // createVethPair creates a veth pair with the given names.
-func createVethPair(parentVethName, peerVethName string) error {
+func createVethPair(parentVethName, peerVethName string, options ...linkOption) error {
 	linkAttrs := netlink.NewLinkAttrs()
 	linkAttrs.Name = parentVethName
+	for _, option := range options {
+		linkAttrs = option(linkAttrs)
+	}
 	veth := &netlink.Veth{
 		LinkAttrs: linkAttrs,
 		PeerName:  peerVethName,
@@ -748,6 +710,17 @@ func setVethNetNS(vethName string, netNSFd int) error {
 // adds a /24 subnet mask.
 func setInterfaceIP(netNS *os.File, ifaceName, ip string) error {
 	_, err := commandInNetNS(netNS, "ip", []string{"addr", "add", ip + "/24", "dev", ifaceName}).Output()
+	if err != nil {
+		return xerrors.Errorf("set IP %q on interface %q in netns: %w", ip, ifaceName, wrapExitErr(err))
+	}
+
+	return nil
+}
+
+// setInterfaceIP sets the IP address on the given interface. It automatically
+// adds a /24 subnet mask.
+func setInterfaceIP6(netNS *os.File, ifaceName, ip string) error {
+	_, err := commandInNetNS(netNS, "ip", []string{"addr", "add", ip + "/64", "dev", ifaceName}).Output()
 	if err != nil {
 		return xerrors.Errorf("set IP %q on interface %q in netns: %w", ip, ifaceName, wrapExitErr(err))
 	}
@@ -847,7 +820,9 @@ func iptablesMasqueradeNonUDP(t *testing.T, netNS *os.File) {
 // iptablesNAT sets up iptables rules for NAT forwarding. If destIP is
 // specified, the forwarding rule will only apply to traffic to/from that IP
 // (mapvarydest).
-func iptablesNAT(t *testing.T, netNS *os.File, clientIP string, clientPort int, routerIP string, routerPort int, destIP string) {
+func iptablesNAT(
+	t *testing.T, netNS *os.File, clientIP string, clientPort int, routerIP string, routerPort int, destIP string,
+) {
 	t.Helper()
 
 	snatArgs := []string{
