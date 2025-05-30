@@ -25,22 +25,22 @@ export const AppStatusIcon: FC<AppStatusIconProps> = ({
 	switch (status.state) {
 		case "complete":
 			return (
-				<CircleCheckIcon className={cn([className, "text-content-success"])} />
+				<CircleCheckIcon className={cn(["text-content-success", className])} />
 			);
 		case "failure":
 			return (
-				<CircleAlertIcon className={cn([className, "text-content-warning"])} />
+				<CircleAlertIcon className={cn(["text-content-warning", className])} />
 			);
 		case "working":
 			return latest ? (
 				<Spinner size="sm" className="shrink-0" loading />
 			) : (
-				<HourglassIcon className={cn([className, "text-highlight-sky"])} />
+				<HourglassIcon className={cn(["text-highlight-sky", className])} />
 			);
 		default:
 			return (
 				<TriangleAlertIcon
-					className={cn([className, "text-content-secondary"])}
+					className={cn(["text-content-secondary", className])}
 				/>
 			);
 	}

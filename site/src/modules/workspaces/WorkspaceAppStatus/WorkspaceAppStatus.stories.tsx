@@ -48,3 +48,10 @@ export const LongMessage: Story = {
 		},
 	},
 };
+
+export const Disabled: Story = {
+	args: {
+		status: MockWorkspaceAppStatus,
+		disabled: true,
+	},
+};
