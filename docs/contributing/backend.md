@@ -12,52 +12,6 @@ The purpose of this guide is to help you:
 
 Need help or have questions? Join the conversation on our [Discord server](https://discord.com/invite/coder) — we’re always happy to support contributors.
 
-## Quickstart
-
-To get started with Coder's backend, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix) or launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer). Alternatively, ensure you have the following installed and running on your system: **Docker, Go, Node.js (with pnpm), and make**.
-
- Once that's in place, follow these steps:
-
-1. Clone the Coder repository and navigate into the project directory:
-
-```sh
-git clone https://github.com/coder/coder.git
-cd coder
-```
-
-1. Run the development script to spin up the local environment:
-
-```sh
-./scripts/develop.sh
-```
-
-This will start two processes:
-
-* http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
-* http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
-
-Additionally, it starts a local PostgreSQL instance, creates both an admin and a member user account, and installs a default Docker-based template.
-
-1. Verify Your Session
-
-Confirm that you're logged in by running:
-
-```sh
-./scripts/coder-dev.sh list
-```
-
-This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
-
-> `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
-
-1. Create Your First Workspace
-
-A template named `docker` is created automatically. To spin up a workspace quickly, use:
-
-```sh
-./scripts/coder-dev.sh create my-workspace -t docker
-```
-
 ## Platform Architecture
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
