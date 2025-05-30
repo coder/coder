@@ -103,7 +103,8 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			openIn = database.WorkspaceAppOpenInTab
 		}
 
-		_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
+		//nolint:gocritic // We've already inserted the agent with restricted permissions, so we're safe to do this.
+		_, err := a.Database.InsertWorkspaceApp(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppParams{
 			ID:          uuid.New(),
 			CreatedAt:   createdAt,
 			AgentID:     subAgent.ID,

@@ -3851,15 +3851,9 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 }
 
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	workspace, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID)
-	if err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceApp{}, err
 	}
-
-	if err := q.authorizeContext(ctx, policy.ActionCreateAgent, workspace); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
