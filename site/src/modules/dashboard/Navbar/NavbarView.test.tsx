@@ -6,6 +6,7 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { NavbarView } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {
+	latenciesLoaded: true,
 	proxy: {
 		preferredPathAppURL: "",
 		preferredWildcardHostname: "",
