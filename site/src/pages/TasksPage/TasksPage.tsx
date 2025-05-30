@@ -45,13 +45,23 @@ import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import type { FC, PropsWithChildren, ReactNode } from "react";
+import {
+	type FC,
+	type PropsWithChildren,
+	type ReactNode,
+	useState,
+} from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { type UserOption, UsersCombobox } from "./UsersCombobox";
+
+type TasksFilter = {
+	user: UserOption | undefined;
+};
 
 const TasksPage: FC = () => {
 	const {
@@ -62,6 +72,14 @@ const TasksPage: FC = () => {
 		queryKey: ["templates", "ai"],
 		queryFn: data.fetchAITemplates,
 		...disabledRefetchOptions,
+	});
+	const { user } = useAuthenticated();
+	const [filter, setFilter] = useState<TasksFilter>({
+		user: {
+			value: user.username,
+			label: user.name ?? user.username,
+			avatarUrl: user.avatar_url,
+		},
 	});
 
 	let content: ReactNode = null;
@@ -104,7 +122,8 @@ const TasksPage: FC = () => {
 			) : (
 				<>
 					<TaskForm templates={templates} />
-					<TasksTable templates={templates} />
+					<TasksFilter filter={filter} onFilterChange={setFilter} />
+					<TasksTable templates={templates} filter={filter} />
 				</>
 			);
 	} else {
@@ -242,18 +261,40 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	);
 };
 
-type TasksTableProps = {
-	templates: Template[];
+type TasksFilterProps = {
+	filter: TasksFilter;
+	onFilterChange: (filter: TasksFilter) => void;
 };
 
-const TasksTable: FC<TasksTableProps> = ({ templates }) => {
+const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
+	return (
+		<div className="pt-6 pb-4">
+			<UsersCombobox
+				selectedOption={filter.user}
+				onSelect={(userOption) =>
+					onFilterChange({
+						...filter,
+						user: userOption,
+					})
+				}
+			/>
+		</div>
+	);
+};
+
+type TasksTableProps = {
+	templates: Template[];
+	filter: TasksFilter;
+};
+
+const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 	const {
 		data: tasks,
 		error,
 		refetch,
 	} = useQuery({
-		queryKey: ["tasks"],
-		queryFn: () => data.fetchTasks(templates),
+		queryKey: ["tasks", filter],
+		queryFn: () => data.fetchTasks(templates, filter),
 		refetchInterval: 10_000,
 	});
 
@@ -380,7 +421,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 	}
 
 	return (
-		<Table className="mt-4">
+		<Table>
 			<TableHeader>
 				<TableRow>
 					<TableHead>Task</TableHead>
@@ -484,11 +525,16 @@ export const data = {
 	// template individually and its build parameters resulting in excessive API
 	// calls and slow performance. Consider implementing a backend endpoint that
 	// returns all AI-related workspaces in a single request to improve efficiency.
-	async fetchTasks(aiTemplates: Template[]) {
+	async fetchTasks(aiTemplates: Template[], filter: TasksFilter) {
 		const workspaces = await Promise.all(
 			aiTemplates.map((template) => {
+				const queryParts = [`template:${template.name}`];
+				if (filter.user) {
+					queryParts.push(`owner:${filter.user.value}`);
+				}
+
 				return API.getWorkspaces({
-					q: `template:${template.name}`,
+					q: queryParts.join(" "),
 					limit: 100,
 				});
 			}),
