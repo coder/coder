@@ -81,8 +81,8 @@ Use the following `make` commands and scripts in development:
 
    This will start two processes:
 
-   * http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
-   * http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
+   - http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
+   - http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
 
    Additionally, it starts a local PostgreSQL instance, creates both an admin and a member user account, and installs a default Docker-based template.
 
@@ -99,7 +99,6 @@ Use the following `make` commands and scripts in development:
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
    >
    > The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
-
 
 1. Create Your First Workspace
 
