@@ -412,6 +412,21 @@ var (
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
 					},
+					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
+					rbac.ResourceOrganizationMember.Type: {
+						policy.ActionCreate,
+					},
+					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
+					rbac.ResourceAssignOrgRole.Type: {
+						policy.ActionAssign,
+					},
+					// Needs to be able to read users to determine which organizations the prebuild system user is a member of.
+					rbac.ResourceUser.Type: {
+						policy.ActionRead,
+					},
+					rbac.ResourceOrganization.Type: {
+						policy.ActionRead,
+					},
 				}),
 			},
 		}),
