@@ -204,8 +204,21 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			</Helmet>
 
 			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row items-center gap-2">
+				<span className="flex flex-row items-center gap-2 justify-between w-full">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
+
+					{experimentalFormContext && (
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={experimentalFormContext.toggleOptedOut}
+						>
+							<Undo2 />
+							Classic workspace parameters
+						</Button>
+					)}
+				</span>
+				<span className="flex flex-row items-center gap-2">
 					<FeatureStageBadge
 						contentType={"early_access"}
 						size="sm"
@@ -232,16 +245,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 						</Tooltip>
 					</TooltipProvider>
 				</span>
-				{experimentalFormContext && (
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={experimentalFormContext.toggleOptedOut}
-					>
-						<Undo2 />
-						Use the classic workspace parameters
-					</Button>
-				)}
 			</header>
 
 			{Boolean(error) && <ErrorAlert error={error} />}

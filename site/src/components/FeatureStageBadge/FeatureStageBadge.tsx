@@ -27,9 +27,8 @@ type FeatureStageBadgeProps = Readonly<
 >;
 
 const badgeColorClasses = {
-	early_access:
-		"border-solid border-border-warning bg-surface-orange text-content-warning hover:bg-transparent",
-	beta: "border-solid border-highlight-sky bg-surface-sky text-highlight-sky hover:bg-transparent",
+	early_access: "bg-surface-orange text-content-warning",
+	beta: "bg-surface-sky text-highlight-sky",
 } as const;
 
 const badgeSizeClasses = {
@@ -51,9 +50,9 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 		<TooltipProvider delayDuration={100}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<button
+					<span
 						className={cn(
-							"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border rounded-md transition-colors duration-200 ease-in-out bg-transparent",
+							"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border rounded-md transition-colors duration-200 ease-in-out bg-transparent border-solid border-transparent",
 							sizeClasses,
 							colorClasses,
 							className,
@@ -66,7 +65,7 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 							{featureStageBadgeTypes[contentType]}
 						</span>
 						<span className="sr-only"> feature)</span>
-					</button>
+					</span>
 				</TooltipTrigger>
 				<TooltipContent align="start" className="max-w-xs text-sm">
 					<p className="m-0">

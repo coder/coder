@@ -117,18 +117,18 @@ export const WorkspaceParametersPageView: FC<
 	return (
 		<div className="flex flex-col gap-10">
 			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row justify-between items-center gap-2">
+				<span className="flex flex-row justify-between w-full items-center gap-2">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
+					{experimentalFormContext && (
+						<ShadcnButton
+							size="sm"
+							variant="outline"
+							onClick={experimentalFormContext.toggleOptedOut}
+						>
+							Try out the new workspace parameters ✨
+						</ShadcnButton>
+					)}
 				</span>
-				{experimentalFormContext && (
-					<ShadcnButton
-						size="sm"
-						variant="outline"
-						onClick={experimentalFormContext.toggleOptedOut}
-					>
-						Try out the new workspace parameters ✨
-					</ShadcnButton>
-				)}
 			</header>
 
 			{submitError && !isApiValidationError(submitError) ? (
