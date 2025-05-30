@@ -155,6 +155,14 @@ func (s Schedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
 }
 
+func (s Schedule) IsWithinRange(t time.Time) bool {
+	// Get the next scheduled time
+	next := s.Next(t)
+
+	// If the next time is more than a minute away, we're not within range
+	return next.Sub(t) <= time.Minute
+}
+
 var (
 	t0   = time.Date(1970, 1, 1, 1, 1, 1, 0, time.UTC)
 	tMax = t0.Add(168 * time.Hour)

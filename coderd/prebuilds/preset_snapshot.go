@@ -1,6 +1,8 @@
 package prebuilds
 
 import (
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"golang.org/x/xerrors"
 	"slices"
 	"time"
 
@@ -36,12 +38,13 @@ const (
 // - InProgress: prebuilds currently in progress
 // - Backoff: holds failure info to decide if prebuild creation should be backed off
 type PresetSnapshot struct {
-	Preset        database.GetTemplatePresetsWithPrebuildsRow
-	Running       []database.GetRunningPrebuiltWorkspacesRow
-	Expired       []database.GetRunningPrebuiltWorkspacesRow
-	InProgress    []database.CountInProgressPrebuildsRow
-	Backoff       *database.GetPresetsBackoffRow
-	IsHardLimited bool
+	Preset            database.GetTemplatePresetsWithPrebuildsRow
+	PrebuildSchedules []database.TemplateVersionPresetPrebuildSchedule
+	Running           []database.GetRunningPrebuiltWorkspacesRow
+	Expired           []database.GetRunningPrebuiltWorkspacesRow
+	InProgress        []database.CountInProgressPrebuildsRow
+	Backoff           *database.GetPresetsBackoffRow
+	IsHardLimited     bool
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,
@@ -83,6 +86,43 @@ func (ra *ReconciliationActions) IsNoop() bool {
 	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
+// matchesCron checks if the given time matches the cron expression
+// Assumes the time is already in the correct timezone
+func matchesCron(cronExpression string, now time.Time) (bool, error) {
+	sched, err := cron.Weekly(cronExpression)
+	if err != nil {
+		return false, xerrors.Errorf("failed to parse cron expression: %w", err)
+	}
+
+	return sched.IsWithinRange(now), nil
+}
+
+func (p PresetSnapshot) calculateDesiredInstances(now time.Time) (int32, error) {
+	if !p.Preset.AutoscalingEnabled {
+		return p.Preset.DesiredInstances.Int32, nil
+	}
+
+	loc, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
+	if err != nil {
+		return 0, xerrors.Errorf("can't parse location %v: %w", p.Preset.AutoscalingTimezone, err)
+	}
+
+	now = now.In(loc)
+
+	// Check each schedule
+	for _, schedule := range p.PrebuildSchedules {
+		matches, err := matchesCron(schedule.CronExpression, now)
+		if err != nil {
+			return 0, xerrors.Errorf("failed to match cron expression: %w", err)
+		}
+		if matches {
+			return schedule.Instances, nil
+		}
+	}
+
+	return p.Preset.DesiredInstances.Int32, nil
+}
+
 // CalculateState computes the current state of prebuilds for a preset, including:
 // - Actual: Number of currently running prebuilds, i.e., non-expired and expired prebuilds
 // - Expired: Number of currently running expired prebuilds
@@ -111,7 +151,10 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	expired = int32(len(p.Expired))
 
 	if p.isActive() {
-		desired = p.Preset.DesiredInstances.Int32
+		desired, err := p.calculateDesiredInstances(time.Now())
+		if err != nil {
+			// TODO: handle error
+		}
 		eligible = p.countEligible()
 		extraneous = max(actual-expired-desired, 0)
 	}

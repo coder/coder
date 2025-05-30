@@ -13,6 +13,7 @@ import (
 // GlobalSnapshot represents a full point-in-time snapshot of state relating to prebuilds across all templates.
 type GlobalSnapshot struct {
 	Presets               []database.GetTemplatePresetsWithPrebuildsRow
+	PrebuildSchedules     []database.TemplateVersionPresetPrebuildSchedule
 	RunningPrebuilds      []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress   []database.CountInProgressPrebuildsRow
 	Backoffs              []database.GetPresetsBackoffRow
@@ -21,6 +22,7 @@ type GlobalSnapshot struct {
 
 func NewGlobalSnapshot(
 	presets []database.GetTemplatePresetsWithPrebuildsRow,
+	prebuildSchedules []database.TemplateVersionPresetPrebuildSchedule,
 	runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
@@ -33,6 +35,7 @@ func NewGlobalSnapshot(
 
 	return GlobalSnapshot{
 		Presets:               presets,
+		PrebuildSchedules:     prebuildSchedules,
 		RunningPrebuilds:      runningPrebuilds,
 		PrebuildsInProgress:   prebuildsInProgress,
 		Backoffs:              backoffs,
@@ -47,6 +50,10 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	if !found {
 		return nil, xerrors.Errorf("no preset found with ID %q", presetID)
 	}
+
+	prebuildSchedules := slice.Filter(s.PrebuildSchedules, func(preset database.TemplateVersionPresetPrebuildSchedule) bool {
+		return preset.ID == presetID
+	})
 
 	// Only include workspaces that have successfully started
 	running := slice.Filter(s.RunningPrebuilds, func(prebuild database.GetRunningPrebuiltWorkspacesRow) bool {
@@ -74,12 +81,13 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	_, isHardLimited := s.HardLimitedPresetsMap[preset.ID]
 
 	return &PresetSnapshot{
-		Preset:        preset,
-		Running:       nonExpired,
-		Expired:       expired,
-		InProgress:    inProgress,
-		Backoff:       backoffPtr,
-		IsHardLimited: isHardLimited,
+		Preset:            preset,
+		PrebuildSchedules: prebuildSchedules,
+		Running:           nonExpired,
+		Expired:           expired,
+		InProgress:        inProgress,
+		Backoff:           backoffPtr,
+		IsHardLimited:     isHardLimited,
 	}, nil
 }
 
