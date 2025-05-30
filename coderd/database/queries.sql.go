@@ -11178,7 +11178,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -11208,6 +11208,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.DisplayName,
 			&i.DisplayOrder,
 			&i.Ephemeral,
+			&i.FormType,
 		); err != nil {
 			return nil, err
 		}
@@ -11229,6 +11230,7 @@ INSERT INTO
         name,
         description,
         type,
+        form_type,
         mutable,
         default_value,
         icon,
@@ -11261,28 +11263,30 @@ VALUES
         $14,
         $15,
         $16,
-        $17
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral
+        $17,
+        $18
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type
 `
 
 type InsertTemplateVersionParameterParams struct {
-	TemplateVersionID   uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	Name                string          `db:"name" json:"name"`
-	Description         string          `db:"description" json:"description"`
-	Type                string          `db:"type" json:"type"`
-	Mutable             bool            `db:"mutable" json:"mutable"`
-	DefaultValue        string          `db:"default_value" json:"default_value"`
-	Icon                string          `db:"icon" json:"icon"`
-	Options             json.RawMessage `db:"options" json:"options"`
-	ValidationRegex     string          `db:"validation_regex" json:"validation_regex"`
-	ValidationMin       sql.NullInt32   `db:"validation_min" json:"validation_min"`
-	ValidationMax       sql.NullInt32   `db:"validation_max" json:"validation_max"`
-	ValidationError     string          `db:"validation_error" json:"validation_error"`
-	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
-	Required            bool            `db:"required" json:"required"`
-	DisplayName         string          `db:"display_name" json:"display_name"`
-	DisplayOrder        int32           `db:"display_order" json:"display_order"`
-	Ephemeral           bool            `db:"ephemeral" json:"ephemeral"`
+	TemplateVersionID   uuid.UUID         `db:"template_version_id" json:"template_version_id"`
+	Name                string            `db:"name" json:"name"`
+	Description         string            `db:"description" json:"description"`
+	Type                string            `db:"type" json:"type"`
+	FormType            ParameterFormType `db:"form_type" json:"form_type"`
+	Mutable             bool              `db:"mutable" json:"mutable"`
+	DefaultValue        string            `db:"default_value" json:"default_value"`
+	Icon                string            `db:"icon" json:"icon"`
+	Options             json.RawMessage   `db:"options" json:"options"`
+	ValidationRegex     string            `db:"validation_regex" json:"validation_regex"`
+	ValidationMin       sql.NullInt32     `db:"validation_min" json:"validation_min"`
+	ValidationMax       sql.NullInt32     `db:"validation_max" json:"validation_max"`
+	ValidationError     string            `db:"validation_error" json:"validation_error"`
+	ValidationMonotonic string            `db:"validation_monotonic" json:"validation_monotonic"`
+	Required            bool              `db:"required" json:"required"`
+	DisplayName         string            `db:"display_name" json:"display_name"`
+	DisplayOrder        int32             `db:"display_order" json:"display_order"`
+	Ephemeral           bool              `db:"ephemeral" json:"ephemeral"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -11291,6 +11295,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Name,
 		arg.Description,
 		arg.Type,
+		arg.FormType,
 		arg.Mutable,
 		arg.DefaultValue,
 		arg.Icon,
@@ -11324,6 +11329,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.DisplayName,
 		&i.DisplayOrder,
 		&i.Ephemeral,
+		&i.FormType,
 	)
 	return i, err
 }

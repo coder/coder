@@ -757,10 +757,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if param.Default != nil {
 			defaultVal = *param.Default
 		}
+
+		pft, err := proto.FormType(param.FormType)
+		if err != nil {
+			return nil, xerrors.Errorf("decode form_type for coder_parameter.%s: %w", resource.Name, err)
+		}
+
 		protoParam := &proto.RichParameter{
 			Name:         param.Name,
 			DisplayName:  param.DisplayName,
 			Description:  param.Description,
+			FormType:     pft,
 			Type:         param.Type,
 			Mutable:      param.Mutable,
 			DefaultValue: defaultVal,

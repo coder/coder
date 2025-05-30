@@ -1,7 +1,5 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { buildInfo } from "api/queries/buildInfo";
-import { deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -18,9 +16,7 @@ import {
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -43,10 +39,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	template,
 	permissions,
 }) => {
-	const { metadata } = useEmbeddedMetadata();
-	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const queryClient = useQueryClient();
-	const featureVisibility = useFeatureVisibility();
 
 	// Build logs
 	const shouldStreamBuildLogs = workspace.latest_build.status !== "running";
@@ -64,9 +57,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		useMutation({
 			mutationFn: API.restartWorkspace,
 		});
-
-	// SSH Prefix
-	const sshPrefixQuery = useQuery(deploymentSSHConfig());
 
 	// Favicon
 	const favicon = getFaviconByStatus(workspace.latest_build);
@@ -184,9 +174,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	return (
 		<>
 			<Helmet>
-				<title>
-					{pageTitle(`${workspace.owner_username}/${workspace.name}`)}
-				</title>
+				<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
 				<link
 					rel="alternate icon"
 					type="image/png"
@@ -205,10 +193,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				isRestarting={isRestarting}
 				workspace={workspace}
 				latestVersion={latestVersion}
-				hideSSHButton={featureVisibility.browser_only}
-				hideVSCodeDesktopButton={featureVisibility.browser_only}
-				buildInfo={buildInfoQuery.data}
-				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}

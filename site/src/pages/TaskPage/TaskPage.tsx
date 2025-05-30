@@ -2,6 +2,12 @@ import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { WorkspaceApp, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -14,7 +20,12 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
-import { ArrowLeftIcon, LayoutGridIcon, RotateCcwIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	ChevronDownIcon,
+	LayoutGridIcon,
+	RotateCcwIcon,
+} from "lucide-react";
 import { AppStatusIcon } from "modules/apps/AppStatusIcon";
 import { getAppHref } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
@@ -227,7 +238,7 @@ const TaskPage = () => {
 			</Helmet>
 
 			<section className="h-full flex flex-col">
-				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0">
+				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0 justify-between">
 					<div className="flex items-center gap-4">
 						<TooltipProvider>
 							<Tooltip>
@@ -246,11 +257,20 @@ const TaskPage = () => {
 						<div className="flex flex-col">
 							<h1 className="m-0 text-sm font-medium">{task.prompt}</h1>
 							<span className="text-xs text-content-secondary">
-								Created by {task.workspace.owner_name}{" "}
+								Created by{" "}
+								{task.workspace.owner_name ?? task.workspace.owner_name}{" "}
 								{timeFrom(new Date(task.workspace.created_at))}
 							</span>
 						</div>
 					</div>
+
+					<Button variant="outline" asChild>
+						<RouterLink
+							to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
+						>
+							View workspace
+						</RouterLink>
+					</Button>
 				</header>
 
 				{content}
@@ -303,26 +323,67 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		return src;
 	});
 
+	const embeddedApps = apps.filter((app) => !app.external);
+	const externalApps = apps.filter((app) => app.external);
+
 	return (
 		<main className="flex-1 flex flex-col">
 			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{apps.map((app) => (
-					<TaskAppButton
-						key={app.id}
-						task={task}
-						app={app}
-						active={app.id === activeAppId}
-						onClick={(e) => {
-							if (app.external) {
-								return;
-							}
+				{embeddedApps
+					.filter((app) => !app.external)
+					.map((app) => (
+						<TaskAppButton
+							key={app.id}
+							task={task}
+							app={app}
+							active={app.id === activeAppId}
+							onClick={(e) => {
+								if (app.external) {
+									return;
+								}
 
-							e.preventDefault();
-							setActiveAppId(app.id);
-							setIframeSrc(e.currentTarget.href);
-						}}
-					/>
-				))}
+								e.preventDefault();
+								setActiveAppId(app.id);
+								setIframeSrc(e.currentTarget.href);
+							}}
+						/>
+					))}
+
+				{externalApps.length > 0 && (
+					<div className="ml-auto">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="sm" variant="subtle">
+									Open in IDE
+									<ChevronDownIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent>
+								{externalApps
+									.filter((app) => app.external)
+									.map((app) => {
+										const link = useAppLink(app, {
+											agent,
+											workspace: task.workspace,
+										});
+
+										return (
+											<DropdownMenuItem key={app.id} asChild>
+												<RouterLink to={link.href}>
+													{app.icon ? (
+														<ExternalImage src={app.icon} />
+													) : (
+														<LayoutGridIcon />
+													)}
+													{link.label}
+												</RouterLink>
+											</DropdownMenuItem>
+										);
+									})}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
+				)}
 			</div>
 
 			<div className="flex-1">

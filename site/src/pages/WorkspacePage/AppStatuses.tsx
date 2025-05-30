@@ -103,15 +103,17 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 		<div className="flex flex-col border border-solid border-border rounded-lg">
 			<div
 				className={`
-					flex items-center justify-between px-4 py-3
+					flex items-center justify-between px-4 py-3 gap-6
 					border-0 [&:not(:last-child)]:border-b border-solid border-border
 				`}
 			>
-				<div className="flex flex-col">
-					<span className="text-sm font-medium text-content-primary flex items-center gap-2">
+				<div className="flex flex-col overflow-hidden">
+					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
 						<AppStatusIcon status={latestStatus} latest />
-						{latestStatus.message}
-					</span>
+						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
+							{latestStatus.message}
+						</span>
+					</div>
 					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
 						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
 					</span>
@@ -154,6 +156,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
+									disabled={otherStatuses.length === 0}
 									size="icon"
 									variant="subtle"
 									onClick={() => {

@@ -9,12 +9,20 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
+	WorkspaceApp,
 } from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import type { Line } from "components/Logs/LogLine";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { Folder } from "lucide-react";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
@@ -28,6 +36,7 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
@@ -43,46 +52,32 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
 
-export interface AgentRowProps {
+interface AgentRowProps {
 	agent: WorkspaceAgent;
 	workspace: Workspace;
-	showApps: boolean;
-	showBuiltinApps?: boolean;
-	sshPrefix?: string;
-	hideSSHButton?: boolean;
-	hideVSCodeDesktopButton?: boolean;
-	serverVersion: string;
-	serverAPIVersion: string;
-	onUpdateAgent: () => void;
 	template: Template;
-	storybookAgentMetadata?: WorkspaceAgentMetadata[];
+	initialMetadata?: WorkspaceAgentMetadata[];
+	onUpdateAgent: () => void;
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
 	workspace,
 	template,
-	showApps,
-	showBuiltinApps = true,
-	hideSSHButton,
-	hideVSCodeDesktopButton,
-	serverVersion,
-	serverAPIVersion,
 	onUpdateAgent,
-	storybookAgentMetadata,
-	sshPrefix,
+	initialMetadata,
 }) => {
-	// Apps visibility
-	const visibleApps = agent.apps.filter((app) => !app.hidden);
-	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
+	const { browser_only } = useFeatureVisibility();
+	const appSections = organizeAgentApps(agent.apps);
+	const hasAppsToDisplay =
+		!browser_only || appSections.some((it) => it.apps.length > 0);
 	const shouldDisplayApps =
-		showApps &&
-		((agent.status === "connected" && hasAppsToDisplay) ||
-			agent.status === "connecting");
+		(agent.status === "connected" && hasAppsToDisplay) ||
+		agent.status === "connecting";
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
-	const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
+	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const { proxy } = useProxy();
@@ -184,12 +179,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 					{agent.status === "connected" && (
 						<>
-							<AgentVersion
-								agent={agent}
-								serverVersion={serverVersion}
-								serverAPIVersion={serverAPIVersion}
-								onUpdate={onUpdateAgent}
-							/>
+							<AgentVersion agent={agent} onUpdate={onUpdateAgent} />
 							<AgentLatency agent={agent} />
 						</>
 					)}
@@ -201,28 +191,23 @@ export const AgentRow: FC<AgentRowProps> = ({
 					)}
 				</div>
 
-				{showBuiltinApps && (
-					<div css={{ display: "flex" }}>
-						{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
-							<AgentSSHButton
-								workspaceName={workspace.name}
-								agentName={agent.name}
-								sshPrefix={sshPrefix}
+				<div css={{ display: "flex" }}>
+					{!browser_only && agent.display_apps.includes("ssh_helper") && (
+						<AgentSSHButton
+							workspaceName={workspace.name}
+							agentName={agent.name}
+						/>
+					)}
+					{proxy.preferredWildcardHostname !== "" &&
+						agent.display_apps.includes("port_forwarding_helper") && (
+							<PortForwardButton
+								host={proxy.preferredWildcardHostname}
+								workspace={workspace}
+								agent={agent}
+								template={template}
 							/>
 						)}
-						{proxy.preferredWildcardHostname !== "" &&
-							agent.display_apps.includes("port_forwarding_helper") && (
-								<PortForwardButton
-									host={proxy.preferredWildcardHostname}
-									workspaceName={workspace.name}
-									agent={agent}
-									username={workspace.owner_username}
-									workspaceID={workspace.id}
-									template={template}
-								/>
-							)}
-					</div>
-				)}
+				</div>
 			</header>
 
 			<div css={styles.content}>
@@ -239,17 +224,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 							<>
 								{showVSCode && (
 									<VSCodeDesktopButton
-										userName={workspace.owner_username}
+										userName={workspace.owner_name}
 										workspaceName={workspace.name}
 										agentName={agent.name}
 										folderPath={agent.expanded_directory}
 										displayApps={agent.display_apps}
 									/>
 								)}
-								{visibleApps.map((app) => (
-									<AppLink
-										key={app.slug}
-										app={app}
+								{appSections.map((section, i) => (
+									<Apps
+										key={section.group ?? i}
+										section={section}
 										agent={agent}
 										workspace={workspace}
 									/>
@@ -257,11 +242,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 							</>
 						)}
 
-						{showBuiltinApps && agent.display_apps.includes("web_terminal") && (
+						{agent.display_apps.includes("web_terminal") && (
 							<TerminalLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
-								userName={workspace.owner_username}
+								userName={workspace.owner_name}
 							/>
 						)}
 					</section>
@@ -300,10 +285,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				<AgentMetadata
-					storybookMetadata={storybookAgentMetadata}
-					agent={agent}
-				/>
+				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
 			{hasStartupFeatures && (
@@ -322,7 +304,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map<Line>((l) => ({
+									logs={startupLogs.map((l) => ({
 										id: l.id,
 										level: l.level,
 										output: l.output,
@@ -350,6 +332,93 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</section>
 			)}
 		</Stack>
+	);
+};
+
+type AppSection = {
+	/**
+	 * If there is no `group`, just render all of the apps inline. If there is a
+	 * group name, show them all in a dropdown.
+	 */
+	group?: string;
+
+	apps: WorkspaceApp[];
+};
+
+/**
+ * organizeAgentApps returns an ordering of agent apps that accounts for
+ * grouping. When we receive the list of apps from the backend, they have
+ * already been "ordered" by their `order` attribute, but we are not given that
+ * value. We must be careful to preserve that ordering, while also properly
+ * grouping together all apps of any given group.
+ *
+ * The position of the group overall is determined by the `order` position of
+ * the first app in the group. There may be several sections returned without
+ * a group name, to allow placing grouped apps in between non-grouped apps. Not
+ * every ungrouped section is expected to have a group in between, to make the
+ * algorithm a little simpler to implement.
+ */
+export function organizeAgentApps(apps: readonly WorkspaceApp[]): AppSection[] {
+	let currentSection: AppSection | undefined = undefined;
+	const appGroups: AppSection[] = [];
+	const groupsByName = new Map<string, AppSection>();
+
+	for (const app of apps) {
+		if (app.hidden) {
+			continue;
+		}
+
+		if (!currentSection || app.group !== currentSection.group) {
+			const existingSection = groupsByName.get(app.group!);
+			if (existingSection) {
+				currentSection = existingSection;
+			} else {
+				currentSection = {
+					group: app.group,
+					apps: [],
+				};
+				appGroups.push(currentSection);
+				if (app.group) {
+					groupsByName.set(app.group, currentSection);
+				}
+			}
+		}
+
+		currentSection.apps.push(app);
+	}
+
+	return appGroups;
+}
+
+type AppsProps = {
+	section: AppSection;
+	agent: WorkspaceAgent;
+	workspace: Workspace;
+};
+
+const Apps: FC<AppsProps> = ({ section, agent, workspace }) => {
+	return section.group ? (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<AgentButton>
+					<Folder />
+					{section.group}
+				</AgentButton>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start">
+				{section.apps.map((app) => (
+					<DropdownMenuItem key={app.slug}>
+						<AppLink grouped app={app} agent={agent} workspace={workspace} />
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	) : (
+		<>
+			{section.apps.map((app) => (
+				<AppLink key={app.slug} app={app} agent={agent} workspace={workspace} />
+			))}
+		</>
 	);
 };
 

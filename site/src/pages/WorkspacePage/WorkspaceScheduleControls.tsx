@@ -123,7 +123,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
 	const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {
 		queryClient.setQueryData(
-			workspaceByOwnerAndNameKey(workspace.owner_username, workspace.name),
+			workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
 			{
 				...workspace,
 				latest_build: {

@@ -167,6 +167,7 @@ export const withProxyProvider =
 		return (
 			<ProxyContext.Provider
 				value={{
+					latenciesLoaded: true,
 					proxyLatencies: MockProxyLatencies,
 					proxy: getPreferredProxy([], undefined),
 					proxies: [],

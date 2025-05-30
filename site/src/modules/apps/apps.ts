@@ -105,7 +105,7 @@ export const getAppHref = (
 		// Terminal links are relative. The terminal page knows how
 		// to select the correct workspace proxy for the websocket
 		// connection.
-		return `/@${workspace.owner_username}/${workspace.name}.${
+		return `/@${workspace.owner_name}/${workspace.name}.${
 			agent.name
 		}/terminal?command=${encodeURIComponent(app.command)}`;
 	}
@@ -119,7 +119,7 @@ export const getAppHref = (
 
 	// The backend redirects if the trailing slash isn't included, so we add it
 	// here to avoid extra roundtrips.
-	return `${path}/@${workspace.owner_username}/${workspace.name}.${
+	return `${path}/@${workspace.owner_name}/${workspace.name}.${
 		agent.name
 	}/apps/${encodeURIComponent(app.slug)}/`;
 };

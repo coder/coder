@@ -15,6 +15,7 @@ import { withDesktopViewport } from "testHelpers/storybook";
 import { ProxyMenu } from "./ProxyMenu";
 
 const defaultProxyContextValue = {
+	latenciesLoaded: true,
 	proxyLatencies: MockProxyLatencies,
 	proxy: getPreferredProxy(MockWorkspaceProxies, undefined),
 	proxies: MockWorkspaceProxies,

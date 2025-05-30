@@ -130,11 +130,29 @@ data "coder_parameter" "image_type" {
   }
 }
 
+locals {
+  default_regions = {
+    // keys should match group names
+    "north-america" : "us-pittsburgh"
+    "europe" : "eu-helsinki"
+    "australia" : "ap-sydney"
+    "south-america" : "sa-saopaulo"
+    "africa" : "za-cpt"
+  }
+
+  user_groups = data.coder_workspace_owner.me.groups
+  user_region = coalescelist([
+    for g in local.user_groups :
+    local.default_regions[g] if contains(keys(local.default_regions), g)
+  ], ["us-pittsburgh"])[0]
+}
+
+
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
   icon    = "/emojis/1f30e.png"
-  default = "us-pittsburgh"
+  default = local.user_region
   option {
     icon  = "/emojis/1f1fa-1f1f8.png"
     name  = "Pittsburgh"
@@ -267,14 +285,11 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count    = data.coder_workspace.me.start_count
-  source   = "git::https://github.com/coder/modules.git//jetbrains?ref=jetbrains"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
-  options  = ["WS", "GO"]
-  default  = "GO"
-  latest   = true
-  channel  = "eap"
+  count         = data.coder_workspace.me.start_count
+  source        = "git::https://github.com/coder/registry.git//registry/coder/modules/jetbrains?ref=jetbrains"
+  agent_id      = coder_agent.dev.id
+  folder        = local.repo_dir
+  major_version = "latest"
 }
 
 module "filebrowser" {

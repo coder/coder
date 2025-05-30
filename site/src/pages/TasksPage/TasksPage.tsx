@@ -49,6 +49,7 @@ import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
+import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
@@ -204,7 +205,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 				<label htmlFor="prompt" className="sr-only">
 					Prompt
 				</label>
-				<textarea
+				<TextareaAutosize
 					required
 					id="prompt"
 					name="prompt"
@@ -212,7 +213,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
 						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between pt-2">
 					<Select name="templateID" defaultValue={templates[0].id} required>
 						<SelectTrigger className="w-52 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
 							<SelectValue placeholder="Select a template" />
@@ -222,7 +223,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 								return (
 									<SelectItem value={template.id} key={template.id}>
 										<span className="overflow-hidden text-ellipsis block">
-											{template.display_name ?? template.name}
+											{template.display_name || template.name}
 										</span>
 									</SelectItem>
 								);
@@ -318,7 +319,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 												{prompt}
 											</span>
 											<RouterLink
-												to={`/tasks/${workspace.owner_username}/${workspace.name}`}
+												to={`/tasks/${workspace.owner_name}/${workspace.name}`}
 												className="absolute inset-0"
 											>
 												<span className="sr-only">Access task</span>
@@ -341,7 +342,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 							</TableCell>
 							<TableCell>
 								<AvatarData
-									title={workspace.owner_username}
+									title={workspace.owner_name}
 									subtitle={
 										<span className="block first-letter:uppercase">
 											{relativeTime(new Date(workspace.created_at))}

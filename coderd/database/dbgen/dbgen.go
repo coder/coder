@@ -992,6 +992,7 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 		Name:                takeFirst(orig.Name, testutil.GetRandomName(t)),
 		Description:         takeFirst(orig.Description, testutil.GetRandomName(t)),
 		Type:                takeFirst(orig.Type, "string"),
+		FormType:            orig.FormType, // empty string is ok!
 		Mutable:             takeFirst(orig.Mutable, false),
 		DefaultValue:        takeFirst(orig.DefaultValue, testutil.GetRandomName(t)),
 		Icon:                takeFirst(orig.Icon, testutil.GetRandomName(t)),

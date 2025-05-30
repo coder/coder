@@ -180,8 +180,28 @@ type ReportTaskArgs struct {
 
 var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        "coder_report_task",
-		Description: "Report progress on a user task in Coder.",
+		Name: "coder_report_task",
+		Description: `Report progress on your work.
+
+The user observes your work through a Task UI. To keep them updated
+on your progress, or if you need help - use this tool.
+
+Good Tasks
+- "Cloning the repository <repository-url>"
+- "Working on <feature-name>"
+- "Figuring our why <issue> is happening"
+
+Bad Tasks
+- "I'm working on it"
+- "I'm trying to fix it"
+- "I'm trying to implement <feature-name>"
+
+Use the "state" field to indicate your progress. Periodically report
+progress to keep the user updated. It is not possible to send too many updates!
+
+After you complete your work, ALWAYS send a "complete" or "failure" state. Only report
+these states if you are finished, not if you are working on it.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"summary": map[string]any{

@@ -84,6 +84,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 						value={value}
 						onChange={onChange}
 						disabled={disabled}
+						isPreset={isPreset}
 					/>
 				) : (
 					<ParameterField
@@ -231,6 +232,7 @@ interface DebouncedParameterFieldProps {
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
+	isPreset?: boolean;
 }
 
 const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
@@ -239,6 +241,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	onChange,
 	disabled,
 	id,
+	isPreset,
 }) => {
 	const [localValue, setLocalValue] = useState(
 		value !== undefined ? value : validValue(parameter.value),
@@ -251,19 +254,26 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 	// This is necessary in the case of fields being set by preset parameters
 	useEffect(() => {
-		if (value !== undefined && value !== prevValueRef.current) {
+		if (isPreset && value !== undefined && value !== prevValueRef.current) {
 			setLocalValue(value);
 			prevValueRef.current = value;
 		}
-	}, [value]);
+	}, [value, isPreset]);
 
 	useEffect(() => {
-		if (prevDebouncedValueRef.current !== undefined) {
+		// Only call onChangeEvent if debouncedLocalValue is different from the previously committed value
+		// and it's not the initial undefined state.
+		if (
+			prevDebouncedValueRef.current !== undefined &&
+			prevDebouncedValueRef.current !== debouncedLocalValue
+		) {
 			onChangeEvent(debouncedLocalValue);
 		}
 
+		// Update the ref to the current debounced value for the next comparison
 		prevDebouncedValueRef.current = debouncedLocalValue;
 	}, [debouncedLocalValue, onChangeEvent]);
+
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const resizeTextarea = useEffectEvent(() => {
@@ -513,7 +523,9 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						max={parameter.validations[0]?.validation_max ?? 100}
 						disabled={disabled}
 					/>
-					<span className="w-4 font-medium">{parameter.value.value}</span>
+					<span className="w-4 font-medium">
+						{Number.isFinite(Number(value)) ? value : "0"}
+					</span>
 				</div>
 			);
 		case "error":

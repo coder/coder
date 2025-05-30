@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func TestWorkspace(t *testing.T) {
@@ -1379,12 +1380,12 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// When we call without includes_deleted, we don't expect to get the workspace back
-		_, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{})
+		_, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.ErrorContains(t, err, "404")
 
 		// Then:
 		// When we call with includes_deleted, we should get the workspace back
-		workspaceNew, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		workspaceNew, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 
@@ -1402,7 +1403,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// We can fetch the most recent workspace
-		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{})
+		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 
@@ -1416,7 +1417,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// When we fetch the deleted workspace, we get the most recently deleted one
-		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerUsername, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		workspaceNew, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
@@ -1901,7 +1902,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, len(workspaces))
 		for _, found := range res.Workspaces {
-			require.Equal(t, found.OwnerUsername, sdkUser.Username)
+			require.Equal(t, found.OwnerName, sdkUser.Username)
 		}
 	})
 	t.Run("IDs", func(t *testing.T) {
@@ -2033,7 +2034,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 		// single workspace
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerUsername, workspace.Name),
+			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
@@ -3527,6 +3528,12 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 		secondParameterDescription         = "_This_ is second *parameter*"
 		secondParameterValue               = "2"
 		secondParameterValidationMonotonic = codersdk.MonotonicOrderIncreasing
+
+		thirdParameterName     = "third_parameter"
+		thirdParameterType     = "list(string)"
+		thirdParameterFormType = proto.ParameterFormType_MULTISELECT
+		thirdParameterDefault  = `["red"]`
+		thirdParameterOption   = "red"
 	)
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -3542,6 +3549,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								Name:        firstParameterName,
 								Type:        firstParameterType,
 								Description: firstParameterDescription,
+								FormType:    proto.ParameterFormType_INPUT,
 							},
 							{
 								Name:                secondParameterName,
@@ -3551,6 +3559,19 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								ValidationMin:       ptr.Ref(int32(1)),
 								ValidationMax:       ptr.Ref(int32(3)),
 								ValidationMonotonic: string(secondParameterValidationMonotonic),
+								FormType:            proto.ParameterFormType_INPUT,
+							},
+							{
+								Name:         thirdParameterName,
+								Type:         thirdParameterType,
+								DefaultValue: thirdParameterDefault,
+								Options: []*proto.RichParameterOption{
+									{
+										Name:  thirdParameterOption,
+										Value: thirdParameterOption,
+									},
+								},
+								FormType: thirdParameterFormType,
 							},
 						},
 					},
@@ -3575,12 +3596,13 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
 	require.NoError(t, err)
-	require.Len(t, templateRichParameters, 2)
+	require.Len(t, templateRichParameters, 3)
 	require.Equal(t, firstParameterName, templateRichParameters[0].Name)
 	require.Equal(t, firstParameterType, templateRichParameters[0].Type)
 	require.Equal(t, firstParameterDescription, templateRichParameters[0].Description)
 	require.Equal(t, firstParameterDescriptionPlaintext, templateRichParameters[0].DescriptionPlaintext)
 	require.Equal(t, codersdk.ValidationMonotonicOrder(""), templateRichParameters[0].ValidationMonotonic) // no validation for string
+
 	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
 	require.Equal(t, secondParameterDisplayName, templateRichParameters[1].DisplayName)
 	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
@@ -3588,9 +3610,18 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
 	require.Equal(t, secondParameterValidationMonotonic, templateRichParameters[1].ValidationMonotonic)
 
+	third := templateRichParameters[2]
+	require.Equal(t, thirdParameterName, third.Name)
+	require.Equal(t, thirdParameterType, third.Type)
+	require.Equal(t, string(database.ParameterFormTypeMultiSelect), third.FormType)
+	require.Equal(t, thirdParameterDefault, third.DefaultValue)
+	require.Equal(t, thirdParameterOption, third.Options[0].Name)
+	require.Equal(t, thirdParameterOption, third.Options[0].Value)
+
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterValue},
 		{Name: secondParameterName, Value: secondParameterValue},
+		{Name: thirdParameterName, Value: thirdParameterDefault},
 	}
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -3604,6 +3635,72 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestWorkspaceWithMultiSelectFailure(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         "param",
+								Type:         provider.OptionTypeListString,
+								DefaultValue: `["red"]`,
+								Options: []*proto.RichParameterOption{
+									{
+										Name:  "red",
+										Value: "red",
+									},
+								},
+								FormType: proto.ParameterFormType_MULTISELECT,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 1)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		// purple is not in the response set
+		{Name: "param", Value: `["red", "purple"]`},
+	}
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	req := codersdk.CreateWorkspaceRequest{
+		TemplateID:          template.ID,
+		Name:                coderdtest.RandomUsername(t),
+		AutostartSchedule:   ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:           ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutomaticUpdates:    codersdk.AutomaticUpdatesNever,
+		RichParameterValues: expectedBuildParameters,
+	}
+
+	_, err = client.CreateUserWorkspace(context.Background(), codersdk.Me, req)
+	require.Error(t, err)
+	var apiError *codersdk.Error
+	require.ErrorAs(t, err, &apiError)
+	require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
 }
 
 func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
