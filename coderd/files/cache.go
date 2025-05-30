@@ -19,14 +19,17 @@ import (
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
 func NewFromStore(store database.Store, registerer prometheus.Registerer) *Cache {
-	fetch := func(ctx context.Context, fileID uuid.UUID) (fs.FS, int64, error) {
+	fetch := func(ctx context.Context, fileID uuid.UUID) (cacheEntryValue, error) {
 		file, err := store.GetFileByID(ctx, fileID)
 		if err != nil {
-			return nil, 0, xerrors.Errorf("failed to read file from database: %w", err)
+			return cacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
 		}
 
 		content := bytes.NewBuffer(file.Data)
-		return archivefs.FromTarReader(content), int64(content.Len()), nil
+		return cacheEntryValue{
+			FS:   archivefs.FromTarReader(content),
+			size: int64(content.Len()),
+		}, nil
 	}
 
 	return New(fetch, registerer)
@@ -100,6 +103,10 @@ type Cache struct {
 	fetcher
 
 	// metrics
+	cacheMetrics
+}
+
+type cacheMetrics struct {
 	currentOpenFileReferences prometheus.Gauge
 	totalOpenFileReferences   prometheus.Counter
 
@@ -111,7 +118,7 @@ type Cache struct {
 }
 
 type cacheEntryValue struct {
-	dir  fs.FS
+	fs.FS
 	size int64
 }
 
@@ -121,7 +128,7 @@ type cacheEntry struct {
 	value    *lazy.ValueWithError[cacheEntryValue]
 }
 
-type fetcher func(context.Context, uuid.UUID) (dir fs.FS, size int64, err error)
+type fetcher func(context.Context, uuid.UUID) (cacheEntryValue, error)
 
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
@@ -136,8 +143,9 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 	it, err := c.prepare(ctx, fileID).Load()
 	if err != nil {
 		c.Release(fileID)
+		return nil, err
 	}
-	return it.dir, err
+	return it.FS, err
 }
 
 func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[cacheEntryValue] {
@@ -147,18 +155,15 @@ func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithEr
 	entry, ok := c.data[fileID]
 	if !ok {
 		value := lazy.NewWithError(func() (cacheEntryValue, error) {
-			dir, size, err := c.fetcher(ctx, fileID)
+			val, err := c.fetcher(ctx, fileID)
 
 			// Always add to the cache size the bytes of the file loaded.
 			if err == nil {
-				c.currentCacheSize.Add(float64(size))
-				c.totalCacheSize.Add(float64(size))
+				c.currentCacheSize.Add(float64(val.size))
+				c.totalCacheSize.Add(float64(val.size))
 			}
 
-			return cacheEntryValue{
-				dir:  dir,
-				size: size,
-			}, err
+			return val, err
 		})
 
 		entry = &cacheEntry{

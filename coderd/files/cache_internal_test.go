@@ -2,7 +2,6 @@ package files
 
 import (
 	"context"
-	"io/fs"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,12 +27,12 @@ func TestConcurrency(t *testing.T) {
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	var fetches atomic.Int64
 	reg := prometheus.NewRegistry()
-	c := New(func(_ context.Context, _ uuid.UUID) (fs.FS, int64, error) {
+	c := New(func(_ context.Context, _ uuid.UUID) (cacheEntryValue, error) {
 		fetches.Add(1)
 		// Wait long enough before returning to make sure that all of the goroutines
 		// will be waiting in line, ensuring that no one duplicated a fetch.
 		time.Sleep(testutil.IntervalMedium)
-		return emptyFS, fileSize, nil
+		return cacheEntryValue{FS: emptyFS, size: fileSize}, nil
 	}, reg)
 
 	batches := 1000
@@ -79,8 +78,11 @@ func TestRelease(t *testing.T) {
 	const fileSize = 10
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	reg := prometheus.NewRegistry()
-	c := New(func(_ context.Context, _ uuid.UUID) (fs.FS, int64, error) {
-		return emptyFS, fileSize, nil
+	c := New(func(_ context.Context, _ uuid.UUID) (cacheEntryValue, error) {
+		return cacheEntryValue{
+			FS:   emptyFS,
+			size: fileSize,
+		}, nil
 	}, reg)
 
 	batches := 100
