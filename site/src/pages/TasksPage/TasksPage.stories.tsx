@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
+import { MockUsers } from "pages/UsersPage/storybookData/users";
 import {
 	MockTemplate,
 	MockUserOwner,
@@ -20,6 +22,12 @@ const meta: Meta<typeof TasksPage> = {
 	decorators: [withAuthProvider],
 	parameters: {
 		user: MockUserOwner,
+	},
+	beforeEach: () => {
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: MockUsers,
+			count: MockUsers.length,
+		});
 	},
 };
 
@@ -62,7 +70,8 @@ export const LoadingTasks: Story = {
 		const canvas = within(canvasElement);
 
 		await step("Select the first AI template", async () => {
-			const combobox = await canvas.findByRole("combobox");
+			const form = await canvas.findByRole("form");
+			const combobox = await within(form).findByRole("combobox");
 			expect(combobox).toHaveTextContent(MockTemplate.display_name);
 		});
 	},
@@ -94,37 +103,40 @@ export const LoadedTasks: Story = {
 	},
 };
 
+const newTaskData = {
+	prompt: "Create a new task",
+	workspace: {
+		...MockWorkspace,
+		id: "workspace-4",
+		latest_app_status: {
+			...MockWorkspaceAppStatus,
+			message: "Task created successfully!",
+		},
+	},
+};
+
 export const CreateTaskSuccessfully: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
-		spyOn(data, "createTask").mockImplementation((prompt: string) => {
-			return Promise.resolve({
-				prompt,
-				workspace: {
-					...MockWorkspace,
-					latest_app_status: {
-						...MockWorkspaceAppStatus,
-						message: "Task created successfully!",
-					},
-				},
-			});
-		});
+		spyOn(data, "fetchTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([newTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(newTaskData);
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 
 		await step("Run task", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, "Create a new task");
+			await userEvent.type(prompt, newTaskData.prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			await userEvent.click(submitButton);
 		});
 
 		await step("Verify task in the table", async () => {
 			await canvas.findByRole("row", {
-				name: /create a new task/i,
+				name: new RegExp(newTaskData.prompt, "i"),
 			});
 		});
 	},

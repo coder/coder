@@ -77,7 +77,7 @@ const TasksPage: FC = () => {
 	const [filter, setFilter] = useState<TasksFilter>({
 		user: {
 			value: user.username,
-			label: user.name ?? user.username,
+			label: user.name || user.username,
 			avatarUrl: user.avatar_url,
 		},
 	});
@@ -179,12 +179,9 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
 			data.createTask(prompt, user.id, templateId),
-		onSuccess: (newTask) => {
-			// The current data loading is heavy, so we manually update the cache to
-			// avoid re-fetching. Once we improve data loading, we can replace the
-			// manual update with queryClient.invalidateQueries.
-			queryClient.setQueryData<Task[]>(["tasks"], (oldTasks = []) => {
-				return [newTask, ...oldTasks];
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["tasks"],
 			});
 		},
 	});
@@ -218,6 +215,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		<form
 			className="border border-border border-solid rounded-lg p-4"
 			onSubmit={onSubmit}
+			aria-label="Create AI task"
 		>
 			<fieldset disabled={createTaskMutation.isPending}>
 				<label htmlFor="prompt" className="sr-only">

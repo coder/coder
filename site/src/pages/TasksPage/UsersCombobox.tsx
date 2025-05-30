@@ -49,7 +49,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 	});
 
 	const options = usersQuery.data?.map((user) => ({
-		label: user.name ?? user.username,
+		label: user.name || user.username,
 		value: user.username,
 		avatarUrl: user.avatar_url,
 	}));
