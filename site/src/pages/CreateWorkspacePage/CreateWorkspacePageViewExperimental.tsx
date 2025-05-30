@@ -179,7 +179,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [error]);
 
 	useEffect(() => {
-		if (form.submitCount > 0 && form.errors) {
+		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",
 				block: "center",
