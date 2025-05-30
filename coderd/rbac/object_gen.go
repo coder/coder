@@ -222,6 +222,22 @@ var (
 		Type: "organization_member",
 	}
 
+	// ResourcePrebuiltWorkspace
+	// Valid Actions
+	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
+	//  - "ActionCreate" :: create a new workspace
+	//  - "ActionCreateAgent" :: create a new workspace agent
+	//  - "ActionDelete" :: delete workspace
+	//  - "ActionDeleteAgent" :: delete an existing workspace agent
+	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionSSH" :: ssh into a given workspace
+	//  - "ActionWorkspaceStart" :: allows starting a workspace
+	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
+	ResourcePrebuiltWorkspace = Object{
+		Type: "prebuilt_workspace",
+	}
+
 	// ResourceProvisionerDaemon
 	// Valid Actions
 	//  - "ActionCreate" :: create a provisioner daemon/key
@@ -389,6 +405,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,
 		ResourceReplicas,
