@@ -9964,6 +9964,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
 		OpenIn:               arg.OpenIn,
+		DisplayGroup:         arg.DisplayGroup,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
