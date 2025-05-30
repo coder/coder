@@ -32,13 +32,18 @@ import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { type UserOption, UsersCombobox } from "./UsersCombobox";
+
+type TasksFilter = {
+	user: UserOption | undefined;
+};
 
 const TasksPage: FC = () => {
 	const {
@@ -49,6 +54,14 @@ const TasksPage: FC = () => {
 		queryKey: ["templates", "ai"],
 		queryFn: data.fetchAITemplates,
 		...disabledRefetchOptions,
+	});
+	const { user, permissions } = useAuthenticated();
+	const [filter, setFilter] = useState<TasksFilter>({
+		user: {
+			value: user.username,
+			label: user.name || user.username,
+			avatarUrl: user.avatar_url,
+		},
 	});
 
 	let content: ReactNode = null;
@@ -91,7 +104,10 @@ const TasksPage: FC = () => {
 			) : (
 				<>
 					<TaskForm templates={templates} />
-					<TasksTable templates={templates} />
+					{permissions.viewDeploymentConfig && (
+						<TasksFilter filter={filter} onFilterChange={setFilter} />
+					)}
+					<TasksTable templates={templates} filter={filter} />
 				</>
 			);
 	} else {
@@ -147,12 +163,9 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
 			data.createTask(prompt, user.id, templateId),
-		onSuccess: (newTask) => {
-			// The current data loading is heavy, so we manually update the cache to
-			// avoid re-fetching. Once we improve data loading, we can replace the
-			// manual update with queryClient.invalidateQueries.
-			queryClient.setQueryData<Task[]>(["tasks"], (oldTasks = []) => {
-				return [newTask, ...oldTasks];
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["tasks"],
 			});
 		},
 	});
@@ -186,6 +199,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		<form
 			className="border border-border border-solid rounded-lg p-4"
 			onSubmit={onSubmit}
+			aria-label="Create AI task"
 		>
 			<fieldset disabled={createTaskMutation.isPending}>
 				<label htmlFor="prompt" className="sr-only">
@@ -229,18 +243,43 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	);
 };
 
-type TasksTableProps = {
-	templates: Template[];
+type TasksFilterProps = {
+	filter: TasksFilter;
+	onFilterChange: (filter: TasksFilter) => void;
 };
 
-const TasksTable: FC<TasksTableProps> = ({ templates }) => {
+const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
+	return (
+		<section className="mt-6" aria-labelledby="filters-title">
+			<h3 id="filters-title" className="sr-only">
+				Filters
+			</h3>
+			<UsersCombobox
+				selectedOption={filter.user}
+				onSelect={(userOption) =>
+					onFilterChange({
+						...filter,
+						user: userOption,
+					})
+				}
+			/>
+		</section>
+	);
+};
+
+type TasksTableProps = {
+	templates: Template[];
+	filter: TasksFilter;
+};
+
+const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 	const {
 		data: tasks,
 		error,
 		refetch,
 	} = useQuery({
-		queryKey: ["tasks"],
-		queryFn: () => data.fetchTasks(templates),
+		queryKey: ["tasks", filter],
+		queryFn: () => data.fetchTasks(templates, filter),
 		refetchInterval: 10_000,
 	});
 
@@ -397,11 +436,16 @@ export const data = {
 	// template individually and its build parameters resulting in excessive API
 	// calls and slow performance. Consider implementing a backend endpoint that
 	// returns all AI-related workspaces in a single request to improve efficiency.
-	async fetchTasks(aiTemplates: Template[]) {
+	async fetchTasks(aiTemplates: Template[], filter: TasksFilter) {
 		const workspaces = await Promise.all(
 			aiTemplates.map((template) => {
+				const queryParts = [`template:${template.name}`];
+				if (filter.user) {
+					queryParts.push(`owner:${filter.user.value}`);
+				}
+
 				return API.getWorkspaces({
-					q: `template:${template.name}`,
+					q: queryParts.join(" "),
 					limit: 100,
 				});
 			}),
