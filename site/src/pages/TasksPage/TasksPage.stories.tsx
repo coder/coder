@@ -23,8 +23,8 @@ const meta: Meta<typeof TasksPage> = {
 	parameters: {
 		user: MockUserOwner,
 		permissions: {
-			viewDeploymentConfig: true
-		}
+			viewDeploymentConfig: true,
+		},
 	},
 	beforeEach: () => {
 		spyOn(API, "getUsers").mockResolvedValue({
@@ -177,8 +177,8 @@ export const NonAdmin: Story = {
 	decorators: [withProxyProvider()],
 	parameters: {
 		permissions: {
-			viewDeploymentConfig: false
-		}
+			viewDeploymentConfig: false,
+		},
 	},
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
@@ -188,8 +188,10 @@ export const NonAdmin: Story = {
 		const canvas = within(canvasElement);
 
 		await step("Can't see filters", async () => {
-			await canvas.findByRole("table")
-			expect(canvas.queryByRole("region", { name: /filters/i})).not.toBeInTheDocument();
+			await canvas.findByRole("table");
+			expect(
+				canvas.queryByRole("region", { name: /filters/i }),
+			).not.toBeInTheDocument();
 		});
 	},
 };

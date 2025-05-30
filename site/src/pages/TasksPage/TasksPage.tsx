@@ -32,11 +32,7 @@ import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import {
-	type FC,
-	type ReactNode,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
@@ -108,7 +104,9 @@ const TasksPage: FC = () => {
 			) : (
 				<>
 					<TaskForm templates={templates} />
-					{permissions.viewDeploymentConfig && <TasksFilter filter={filter} onFilterChange={setFilter} />}
+					{permissions.viewDeploymentConfig && (
+						<TasksFilter filter={filter} onFilterChange={setFilter} />
+					)}
 					<TasksTable templates={templates} filter={filter} />
 				</>
 			);
@@ -253,7 +251,9 @@ type TasksFilterProps = {
 const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
 	return (
 		<section className="mt-6" aria-labelledby="filters-title">
-			<h3 id="filters-title" className="sr-only">Filters</h3>
+			<h3 id="filters-title" className="sr-only">
+				Filters
+			</h3>
 			<UsersCombobox
 				selectedOption={filter.user}
 				onSelect={(userOption) =>
