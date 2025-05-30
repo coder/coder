@@ -163,10 +163,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// This is used to show the parent apps of the devcontainer.
 	const [showParentApps, setShowParentApps] = useState(false);
 
-	const shouldDisplayAppsSection =
-		agent.status === "connected" &&
-		containers &&
-		(containers.length > 0 ? showParentApps : true);
+	let shouldDisplayAppsSection = shouldDisplayAgentApps;
+	if (containers && containers.length > 0 && !showParentApps) {
+		shouldDisplayAppsSection = false;
+	}
 
 	return (
 		<Stack
