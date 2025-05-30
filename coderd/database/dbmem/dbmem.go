@@ -5131,7 +5131,9 @@ func (q *FakeQuerier) GetTelemetryItem(_ context.Context, key string) (database.
 }
 
 func (q *FakeQuerier) GetTelemetryItems(_ context.Context) ([]database.TelemetryItem, error) {
-	return q.telemetryItems, nil
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	return slices.Clone(q.telemetryItems), nil
 }
 
 func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
