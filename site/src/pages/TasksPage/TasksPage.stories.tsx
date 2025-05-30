@@ -22,6 +22,9 @@ const meta: Meta<typeof TasksPage> = {
 	decorators: [withAuthProvider],
 	parameters: {
 		user: MockUserOwner,
+		permissions: {
+			viewDeploymentConfig: true
+		}
 	},
 	beforeEach: () => {
 		spyOn(API, "getUsers").mockResolvedValue({
@@ -166,6 +169,27 @@ export const CreateTaskError: Story = {
 
 		await step("Verify error", async () => {
 			await canvas.findByText(/failed to create task/i);
+		});
+	},
+};
+
+export const NonAdmin: Story = {
+	decorators: [withProxyProvider()],
+	parameters: {
+		permissions: {
+			viewDeploymentConfig: false
+		}
+	},
+	beforeEach: () => {
+		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Can't see filters", async () => {
+			await canvas.findByRole("table")
+			expect(canvas.queryByRole("region", { name: /filters/i})).not.toBeInTheDocument();
 		});
 	},
 };

@@ -73,7 +73,7 @@ const TasksPage: FC = () => {
 		queryFn: data.fetchAITemplates,
 		...disabledRefetchOptions,
 	});
-	const { user } = useAuthenticated();
+	const { user, permissions } = useAuthenticated();
 	const [filter, setFilter] = useState<TasksFilter>({
 		user: {
 			value: user.username,
@@ -122,7 +122,7 @@ const TasksPage: FC = () => {
 			) : (
 				<>
 					<TaskForm templates={templates} />
-					<TasksFilter filter={filter} onFilterChange={setFilter} />
+					{permissions.viewDeploymentConfig && <TasksFilter filter={filter} onFilterChange={setFilter} />}
 					<TasksTable templates={templates} filter={filter} />
 				</>
 			);
@@ -266,7 +266,8 @@ type TasksFilterProps = {
 
 const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
 	return (
-		<div className="pt-6 pb-4">
+		<section className="mt-6" aria-labelledby="filters-title">
+			<h3 id="filters-title" className="sr-only">Filters</h3>
 			<UsersCombobox
 				selectedOption={filter.user}
 				onSelect={(userOption) =>
@@ -276,7 +277,7 @@ const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
 					})
 				}
 			/>
-		</div>
+		</section>
 	);
 };
 
@@ -419,7 +420,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 	}
 
 	return (
-		<Table>
+		<Table className="mt-4">
 			<TableHeader>
 				<TableRow>
 					<TableHead>Task</TableHead>
