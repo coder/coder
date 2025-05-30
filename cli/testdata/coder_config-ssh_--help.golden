@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder config-ssh [flags]
 
-  Add an SSH Host entry for your workspaces "ssh coder.workspace"
+  Add an SSH Host entry for your workspaces "ssh workspace.coder"
 
     - You can use -o (or --ssh-option) so set SSH options to be used for all
   your
