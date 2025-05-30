@@ -205,8 +205,29 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 			<header className="flex flex-col items-start gap-2">
 				<span className="flex flex-row items-center gap-2 justify-between w-full">
-					<h1 className="text-3xl m-0">Workspace parameters</h1>
-
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl m-0">Workspace parameters</h1>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
 					{experimentalFormContext && (
 						<Button
 							size="sm"
@@ -218,33 +239,11 @@ const WorkspaceParametersPageExperimental: FC = () => {
 						</Button>
 					)}
 				</span>
-				<span className="flex flex-row items-center gap-2">
-					<FeatureStageBadge
-						contentType={"early_access"}
-						size="sm"
-						labelText="Dynamic parameters"
-					/>
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<CircleHelp className="size-icon-xs text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent className="max-w-xs text-sm">
-								Dynamic Parameters enhances Coder's existing parameter system
-								with real-time validation, conditional parameter behavior, and
-								richer input types.
-								<br />
-								<Link
-									href={docs(
-										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
-									)}
-								>
-									View docs
-								</Link>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</span>
+				<FeatureStageBadge
+					contentType={"early_access"}
+					size="sm"
+					labelText="Dynamic parameters"
+				/>
 			</header>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
