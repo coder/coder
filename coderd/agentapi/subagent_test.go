@@ -177,7 +177,7 @@ func TestSubAgentAPI(t *testing.T) {
 			{
 				name: "OK",
 				apps: []*proto.CreateSubAgentRequest_App{
-					&proto.CreateSubAgentRequest_App{
+					{
 						Slug:        "code-server",
 						DisplayName: ptr.Ref("VS Code"),
 						Icon:        ptr.Ref("/icon/code.svg"),
@@ -191,7 +191,7 @@ func TestSubAgentAPI(t *testing.T) {
 							Url:       "http://localhost:13337/healthz",
 						},
 					},
-					&proto.CreateSubAgentRequest_App{
+					{
 						Slug:        "vim",
 						Command:     ptr.Ref("vim"),
 						DisplayName: ptr.Ref("Vim"),
@@ -262,10 +262,10 @@ func TestSubAgentAPI(t *testing.T) {
 
 					// Sort the apps for determinism
 					slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
-						return cmp.Compare(string(a.Slug), string(b.Slug))
+						return cmp.Compare(a.Slug, b.Slug)
 					})
 					slices.SortFunc(tt.expectApps, func(a, b database.WorkspaceApp) int {
-						return cmp.Compare(string(a.Slug), string(b.Slug))
+						return cmp.Compare(a.Slug, b.Slug)
 					})
 
 					require.Len(t, apps, len(tt.expectApps))

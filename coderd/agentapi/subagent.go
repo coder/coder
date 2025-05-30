@@ -98,8 +98,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		}
 
 		openIn := database.WorkspaceAppOpenInSlimWindow
-		switch app.GetOpenIn() {
-		case agentproto.CreateSubAgentRequest_App_TAB:
+		if app.GetOpenIn() == agentproto.CreateSubAgentRequest_App_TAB {
 			openIn = database.WorkspaceAppOpenInTab
 		}
 
