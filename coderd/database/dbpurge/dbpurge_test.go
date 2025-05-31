@@ -21,7 +21,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -47,7 +46,8 @@ func TestPurge(t *testing.T) {
 	// We want to make sure dbpurge is actually started so that this test is meaningful.
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), dbmem.New(), clk)
+	db, _ := dbtestutil.NewDB(t)
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), db, clk)
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
