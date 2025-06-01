@@ -334,11 +334,14 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
 	chmod a=rx /usr/local/bin/cosign && \
 	# Install Bun JavaScript runtime to /usr/local/bin
+	# Ensure unzip is installed right before using it
+	apt-get update && apt-get install -y unzip && \
 	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
 	unzip -q /tmp/bun.zip -d /tmp && \
 	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
 	chmod a=rx /usr/local/bin/bun && \
-	rm -rf /tmp/bun.zip /tmp/bun-linux-x64
+	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141
