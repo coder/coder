@@ -287,7 +287,8 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	TERRAGRUNT_VERSION=0.45.11 \
 	TRIVY_VERSION=0.41.0 \
 	SYFT_VERSION=1.20.0 \
-	COSIGN_VERSION=2.4.3
+	COSIGN_VERSION=2.4.3 \
+	BUN_VERSION=1.2.15
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
@@ -331,7 +332,13 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
 	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
-	chmod a=rx /usr/local/bin/cosign
+	chmod a=rx /usr/local/bin/cosign && \
+	# Install Bun JavaScript runtime to /usr/local/bin
+	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
+	unzip -q /tmp/bun.zip -d /tmp && \
+	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
+	chmod a=rx /usr/local/bin/bun && \
+	rm -rf /tmp/bun.zip /tmp/bun-linux-x64
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141
