@@ -83,7 +83,6 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 }
 
 func TestBigUDP(t *testing.T, logger slog.Logger, _ *url.URL, conn *tailnet.Conn, _, peer Client) {
-
 	t.Run("UDPEcho", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 

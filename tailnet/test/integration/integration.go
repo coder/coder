@@ -19,8 +19,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
-	"tailscale.com/net/packet"
-	"tailscale.com/wgengine/capture"
 	"testing"
 	"time"
 
@@ -30,8 +28,10 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
+	"tailscale.com/net/packet"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/wgengine/capture"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -452,8 +452,7 @@ type UDPEchoService struct{}
 
 func (UDPEchoService) StartService(t *testing.T, logger slog.Logger, _ *tailnet.Conn) {
 	// tailnet doesn't handle UDP connections "in-process" the way we do for TCP, so we need to listen in the OS,
-	// and tailnet will forward
-	//packets.
+	// and tailnet will forward packets.
 	l, err := net.ListenUDP("udp", &net.UDPAddr{
 		IP:   net.IPv6zero, // all interfaces
 		Port: EchoPort,
