@@ -30,7 +30,7 @@ import (
 )
 
 // @Summary Evaluate dynamic parameters for template version
-// @ID evaluate-dynamic-parameters-by-template-version
+// @ID evaluate-dynamic-parameters-for-template-version
 // @Security CoderSessionToken
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)

@@ -5926,7 +5926,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Evaluate dynamic parameters for template version",
-                "operationId": "evaluate-dynamic-parameters-by-template-version",
+                "operationId": "evaluate-dynamic-parameters-for-template-version",
                 "parameters": [
                     {
                         "type": "string",
