@@ -474,13 +474,15 @@ func (UDPEchoService) StartService(t *testing.T, logger slog.Logger, _ *tailnet.
 				logger.Info(context.Background(), "error reading UDPEcho listener", slog.Error(readErr))
 				return
 			}
-			logger.Info(context.Background(), "received UDP packet",
+			logger.Info(context.Background(), "received UDPEcho packet",
 				slog.F("len", n), slog.F("remote", remote))
 			n, writeErr := l.WriteToUDP(buf[:n], remote)
 			if writeErr != nil {
 				logger.Info(context.Background(), "error writing UDPEcho listener", slog.Error(writeErr))
 				return
 			}
+			logger.Info(context.Background(), "wrote UDPEcho packet",
+				slog.F("len", n), slog.F("remote", remote))
 		}
 	}()
 }

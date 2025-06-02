@@ -512,8 +512,8 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 	for _, iface := range interfaces {
 		err = setInterfaceUp(iface.netNS, iface.ifaceName)
 		require.NoErrorf(t, err, "bring up interface %q", iface.ifaceName)
-		// Note: routes are not needed as the interfaces are defined as /24, and we are fully connected, so nothing
-		// needs to forward IP to a further destination.
+		// Note: routes are not needed as we are fully connected, so nothing needs to forward IP to a further
+		// destination.
 	}
 
 	return TestNetworking{
@@ -616,8 +616,8 @@ func createNetNS(t *testing.T, name string) *os.File {
 	})
 
 	// Open /run/netns/$name to get a file descriptor to the network namespace.
-	path := fmt.Sprintf("/run/netns/%s", name)
-	file, err := os.OpenFile(path, os.O_RDONLY, 0)
+	netnsPath := fmt.Sprintf("/run/netns/%s", name)
+	file, err := os.OpenFile(netnsPath, os.O_RDONLY, 0)
 	require.NoError(t, err, "open network namespace file")
 	t.Cleanup(func() {
 		_ = file.Close()
@@ -717,8 +717,8 @@ func setInterfaceIP(netNS *os.File, ifaceName, ip string) error {
 	return nil
 }
 
-// setInterfaceIP sets the IP address on the given interface. It automatically
-// adds a /24 subnet mask.
+// setInterfaceIP6 sets the IPv6 address on the given interface. It automatically
+// adds a /64 subnet mask.
 func setInterfaceIP6(netNS *os.File, ifaceName, ip string) error {
 	_, err := commandInNetNS(netNS, "ip", []string{"addr", "add", ip + "/64", "dev", ifaceName}).Output()
 	if err != nil {
