@@ -209,7 +209,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					required
 					id="prompt"
 					name="prompt"
-					placeholder="Write an action for your AI agent to perform..."
+					placeholder="Prompt your AI agent to start a task..."
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
 						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
