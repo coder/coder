@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -631,6 +632,101 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectNotificationsEnabled, dv.Notifications.Enabled())
+		})
+	}
+}
+
+func TestSessionLifetime_SetParsedRoleLifetimes(t *testing.T) {
+	t.Parallel()
+	sl := &codersdk.SessionLifetime{}
+	expectedMap := map[string]time.Duration{
+		"user-admin": time.Hour * 24,
+		"member":     time.Hour * 8,
+	}
+	sl.SetParsedRoleLifetimes(expectedMap)
+	// We can't directly access parsedRoleLifetimes to assert equality,
+	// but we can verify its behavior through MaxTokenLifetimeForRole.
+	adminRole := rbac.RoleIdentifier{Name: "user-admin"}
+	memberRole := rbac.RoleIdentifier{Name: "member"}
+	assert.Equal(t, time.Hour*24, sl.MaxTokenLifetimeForRole(adminRole), "Admin role lifetime should be set")
+	assert.Equal(t, time.Hour*8, sl.MaxTokenLifetimeForRole(memberRole), "User role lifetime should be set")
+}
+
+func TestSessionLifetime_MaxTokenLifetimeForRole(t *testing.T) {
+	t.Parallel()
+	globalMax := time.Hour * 72
+	roleSpecificMax := time.Hour * 48
+	anotherRoleMax := time.Hour * 24
+
+	tests := []struct {
+		name                string
+		maxTokenDuration    serpent.Duration
+		parsedRoleLifetimes map[string]time.Duration // nil means map not set
+		roleToQuery         string
+		expectedDuration    time.Duration
+	}{
+		{
+			name:                "RoleFound_InParsedMap",
+			maxTokenDuration:    serpent.Duration(globalMax),
+			parsedRoleLifetimes: map[string]time.Duration{"template-admin": roleSpecificMax, "member": anotherRoleMax},
+			roleToQuery:         "template-admin",
+			expectedDuration:    roleSpecificMax,
+		},
+		{
+			name:                "RoleNotFound_InParsedMap_FallsBackToGlobal",
+			maxTokenDuration:    serpent.Duration(globalMax),
+			parsedRoleLifetimes: map[string]time.Duration{"template-admin": roleSpecificMax},
+			roleToQuery:         "user-admin", // Not in map
+			expectedDuration:    globalMax,
+		},
+		{
+			name:                "ParsedMapIsNil_FallsBackToGlobal",
+			maxTokenDuration:    serpent.Duration(globalMax),
+			parsedRoleLifetimes: nil, // Map is explicitly nil
+			roleToQuery:         "anyrole",
+			expectedDuration:    globalMax,
+		},
+		{
+			name:                "ParsedMapIsEmpty_FallsBackToGlobal",
+			maxTokenDuration:    serpent.Duration(globalMax),
+			parsedRoleLifetimes: map[string]time.Duration{}, // Map is empty
+			roleToQuery:         "anyrole",
+			expectedDuration:    globalMax,
+		},
+		{
+			name:                "GlobalMaxIsZero_RoleFound",
+			maxTokenDuration:    serpent.Duration(0), // Global max is 0
+			parsedRoleLifetimes: map[string]time.Duration{"specificrole": time.Hour},
+			roleToQuery:         "specificrole",
+			expectedDuration:    time.Hour,
+		},
+		{
+			name:                "GlobalMaxIsZero_RoleNotFound",
+			maxTokenDuration:    serpent.Duration(0), // Global max is 0
+			parsedRoleLifetimes: map[string]time.Duration{"specificrole": time.Hour},
+			roleToQuery:         "unknownrole",
+			expectedDuration:    0, // Fallback to global max (0)
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sl := &codersdk.SessionLifetime{
+				MaximumTokenDuration: tt.maxTokenDuration,
+			}
+			// SetParsedRoleLifetimes should be called only if tt.parsedRoleLifetimes is not nil.
+			// If tt.parsedRoleLifetimes is nil, sl.parsedRoleLifetimes remains nil by default,
+			// which is one of the conditions we want to test.
+			if tt.parsedRoleLifetimes != nil {
+				sl.SetParsedRoleLifetimes(tt.parsedRoleLifetimes)
+			}
+
+			role, err := rbac.RoleNameFromString(tt.roleToQuery)
+			require.NoError(t, err)
+			actualDuration := sl.MaxTokenLifetimeForRole(role)
+			assert.Equal(t, tt.expectedDuration, actualDuration)
 		})
 	}
 }

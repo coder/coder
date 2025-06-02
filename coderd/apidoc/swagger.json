@@ -14285,6 +14285,10 @@
 				},
 				"max_token_lifetime": {
 					"type": "integer"
+				},
+				"role_token_lifetimes": {
+					"description": "RoleTokenLifetimes is a JSON mapping of role names to maximum token lifetimes.\nOverrides the global max_token_lifetime for specified roles.\nSite-level roles use direct names (e.g., \"admin\"). Organization-level roles use the format \"OrgName/rolename\".\nValues should be Go duration strings (e.g., \"720h\", \"168h\", \"24h\").",
+					"type": "string"
 				}
 			}
 		},

@@ -813,6 +813,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
+			// Process the role-based token lifetime configurations
+			if err := coderd.ProcessRoleTokenLifetimesConfig(ctx, &vals.Sessions, options.Database, options.Logger); err != nil {
+				return xerrors.Errorf("failed to initialize role token lifetimes configuration: %w", err)
+			}
+
 			// Manage push notifications.
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 			if experiments.Enabled(codersdk.ExperimentWebPush) {

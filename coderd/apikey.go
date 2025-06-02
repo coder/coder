@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -75,8 +77,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createToken.Lifetime != 0 {
-		err := api.validateAPIKeyLifetime(createToken.Lifetime)
-		if err != nil {
+		if err := api.validateAPIKeyLifetime(ctx, createToken.Lifetime, user.ID); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to validate create API key request.",
 				Detail:  err.Error(),
@@ -338,33 +339,99 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.TokenConfig
 // @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
-	values, err := api.DeploymentValues.WithoutSecrets()
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	var roleIdentifiers []rbac.RoleIdentifier
+
+	if user.ID != uuid.Nil {
+		subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
+		switch {
+		case err != nil:
+			api.Logger.Error(ctx, "failed to get user RBAC subject for token config", "user_id", user.ID.String(), "error", err)
+			roleIdentifiers = []rbac.RoleIdentifier{}
+		case userStatus == database.UserStatusSuspended:
+			roleIdentifiers = []rbac.RoleIdentifier{}
+		default:
+			// Extract role names from the RBAC subject and convert to internal format
+			roleIdentifiers = subject.Roles.Names()
+		}
+	} else {
+		api.Logger.Warn(ctx, "user ID is nil in token config request context")
+		roleIdentifiers = []rbac.RoleIdentifier{}
 	}
 
+	maxLifetime := api.getMaxTokenLifetimeForUserRoles(roleIdentifiers)
+
 	httpapi.Write(
-		r.Context(), rw, http.StatusOK,
+		ctx, rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: values.Sessions.MaximumTokenDuration.Value(),
+			MaxTokenLifetime: maxLifetime,
 		},
 	)
 }
 
-func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
+func (api *API) validateAPIKeyLifetime(ctx context.Context, lifetime time.Duration, userID uuid.UUID) error {
 	if lifetime <= 0 {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentValues.Sessions.MaximumTokenDuration.Value() {
-		return xerrors.Errorf(
-			"lifetime must be less than %v",
-			api.DeploymentValues.Sessions.MaximumTokenDuration,
-		)
+	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to get user RBAC subject during token validation", "user_id", userID.String(), "error", err)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("user %s not found", userID)
+		}
+		return xerrors.Errorf("internal server error validating token lifetime for user %s", userID)
 	}
 
+	if userStatus == database.UserStatusSuspended {
+		return xerrors.Errorf("user %s is suspended and cannot create tokens", userID)
+	}
+
+	// Extract role names from the RBAC subject and convert to internal format
+	roleIdentifiers := subject.Roles.Names()
+	maxAllowedLifetime := api.getMaxTokenLifetimeForUserRoles(roleIdentifiers)
+
+	if lifetime > maxAllowedLifetime {
+		return xerrors.Errorf(
+			"requested lifetime of %v exceeds the maximum allowed %v based on your roles",
+			lifetime,
+			maxAllowedLifetime,
+		)
+	}
 	return nil
+}
+
+// getMaxTokenLifetimeForUserRoles determines the most generous token lifetime a user is entitled to
+// based on their roles and the CODER_ROLE_TOKEN_LIFETIMES configuration.
+// Roles are expected in the internal format ("rolename" or "rolename:org_id").
+func (api *API) getMaxTokenLifetimeForUserRoles(roles []rbac.RoleIdentifier) time.Duration {
+	globalMaxDefault := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+
+	// Early return for empty config
+	if api.DeploymentValues.Sessions.RoleTokenLifetimes.Value() == "" ||
+		api.DeploymentValues.Sessions.RoleTokenLifetimes.Value() == "{}" {
+		return globalMaxDefault
+	}
+
+	// Early return for no roles
+	if len(roles) == 0 {
+		return globalMaxDefault
+	}
+
+	// Find the maximum lifetime among all roles
+	// This includes both role-specific lifetimes and the global default
+	maxLifetime := globalMaxDefault
+
+	for _, role := range roles {
+		roleDuration := api.DeploymentValues.Sessions.MaxTokenLifetimeForRole(role)
+		if roleDuration > maxLifetime {
+			maxLifetime = roleDuration
+		}
+	}
+
+	return maxLifetime
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {

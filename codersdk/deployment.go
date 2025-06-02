@@ -24,6 +24,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
@@ -461,13 +462,38 @@ type SessionLifetime struct {
 	// keys when they are used from the api. This means the api key lifetime at
 	// creation is the lifetime of the api key.
 	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
-
 	// DefaultDuration is only for browser, workspace app and oauth sessions.
-	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
-
+	DefaultDuration      serpent.Duration `json:"default_duration" typescript:",notnull"`
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
-
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+
+	// RoleTokenLifetimes is a JSON mapping of role names to maximum token lifetimes.
+	// Overrides the global max_token_lifetime for specified roles.
+	// Site-level roles use direct names (e.g., "admin"). Organization-level roles use the format "OrgName/rolename".
+	// Values should be Go duration strings (e.g., "720h", "168h", "24h").
+	RoleTokenLifetimes serpent.String `json:"role_token_lifetimes,omitempty" typescript:",notnull"`
+
+	// parsedRoleLifetimes stores the processed map:
+	// Keys are "rolename" (site) or "rolename:organization_id_uuid" (org).
+	// Values are time.Duration. Populated by coderd at startup.
+	parsedRoleLifetimes map[string]time.Duration // Internal, not serialized
+}
+
+// SetParsedRoleLifetimes allows coderd to inject the fully processed map.
+func (sl *SessionLifetime) SetParsedRoleLifetimes(parsedMap map[string]time.Duration) {
+	sl.parsedRoleLifetimes = parsedMap
+}
+
+// MaxTokenLifetimeForRole returns the max token lifetime for a role.
+// Falls back to global MaximumTokenDuration if the role is not found or map not initialized.
+func (sl *SessionLifetime) MaxTokenLifetimeForRole(roleName rbac.RoleIdentifier) time.Duration {
+	if sl.parsedRoleLifetimes == nil {
+		return sl.MaximumTokenDuration.Value()
+	}
+	if duration, ok := sl.parsedRoleLifetimes[roleName.String()]; ok {
+		return duration
+	}
+	return sl.MaximumTokenDuration.Value()
 }
 
 type DERP struct {
@@ -2341,6 +2367,20 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name: "Role Token Lifetimes",
+			Description: "A JSON mapping of role names to maximum token lifetimes (e.g., `{\"owner\": \"720h\", \"MyOrg/admin\": \"168h\"}`). " +
+				"Overrides the global max_token_lifetime for specified roles. " +
+				"Site-level roles are direct names (e.g., 'admin'). " +
+				"Organization-level roles use the format 'OrgName/rolename'. " +
+				"Durations use Go duration format: hours (h), minutes (m), seconds (s). " +
+				"Common conversions: 1 day = 24h, 7 days = 168h, 30 days = 720h.",
+			Flag:    "role-token-lifetimes",
+			Env:     "CODER_ROLE_TOKEN_LIFETIMES",
+			Default: "{}", // Default to an empty JSON object string
+			Value:   &c.Sessions.RoleTokenLifetimes,
+			YAML:    "roleTokenLifetimes",
+		},
+		{
 			Name:        "Default Token Lifetime",
 			Description: "The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.",
 			Flag:        "default-token-lifetime",
@@ -3106,6 +3146,23 @@ Write out the current server config as YAML to stdout.`,
 	}
 
 	return opts
+}
+
+// Validate checks the deployment values for correctness.
+func (c *DeploymentValues) Validate() error {
+	if val := c.Sessions.RoleTokenLifetimes.Value(); val != "" && val != "{}" {
+		var testMapInterface map[string]interface{} // Use interface{} for flexible value type initially
+		if err := json.Unmarshal([]byte(val), &testMapInterface); err != nil {
+			return xerrors.Errorf("role-token-lifetimes: invalid JSON structure: %w", err)
+		}
+		// Check if values are strings (durations will be parsed later)
+		for key, value := range testMapInterface {
+			if _, ok := value.(string); !ok {
+				return xerrors.Errorf("role-token-lifetimes: value for key %q is not a string duration", key)
+			}
+		}
+	}
+	return nil
 }
 
 type AIProviderConfig struct {
