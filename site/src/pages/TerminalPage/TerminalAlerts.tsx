@@ -195,7 +195,7 @@ const RefreshSessionButton: FC = () => {
 				window.location.reload();
 			}}
 		>
-			{isRefreshing ? "Refreshing session..." : "Refresh session"}
+			{isRefreshing ? "Refreshing session..." : "Refresh Session"}
 		</Button>
 	);
 };

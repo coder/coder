@@ -98,7 +98,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 						</Button>
 					}
 				>
-					SMTP notifications are enabled but not properly configured.
+					SMTP notifications are enabled, but not properly configured.
 				</Alert>
 			)}
 

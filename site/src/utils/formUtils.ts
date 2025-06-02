@@ -13,13 +13,13 @@ const Language = {
 		return name ? `Please enter a ${name.toLowerCase()}.` : "Required";
 	},
 	nameInvalidChars: (): string => {
-		return "Special characters (e.g.: !, @, #) are not supported";
+		return "Special characters (e.g.: !, @, #) are not supported.";
 	},
 	nameTooLong: (name: string, len: number): string => {
-		return `${name} cannot be longer than ${len} characters`;
+		return `${name} cannot be longer than ${len} characters.`;
 	},
 	displayNameInvalidChars: (name: string): string => {
-		return `${name} must start and end with non-whitespace character`;
+		return `${name} must start and end with non-whitespace characters.`;
 	},
 };
 

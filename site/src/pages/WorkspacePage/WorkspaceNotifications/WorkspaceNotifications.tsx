@@ -74,7 +74,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 			});
 		} else {
 			notifications.push({
-				title: "An update is available for your workspace",
+				title: "An update is available for your workspace.",
 				severity: "info",
 				detail: (
 					<TemplateUpdateMessage>{latestVersion.message}</TemplateUpdateMessage>
@@ -93,7 +93,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
 		notifications.push({
-			title: "Workspace is unhealthy",
+			title: "Workspace is unhealthy.",
 			severity: "warning",
 			detail: (
 				<>
@@ -144,7 +144,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		);
 		notifications.push({
 			actions,
-			title: "Workspace is dormant",
+			title: "Workspace is dormant.",
 			severity: "warning",
 			detail: workspace.deleting_at ? (
 				<>
@@ -206,7 +206,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 
 	if (showAlertPendingInQueue) {
 		notifications.push({
-			title: "Workspace build is pending",
+			title: "Workspace build is pending.",
 			severity: "info",
 			detail: (
 				<>
@@ -225,7 +225,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	// Deprecated
 	if (template.deprecated) {
 		notifications.push({
-			title: "This workspace uses a deprecated template",
+			title: "This workspace uses a deprecated template.",
 			severity: "warning",
 			detail: (
 				<MemoizedInlineMarkdown>

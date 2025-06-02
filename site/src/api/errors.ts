@@ -107,7 +107,7 @@ export const getValidationErrorMessage = (error: unknown): string => {
 		isApiError(error) && error.response.data.validations
 			? error.response.data.validations
 			: [];
-	return validationErrors.map((error) => error.detail).join("\n");
+	return validationErrors.map((error) => error.detail).join(". ");
 };
 
 export const getErrorDetail = (error: unknown): string | undefined => {
