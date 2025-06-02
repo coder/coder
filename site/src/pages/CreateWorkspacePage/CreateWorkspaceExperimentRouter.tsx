@@ -47,7 +47,7 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		if (optOutQuery.isLoading) {
 			return <Loader />;
 		}
-		if (!optOutQuery.data) {
+		if (optOutQuery.isError) {
 			return <ErrorAlert error={optOutQuery.error} />;
 		}
 
@@ -64,7 +64,7 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		};
 		return (
 			<ExperimentalFormContext.Provider value={{ toggleOptedOut }}>
-				{optOutQuery.data.optedOut ? (
+				{optOutQuery.data?.optedOut ? (
 					<CreateWorkspacePage />
 				) : (
 					<CreateWorkspacePageExperimental />
