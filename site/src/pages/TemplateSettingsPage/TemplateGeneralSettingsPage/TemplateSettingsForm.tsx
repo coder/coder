@@ -314,6 +314,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 					>
 						<MenuItem value="owner">Owner</MenuItem>
 						<MenuItem value="authenticated">Authenticated</MenuItem>
+						<MenuItem value="organization">Organization</MenuItem>
 						<MenuItem value="public">Public</MenuItem>
 					</TextField>
 					{!portSharingControlsEnabled && (

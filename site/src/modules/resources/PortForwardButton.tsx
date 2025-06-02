@@ -480,6 +480,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												}}
 											>
 												<MenuItem value="authenticated">Authenticated</MenuItem>
+												<MenuItem value="organization">Organization</MenuItem>
 												{canSharePortsPublic ? (
 													<MenuItem value="public">Public</MenuItem>
 												) : (
@@ -547,6 +548,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									label="Sharing Level"
 								>
 									<MenuItem value="authenticated">Authenticated</MenuItem>
+												<MenuItem value="organization">Organization</MenuItem>
 									{canSharePortsPublic ? (
 										<MenuItem value="public">Public</MenuItem>
 									) : (

@@ -1,0 +1,4 @@
+-- Note: PostgreSQL does not support removing enum values directly.
+-- This migration cannot be easily reversed without recreating the enum type
+-- and updating all dependent tables, which would be a complex operation.
+-- For development purposes, this down migration is intentionally left empty.

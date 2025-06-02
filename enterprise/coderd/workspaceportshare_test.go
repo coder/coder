@@ -59,4 +59,19 @@ func TestWorkspacePortShare(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
+
+	// Test organization level
+	level = codersdk.WorkspaceAgentPortShareLevelOrganization
+	client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+		MaxPortShareLevel: &level,
+	})
+
+	ps, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  r.sdkAgent.Name,
+		Port:       8081,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelOrganization,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTPS,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelOrganization, ps.ShareLevel)
 }

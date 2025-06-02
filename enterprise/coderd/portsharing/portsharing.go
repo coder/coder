@@ -20,6 +20,10 @@ func (EnterprisePortSharer) AuthorizedLevel(template database.Template, level co
 		if maxLevel != codersdk.WorkspaceAgentPortShareLevelPublic {
 			return xerrors.Errorf("port sharing level not allowed. Max level is '%s'", maxLevel)
 		}
+	case codersdk.WorkspaceAgentPortShareLevelOrganization:
+		if maxLevel == codersdk.WorkspaceAgentPortShareLevelOwner {
+			return xerrors.Errorf("port sharing level not allowed. Max level is '%s'", maxLevel)
+		}
 	case codersdk.WorkspaceAgentPortShareLevelAuthenticated:
 		if maxLevel == codersdk.WorkspaceAgentPortShareLevelOwner {
 			return xerrors.Errorf("port sharing level not allowed. Max level is '%s'", maxLevel)
@@ -33,7 +37,7 @@ func (EnterprisePortSharer) AuthorizedLevel(template database.Template, level co
 
 func (EnterprisePortSharer) ValidateTemplateMaxLevel(level codersdk.WorkspaceAgentPortShareLevel) error {
 	if !level.ValidMaxLevel() {
-		return xerrors.New("invalid max port sharing level, value must be 'authenticated' or 'public'.")
+		return xerrors.New("invalid max port sharing level, value must be 'owner', 'authenticated', 'organization', or 'public'.")
 	}
 
 	return nil

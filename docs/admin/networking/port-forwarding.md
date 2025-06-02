@@ -111,10 +111,11 @@ sharing levels that match our `coder_app`’s share option in
 - `owner` (Default): The implicit sharing level for all listening ports, only
   visible to the workspace owner
 - `authenticated`: Accessible by other authenticated Coder users on the same
+- `organization`: Accessible by authenticated users in the same organization as the workspace template.
   deployment.
 - `public`: Accessible by any user with the associated URL.
 
-Once a port is shared at either `authenticated` or `public` levels, it will stay
+Once a port is shared at `authenticated`, `organization`, or `public` levels, it will stay
 pinned in the open ports UI for better accessibility regardless of whether or
 not it is still accessible.
 
