@@ -1,4 +1,4 @@
-export const formatURI = (uri: string) => {
+export const truncateURI = (uri: string) => {
 	if (uri.startsWith("file://")) {
 		const path = uri.slice(7);
 		// Slightly shorter truncation for this context if needed

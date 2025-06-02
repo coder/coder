@@ -42,7 +42,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { timeFrom } from "utils/time";
-import { formatURI } from "utils/uri";
+import { truncateURI } from "utils/uri";
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
@@ -530,57 +530,36 @@ type TaskStatusLinkProps = {
 };
 
 const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
-	const linkFormat = getLinkFormat(uri);
+	let icon = <ExternalLinkIcon />;
+	let label = truncateURI(uri);
+
+	if (uri.startsWith("https://github.com")) {
+		const issueNumber = uri.split("/").pop();
+		const [org, repo] = uri.split("/").slice(3, 5);
+		const prefix = `${org}/${repo}`;
+
+		if (uri.includes("pull/")) {
+			icon = <GitPullRequestArrowIcon />;
+			label = issueNumber
+				? `${prefix}#${issueNumber}`
+				: `${prefix} Pull Request`;
+		} else if (uri.includes("issues/")) {
+			icon = <BugIcon />;
+			label = issueNumber ? `${prefix}#${issueNumber}` : `${prefix} Issue`;
+		} else {
+			icon = <GitHub />;
+			label = `${org}/${repo}`;
+		}
+	}
 
 	return (
 		<Button asChild variant="outline" size="sm" className="min-w-0">
-			<a href={linkFormat.href} target="_blank" rel="noreferrer">
-				{linkFormat.icon}
-				{linkFormat.label}
+			<a href={uri} target="_blank" rel="noreferrer">
+				{icon}
+				{label}
 			</a>
 		</Button>
 	);
-};
-
-type LinkFormat = {
-	icon: ReactNode;
-	label: string;
-	href: string;
-};
-
-const getLinkFormat = (uri: string): LinkFormat => {
-	if (uri.startsWith("https://github.com")) {
-		if (uri.includes("pull/")) {
-			const prNumber = uri.split("/").pop();
-			return {
-				icon: <GitPullRequestArrowIcon />,
-				label: prNumber ? `#${prNumber}` : "Pull Request",
-				href: uri,
-			};
-		}
-
-		if (uri.includes("issues/")) {
-			const issueNumber = uri.split("/").pop();
-			return {
-				icon: <BugIcon />,
-				label: issueNumber ? `#${issueNumber}` : "Issue",
-				href: uri,
-			};
-		}
-
-		const [org, repo] = uri.split("/").slice(3, 5);
-		return {
-			icon: <GitHub />,
-			label: `${org}/${repo}`,
-			href: uri,
-		};
-	}
-
-	return {
-		icon: <ExternalLinkIcon />,
-		label: formatURI(uri),
-		href: uri,
-	};
 };
 
 export const data = {

@@ -24,7 +24,7 @@ import {
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { formatURI } from "utils/uri";
+import { truncateURI } from "utils/uri";
 
 interface AppStatusesProps {
 	workspace: Workspace;
@@ -101,7 +101,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 									<TooltipTrigger>
 										<span className="flex items-center gap-1">
 											<FileIcon className="size-icon-xs" />
-											{formatURI(latestStatus.uri)}
+											{truncateURI(latestStatus.uri)}
 										</span>
 									</TooltipTrigger>
 									<TooltipContent>
@@ -113,7 +113,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							<Button asChild variant="outline" size="sm">
 								<a href={latestStatus.uri} target="_blank" rel="noreferrer">
 									<ExternalLinkIcon />
-									{formatURI(latestStatus.uri)}
+									{truncateURI(latestStatus.uri)}
 								</a>
 							</Button>
 						))}
