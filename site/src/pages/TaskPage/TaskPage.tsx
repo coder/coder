@@ -284,7 +284,7 @@ const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 				<ScrollArea className="h-full">
 					{statuses.length === 0 && (
 						<article className="px-4 py-2 flex gap-2 first-of-type:pt-4 last-of-type:pb-4">
-							<div className="flex flex-col gap-1">
+							<div className="flex flex-col gap-1 flex-1">
 								<h3 className="m-0 font-medium text-sm leading-normal">
 									Running your task
 								</h3>
@@ -310,7 +310,7 @@ const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 								)}
 								key={status.id}
 							>
-								<div className="flex flex-col gap-1">
+								<div className="flex flex-col gap-1 flex-1">
 									<h3 className="m-0 font-medium text-sm leading-normal">
 										{status.message}
 									</h3>
@@ -533,7 +533,7 @@ const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
 	const linkFormat = getLinkFormat(uri);
 
 	return (
-		<Button asChild variant="outline" size="sm">
+		<Button asChild variant="outline" size="sm" className="min-w-0">
 			<a href={linkFormat.href} target="_blank" rel="noreferrer">
 				{linkFormat.icon}
 				{linkFormat.label}
@@ -551,17 +551,19 @@ type LinkFormat = {
 const getLinkFormat = (uri: string): LinkFormat => {
 	if (uri.startsWith("https://github.com")) {
 		if (uri.includes("pull/")) {
+			const prNumber = uri.split("/").pop();
 			return {
 				icon: <GitPullRequestArrowIcon />,
-				label: uri.split("/").pop() ?? "Pull Request",
+				label: prNumber ? `#${prNumber}` : "Pull Request",
 				href: uri,
 			};
 		}
 
 		if (uri.includes("issues/")) {
+			const issueNumber = uri.split("/").pop();
 			return {
 				icon: <BugIcon />,
-				label: uri.split("/").pop() ?? "Issue",
+				label: issueNumber ? `#${issueNumber}` : "Issue",
 				href: uri,
 			};
 		}
