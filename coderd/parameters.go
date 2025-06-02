@@ -108,7 +108,6 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 
 type previewFunction func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
-// handleDynamicParameters
 // nolint:revive
 func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion, initial codersdk.DynamicParametersRequest) {
 	var (
@@ -225,7 +224,6 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 	}
 }
 
-// handleStaticParameters
 // nolint:revive
 func (api *API) handleStaticParameters(listen bool, rw http.ResponseWriter, r *http.Request, version uuid.UUID, initial codersdk.DynamicParametersRequest) {
 	ctx := r.Context()
