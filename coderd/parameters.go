@@ -29,57 +29,86 @@ import (
 	"github.com/coder/websocket"
 )
 
+// @Summary Evaluate dynamic parameters for template version
+// @ID evaluate-dynamic-parameters-by-template-version
+// @Security CoderSessionToken
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Accept json
+// @Produce json
+// @Router /templateversions/{templateversion}/dynamic-parameters/evaluate [post]
+func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req codersdk.DynamicParametersRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.templateVersionDynamicParameters(false, req)(rw, r)
+}
+
 // @Summary Open dynamic parameters WebSocket by template version
 // @ID open-dynamic-parameters-websocket-by-template-version
 // @Security CoderSessionToken
 // @Tags Templates
-// @Param user path string true "Template version ID" format(uuid)
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
 // @Router /templateversions/{templateversion}/dynamic-parameters [get]
-func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
+func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
+	apikey := httpmw.APIKey(r)
 
-	// Check that the job has completed successfully
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
-			Message: "Template version job has not finished",
-		})
-		return
-	}
+	api.templateVersionDynamicParameters(true, codersdk.DynamicParametersRequest{
+		ID:      -1,
+		Inputs:  map[string]string{},
+		OwnerID: apikey.UserID,
+	})(rw, r)
+}
 
-	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to retrieve Terraform values for template version",
-			Detail:  err.Error(),
-		})
-		return
-	}
+func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.DynamicParametersRequest) func(rw http.ResponseWriter, r *http.Request) {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		templateVersion := httpmw.TemplateVersionParam(r)
 
-	if wsbuilder.ProvisionerVersionSupportsDynamicParameters(tf.ProvisionerdVersion) {
-		api.handleDynamicParameters(rw, r, tf, templateVersion)
-	} else {
-		api.handleStaticParameters(rw, r, templateVersion.ID)
+		// Check that the job has completed successfully
+		job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !job.CompletedAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
+				Message: "Template version job has not finished",
+			})
+			return
+		}
+
+		tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to retrieve Terraform values for template version",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		if wsbuilder.ProvisionerVersionSupportsDynamicParameters(tf.ProvisionerdVersion) {
+			api.handleDynamicParameters(listen, rw, r, tf, templateVersion, initial)
+		} else {
+			api.handleStaticParameters(listen, rw, r, templateVersion.ID, initial)
+		}
 	}
 }
 
 type previewFunction func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
-func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion) {
+func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion, initial codersdk.DynamicParametersRequest) {
 	var (
 		ctx    = r.Context()
 		apikey = httpmw.APIKey(r)
@@ -159,7 +188,7 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		},
 	}
 
-	api.handleParameterWebsocket(rw, r, apikey.UserID, func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	dynamicRender := func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		if ownerID == uuid.Nil {
 			// Default to the authenticated user
 			// Nice for testing
@@ -186,10 +215,15 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		}
 
 		return preview.Preview(ctx, input, templateFS)
-	})
+	}
+	if listen {
+		api.handleParameterWebsocket(rw, r, initial, dynamicRender)
+	} else {
+		api.handleParameterEvaluate(rw, r, initial, dynamicRender)
+	}
 }
 
-func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, version uuid.UUID) {
+func (api *API) handleStaticParameters(listen bool, rw http.ResponseWriter, r *http.Request, version uuid.UUID, initial codersdk.DynamicParametersRequest) {
 	ctx := r.Context()
 	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, version)
 	if err != nil {
@@ -275,7 +309,7 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 		params = append(params, param)
 	}
 
-	api.handleParameterWebsocket(rw, r, uuid.Nil, func(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	staticRender := func(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		for i := range params {
 			param := &params[i]
 			paramValue, ok := values[param.Name]
@@ -297,10 +331,31 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 					Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
 				},
 			}
-	})
+	}
+	if listen {
+		api.handleParameterWebsocket(rw, r, initial, staticRender)
+	} else {
+		api.handleParameterEvaluate(rw, r, initial, staticRender)
+	}
 }
 
-func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, ownerID uuid.UUID, render previewFunction) {
+func (api *API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render previewFunction) {
+	ctx := r.Context()
+
+	// Send an initial form state, computed without any user input.
+	result, diagnostics := render(ctx, initial.OwnerID, initial.Inputs)
+	response := codersdk.DynamicParametersResponse{
+		ID:          -1, // Always start with -1.
+		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
+	}
+	if result != nil {
+		response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render previewFunction) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
 
@@ -320,7 +375,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	)
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := render(ctx, ownerID, map[string]string{})
+	result, diagnostics := render(ctx, initial.OwnerID, initial.Inputs)
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1, // Always start with -1.
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
