@@ -1157,8 +1157,8 @@ func New(options *Options) *API {
 					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
 				)
 				r.Route("/dynamic-parameters/", func(r chi.Router) {
-					r.Get("/evaluate", api.templateVersionDynamicParameters)
-					r.Get("/", api.templateVersionDynamicParameters)
+					r.Post("/evaluate", api.templateVersionDynamicParametersEvaluate)
+					r.Get("/", api.templateVersionDynamicParametersWebsocket)
 				})
 			})
 		})
