@@ -1320,18 +1320,18 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 
 		for _, tc := range []struct {
 			name      string
-			setupMock func(*acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error)
+			setupMock func(*acmock.MockContainerCLI) (codersdk.WorkspaceAgentListContainersResponse, error)
 		}{
 			{
 				name: "test response",
-				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+				setupMock: func(mcl *acmock.MockContainerCLI) (codersdk.WorkspaceAgentListContainersResponse, error) {
 					mcl.EXPECT().List(gomock.Any()).Return(testResponse, nil).AnyTimes()
 					return testResponse, nil
 				},
 			},
 			{
 				name: "error response",
-				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+				setupMock: func(mcl *acmock.MockContainerCLI) (codersdk.WorkspaceAgentListContainersResponse, error) {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError).AnyTimes()
 					return codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError
 				},
@@ -1342,7 +1342,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				t.Parallel()
 
 				ctrl := gomock.NewController(t)
-				mcl := acmock.NewMockLister(ctrl)
+				mcl := acmock.NewMockContainerCLI(ctrl)
 				expected, expectedErr := tc.setupMock(mcl)
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1358,7 +1358,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 					o.Logger = logger.Named("agent")
 					o.ExperimentalDevcontainersEnabled = true
-					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
+					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mcl))
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 				require.Len(t, resources, 1, "expected one resource")
@@ -1419,11 +1419,11 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 
 		for _, tc := range []struct {
 			name      string
-			setupMock func(*acmock.MockLister, *acmock.MockDevcontainerCLI) (status int)
+			setupMock func(*acmock.MockContainerCLI, *acmock.MockDevcontainerCLI) (status int)
 		}{
 			{
 				name: "Recreate",
-				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
+				setupMock: func(mcl *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
 					}, nil).AnyTimes()
@@ -1433,14 +1433,14 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 			},
 			{
 				name: "Container does not exist",
-				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
+				setupMock: func(mcl *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).AnyTimes()
 					return http.StatusNotFound
 				},
 			},
 			{
 				name: "Not a devcontainer",
-				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
+				setupMock: func(mcl *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{plainContainer},
 					}, nil).AnyTimes()
@@ -1452,7 +1452,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				t.Parallel()
 
 				ctrl := gomock.NewController(t)
-				mcl := acmock.NewMockLister(ctrl)
+				mcl := acmock.NewMockContainerCLI(ctrl)
 				mdccli := acmock.NewMockDevcontainerCLI(ctrl)
 				wantStatus := tc.setupMock(mcl, mdccli)
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -1471,7 +1471,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					o.ExperimentalDevcontainersEnabled = true
 					o.ContainerAPIOptions = append(
 						o.ContainerAPIOptions,
-						agentcontainers.WithLister(mcl),
+						agentcontainers.WithContainerCLI(mcl),
 						agentcontainers.WithDevcontainerCLI(mdccli),
 						agentcontainers.WithWatcher(watcher.NewNoop()),
 					)
