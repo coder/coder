@@ -36,6 +36,7 @@ import (
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Accept json
 // @Produce json
+// @Param request body codersdk.DynamicParametersRequest true "Initial parameter values"
 // @Success 200 {object} codersdk.DynamicParametersResponse
 // @Router /templateversions/{templateversion}/dynamic-parameters/evaluate [post]
 func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
