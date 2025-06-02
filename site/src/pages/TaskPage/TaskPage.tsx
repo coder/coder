@@ -1,4 +1,4 @@
-import { GitHub } from "@mui/icons-material";
+import GitHub from "@mui/icons-material/GitHub";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { WorkspaceApp, WorkspaceStatus } from "api/typesGenerated";
@@ -300,7 +300,6 @@ const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 						</article>
 					)}
 					{statuses.map((status, index) => {
-						console.log("STATUS", status.needs_user_attention);
 						return (
 							<article
 								className={cn(

@@ -1,7 +1,4 @@
-import type {
-	WorkspaceAppStatus,
-	WorkspaceAppStatusState,
-} from "api/typesGenerated";
+import type { WorkspaceAppStatusState } from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	BanIcon,
