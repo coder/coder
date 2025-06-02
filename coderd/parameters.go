@@ -341,7 +341,7 @@ func (api *API) handleStaticParameters(listen bool, rw http.ResponseWriter, r *h
 	}
 }
 
-func (api *API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render previewFunction) {
+func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render previewFunction) {
 	ctx := r.Context()
 
 	// Send an initial form state, computed without any user input.
