@@ -117,5 +117,4 @@ func TestBigUDP(t *testing.T, logger slog.Logger, _ *url.URL, conn *tailnet.Conn
 		require.Equal(t, len(packet), n)
 		require.Equal(t, packet, buf[:n])
 	})
-
 }
