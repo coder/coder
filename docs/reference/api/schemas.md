@@ -3281,6 +3281,35 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
+## codersdk.DiagnosticExtra
+
+```json
+{
+  "code": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `code` | string | false    |              |             |
+
+## codersdk.DiagnosticSeverityString
+
+```json
+"error"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+|-----------|
+| `error`   |
+| `warning` |
+
 ## codersdk.DisplayApp
 
 ```json
@@ -3298,6 +3327,89 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web_terminal`           |
 | `port_forwarding_helper` |
 | `ssh_helper`             |
+
+## codersdk.DynamicParametersResponse
+
+```json
+{
+  "diagnostics": [
+    {
+      "detail": "string",
+      "extra": {
+        "code": "string"
+      },
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
+  "id": 0,
+  "parameters": [
+    {
+      "default_value": {
+        "valid": true,
+        "value": "string"
+      },
+      "description": "string",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "extra": {
+            "code": "string"
+          },
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
+      "display_name": "string",
+      "ephemeral": true,
+      "form_type": "",
+      "icon": "string",
+      "mutable": true,
+      "name": "string",
+      "options": [
+        {
+          "description": "string",
+          "icon": "string",
+          "name": "string",
+          "value": {
+            "valid": true,
+            "value": "string"
+          }
+        }
+      ],
+      "order": 0,
+      "required": true,
+      "styling": {
+        "disabled": true,
+        "label": "string",
+        "placeholder": "string"
+      },
+      "type": "string",
+      "validations": [
+        {
+          "validation_error": "string",
+          "validation_max": 0,
+          "validation_min": 0,
+          "validation_monotonic": "string",
+          "validation_regex": "string"
+        }
+      ],
+      "value": {
+        "valid": true,
+        "value": "string"
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
+| `id`          | integer                                                             | false    |              |             |
+| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
 ## codersdk.Entitlement
 
@@ -3583,6 +3695,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `enabled`     | boolean                                      | false    |              |             |
 | `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
 | `limit`       | integer                                      | false    |              |             |
+
+## codersdk.FriendlyDiagnostic
+
+```json
+{
+  "detail": "string",
+  "extra": {
+    "code": "string"
+  },
+  "severity": "error",
+  "summary": "string"
+}
+```
+
+### Properties
+
+| Name       | Type                                                                   | Required | Restrictions | Description |
+|------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `detail`   | string                                                                 | false    |              |             |
+| `extra`    | [codersdk.DiagnosticExtra](#codersdkdiagnosticextra)                   | false    |              |             |
+| `severity` | [codersdk.DiagnosticSeverityString](#codersdkdiagnosticseveritystring) | false    |              |             |
+| `summary`  | string                                                                 | false    |              |             |
 
 ## codersdk.GenerateAPIKeyResponse
 
@@ -4548,6 +4682,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |------------|----------------------------|----------|--------------|----------------------------------------------------------------------|
 | `endpoint` | [serpent.URL](#serpenturl) | false    |              | The URL to which the payload will be sent with an HTTP POST request. |
 
+## codersdk.NullHCLString
+
+```json
+{
+  "valid": true,
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+|---------|---------|----------|--------------|-------------|
+| `valid` | boolean | false    |              |             |
+| `value` | string  | false    |              |             |
+
 ## codersdk.OAuth2AppEndpoints
 
 ```json
@@ -4818,6 +4968,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_roles_default`                 | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `username_field`                     | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 
+## codersdk.OptionType
+
+```json
+"string"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `string`       |
+| `number`       |
+| `bool`         |
+| `list(string)` |
+
 ## codersdk.Organization
 
 ```json
@@ -4984,6 +5151,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `count`   | integer                                                                                     | false    |              |             |
 | `members` | array of [codersdk.OrganizationMemberWithUserData](#codersdkorganizationmemberwithuserdata) | false    |              |             |
+
+## codersdk.ParameterFormType
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| ``             |
+| `radio`        |
+| `slider`       |
+| `input`        |
+| `dropdown`     |
+| `checkbox`     |
+| `switch`       |
+| `multi-select` |
+| `tag-select`   |
+| `textarea`     |
+| `error`        |
 
 ## codersdk.PatchGroupIDPSyncConfigRequest
 
@@ -5318,6 +5509,150 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------|--------|----------|--------------|-------------|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.PreviewParameter
+
+```json
+{
+  "default_value": {
+    "valid": true,
+    "value": "string"
+  },
+  "description": "string",
+  "diagnostics": [
+    {
+      "detail": "string",
+      "extra": {
+        "code": "string"
+      },
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
+  "display_name": "string",
+  "ephemeral": true,
+  "form_type": "",
+  "icon": "string",
+  "mutable": true,
+  "name": "string",
+  "options": [
+    {
+      "description": "string",
+      "icon": "string",
+      "name": "string",
+      "value": {
+        "valid": true,
+        "value": "string"
+      }
+    }
+  ],
+  "order": 0,
+  "required": true,
+  "styling": {
+    "disabled": true,
+    "label": "string",
+    "placeholder": "string"
+  },
+  "type": "string",
+  "validations": [
+    {
+      "validation_error": "string",
+      "validation_max": 0,
+      "validation_min": 0,
+      "validation_monotonic": "string",
+      "validation_regex": "string"
+    }
+  ],
+  "value": {
+    "valid": true,
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name            | Type                                                                                | Required | Restrictions | Description                             |
+|-----------------|-------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------|
+| `default_value` | [codersdk.NullHCLString](#codersdknullhclstring)                                    | false    |              |                                         |
+| `description`   | string                                                                              | false    |              |                                         |
+| `diagnostics`   | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)                 | false    |              |                                         |
+| `display_name`  | string                                                                              | false    |              |                                         |
+| `ephemeral`     | boolean                                                                             | false    |              |                                         |
+| `form_type`     | [codersdk.ParameterFormType](#codersdkparameterformtype)                            | false    |              |                                         |
+| `icon`          | string                                                                              | false    |              |                                         |
+| `mutable`       | boolean                                                                             | false    |              |                                         |
+| `name`          | string                                                                              | false    |              |                                         |
+| `options`       | array of [codersdk.PreviewParameterOption](#codersdkpreviewparameteroption)         | false    |              |                                         |
+| `order`         | integer                                                                             | false    |              | legacy_variable_name was removed (= 14) |
+| `required`      | boolean                                                                             | false    |              |                                         |
+| `styling`       | [codersdk.PreviewParameterStyling](#codersdkpreviewparameterstyling)                | false    |              |                                         |
+| `type`          | [codersdk.OptionType](#codersdkoptiontype)                                          | false    |              |                                         |
+| `validations`   | array of [codersdk.PreviewParameterValidation](#codersdkpreviewparametervalidation) | false    |              |                                         |
+| `value`         | [codersdk.NullHCLString](#codersdknullhclstring)                                    | false    |              |                                         |
+
+## codersdk.PreviewParameterOption
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string",
+  "value": {
+    "valid": true,
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                             | Required | Restrictions | Description |
+|---------------|--------------------------------------------------|----------|--------------|-------------|
+| `description` | string                                           | false    |              |             |
+| `icon`        | string                                           | false    |              |             |
+| `name`        | string                                           | false    |              |             |
+| `value`       | [codersdk.NullHCLString](#codersdknullhclstring) | false    |              |             |
+
+## codersdk.PreviewParameterStyling
+
+```json
+{
+  "disabled": true,
+  "label": "string",
+  "placeholder": "string"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `disabled`    | boolean | false    |              |             |
+| `label`       | string  | false    |              |             |
+| `placeholder` | string  | false    |              |             |
+
+## codersdk.PreviewParameterValidation
+
+```json
+{
+  "validation_error": "string",
+  "validation_max": 0,
+  "validation_min": 0,
+  "validation_monotonic": "string",
+  "validation_regex": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                             |
+|------------------------|---------|----------|--------------|-----------------------------------------|
+| `validation_error`     | string  | false    |              |                                         |
+| `validation_max`       | integer | false    |              |                                         |
+| `validation_min`       | integer | false    |              |                                         |
+| `validation_monotonic` | string  | false    |              |                                         |
+| `validation_regex`     | string  | false    |              | All validation attributes are optional. |
 
 ## codersdk.PrometheusConfig
 
