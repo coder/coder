@@ -13,6 +13,7 @@ import type {
 	TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { saveAs } from "file-saver";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
@@ -238,6 +239,18 @@ const TemplateVersionEditorPage: FC = () => {
 					provisionerTags={provisionerTags}
 					onUpdateProvisionerTags={(tags) => {
 						setProvisionerTags(tags);
+					}}
+					onExport={async (format) => {
+						try {
+							const response = await API.getAxiosInstance().get(`/api/v2/files/${activeTemplateVersion.job.file_id}?format=${format}`, { responseType: "arraybuffer" });
+							const data = response.data;
+							const blob = new Blob([data], {
+								type: format === "zip" ? "application/zip" : "application/x-tar",
+							});
+							saveAs(blob, `${templateName}-${activeTemplateVersion.name}.${format === "zip" ? "zip" : "tar"}`);
+						} catch (error) {
+							displayError(error, "Failed to export template");
+						}
 					}}
 				/>
 			)}

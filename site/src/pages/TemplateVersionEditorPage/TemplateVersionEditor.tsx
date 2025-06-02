@@ -25,7 +25,13 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
-import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import { DownloadIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -74,6 +80,7 @@ interface TemplateVersionEditorProps {
 	canPublish: boolean;
 	onPreview: (files: FileTree) => Promise<void>;
 	onPublish: () => void;
+	onExport: (format: "zip" | "tar") => void;
 	onConfirmPublish: (data: PublishVersionData) => void;
 	onCancelPublish: () => void;
 	publishingError?: unknown;
@@ -100,6 +107,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	defaultFileTree,
 	onPreview,
 	onPublish,
+	onExport,
 	onConfirmPublish,
 	onCancelPublish,
 	isAskingPublishParameters,
@@ -273,6 +281,23 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								onTagsChange={onUpdateProvisionerTags}
 							/>
 						</div>
+
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<TopbarButton title="Export template">
+									<DownloadIcon />
+									Export
+								</TopbarButton>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent>
+								<DropdownMenuItem onClick={() => onExport("zip")}>
+									Export as ZIP
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => onExport("tar")}>
+									Export as TAR
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 
 						<TopbarButton
 							variant="default"
