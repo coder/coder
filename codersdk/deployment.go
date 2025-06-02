@@ -3354,7 +3354,15 @@ const (
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
+	ExperimentExample,
+	ExperimentAutoFillParameters,
+	ExperimentNotifications,
+	ExperimentWorkspaceUsage,
+	ExperimentWebPush,
+	ExperimentDynamicParameters,
 	ExperimentWorkspacePrebuilds,
+	ExperimentAgenticChat,
+	ExperimentAITasks,
 }
 
 // Experiments is a list of experiments.
