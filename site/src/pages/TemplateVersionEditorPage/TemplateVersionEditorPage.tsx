@@ -242,8 +242,7 @@ const TemplateVersionEditorPage: FC = () => {
 					}}
 					onExport={async (format) => {
 						try {
-							const response = await API.getAxiosInstance().get(`/api/v2/files/${activeTemplateVersion.job.file_id}?format=${format}`, { responseType: "arraybuffer" });
-							const data = response.data;
+							const data = await API.downloadFileWithFormat(activeTemplateVersion.job.file_id, format);
 							const blob = new Blob([data], {
 								type: format === "zip" ? "application/zip" : "application/x-tar",
 							});
