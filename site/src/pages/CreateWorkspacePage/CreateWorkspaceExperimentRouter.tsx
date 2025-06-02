@@ -44,11 +44,11 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 	});
 
 	if (dynamicParametersEnabled) {
-		if (optOutQuery.isLoading) {
-			return <Loader />;
-		}
 		if (optOutQuery.isError) {
 			return <ErrorAlert error={optOutQuery.error} />;
+		}
+		if (!optOutQuery.data) {
+			return <Loader />;
 		}
 
 		const toggleOptedOut = () => {
@@ -64,7 +64,7 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		};
 		return (
 			<ExperimentalFormContext.Provider value={{ toggleOptedOut }}>
-				{optOutQuery.data?.optedOut ? (
+				{optOutQuery.data.optedOut ? (
 					<CreateWorkspacePage />
 				) : (
 					<CreateWorkspacePageExperimental />
