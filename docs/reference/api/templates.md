@@ -2610,17 +2610,32 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `POST /templateversions/{templateversion}/dynamic-parameters/evaluate`
 
+> Body parameter
+
+```json
+{
+  "id": 0,
+  "inputs": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+}
+```
+
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `templateversion` | path | string(uuid) | true     | Template version ID |
+| Name              | In   | Type                                                                             | Required | Description              |
+|-------------------|------|----------------------------------------------------------------------------------|----------|--------------------------|
+| `templateversion` | path | string(uuid)                                                                     | true     | Template version ID      |
+| `body`            | body | [codersdk.DynamicParametersRequest](schemas.md#codersdkdynamicparametersrequest) | true     | Initial parameter values |
 
 ### Example responses
 

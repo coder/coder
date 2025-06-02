@@ -5935,6 +5935,15 @@ const docTemplate = `{
                         "name": "templateversion",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Initial parameter values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DynamicParametersRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -12638,6 +12647,26 @@ const docTemplate = `{
                 "DisplayAppPortForward",
                 "DisplayAppSSH"
             ]
+        },
+        "codersdk.DynamicParametersRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
+                    "type": "integer"
+                },
+                "inputs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "owner_id": {
+                    "description": "OwnerID if uuid.Nil, it defaults to ` + "`" + `codersdk.Me` + "`" + `",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.DynamicParametersResponse": {
             "type": "object",
