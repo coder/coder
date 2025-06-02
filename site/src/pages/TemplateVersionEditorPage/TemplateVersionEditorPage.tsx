@@ -13,8 +13,8 @@ import type {
 	TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { saveAs } from "file-saver";
 import { Loader } from "components/Loader/Loader";
+import { saveAs } from "file-saver";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
@@ -242,11 +242,18 @@ const TemplateVersionEditorPage: FC = () => {
 					}}
 					onExport={async (format) => {
 						try {
-							const data = await API.downloadFileWithFormat(activeTemplateVersion.job.file_id, format);
+							const data = await API.downloadFileWithFormat(
+								activeTemplateVersion.job.file_id,
+								format,
+							);
 							const blob = new Blob([data], {
-								type: format === "zip" ? "application/zip" : "application/x-tar",
+								type:
+									format === "zip" ? "application/zip" : "application/x-tar",
 							});
-							saveAs(blob, `${templateName}-${activeTemplateVersion.name}.${format === "zip" ? "zip" : "tar"}`);
+							saveAs(
+								blob,
+								`${templateName}-${activeTemplateVersion.name}.${format === "zip" ? "zip" : "tar"}`,
+							);
 						} catch (error) {
 							displayError(error, "Failed to export template");
 						}
