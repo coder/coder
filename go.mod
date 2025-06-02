@@ -72,6 +72,10 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202505271
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
+// Maintainer is currently unresponsive, forking to address https://github.com/fergusstrange/embedded-postgres/pull/156
+// which is causing our CI to be flakey.
+replace github.com/fergusstrange/embedded-postgres v1.30.0 => github.com/coder/embedded-postgres v0.0.0-20250602092909-9ec438a72d27
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.7.0
