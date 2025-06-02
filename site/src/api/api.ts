@@ -1994,10 +1994,10 @@ class ApiMethods {
 
 	downloadFileWithFormat = async (
 		fileId: string,
-		format: "zip" | "tar" = "",
+		format?: "zip" | "tar",
 	): Promise<ArrayBuffer> => {
 		const response = await this.axios.get<ArrayBuffer>(
-			`/api/v2/files/${fileId}?format=${format}`,
+			`/api/v2/files/${fileId}${format ? `?format=${format}` : ""}`,
 			{ responseType: "arraybuffer" },
 		);
 
