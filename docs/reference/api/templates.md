@@ -2593,7 +2593,6 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 | Name              | In   | Type         | Required | Description         |
 |-------------------|------|--------------|----------|---------------------|
-| `user`            | path | string(uuid) | true     | Template version ID |
 | `templateversion` | path | string(uuid) | true     | Template version ID |
 
 ### Responses
@@ -2601,6 +2600,31 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 | Status | Meaning                                                                  | Description         | Schema |
 |--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Evaluate dynamic parameters for template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/dynamic-parameters/evaluate`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

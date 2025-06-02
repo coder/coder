@@ -5897,14 +5897,6 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
                         "name": "templateversion",
                         "in": "path",
                         "required": true
@@ -5915,6 +5907,37 @@ const docTemplate = `{
                         "description": "Switching Protocols"
                     }
                 }
+            }
+        },
+        "/templateversions/{templateversion}/dynamic-parameters/evaluate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Evaluate dynamic parameters for template version",
+                "operationId": "evaluate-dynamic-parameters-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
             }
         },
         "/templateversions/{templateversion}/external-auth": {
