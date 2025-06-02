@@ -349,7 +349,7 @@ func (api *API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request,
 	// Send an initial form state, computed without any user input.
 	result, diagnostics := render(ctx, initial.OwnerID, initial.Inputs)
 	response := codersdk.DynamicParametersResponse{
-		ID:          -1, // Always start with -1.
+		ID:          0,
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 	}
 	if result != nil {
