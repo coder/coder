@@ -134,7 +134,6 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	require.EqualValues(t, 8080, list.Shares[0].Port)
 	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelOrganization, list.Shares[0].ShareLevel)
 	require.EqualValues(t, codersdk.WorkspaceAgentPortShareProtocolHTTPS, list.Shares[0].Protocol)
-	require.EqualValues(t, codersdk.WorkspaceAgentPortShareProtocolHTTP, list.Shares[0].Protocol)
 
 	// list 2 ordered by port
 	ps, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{

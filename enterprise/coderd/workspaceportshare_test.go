@@ -46,9 +46,10 @@ func TestWorkspacePortShare(t *testing.T) {
 
 	// update the template max port share level to public
 	var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
-	client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+	_, err = client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
 		MaxPortShareLevel: &level,
 	})
+	require.NoError(t, err)
 
 	// OK
 	ps, err := client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
@@ -62,9 +63,10 @@ func TestWorkspacePortShare(t *testing.T) {
 
 	// Test organization level
 	level = codersdk.WorkspaceAgentPortShareLevelOrganization
-	client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+	_, err = client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
 		MaxPortShareLevel: &level,
 	})
+	require.NoError(t, err)
 
 	ps, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  r.sdkAgent.Name,
@@ -74,4 +76,19 @@ func TestWorkspacePortShare(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelOrganization, ps.ShareLevel)
+
+	// Test that organization level is properly restricted when max level is owner
+	level = codersdk.WorkspaceAgentPortShareLevelOwner
+	_, err = client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+		MaxPortShareLevel: &level,
+	})
+	require.NoError(t, err)
+
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  r.sdkAgent.Name,
+		Port:       8082,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelOrganization,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
+	})
+	require.Error(t, err, "Organization level should be blocked when max level is owner")
 }
