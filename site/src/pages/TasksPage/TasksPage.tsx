@@ -363,7 +363,10 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 								/>
 							</TableCell>
 							<TableCell>
-								<WorkspaceAppStatus status={workspace.latest_app_status} />
+								<WorkspaceAppStatus
+									disabled={workspace.latest_build.status !== "running"}
+									status={workspace.latest_app_status}
+								/>
 							</TableCell>
 							<TableCell>
 								<AvatarData

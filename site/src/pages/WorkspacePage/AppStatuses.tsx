@@ -21,44 +21,10 @@ import {
 	FileIcon,
 	LayoutGridIcon,
 } from "lucide-react";
-import { AppStatusIcon } from "modules/apps/AppStatusIcon";
+import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-
-const formatURI = (uri: string) => {
-	if (uri.startsWith("file://")) {
-		const path = uri.slice(7);
-		// Slightly shorter truncation for this context if needed
-		if (path.length > 35) {
-			const start = path.slice(0, 15);
-			const end = path.slice(-15);
-			return `${start}...${end}`;
-		}
-		return path;
-	}
-
-	try {
-		const url = new URL(uri);
-		const fullUrl = url.toString();
-		// Slightly shorter truncation
-		if (fullUrl.length > 40) {
-			const start = fullUrl.slice(0, 20);
-			const end = fullUrl.slice(-20);
-			return `${start}...${end}`;
-		}
-		return fullUrl;
-	} catch {
-		// Slightly shorter truncation
-		if (uri.length > 35) {
-			const start = uri.slice(0, 15);
-			const end = uri.slice(-15);
-			return `${start}...${end}`;
-		}
-		return uri;
-	}
-};
-
-// --- Component Implementation ---
+import { formatURI } from "utils/uri";
 
 interface AppStatusesProps {
 	workspace: Workspace;
@@ -109,7 +75,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			>
 				<div className="flex flex-col overflow-hidden">
 					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
-						<AppStatusIcon status={latestStatus} latest />
+						<AppStatusStateIcon state={latestStatus.state} latest />
 						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
 							{latestStatus.message}
 						</span>
@@ -189,8 +155,8 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						>
 							<div className="flex items-center justify-between w-full text-content-secondary">
 								<span className="text-xs flex items-center gap-2">
-									<AppStatusIcon
-										status={latestStatus}
+									<AppStatusStateIcon
+										state={latestStatus.state}
 										latest={false}
 										className="size-icon-xs w-[18px]"
 									/>

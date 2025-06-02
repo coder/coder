@@ -1,3 +1,4 @@
+import { GitHub } from "@mui/icons-material";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { WorkspaceApp, WorkspaceStatus } from "api/typesGenerated";
@@ -21,14 +22,17 @@ import {
 } from "components/Tooltip/Tooltip";
 import {
 	ArrowLeftIcon,
+	BugIcon,
 	ChevronDownIcon,
+	EllipsisVerticalIcon,
+	ExternalLinkIcon,
+	GitPullRequestArrowIcon,
 	LayoutGridIcon,
 	RotateCcwIcon,
 } from "lucide-react";
-import { AppStatusIcon } from "modules/apps/AppStatusIcon";
+import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import type React from "react";
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -38,6 +42,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { timeFrom } from "utils/time";
+import { formatURI } from "utils/uri";
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
@@ -115,10 +120,10 @@ const TaskPage = () => {
 				<div className="flex flex-col items-center">
 					<Spinner loading className="mb-4" />
 					<h3 className="m-0 font-medium text-content-primary text-base">
-						Building your task
+						Building the workspace
 					</h3>
 					<span className="text-content-secondary text-sm">
-						Your task is being built and will be ready soon
+						Your task will run as soon as the workspace is ready
 					</span>
 				</div>
 			</div>
@@ -146,21 +151,21 @@ const TaskPage = () => {
 	} else if (terminatedStatuses.includes(task.workspace.latest_build.status)) {
 		content = (
 			<Margins>
-				<div className="py-6 flex flex-col gap-3">
-					{task.workspace.latest_app_status && (
-						<div className="p-3 border border-border border-solid rounded-lg">
-							<WorkspaceAppStatus status={task.workspace.latest_app_status} />
-						</div>
-					)}
-					<div className="border border-border border-solid rounded-lg w-full min-h-80 flex items-center justify-center">
-						<div className="flex flex-col items-center">
-							<h3 className="m-0 font-medium text-content-primary text-base">
-								Task build terminated
-							</h3>
-							<span className="text-content-secondary text-sm">
-								So apps and previous statuses are not available
-							</span>
-						</div>
+				<div className="w-full min-h-80 flex items-center justify-center">
+					<div className="flex flex-col items-center">
+						<h3 className="m-0 font-medium text-content-primary text-base">
+							Workspace is not running
+						</h3>
+						<span className="text-content-secondary text-sm">
+							Apps and previous statuses are not available
+						</span>
+						<Button size="sm" className="mt-4" asChild>
+							<RouterLink
+								to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
+							>
+								View workspace
+							</RouterLink>
+						</Button>
 					</div>
 				</div>
 			</Margins>
@@ -180,53 +185,7 @@ const TaskPage = () => {
 			</div>
 		);
 	} else {
-		const statuses = task.workspace.latest_build.resources
-			.flatMap((r) => r.agents)
-			.flatMap((a) => a?.apps)
-			.flatMap((a) => a?.statuses)
-			.filter((s) => !!s)
-			.sort(
-				(a, b) =>
-					new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-			);
-
-		content = (
-			<div className="flex-1 flex justify-stretch overflow-hidden">
-				<aside className="w-full max-w-xs border-0 border-r border-border border-solid">
-					<ScrollArea className="h-full py-3">
-						{statuses.map((status, index) => {
-							return (
-								<article
-									className={cn(["px-4 py-3 flex gap-3"], {
-										"opacity-75 hover:opacity-100": index !== 0,
-									})}
-									key={status.id}
-								>
-									<AppStatusIcon
-										status={status}
-										latest={index === 0}
-										className="size-4 mt-1"
-									/>
-									<div className="flex flex-col gap-1">
-										<h3 className="m-0 font-medium text-sm">
-											{status.message}
-										</h3>
-										<time
-											dateTime={status.created_at}
-											className="font-medium text-xs text-content-secondary"
-										>
-											{timeFrom(new Date(status.created_at))}
-										</time>
-									</div>
-								</article>
-							);
-						})}
-					</ScrollArea>
-				</aside>
-
-				<TaskApps task={task} />
-			</div>
-		);
+		content = <TaskApps task={task} />;
 	}
 
 	return (
@@ -235,49 +194,151 @@ const TaskPage = () => {
 				<title>{pageTitle(task.prompt)}</title>
 			</Helmet>
 
-			<section className="h-full flex flex-col">
-				<header className="h-20 border-0 border-b border-solid border-border px-4 flex items-center shrink-0 justify-between">
-					<div className="flex items-center gap-4">
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button size="icon-lg" variant="outline" asChild>
-										<RouterLink to="/tasks">
-											<ArrowLeftIcon />
-											<span className="sr-only">Back to tasks</span>
-										</RouterLink>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent>Back to tasks</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-
-						<div className="flex flex-col">
-							<h1 className="m-0 text-sm font-medium">{task.prompt}</h1>
-							<span className="text-xs text-content-secondary">
-								Created by{" "}
-								{task.workspace.owner_name ?? task.workspace.owner_name}{" "}
-								{timeFrom(new Date(task.workspace.created_at))}
-							</span>
-						</div>
-					</div>
-
-					<Button variant="outline" asChild>
-						<RouterLink
-							to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
-						>
-							View workspace
-						</RouterLink>
-					</Button>
-				</header>
-
+			<div className="h-full flex justify-stretch">
+				<TaskSidebar task={task} />
 				{content}
-			</section>
+			</div>
 		</>
 	);
 };
 
 export default TaskPage;
+
+type TaskSidebarProps = {
+	task: Task;
+};
+
+const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
+	let statuses = task.workspace.latest_build.resources
+		.flatMap((r) => r.agents)
+		.flatMap((a) => a?.apps)
+		.flatMap((a) => a?.statuses)
+		.filter((s) => !!s)
+		.sort(
+			(a, b) =>
+				new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+		);
+
+	// This happens when the workspace is not running so it has no resources to
+	// get the statuses so we can fallback to the latest status received from the
+	// workspace.
+	if (statuses.length === 0 && task.workspace.latest_app_status) {
+		statuses = [task.workspace.latest_app_status];
+	}
+
+	return (
+		<aside className="flex flex-col h-full border-0 border-r border-solid border-border w-[320px] shrink-0">
+			<header className="border-0 border-b border-solid border-border p-4 pt-0">
+				<div className="flex items-center justify-between py-1">
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button size="icon" variant="subtle" asChild className="-ml-2">
+									<RouterLink to="/tasks">
+										<ArrowLeftIcon />
+										<span className="sr-only">Back to tasks</span>
+									</RouterLink>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Back to tasks</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+
+					<DropdownMenu>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<DropdownMenuTrigger asChild>
+										<Button size="icon" variant="subtle" className="-mr-2">
+											<EllipsisVerticalIcon />
+											<span className="sr-only">Settings</span>
+										</Button>
+									</DropdownMenuTrigger>
+								</TooltipTrigger>
+								<TooltipContent>Settings</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+
+						<DropdownMenuContent>
+							<DropdownMenuItem asChild>
+								<RouterLink
+									to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
+								>
+									View workspace
+								</RouterLink>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+
+				<h1 className="m-0 mt-1 text-base font-medium">{task.prompt}</h1>
+
+				{task.workspace.latest_app_status?.uri && (
+					<div className="flex items-center gap-2 mt-2 flex-wrap">
+						<TaskStatusLink uri={task.workspace.latest_app_status.uri} />
+					</div>
+				)}
+			</header>
+
+			{statuses ? (
+				<ScrollArea className="h-full">
+					{statuses.length === 0 && (
+						<article className="px-4 py-2 flex gap-2 first-of-type:pt-4 last-of-type:pb-4">
+							<div className="flex flex-col gap-1">
+								<h3 className="m-0 font-medium text-sm leading-normal">
+									Running your task
+								</h3>
+								<time
+									dateTime={task.workspace.latest_build.created_at}
+									className="font-medium text-xs text-content-secondary first-letter:uppercase"
+								>
+									{timeFrom(new Date(task.workspace.latest_build.created_at))}
+								</time>
+							</div>
+
+							<AppStatusStateIcon state="working" latest className="size-5" />
+						</article>
+					)}
+					{statuses.map((status, index) => {
+						console.log("STATUS", status.needs_user_attention);
+						return (
+							<article
+								className={cn(
+									["px-4 py-2 flex gap-2 first-of-type:pt-4 last-of-type:pb-4"],
+									{
+										"opacity-50 hover:opacity-100": index !== 0,
+									},
+								)}
+								key={status.id}
+							>
+								<div className="flex flex-col gap-1">
+									<h3 className="m-0 font-medium text-sm leading-normal">
+										{status.message}
+									</h3>
+									<time
+										dateTime={status.created_at}
+										className="font-medium text-xs text-content-secondary first-letter:uppercase"
+									>
+										{timeFrom(new Date(status.created_at))}
+									</time>
+								</div>
+
+								<AppStatusStateIcon
+									state={status.state}
+									latest={index === 0}
+									disabled={task.workspace.latest_build.status !== "running"}
+									className={cn(["size-5", { "opacity-0": index !== 0 }])}
+								/>
+							</article>
+						);
+					})}
+				</ScrollArea>
+			) : (
+				<Spinner loading />
+			)}
+		</aside>
+	);
+};
 
 type TaskAppsProps = {
 	task: Task;
@@ -340,7 +401,7 @@ const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button size="sm" variant="subtle">
-									Open in IDE
+									Open locally
 									<ChevronDownIcon />
 								</Button>
 							</DropdownMenuTrigger>
@@ -463,6 +524,62 @@ const TaskAppIFrame: FC<TaskAppIFrameProps> = ({ task, app, active }) => {
 			className={cn([active ? "block" : "hidden", "w-full h-full border-0"])}
 		/>
 	);
+};
+
+type TaskStatusLinkProps = {
+	uri: string;
+};
+
+const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
+	const linkFormat = getLinkFormat(uri);
+
+	return (
+		<Button asChild variant="outline" size="sm">
+			<a href={linkFormat.href} target="_blank" rel="noreferrer">
+				{linkFormat.icon}
+				{linkFormat.label}
+			</a>
+		</Button>
+	);
+};
+
+type LinkFormat = {
+	icon: ReactNode;
+	label: string;
+	href: string;
+};
+
+const getLinkFormat = (uri: string): LinkFormat => {
+	if (uri.startsWith("https://github.com")) {
+		if (uri.includes("pull/")) {
+			return {
+				icon: <GitPullRequestArrowIcon />,
+				label: uri.split("/").pop() ?? "Pull Request",
+				href: uri,
+			};
+		}
+
+		if (uri.includes("issues/")) {
+			return {
+				icon: <BugIcon />,
+				label: uri.split("/").pop() ?? "Issue",
+				href: uri,
+			};
+		}
+
+		const [org, repo] = uri.split("/").slice(3, 5);
+		return {
+			icon: <GitHub />,
+			label: `${org}/${repo}`,
+			href: uri,
+		};
+	}
+
+	return {
+		icon: <ExternalLinkIcon />,
+		label: formatURI(uri),
+		href: uri,
+	};
 };
 
 export const data = {

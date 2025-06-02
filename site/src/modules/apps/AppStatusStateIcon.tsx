@@ -1,6 +1,10 @@
-import type { WorkspaceAppStatus } from "api/typesGenerated";
+import type {
+	WorkspaceAppStatus,
+	WorkspaceAppStatusState,
+} from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
 import {
+	BanIcon,
 	CircleAlertIcon,
 	CircleCheckIcon,
 	HourglassIcon,
@@ -9,20 +13,22 @@ import {
 import type { FC } from "react";
 import { cn } from "utils/cn";
 
-type AppStatusIconProps = {
-	status: WorkspaceAppStatus;
+type AppStatusStateIconProps = {
+	state: WorkspaceAppStatusState;
 	latest: boolean;
+	disabled?: boolean;
 	className?: string;
 };
 
-export const AppStatusIcon: FC<AppStatusIconProps> = ({
-	status,
+export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
+	state,
+	disabled,
 	latest,
 	className: customClassName,
 }) => {
 	const className = cn(["size-4 shrink-0", customClassName]);
 
-	switch (status.state) {
+	switch (state) {
 		case "complete":
 			return (
 				<CircleCheckIcon className={cn(["text-content-success", className])} />
@@ -32,10 +38,12 @@ export const AppStatusIcon: FC<AppStatusIconProps> = ({
 				<CircleAlertIcon className={cn(["text-content-warning", className])} />
 			);
 		case "working":
-			return latest ? (
+			return disabled ? (
+				<BanIcon className={cn(["text-content-disabled", className])} />
+			) : latest ? (
 				<Spinner size="sm" className="shrink-0" loading />
 			) : (
-				<HourglassIcon className={cn(["text-highlight-sky", className])} />
+				<HourglassIcon className={cn(["text-content-secondary", className])} />
 			);
 		default:
 			return (
