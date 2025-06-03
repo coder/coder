@@ -19,8 +19,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,6 +37,11 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
+	"github.com/coder/coder/v2/aibridged"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
+	"github.com/coder/coder/v2/coderd/prebuilds"
+	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -54,6 +57,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -88,7 +92,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -606,7 +609,7 @@ func New(options *Options) *API {
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
 		AgentAPIVersion:       AgentAPIVersionREST,
-		ProvisionerAPIVersion: proto.CurrentVersion.String(),
+		ProvisionerAPIVersion: provisionerdproto.CurrentVersion.String(),
 		DashboardURL:          api.AccessURL.String(),
 		WorkspaceProxy:        false,
 		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
@@ -667,7 +670,7 @@ func New(options *Options) *API {
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
 					CurrentVersion:         buildinfo.Version(),
-					CurrentAPIMajorVersion: proto.CurrentMajor,
+					CurrentAPIMajorVersion: provisionerdproto.CurrentMajor,
 					Store:                  options.Database,
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
@@ -1491,6 +1494,10 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
 		})
+		r.Route("/aibridge", func(r chi.Router) {
+			r.Post("/v1/chat/completions", api.bridgeOpenAIRequest)
+			r.Post("/v1/messages", api.bridgeAnthropicRequest)
+		})
 	})
 
 	if options.SwaggerEndpoint {
@@ -1578,7 +1585,7 @@ type API struct {
 	TailnetClientService              *tailnet.ClientService
 	// WebpushDispatcher is a way to send notifications to users via Web Push.
 	WebpushDispatcher webpush.Dispatcher
-	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
+	QuotaCommitter    atomic.Pointer[provisionerdproto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
@@ -1634,6 +1641,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+
+	AIBridgeDaemons []*aibridged.Server
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1734,11 +1743,11 @@ type memoryProvisionerDaemonOptions struct {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client provisionerdproto.DRPCProvisionerDaemonClient, err error) {
 	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
 
-func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client provisionerdproto.DRPCProvisionerDaemonClient, err error) {
 	options := &memoryProvisionerDaemonOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -1770,7 +1779,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
 
-	apiVersion := proto.CurrentVersion.String()
+	apiVersion := provisionerdproto.CurrentVersion.String()
 	if options.versionOverride != "" && flag.Lookup("test.v") != nil {
 		// This should only be usable for unit testing. To fake a different provisioner version
 		apiVersion = options.versionOverride
@@ -1825,7 +1834,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	if err != nil {
 		return nil, err
 	}
-	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
+	err = provisionerdproto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -1860,7 +1869,119 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		_ = serverSession.Close()
 	}()
 
-	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+	return provisionerdproto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name string) (client aibridgedproto.DRPCAIBridgeDaemonClient, err error) {
+	// TODO(dannyk): implement options.
+	// TODO(dannyk): implement tracing.
+
+	clientSession, serverSession := drpcsdk.MemTransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
+
+	// TODO(dannyk): implement API versioning.
+	// TODO(dannyk): implement database tracking of daemons.
+
+	mux := drpcmux.New()
+	api.Logger.Debug(dialCtx, "starting in-memory AI bridge daemon", slog.F("name", name))
+	logger := api.Logger.Named(fmt.Sprintf("inmem-aibridged-%s", name))
+	srv, err := aibridgedserver.NewServer(api.ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = aibridgedproto.DRPCRegisterAIBridgeDaemon(mux, srv)
+	if err != nil {
+		return nil, err
+	}
+	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				logger.Debug(dialCtx, "drpc server error", slog.Error(err))
+			},
+		},
+	)
+	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
+	// API is concerned: they are long-lived connections that we need to close before completing
+	// shutdown of the API.
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	go func() {
+		defer api.WebsocketWaitGroup.Done()
+		// Here we pass the background context, since we want the server to keep serving until the
+		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
+		// having a dead connection we don't know the status of.
+		err := server.Serve(context.Background(), serverSession)
+		logger.Info(dialCtx, "AI bridge daemon disconnected", slog.Error(err))
+		// close the sessions, so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return aibridgedproto.NewDRPCAIBridgeDaemonClient(clientSession), nil
+}
+
+// TODO: naming...
+func (api *API) CreateInMemoryOpenAIBridgeClient(dialCtx context.Context, srv *aibridged.Server) (client aibridgedproto.DRPCOpenAIServiceClient, err error) {
+	// TODO(dannyk): implement options.
+	// TODO(dannyk): implement tracing.
+
+	clientSession, serverSession := drpcsdk.MemTransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
+
+	// TODO(dannyk): implement API versioning.
+
+	mux := drpcmux.New()
+	api.Logger.Debug(dialCtx, "starting in-memory OpenAI bridge")
+	logger := api.Logger.Named("inmem-openai-bridge")
+	err = aibridgedproto.DRPCRegisterOpenAIService(mux, srv)
+	if err != nil {
+		return nil, err
+	}
+	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				logger.Debug(dialCtx, "drpc server error", slog.Error(err))
+			},
+		},
+	)
+	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
+	// API is concerned: they are long-lived connections that we need to close before completing
+	// shutdown of the API.
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	go func() {
+		defer api.WebsocketWaitGroup.Done()
+		// Here we pass the background context, since we want the server to keep serving until the
+		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
+		// having a dead connection we don't know the status of.
+		err := server.Serve(context.Background(), serverSession)
+		logger.Info(dialCtx, "OpenAI bridge disconnected", slog.Error(err))
+		// close the sessions, so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return aibridgedproto.NewDRPCOpenAIServiceClient(clientSession), nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {

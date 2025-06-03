@@ -61,6 +61,8 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
+	"github.com/coder/coder/v2/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
@@ -1049,6 +1051,36 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			provisionerdMetrics.Runner.NumDaemons.Set(float64(len(provisionerDaemons)))
 
+			// Since errCh only has one buffered slot, all routines
+			// sending on it must be wrapped in a select/default to
+			// avoid leaving dangling goroutines waiting for the
+			// channel to be consumed.
+			errCh = make(chan error, 1)
+			aiBridgeDaemons := make([]*aibridged.Server, 0)
+			defer func() {
+				// We have no graceful shutdown of aiBridgeDaemons
+				// here because that's handled at the end of main, this
+				// is here in case the program exits early.
+				for _, daemon := range aiBridgeDaemons {
+					_ = daemon.Close()
+				}
+			}()
+
+			// Built in aibridge daemons.
+			for i := int64(0); i < vals.AI.Value.BridgeConfig.Daemons.Value(); i++ {
+				suffix := fmt.Sprintf("%d", i)
+				// The suffix is added to the hostname, so we may need to trim to fit into
+				// the 64 character limit.
+				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
+				name := fmt.Sprintf("%s-%s", hostname, suffix)
+				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name)
+				if err != nil {
+					return xerrors.Errorf("create provisioner daemon: %w", err)
+				}
+				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
+			}
+			coderAPI.AIBridgeDaemons = aiBridgeDaemons
+
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
 
@@ -1228,6 +1260,35 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return
 					}
 					r.Verbosef(inv, "Gracefully shut down provisioner daemon %d", id)
+				}()
+			}
+			wg.Wait()
+
+
+			// Shut down aibridge daemons before waiting for WebSockets
+			// connections to close.
+			for i, aiBridgeDaemon := range aiBridgeDaemons {
+				id := i + 1
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					r.Verbosef(inv, "Shutting down AI bridge daemon %d...", id)
+
+					err := shutdownWithTimeout(func(ctx context.Context) error {
+						// We only want to cancel active jobs if we aren't exiting gracefully.
+						return aiBridgeDaemon.Shutdown(ctx)
+					}, 5 * time.Second)
+					if err != nil {
+						cliui.Errorf(inv.Stderr, "Failed to shut down AI bridge daemon %d: %s\n", id, err)
+						return
+					}
+					err = aiBridgeDaemon.Close()
+					if err != nil {
+						cliui.Errorf(inv.Stderr, "Close AI bridge daemon %d: %s\n", id, err)
+						return
+					}
+					r.Verbosef(inv, "Gracefully shut down AI bridge daemon %d", id)
 				}()
 			}
 			wg.Wait()
@@ -1530,6 +1591,14 @@ func newProvisionerDaemon(
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
+}
+
+func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string) (*aibridged.Server, error) {
+	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
+		// This debounces calls to listen every second.
+		// TODO: is this true / necessary?
+		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)
+	}, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)))
 }
 
 // nolint: revive

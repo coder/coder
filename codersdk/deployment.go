@@ -1055,6 +1055,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
 		}
+		deploymentGroupAIBridge = serpent.Group{
+			Name: "AI Bridge",
+			YAML: "ai_bridge",
+		}
 	)
 
 	httpAddress := serpent.Option{
@@ -3103,6 +3107,19 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
 		},
+
+		// AI Bridge Options
+		{
+			Name:        "AI Bridge Daemons",
+			Description: "TODO.",
+			Flag:        "ai-bridge-daemons",
+			Env:         "CODER_AI_BRIDGE_DAEMONS",
+			Value:       &c.AI.Value.BridgeConfig.Daemons,
+			Default:     "3",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "daemons",
+			Hidden:      true,
+		},
 	}
 
 	return opts
@@ -3121,6 +3138,10 @@ type AIProviderConfig struct {
 
 type AIConfig struct {
 	Providers []AIProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
+
+	BridgeConfig struct {
+		Daemons serpent.Int64 `json:"daemons" typescript:",notnull"`
+	} `json:"bridge,omitempty"`
 }
 
 type SupportConfig struct {

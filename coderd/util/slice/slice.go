@@ -1,7 +1,10 @@
 package slice
 
 import (
+	"math/rand"
+
 	"golang.org/x/exp/constraints"
+	"golang.org/x/xerrors"
 )
 
 // ToStrings works for any type where the base type is a string.
@@ -88,6 +91,25 @@ func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	}
 	var empty T
 	return empty, false
+}
+
+// PickRandom returns one element at a random index.
+// NOTE: callers MUST protect haystack from modification while this function is called to prevent panics.
+func PickRandom[T any](haystack []T) (T, error) {
+	var zero T
+
+	length := len(haystack)
+	if length == 0 {
+		return zero, xerrors.New("cannot pick from empty slice")
+	}
+
+	index := rand.Intn(length)
+
+	if length != len(haystack) {
+		return zero, xerrors.New("slice was modified during operation")
+	}
+
+	return haystack[index], nil
 }
 
 // Filter returns all elements that satisfy the condition.
