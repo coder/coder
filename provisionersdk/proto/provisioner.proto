@@ -27,6 +27,20 @@ message RichParameterOption {
     string icon = 4;
 }
 
+enum ParameterFormType {
+    DEFAULT = 0;
+    FORM_ERROR = 1;
+    RADIO = 2;
+    DROPDOWN = 3;
+    INPUT = 4;
+    TEXTAREA = 5;
+    SLIDER = 6;
+    CHECKBOX = 7;
+    SWITCH = 8;
+    TAGSELECT = 9;
+    MULTISELECT = 10;
+}
+
 // RichParameter represents a variable that is exposed.
 message RichParameter {
     reserved 14;
@@ -49,6 +63,7 @@ message RichParameter {
     string display_name = 15;
     int32 order = 16;
     bool ephemeral = 17;
+    ParameterFormType form_type = 18;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -57,8 +72,16 @@ message RichParameterValue {
     string value = 2;
 }
 
+// ExpirationPolicy defines the policy for expiring unclaimed prebuilds.
+// If a prebuild remains unclaimed for longer than ttl seconds, it is deleted and
+// recreated to prevent staleness.
+message ExpirationPolicy {
+	int32 ttl = 1;
+}
+
 message Prebuild {
     int32 instances = 1;
+	ExpirationPolicy expiration_policy = 2;
 }
 
 // Preset represents a set of preset parameters for a template version.
@@ -71,6 +94,11 @@ message Preset {
 message PresetParameter {
     string name = 1;
     string value = 2;
+}
+
+message ResourceReplacement {
+    string resource = 1;
+    repeated string paths = 2;
 }
 
 // VariableValue holds the key/value mapping of a Terraform variable.
@@ -147,6 +175,7 @@ message Agent {
 	int64 order = 23;
 	ResourcesMonitoring resources_monitoring = 24;
 	repeated Devcontainer devcontainers = 25;
+	string api_key_scope = 26;
 }
 
 enum AppSharingLevel {
@@ -225,6 +254,7 @@ message App {
     int64 order = 10;
     bool hidden = 11;
     AppOpenIn open_in = 12;
+    string group = 13;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
@@ -273,6 +303,10 @@ message Role {
     string org_id = 2;
 }
 
+message RunningAgentAuthToken {
+    string agent_id = 1;
+    string token = 2;
+}
 enum PrebuiltWorkspaceBuildStage {
 	NONE = 0;   // Default value for builds unrelated to prebuilds.
 	CREATE = 1; // A prebuilt workspace is being provisioned.
@@ -301,7 +335,7 @@ message Metadata {
     string workspace_owner_login_type =  18;
     repeated Role workspace_owner_rbac_roles = 19;
     PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
-    string running_workspace_agent_token = 21;                       // Preserves the running agent token of a prebuilt workspace so it can reinitialize.
+    repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -344,7 +378,8 @@ message PlanComplete {
     repeated Module modules = 7;
     repeated Preset presets = 8;
     bytes plan = 9;
-    bytes module_files = 10;
+    repeated ResourceReplacement resource_replacements = 10;
+    bytes module_files = 11;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

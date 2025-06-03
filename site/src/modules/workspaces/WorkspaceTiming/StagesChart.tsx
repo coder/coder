@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ErrorSharp from "@mui/icons-material/ErrorSharp";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import type { TimingStage } from "api/typesGenerated";
+import { CircleAlertIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
@@ -70,7 +70,7 @@ type StageTiming = {
 	error?: boolean;
 };
 
-export type StagesChartProps = {
+type StagesChartProps = {
 	timings: StageTiming[];
 	onSelectStage: (stage: Stage) => void;
 };
@@ -107,7 +107,10 @@ export const StagesChart: FC<StagesChartProps> = ({
 											<span css={styles.stageLabel}>
 												{stage.label}
 												<Tooltip {...stage.tooltip}>
-													<InfoOutlined css={styles.info} />
+													<InfoIcon
+														className="size-icon-xs"
+														css={styles.info}
+													/>
 												</Tooltip>
 											</span>
 										</YAxisLabel>
@@ -138,6 +141,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 
 									const value = calcDuration(t.range);
 									const offset = calcOffset(t.range, totalRange);
+									const validDuration = value > 0 && !Number.isNaN(value);
 
 									return (
 										<XAxisRow
@@ -156,9 +160,9 @@ export const StagesChart: FC<StagesChartProps> = ({
 													}}
 												>
 													{t.error && (
-														<ErrorSharp
+														<CircleAlertIcon
+															className="size-icon-sm"
 															css={{
-																fontSize: 18,
 																color: "#F87171",
 																marginRight: 4,
 															}}
@@ -169,7 +173,17 @@ export const StagesChart: FC<StagesChartProps> = ({
 											) : (
 												<Bar scale={scale} value={value} offset={offset} />
 											)}
-											{formatTime(calcDuration(t.range))}
+											{validDuration ? (
+												<span>{formatTime(value)}</span>
+											) : (
+												<span
+													css={(theme) => ({
+														color: theme.palette.error.main,
+													})}
+												>
+													Invalid
+												</span>
+											)}
 										</XAxisRow>
 									);
 								})}

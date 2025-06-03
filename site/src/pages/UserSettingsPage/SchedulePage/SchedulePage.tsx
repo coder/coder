@@ -2,6 +2,7 @@ import {
 	updateUserQuietHoursSchedule,
 	userQuietHoursSchedule,
 } from "api/queries/settings";
+import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -25,7 +26,7 @@ const SchedulePage: FC = () => {
 	const {
 		mutate: onSubmit,
 		error: submitError,
-		isLoading: mutationLoading,
+		isPending: mutationLoading,
 	} = useMutation(updateUserQuietHoursSchedule(me.id, queryClient));
 
 	if (isLoading) {
@@ -44,7 +45,7 @@ const SchedulePage: FC = () => {
 		>
 			<ScheduleForm
 				isLoading={mutationLoading}
-				initialValues={quietHoursSchedule}
+				initialValues={quietHoursSchedule as UserQuietHoursScheduleResponse}
 				submitError={submitError}
 				onSubmit={(values) => {
 					onSubmit(values, {

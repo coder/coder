@@ -539,8 +539,8 @@ export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	user_id: MockUserOwner.id,
 	username: MockUserOwner.username,
 	email: MockUserOwner.email,
-	created_at: "",
-	updated_at: "",
+	updated_at: "2025-05-22T17:51:49.49745Z",
+	created_at: "2025-05-22T17:51:49.497449Z",
 	name: MockUserOwner.name,
 	avatar_url: MockUserOwner.avatar_url,
 	global_roles: MockUserOwner.roles,
@@ -553,15 +553,15 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		user_id: MockUserMember.id,
 		username: MockUserMember.username,
 		email: MockUserMember.email,
-		created_at: "",
-		updated_at: "",
+		updated_at: "2025-05-22T17:51:49.49745Z",
+		created_at: "2025-05-22T17:51:49.497449Z",
 		name: MockUserMember.name,
 		avatar_url: MockUserMember.avatar_url,
 		global_roles: MockUserMember.roles,
 		roles: [],
 	};
 
-const MockProvisionerKey: TypesGen.ProvisionerKey = {
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	id: "test-provisioner-key",
 	organization: MockOrganization.id,
 	created_at: "2022-05-17T17:39:01.382927298Z",
@@ -753,6 +753,8 @@ You can add instructions here
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
 	{
 		...MockTemplateVersion,
+		id: "test-template-version-markdown",
+		name: "test-version-markdown",
 		message: `
 # Abiding Grace
 ## Enchantment
@@ -822,6 +824,7 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
+	use_classic_parameter_flow: false,
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1407,6 +1410,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		MockTemplate.allow_user_cancel_workspace_jobs,
 	template_active_version_id: MockTemplate.active_version_id,
 	template_require_active_version: MockTemplate.require_active_version,
+	template_use_classic_parameter_flow: false,
 	outdated: false,
 	owner_id: MockUserOwner.id,
 	organization_id: MockOrganization.id,
@@ -1599,6 +1603,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
 	{
 		name: "first_parameter",
 		type: "string",
+		form_type: "input",
 		description: "This is first parameter",
 		description_plaintext: "Markdown: This is first parameter",
 		default_value: "abc",
@@ -1613,6 +1618,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
 	{
 		name: "second_parameter",
 		type: "number",
+		form_type: "input",
 		description: "This is second parameter",
 		description_plaintext: "Markdown: This is second parameter",
 		default_value: "2",
@@ -1630,6 +1636,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 	{
 		name: "third_parameter",
 		type: "string",
+		form_type: "input",
 		description: "This is third parameter",
 		description_plaintext: "Markdown: This is third parameter",
 		default_value: "aaa",
@@ -1646,6 +1653,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
 	{
 		name: "fourth_parameter",
 		type: "string",
+		form_type: "input",
 		description: "This is fourth parameter",
 		description_plaintext: "Markdown: This is fourth parameter",
 		default_value: "def",
@@ -1659,6 +1667,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
 	type: "number",
+	form_type: "input",
 	description: "This is fifth parameter",
 	description_plaintext: "Markdown: This is fifth parameter",
 	default_value: "5",
@@ -4381,4 +4390,85 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	volumes: {
 		"/mnt/volume1": "/volume1",
 	},
+	devcontainer_dirty: false,
 };
+
+export const MockWorkspaceAppStatuses: TypesGen.WorkspaceAppStatus[] = [
+	{
+		// This is the latest status chronologically (15:04:38)
+		...MockWorkspaceAppStatus,
+		id: "status-7",
+		icon: "/emojis/1f4dd.png", // 📝
+		message: "Creating PR with gh CLI",
+		created_at: createTimestamp(4, 38), // 15:04:38
+		uri: "https://github.com/coder/coder/pull/5678",
+		state: "complete" as const,
+	},
+	{
+		// (15:03:56)
+		...MockWorkspaceAppStatus,
+		id: "status-6",
+		icon: "/emojis/1f680.png", // 🚀
+		message: "Pushing branch to remote",
+		created_at: createTimestamp(3, 56), // 15:03:56
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:02:29)
+		...MockWorkspaceAppStatus,
+		id: "status-5",
+		icon: "/emojis/1f527.png", // 🔧
+		message: "Configuring git identity",
+		created_at: createTimestamp(2, 29), // 15:02:29
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:02:04)
+		...MockWorkspaceAppStatus,
+		id: "status-4",
+		icon: "/emojis/1f4be.png", // 💾
+		message: "Committing changes",
+		created_at: createTimestamp(2, 4), // 15:02:04
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:01:44)
+		...MockWorkspaceAppStatus,
+		id: "status-3",
+		icon: "/emojis/2795.png", // +
+		message: "Adding files to staging",
+		created_at: createTimestamp(1, 44), // 15:01:44
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:01:32)
+		...MockWorkspaceAppStatus,
+		id: "status-2",
+		icon: "/emojis/1f33f.png", // 🌿
+		message: "Creating a new branch for PR",
+		created_at: createTimestamp(1, 32), // 15:01:32
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:01:00) - Oldest
+		...MockWorkspaceAppStatus,
+		id: "status-1",
+		icon: "/emojis/1f680.png", // 🚀
+		message: "Starting to create a PR",
+		created_at: createTimestamp(1, 0), // 15:01:00
+		uri: "",
+		state: "complete" as const,
+	},
+];
+
+export function createTimestamp(minuteOffset: number, secondOffset: number) {
+	const baseDate = new Date("2024-03-26T15:00:00Z");
+	baseDate.setMinutes(baseDate.getMinutes() + minuteOffset);
+	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
+	return baseDate.toISOString();
+}

@@ -1,22 +1,14 @@
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import {
-	addDays,
-	addHours,
-	format,
-	isToday,
-	startOfDay,
-	startOfHour,
-	subDays,
-} from "date-fns";
+import dayjs from "dayjs";
+import { MoveRightIcon } from "lucide-react";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
 
@@ -54,12 +46,10 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger>
-				<Button>
-					<span>{format(value.startDate, "MMM d, Y")}</span>
-					<ArrowRightAltOutlined
-						css={{ width: 16, height: 16, marginLeft: 8, marginRight: 8 }}
-					/>
-					<span>{format(value.endDate, "MMM d, Y")}</span>
+				<Button variant="outline">
+					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
+					<MoveRightIcon />
+					<span>{dayjs(value.endDate).format("MMM D, YYYY")}</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent>
@@ -81,10 +71,10 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 						const endDate = range.endDate as Date;
 						const now = new Date();
 						onChange({
-							startDate: startOfDay(startDate),
-							endDate: isToday(endDate)
-								? startOfHour(addHours(now, 1))
-								: startOfDay(addDays(endDate, 1)),
+							startDate: dayjs(startDate).startOf("day").toDate(),
+							endDate: dayjs(endDate).isSame(dayjs(), "day")
+								? dayjs(now).startOf("hour").add(1, "hour").toDate()
+								: dayjs(endDate).startOf("day").add(1, "day").toDate(),
 						});
 						setOpen(false);
 					}}
@@ -104,28 +94,28 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 						{
 							label: "Yesterday",
 							range: () => ({
-								startDate: subDays(new Date(), 1),
-								endDate: subDays(new Date(), 1),
+								startDate: dayjs().subtract(1, "day").toDate(),
+								endDate: dayjs().subtract(1, "day").toDate(),
 							}),
 						},
 						{
 							label: "Last 7 days",
 							range: () => ({
-								startDate: subDays(new Date(), 6),
+								startDate: dayjs().subtract(6, "day").toDate(),
 								endDate: new Date(),
 							}),
 						},
 						{
 							label: "Last 14 days",
 							range: () => ({
-								startDate: subDays(new Date(), 13),
+								startDate: dayjs().subtract(13, "day").toDate(),
 								endDate: new Date(),
 							}),
 						},
 						{
 							label: "Last 30 days",
 							range: () => ({
-								startDate: subDays(new Date(), 29),
+								startDate: dayjs().subtract(29, "day").toDate(),
 								endDate: new Date(),
 							}),
 						},

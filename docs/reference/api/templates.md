@@ -78,7 +78,8 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -134,6 +135,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
+|`» use_classic_parameter_flow`|boolean|false|||
 
 #### Enumerated Values
 
@@ -255,7 +257,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -403,7 +406,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -485,7 +489,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -582,7 +587,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -703,7 +709,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -802,7 +809,8 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -858,6 +866,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
+|`» use_classic_parameter_flow`|boolean|false|||
 
 #### Enumerated Values
 
@@ -999,7 +1008,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1128,7 +1138,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1256,7 +1267,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1326,6 +1338,7 @@ Status Code **200**
 | `»»» [any property]`        | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» type`                   | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
 | `»» worker_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» worker_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
 | `» matched_provisioners`    | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
 | `»» available`              | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
 | `»» count`                  | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
@@ -1533,7 +1546,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -1603,6 +1617,7 @@ Status Code **200**
 | `»»» [any property]`        | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» type`                   | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
 | `»» worker_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» worker_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
 | `» matched_provisioners`    | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
 | `»» available`              | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
 | `»» count`                  | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
@@ -1700,7 +1715,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -1806,7 +1822,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -2002,7 +2019,8 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 
@@ -2074,7 +2092,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 
@@ -2280,6 +2299,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "command": "string",
             "display_name": "string",
             "external": true,
+            "group": "string",
             "health": "disabled",
             "healthcheck": {
               "interval": 0,
@@ -2426,6 +2446,7 @@ Status Code **200**
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `»»» external`                  | boolean                                                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» group`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                                                 | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
@@ -2553,6 +2574,151 @@ Status Code **200**
 | `workspace_transition`    | `start`            |
 | `workspace_transition`    | `stop`             |
 | `workspace_transition`    | `delete`           |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Open dynamic parameters WebSocket by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/dynamic-parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Evaluate dynamic parameters for template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/dynamic-parameters/evaluate`
+
+> Body parameter
+
+```json
+{
+  "id": 0,
+  "inputs": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+}
+```
+
+### Parameters
+
+| Name              | In   | Type                                                                             | Required | Description              |
+|-------------------|------|----------------------------------------------------------------------------------|----------|--------------------------|
+| `templateversion` | path | string(uuid)                                                                     | true     | Template version ID      |
+| `body`            | body | [codersdk.DynamicParametersRequest](schemas.md#codersdkdynamicparametersrequest) | true     | Initial parameter values |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "diagnostics": [
+    {
+      "detail": "string",
+      "extra": {
+        "code": "string"
+      },
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
+  "id": 0,
+  "parameters": [
+    {
+      "default_value": {
+        "valid": true,
+        "value": "string"
+      },
+      "description": "string",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "extra": {
+            "code": "string"
+          },
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
+      "display_name": "string",
+      "ephemeral": true,
+      "form_type": "",
+      "icon": "string",
+      "mutable": true,
+      "name": "string",
+      "options": [
+        {
+          "description": "string",
+          "icon": "string",
+          "name": "string",
+          "value": {
+            "valid": true,
+            "value": "string"
+          }
+        }
+      ],
+      "order": 0,
+      "required": true,
+      "styling": {
+        "disabled": true,
+        "label": "string",
+        "placeholder": "string"
+      },
+      "type": "string",
+      "validations": [
+        {
+          "validation_error": "string",
+          "validation_max": 0,
+          "validation_min": 0,
+          "validation_monotonic": "string",
+          "validation_regex": "string"
+        }
+      ],
+      "value": {
+        "valid": true,
+        "value": "string"
+      }
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DynamicParametersResponse](schemas.md#codersdkdynamicparametersresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2808,6 +2974,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "command": "string",
             "display_name": "string",
             "external": true,
+            "group": "string",
             "health": "disabled",
             "healthcheck": {
               "interval": 0,
@@ -2954,6 +3121,7 @@ Status Code **200**
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `»»» external`                  | boolean                                                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» group`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                                                 | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
@@ -3115,6 +3283,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
     "description_plaintext": "string",
     "display_name": "string",
     "ephemeral": true,
+    "form_type": "",
     "icon": "string",
     "mutable": true,
     "name": "string",
@@ -3147,34 +3316,46 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 Status Code **200**
 
-| Name                      | Type                                                                             | Required | Restrictions | Description |
-|---------------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`            | array                                                                            | false    |              |             |
-| `» default_value`         | string                                                                           | false    |              |             |
-| `» description`           | string                                                                           | false    |              |             |
-| `» description_plaintext` | string                                                                           | false    |              |             |
-| `» display_name`          | string                                                                           | false    |              |             |
-| `» ephemeral`             | boolean                                                                          | false    |              |             |
-| `» icon`                  | string                                                                           | false    |              |             |
-| `» mutable`               | boolean                                                                          | false    |              |             |
-| `» name`                  | string                                                                           | false    |              |             |
-| `» options`               | array                                                                            | false    |              |             |
-| `»» description`          | string                                                                           | false    |              |             |
-| `»» icon`                 | string                                                                           | false    |              |             |
-| `»» name`                 | string                                                                           | false    |              |             |
-| `»» value`                | string                                                                           | false    |              |             |
-| `» required`              | boolean                                                                          | false    |              |             |
-| `» type`                  | string                                                                           | false    |              |             |
-| `» validation_error`      | string                                                                           | false    |              |             |
-| `» validation_max`        | integer                                                                          | false    |              |             |
-| `» validation_min`        | integer                                                                          | false    |              |             |
-| `» validation_monotonic`  | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |             |
-| `» validation_regex`      | string                                                                           | false    |              |             |
+| Name                      | Type                                                                             | Required | Restrictions | Description                                                                                        |
+|---------------------------|----------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                                            | false    |              |                                                                                                    |
+| `» default_value`         | string                                                                           | false    |              |                                                                                                    |
+| `» description`           | string                                                                           | false    |              |                                                                                                    |
+| `» description_plaintext` | string                                                                           | false    |              |                                                                                                    |
+| `» display_name`          | string                                                                           | false    |              |                                                                                                    |
+| `» ephemeral`             | boolean                                                                          | false    |              |                                                                                                    |
+| `» form_type`             | string                                                                           | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag. |
+| `» icon`                  | string                                                                           | false    |              |                                                                                                    |
+| `» mutable`               | boolean                                                                          | false    |              |                                                                                                    |
+| `» name`                  | string                                                                           | false    |              |                                                                                                    |
+| `» options`               | array                                                                            | false    |              |                                                                                                    |
+| `»» description`          | string                                                                           | false    |              |                                                                                                    |
+| `»» icon`                 | string                                                                           | false    |              |                                                                                                    |
+| `»» name`                 | string                                                                           | false    |              |                                                                                                    |
+| `»» value`                | string                                                                           | false    |              |                                                                                                    |
+| `» required`              | boolean                                                                          | false    |              |                                                                                                    |
+| `» type`                  | string                                                                           | false    |              |                                                                                                    |
+| `» validation_error`      | string                                                                           | false    |              |                                                                                                    |
+| `» validation_max`        | integer                                                                          | false    |              |                                                                                                    |
+| `» validation_min`        | integer                                                                          | false    |              |                                                                                                    |
+| `» validation_monotonic`  | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |                                                                                                    |
+| `» validation_regex`      | string                                                                           | false    |              |                                                                                                    |
 
 #### Enumerated Values
 
 | Property               | Value          |
 |------------------------|----------------|
+| `form_type`            | ``             |
+| `form_type`            | `radio`        |
+| `form_type`            | `dropdown`     |
+| `form_type`            | `input`        |
+| `form_type`            | `textarea`     |
+| `form_type`            | `slider`       |
+| `form_type`            | `checkbox`     |
+| `form_type`            | `switch`       |
+| `form_type`            | `tag-select`   |
+| `form_type`            | `multi-select` |
+| `form_type`            | `error`        |
 | `type`                 | `string`       |
 | `type`                 | `number`       |
 | `type`                 | `bool`         |
@@ -3319,32 +3500,5 @@ Status Code **200**
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Open dynamic parameters WebSocket by template version
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/templateversions/{templateversion}/parameters \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /users/{user}/templateversions/{templateversion}/parameters`
-
-### Parameters
-
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `user`            | path | string(uuid) | true     | Template version ID |
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-
-### Responses
-
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

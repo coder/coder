@@ -170,14 +170,14 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "provisionerd"},
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					// TODO: Add ProvisionerJob resource type.
-					rbac.ResourceFile.Type:     {policy.ActionRead},
-					rbac.ResourceSystem.Type:   {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+					rbac.ResourceFile.Type:            {policy.ActionRead},
+					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionCreateAgent},
 					rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
@@ -219,19 +219,20 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// See unhanger package.
-	subjectHangDetector = rbac.Subject{
-		Type:         rbac.SubjectTypeHangDetector,
-		FriendlyName: "Hang Detector",
+	// See reaper package.
+	subjectJobReaper = rbac.Subject{
+		Type:         rbac.SubjectTypeJobReaper,
+		FriendlyName: "Job Reaper",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Identifier:  rbac.RoleIdentifier{Name: "hangdetector"},
-				DisplayName: "Hang Detector Daemon",
+				Identifier:  rbac.RoleIdentifier{Name: "jobreaper"},
+				DisplayName: "Job Reaper Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {policy.ActionRead},
-					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:        {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:       {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -318,6 +319,28 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeSubAgentAPI,
+			FriendlyName: "Sub Agent API",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "subagentapi"},
+					DisplayName: "Sub Agent API",
+					Site:        []rbac.Permission{},
+					Org: map[string][]rbac.Permission{
+						orgID.String(): {},
+					},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+					}),
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -338,7 +361,7 @@ var (
 					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
+					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -346,6 +369,7 @@ var (
 					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -407,10 +431,10 @@ func AsAutostart(ctx context.Context) context.Context {
 	return As(ctx, subjectAutostart)
 }
 
-// AsHangDetector returns a context with an actor that has permissions required
-// for unhanger.Detector to function.
-func AsHangDetector(ctx context.Context) context.Context {
-	return As(ctx, subjectHangDetector)
+// AsJobReaper returns a context with an actor that has permissions required
+// for reaper.Detector to function.
+func AsJobReaper(ctx context.Context) context.Context {
+	return As(ctx, subjectJobReaper)
 }
 
 // AsKeyRotator returns a context with an actor that has permissions required for rotating crypto keys.
@@ -433,6 +457,12 @@ func AsNotifier(ctx context.Context) context.Context {
 // updating resource monitors.
 func AsResourceMonitor(ctx context.Context) context.Context {
 	return As(ctx, subjectResourceMonitor)
+}
+
+// AsSubAgentAPI returns a context with an actor that has permissions required for
+// handling the lifecycle of sub agents.
+func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
+	return As(ctx, subjectSubAgentAPI(userID, orgID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -1085,11 +1115,10 @@ func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.
 	return q.db.AcquireNotificationMessages(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-	// return database.ProvisionerJob{}, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return database.ProvisionerJob{}, err
+	}
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
@@ -1508,6 +1537,19 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
+func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionDeleteAgent, workspace); err != nil {
+		return err
+	}
+
+	return q.db.DeleteWorkspaceSubAgentByID(ctx, id)
+}
+
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	if !testing.Testing() {
 		return xerrors.Errorf("DisableForeignKeysAndTriggers is only allowed in tests")
@@ -1912,14 +1954,6 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	return q.db.GetHealthSettings(ctx)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
-func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return nil, err
-	// }
-	return q.db.GetHungProvisionerJobs(ctx, hungSince)
-}
-
 func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
 }
@@ -2233,6 +2267,15 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, ar
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, args)
 }
 
+func (q *querier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
+	// GetPresetsAtFailureLimit returns a list of template version presets that have reached the hard failure limit.
+	// Request the same authorization permissions as GetPresetsBackoff, since the methods are similar.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsAtFailureLimit(ctx, hardLimit)
+}
+
 func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
 	// GetPresetsBackoff returns a list of template version presets along with metadata such as the number of failed prebuilds.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
@@ -2307,6 +2350,13 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
+func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return database.ProvisionerJob{}, err
+	}
+	return q.db.GetProvisionerJobByIDForUpdate(ctx, id)
+}
+
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	_, err := q.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
@@ -2315,29 +2365,47 @@ func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uui
 	return q.db.GetProvisionerJobTimingsByJobID(ctx, jobID)
 }
 
-// TODO: We have a ProvisionerJobs resource, but it hasn't been checked for this use-case.
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-	// 	return nil, err
-	// }
-	return q.db.GetProvisionerJobsByIDs(ctx, ids)
+	provisionerJobs, err := q.db.GetProvisionerJobsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	orgIDs := make(map[uuid.UUID]struct{})
+	for _, job := range provisionerJobs {
+		orgIDs[job.OrganizationID] = struct{}{}
+	}
+	for orgID := range orgIDs {
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(orgID)); err != nil {
+			return nil, err
+		}
+	}
+	return provisionerJobs, nil
 }
 
-// TODO: We have a ProvisionerJobs resource, but it hasn't been checked for this use-case.
-func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 }
 
 func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
 }
 
-// TODO: We have a ProvisionerJobs resource, but it hasn't been checked for this use-case.
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-	// return nil, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
+	return q.db.GetProvisionerJobsToBeReaped(ctx, arg)
 }
 
 func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
@@ -3011,6 +3079,19 @@ func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, crea
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, parentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByParentID(ctx, parentID)
+}
+
 // GetWorkspaceAgentsByResourceIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
@@ -3018,6 +3099,15 @@ func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uui
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
+}
+
+func (q *querier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	_, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
@@ -3151,6 +3241,10 @@ func (q *querier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.
 
 func (q *querier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByOwnerIDAndName)(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceByResourceID)(ctx, resourceID)
 }
 
 func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
@@ -3524,27 +3618,22 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	return q.db.InsertPresetParameters(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return database.ProvisionerJob{}, err
-	// }
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return q.db.InsertProvisionerJob(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return nil, err
-	// }
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return nil, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
 	return q.db.InsertProvisionerJobTimings(ctx, arg)
 }
 
@@ -3691,9 +3780,24 @@ func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorksp
 }
 
 func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// NOTE(DanielleMaywood):
+	// Currently, the only way to link a Resource back to a Workspace is by following this chain:
+	//
+	//   WorkspaceResource -> WorkspaceBuild -> Workspace
+	//
+	// It is possible for this function to be called without there existing
+	// a `WorkspaceBuild` to link back to. This means that we want to allow
+	// execution to continue if there isn't a workspace found to allow this
+	// behavior to continue.
+	workspace, err := q.db.GetWorkspaceByResourceID(ctx, arg.ResourceID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.WorkspaceAgent{}, err
 	}
+
+	if err := q.authorizeContext(ctx, policy.ActionCreateAgent, workspace); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+
 	return q.db.InsertWorkspaceAgent(ctx, arg)
 }
 
@@ -4160,6 +4264,24 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
 }
 
+func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
+	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
+	if err != nil {
+		return err
+	}
+
+	object := rbac.ResourceTemplate.
+		WithID(preset.TemplateID.UUID).
+		InOrg(preset.OrganizationID)
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, object)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdatePresetPrebuildStatus(ctx, arg)
+}
+
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
 		return err
@@ -4167,15 +4289,17 @@ func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg dat
 	return q.db.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-	// return err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
+	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
+	// Details in https://github.com/coder/coder/issues/16160
+
 	job, err := q.db.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -4242,12 +4366,18 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 	return q.db.UpdateProvisionerJobWithCancelByID(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-	// return err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx, arg)
 }
 
 func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {

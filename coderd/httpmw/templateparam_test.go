@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -43,7 +43,7 @@ func TestTemplateParam(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractTemplateParam(db))
 		rtr.Get("/", nil)
@@ -58,7 +58,7 @@ func TestTemplateParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractTemplateParam(db))
 		rtr.Get("/", nil)
@@ -75,7 +75,7 @@ func TestTemplateParam(t *testing.T) {
 
 	t.Run("BadUUID", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractTemplateParam(db))
 		rtr.Get("/", nil)
@@ -92,7 +92,8 @@ func TestTemplateParam(t *testing.T) {
 
 	t.Run("Template", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

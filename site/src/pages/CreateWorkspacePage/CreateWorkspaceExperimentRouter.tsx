@@ -15,45 +15,53 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
-	const templateQuery = useQuery(
-		dynamicParametersEnabled
-			? templateByName(organizationName, templateName)
-			: { enabled: false },
-	);
+	const templateQuery = useQuery({
+		...templateByName(organizationName, templateName),
+		enabled: dynamicParametersEnabled,
+	});
 
-	const optOutQuery = useQuery(
-		templateQuery.data
-			? {
-					queryKey: [
-						organizationName,
-						"template",
-						templateQuery.data.id,
-						"optOut",
-					],
-					queryFn: () => ({
-						templateId: templateQuery.data.id,
-						optedOut:
-							localStorage.getItem(optOutKey(templateQuery.data.id)) === "true",
-					}),
-				}
-			: { enabled: false },
-	);
+	const optOutQuery = useQuery({
+		enabled: !!templateQuery.data,
+		queryKey: [organizationName, "template", templateQuery.data?.id, "optOut"],
+		queryFn: () => {
+			const templateId = templateQuery.data?.id;
+			const localStorageKey = optOutKey(templateId ?? "");
+			const storedOptOutString = localStorage.getItem(localStorageKey);
+
+			let optOutResult: boolean;
+
+			if (storedOptOutString !== null) {
+				optOutResult = storedOptOutString === "true";
+			} else {
+				optOutResult = !!templateQuery.data?.use_classic_parameter_flow;
+			}
+
+			return {
+				templateId: templateId,
+				optedOut: optOutResult,
+			};
+		},
+	});
 
 	if (dynamicParametersEnabled) {
-		if (optOutQuery.isLoading) {
-			return <Loader />;
+		if (optOutQuery.isError) {
+			return <ErrorAlert error={optOutQuery.error} />;
 		}
 		if (!optOutQuery.data) {
-			return <ErrorAlert error={optOutQuery.error} />;
+			return <Loader />;
 		}
 
 		const toggleOptedOut = () => {
-			const key = optOutKey(optOutQuery.data.templateId);
-			const current = localStorage.getItem(key) === "true";
+			const key = optOutKey(optOutQuery.data?.templateId ?? "");
+			const storedValue = localStorage.getItem(key);
+
+			const current = storedValue
+				? storedValue === "true"
+				: Boolean(templateQuery.data?.use_classic_parameter_flow);
+
 			localStorage.setItem(key, (!current).toString());
 			optOutQuery.refetch();
 		};
-
 		return (
 			<ExperimentalFormContext.Provider value={{ toggleOptedOut }}>
 				{optOutQuery.data.optedOut ? (

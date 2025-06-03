@@ -51,14 +51,15 @@ const (
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID                      uuid.UUID            `json:"id" format:"uuid"`
-	CreatedAt               time.Time            `json:"created_at" format:"date-time"`
-	UpdatedAt               time.Time            `json:"updated_at" format:"date-time"`
-	WorkspaceID             uuid.UUID            `json:"workspace_id" format:"uuid"`
-	WorkspaceName           string               `json:"workspace_name"`
-	WorkspaceOwnerID        uuid.UUID            `json:"workspace_owner_id" format:"uuid"`
+	ID               uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	WorkspaceID      uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceName    string    `json:"workspace_name"`
+	WorkspaceOwnerID uuid.UUID `json:"workspace_owner_id" format:"uuid"`
+	// WorkspaceOwnerName is the username of the owner of the workspace.
 	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
-	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url"`
+	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
 	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
 	TemplateVersionName     string               `json:"template_version_name"`
 	BuildNumber             int32                `json:"build_number"`

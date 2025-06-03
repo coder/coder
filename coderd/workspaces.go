@@ -628,9 +628,9 @@ func createWorkspace(
 
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
+			prebuildsClaimer = *api.PrebuildsClaimer.Load()
 			workspaceID      uuid.UUID
 			claimedWorkspace *database.Workspace
-			prebuildsClaimer = *api.PrebuildsClaimer.Load()
 		)
 
 		// If a template preset was chosen, try claim a prebuilt workspace.
@@ -704,8 +704,9 @@ func createWorkspace(
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
-			RichParameterValues(req.RichParameterValues).
-			TemplateVersionPresetID(req.TemplateVersionPresetID)
+			Experiments(api.Experiments).
+			DeploymentValues(api.DeploymentValues).
+			RichParameterValues(req.RichParameterValues)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}
@@ -717,7 +718,7 @@ func createWorkspace(
 		}
 
 		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			builder = builder.UsingDynamicParameters()
+			builder = builder.DynamicParameters(req.EnableDynamicParameters)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
@@ -2260,6 +2261,7 @@ func convertWorkspace(
 		TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 		TemplateActiveVersionID:              template.ActiveVersionID,
 		TemplateRequireActiveVersion:         template.RequireActiveVersion,
+		TemplateUseClassicParameterFlow:      template.UseClassicParameterFlow,
 		Outdated:                             workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:                                 workspace.Name,
 		AutostartSchedule:                    autostartSchedule,

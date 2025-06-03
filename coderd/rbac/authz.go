@@ -65,7 +65,7 @@ const (
 	SubjectTypeUser                         SubjectType = "user"
 	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
 	SubjectTypeAutostart                    SubjectType = "autostart"
-	SubjectTypeHangDetector                 SubjectType = "hang_detector"
+	SubjectTypeJobReaper                    SubjectType = "job_reaper"
 	SubjectTypeResourceMonitor              SubjectType = "resource_monitor"
 	SubjectTypeCryptoKeyRotator             SubjectType = "crypto_key_rotator"
 	SubjectTypeCryptoKeyReader              SubjectType = "crypto_key_reader"
@@ -73,6 +73,7 @@ const (
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
 	SubjectTypeNotifier                     SubjectType = "notifier"
+	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 )
 
 // Subject is a struct that contains all the elements of a subject in an rbac

@@ -16,7 +16,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/unhanger"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -39,9 +39,9 @@ type ServeOptions struct {
 	//
 	// This is a no-op on Windows where the process can't be interrupted.
 	//
-	// Default value: 3 minutes (unhanger.HungJobExitTimeout). This value should
+	// Default value: 3 minutes (jobreaper.HungJobExitTimeout). This value should
 	// be kept less than the value that Coder uses to mark hung jobs as failed,
-	// which is 5 minutes (see unhanger package).
+	// which is 5 minutes (see jobreaper package).
 	ExitTimeout time.Duration
 }
 
@@ -131,7 +131,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.Tracer = trace.NewNoopTracerProvider().Tracer("noop")
 	}
 	if options.ExitTimeout == 0 {
-		options.ExitTimeout = unhanger.HungJobExitTimeout
+		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
 		execMut:       &sync.Mutex{},

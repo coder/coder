@@ -98,8 +98,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC24(ctx context.Context) (
-	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient24, error,
+func (c *Client) ConnectRPC26(ctx context.Context) (
+	agentproto.DRPCAgentClient26, proto.DRPCTailnetClient26, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -363,6 +363,18 @@ func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequ
 	f.Lock()
 	defer f.Unlock()
 	return slices.Clone(f.connectionReports)
+}
+
+func (*FakeAgentAPI) CreateSubAgent(_ context.Context, _ *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
+	panic("unimplemented")
+}
+
+func (*FakeAgentAPI) DeleteSubAgent(_ context.Context, _ *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
+	panic("unimplemented")
+}
+
+func (*FakeAgentAPI) ListSubAgents(_ context.Context, _ *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
+	panic("unimplemented")
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

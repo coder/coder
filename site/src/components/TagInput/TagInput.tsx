@@ -2,7 +2,7 @@ import Chip from "@mui/material/Chip";
 import FormHelperText from "@mui/material/FormHelperText";
 import { type FC, useId, useMemo } from "react";
 
-export type TagInputProps = {
+type TagInputProps = {
 	label: string;
 	id?: string;
 	values: string[];

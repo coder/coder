@@ -57,11 +57,9 @@ The following explains how to do certain things related to dogfooding.
 5. Ensure that you’re logged in: `./scripts/coder-dev.sh list` — should return
     no workspace. If this returns an error, double-check the output of running
     `scripts/develop.sh`.
-6. A template named `docker-amd64` (or `docker-arm64` if you’re on ARM) will
-    have automatically been created for you. If you just want to create a
-    workspace quickly, you can run
-    `./scripts/coder-dev.sh create myworkspace -t docker-amd64` and this will
-    get you going quickly!
+6. A template named `docker` will have automatically been created for you. If you just
+    want to create a workspace quickly, you can run `./scripts/coder-dev.sh create myworkspace -t docker`
+	and this will get you going quickly!
 7. To create your own template, you can do:
     `./scripts/coder-dev.sh templates init` and choose your preferred option.
     For example, choosing “Develop in Docker” will create a new folder `docker`

@@ -1,5 +1,5 @@
 import type { SerpentOption } from "api/typesGenerated";
-import { formatDuration, intervalToDuration } from "date-fns";
+import { humanDuration } from "utils/time";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
@@ -14,13 +14,7 @@ export function optionValue(
 			}
 			switch (k) {
 				case "format_duration":
-					return formatDuration(
-						// intervalToDuration takes ms, so convert nanoseconds to ms
-						intervalToDuration({
-							start: 0,
-							end: (option.value as number) / 1e6,
-						}),
-					);
+					return humanDuration((option.value as number) / 1e6);
 				// Add additional cases here as needed.
 			}
 		}

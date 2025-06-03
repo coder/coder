@@ -90,14 +90,33 @@ func (r *RootCmd) ssh() *serpent.Command {
 	wsClient := workspacesdk.New(client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "ssh <workspace>",
-		Short:       "Start a shell into a workspace",
+		Use:         "ssh <workspace> [command]",
+		Short:       "Start a shell into a workspace or run a command",
+		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +
+			FormatExamples(
+				Example{
+					Description: "Use `--` to separate and pass flags directly to the command executed via SSH.",
+					Command:     "coder ssh <workspace> -- ls -la",
+				},
+			),
 		Middleware: serpent.Chain(
-			serpent.RequireNArgs(1),
+			// Require at least one arg for the workspace name
+			func(next serpent.HandlerFunc) serpent.HandlerFunc {
+				return func(i *serpent.Invocation) error {
+					got := len(i.Args)
+					if got < 1 {
+						return xerrors.New("expected the name of a workspace")
+					}
+
+					return next(i)
+				}
+			},
 			r.InitClient(client),
 			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) (retErr error) {
+			command := strings.Join(inv.Args[1:], " ")
+
 			// Before dialing the SSH server over TCP, capture Interrupt signals
 			// so that if we are interrupted, we have a chance to tear down the
 			// TCP session cleanly before exiting.  If we don't, then the TCP
@@ -547,40 +566,46 @@ func (r *RootCmd) ssh() *serpent.Command {
 			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
 
-			err = sshSession.Shell()
-			if err != nil {
-				return xerrors.Errorf("start shell: %w", err)
-			}
+			if command != "" {
+				err := sshSession.Run(command)
+				if err != nil {
+					return xerrors.Errorf("run command: %w", err)
+				}
+			} else {
+				err = sshSession.Shell()
+				if err != nil {
+					return xerrors.Errorf("start shell: %w", err)
+				}
 
-			// Put cancel at the top of the defer stack to initiate
-			// shutdown of services.
-			defer cancel()
+				// Put cancel at the top of the defer stack to initiate
+				// shutdown of services.
+				defer cancel()
 
-			if validOut {
-				// Set initial window size.
-				width, height, err := term.GetSize(int(stdoutFile.Fd()))
-				if err == nil {
-					_ = sshSession.WindowChange(height, width)
+				if validOut {
+					// Set initial window size.
+					width, height, err := term.GetSize(int(stdoutFile.Fd()))
+					if err == nil {
+						_ = sshSession.WindowChange(height, width)
+					}
+				}
+
+				err = sshSession.Wait()
+				conn.SendDisconnectedTelemetry()
+				if err != nil {
+					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+						// Clear the error since it's not useful beyond
+						// reporting status.
+						return ExitError(exitErr.ExitStatus(), nil)
+					}
+					// If the connection drops unexpectedly, we get an
+					// ExitMissingError but no other error details, so try to at
+					// least give the user a better message
+					if errors.Is(err, &gossh.ExitMissingError{}) {
+						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
+					}
+					return xerrors.Errorf("session ended: %w", err)
 				}
 			}
-
-			err = sshSession.Wait()
-			conn.SendDisconnectedTelemetry()
-			if err != nil {
-				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
-					// Clear the error since it's not useful beyond
-					// reporting status.
-					return ExitError(exitErr.ExitStatus(), nil)
-				}
-				// If the connection drops unexpectedly, we get an
-				// ExitMissingError but no other error details, so try to at
-				// least give the user a better message
-				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
-				}
-				return xerrors.Errorf("session ended: %w", err)
-			}
-
 			return nil
 		},
 	}
@@ -1569,12 +1594,14 @@ func writeCoderConnectNetInfo(ctx context.Context, networkInfoDir string) error 
 // Converts workspace name input to owner/workspace.agent format
 // Possible valid input formats:
 // workspace
+// workspace.agent
 // owner/workspace
 // owner--workspace
 // owner/workspace--agent
 // owner/workspace.agent
 // owner--workspace--agent
 // owner--workspace.agent
+// agent.workspace.owner - for parity with Coder Connect
 func normalizeWorkspaceInput(input string) string {
 	// Split on "/", "--", and "."
 	parts := workspaceNameRe.Split(input, -1)
@@ -1583,8 +1610,15 @@ func normalizeWorkspaceInput(input string) string {
 	case 1:
 		return input // "workspace"
 	case 2:
+		if strings.Contains(input, ".") {
+			return fmt.Sprintf("%s.%s", parts[0], parts[1]) // "workspace.agent"
+		}
 		return fmt.Sprintf("%s/%s", parts[0], parts[1]) // "owner/workspace"
 	case 3:
+		// If the only separator is a dot, it's the Coder Connect format
+		if !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0]) // "owner/workspace.agent"
+		}
 		return fmt.Sprintf("%s/%s.%s", parts[0], parts[1], parts[2]) // "owner/workspace.agent"
 	default:
 		return input // Fallback

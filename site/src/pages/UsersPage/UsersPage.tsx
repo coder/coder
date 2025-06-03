@@ -143,7 +143,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 						);
 					}
 				}}
-				isUpdatingUserRoles={updateRolesMutation.isLoading}
+				isUpdatingUserRoles={updateRolesMutation.isPending}
 				isLoading={isLoading}
 				canEditUsers={canEditUsers}
 				canViewActivity={entitlements.features.audit_log.enabled}
@@ -161,7 +161,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			<DeleteDialog
 				key={userToDelete?.username}
 				isOpen={userToDelete !== undefined}
-				confirmLoading={deleteUserMutation.isLoading}
+				confirmLoading={deleteUserMutation.isPending}
 				name={userToDelete?.username ?? ""}
 				entity="user"
 				onCancel={() => setUserToDelete(undefined)}
@@ -183,7 +183,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				type="delete"
 				hideCancel={false}
 				open={userToSuspend !== undefined}
-				confirmLoading={suspendUserMutation.isLoading}
+				confirmLoading={suspendUserMutation.isPending}
 				title="Suspend user"
 				confirmText="Suspend"
 				onClose={() => setUserToSuspend(undefined)}
@@ -211,7 +211,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				type="success"
 				hideCancel={false}
 				open={userToActivate !== undefined}
-				confirmLoading={activateUserMutation.isLoading}
+				confirmLoading={activateUserMutation.isPending}
 				title="Activate user"
 				confirmText="Activate"
 				onClose={() => setUserToActivate(undefined)}
@@ -238,7 +238,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			<ResetPasswordDialog
 				key={confirmResetPassword?.user.username}
 				open={confirmResetPassword !== undefined}
-				loading={updatePasswordMutation.isLoading}
+				loading={updatePasswordMutation.isPending}
 				user={confirmResetPassword?.user}
 				newPassword={confirmResetPassword?.newPassword}
 				onClose={() => {

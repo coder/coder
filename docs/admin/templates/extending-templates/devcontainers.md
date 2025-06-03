@@ -122,3 +122,5 @@ resource "docker_container" "workspace" {
 ## Next Steps
 
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
+- [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
+- [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)

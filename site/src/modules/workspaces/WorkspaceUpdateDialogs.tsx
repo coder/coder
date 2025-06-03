@@ -8,7 +8,7 @@ import type {
 } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { UpdateBuildParametersDialog } from "pages/WorkspacePage/UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 
@@ -58,7 +58,7 @@ export const useWorkspaceUpdate = ({
 
 	return {
 		update,
-		isUpdating: updateWorkspaceMutation.isLoading,
+		isUpdating: updateWorkspaceMutation.isPending,
 		dialogs: {
 			updateConfirmation: {
 				open: isConfirmingUpdate,

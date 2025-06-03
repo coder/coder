@@ -94,10 +94,10 @@ export function useBatchActions(options: UseBatchActionsProps) {
 		deleteAll: deleteAllMutation.mutateAsync,
 		updateAll: updateAllMutation.mutateAsync,
 		isLoading:
-			favoriteAllMutation.isLoading ||
-			unfavoriteAllMutation.isLoading ||
-			startAllMutation.isLoading ||
-			stopAllMutation.isLoading ||
-			deleteAllMutation.isLoading,
+			favoriteAllMutation.isPending ||
+			unfavoriteAllMutation.isPending ||
+			startAllMutation.isPending ||
+			stopAllMutation.isPending ||
+			deleteAllMutation.isPending,
 	};
 }

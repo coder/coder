@@ -27,162 +27,263 @@ import (
 func TestProvisionerJobs(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-		Database:                 db,
-		Pubsub:                   ps,
-	})
-	owner := coderdtest.CreateFirstUser(t, client)
-	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
-	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	t.Run("ProvisionerJobs", func(t *testing.T) {
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-	time.Sleep(1500 * time.Millisecond) // Ensure the workspace build job has a different timestamp for sorting.
-	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		time.Sleep(1500 * time.Millisecond) // Ensure the workspace build job has a different timestamp for sorting.
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	// Create a pending job.
-	w := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OrganizationID: owner.OrganizationID,
-		OwnerID:        member.ID,
-		TemplateID:     template.ID,
-	})
-	wbID := uuid.New()
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		OrganizationID: w.OrganizationID,
-		StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		Input:          json.RawMessage(`{"workspace_build_id":"` + wbID.String() + `"}`),
-	})
-	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		ID:                wbID,
-		JobID:             job.ID,
-		WorkspaceID:       w.ID,
-		TemplateVersionID: version.ID,
-	})
-
-	// Add more jobs than the default limit.
-	for i := range 60 {
-		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		// Create a pending job.
+		w := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
-			Tags:           database.StringMap{"count": strconv.Itoa(i)},
+			OwnerID:        member.ID,
+			TemplateID:     template.ID,
 		})
-	}
+		wbID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: w.OrganizationID,
+			StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          json.RawMessage(`{"workspace_build_id":"` + wbID.String() + `"}`),
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                wbID,
+			JobID:             job.ID,
+			WorkspaceID:       w.ID,
+			TemplateVersionID: version.ID,
+		})
 
-	t.Run("Single", func(t *testing.T) {
-		t.Parallel()
-		t.Run("Workspace", func(t *testing.T) {
+		// Add more jobs than the default limit.
+		for i := range 60 {
+			dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				OrganizationID: owner.OrganizationID,
+				Tags:           database.StringMap{"count": strconv.Itoa(i)},
+			})
+		}
+
+		t.Run("Single", func(t *testing.T) {
 			t.Parallel()
-			t.Run("OK", func(t *testing.T) {
+			t.Run("Workspace", func(t *testing.T) {
+				t.Parallel()
+				t.Run("OK", func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitMedium)
+					// Note this calls the single job endpoint.
+					job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, job.ID)
+					require.NoError(t, err)
+					require.Equal(t, job.ID, job2.ID)
+
+					// Verify that job metadata is correct.
+					assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
+						TemplateVersionName: version.Name,
+						TemplateID:          template.ID,
+						TemplateName:        template.Name,
+						TemplateDisplayName: template.DisplayName,
+						TemplateIcon:        template.Icon,
+						WorkspaceID:         &w.ID,
+						WorkspaceName:       w.Name,
+					})
+				})
+			})
+			t.Run("Template Import", func(t *testing.T) {
+				t.Parallel()
+				t.Run("OK", func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitMedium)
+					// Note this calls the single job endpoint.
+					job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, version.Job.ID)
+					require.NoError(t, err)
+					require.Equal(t, version.Job.ID, job2.ID)
+
+					// Verify that job metadata is correct.
+					assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
+						TemplateVersionName: version.Name,
+						TemplateID:          template.ID,
+						TemplateName:        template.Name,
+						TemplateDisplayName: template.DisplayName,
+						TemplateIcon:        template.Icon,
+					})
+				})
+			})
+			t.Run("Missing", func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitMedium)
 				// Note this calls the single job endpoint.
-				job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, job.ID)
-				require.NoError(t, err)
-				require.Equal(t, job.ID, job2.ID)
-
-				// Verify that job metadata is correct.
-				assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
-					TemplateVersionName: version.Name,
-					TemplateID:          template.ID,
-					TemplateName:        template.Name,
-					TemplateDisplayName: template.DisplayName,
-					TemplateIcon:        template.Icon,
-					WorkspaceID:         &w.ID,
-					WorkspaceName:       w.Name,
-				})
+				_, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, uuid.New())
+				require.Error(t, err)
 			})
 		})
-		t.Run("Template Import", func(t *testing.T) {
-			t.Parallel()
-			t.Run("OK", func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitMedium)
-				// Note this calls the single job endpoint.
-				job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, version.Job.ID)
-				require.NoError(t, err)
-				require.Equal(t, version.Job.ID, job2.ID)
 
-				// Verify that job metadata is correct.
-				assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
-					TemplateVersionName: version.Name,
-					TemplateID:          template.ID,
-					TemplateName:        template.Name,
-					TemplateDisplayName: template.DisplayName,
-					TemplateIcon:        template.Icon,
-				})
-			})
-		})
-		t.Run("Missing", func(t *testing.T) {
+		t.Run("Default limit", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			// Note this calls the single job endpoint.
-			_, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, uuid.New())
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			require.NoError(t, err)
+			require.Len(t, jobs, 50)
+		})
+
+		t.Run("IDs", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				IDs: []uuid.UUID{workspace.LatestBuild.Job.ID, version.Job.ID},
+			})
+			require.NoError(t, err)
+			require.Len(t, jobs, 2)
+		})
+
+		t.Run("Status", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Status: []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobRunning},
+			})
+			require.NoError(t, err)
+			require.Len(t, jobs, 1)
+		})
+
+		t.Run("Tags", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Tags: map[string]string{"count": "1"},
+			})
+			require.NoError(t, err)
+			require.Len(t, jobs, 1)
+		})
+
+		t.Run("Limit", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+				Limit: 1,
+			})
+			require.NoError(t, err)
+			require.Len(t, jobs, 1)
+		})
+
+		// For now, this is not allowed even though the member has created a
+		// workspace. Once member-level permissions for jobs are supported
+		// by RBAC, this test should be updated.
+		t.Run("MemberDenied", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 			require.Error(t, err)
+			require.Len(t, jobs, 0)
 		})
 	})
 
-	t.Run("Default limit", func(t *testing.T) {
+	// Ensures that when a provisioner job is in the succeeded state,
+	// the API response includes both worker_id and worker_name fields
+	t.Run("AssignedProvisionerJob", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
-		require.NoError(t, err)
-		require.Len(t, jobs, 50)
-	})
 
-	t.Run("IDs", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-			IDs: []uuid.UUID{workspace.LatestBuild.Job.ID, version.Job.ID},
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
 		})
-		require.NoError(t, err)
-		require.Len(t, jobs, 2)
-	})
+		provisionerDaemonName := "provisioner_daemon_test"
+		provisionerDaemon := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, provisionerDaemonName, map[string]string{"owner": "", "scope": "organization"})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 
-	t.Run("Status", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-			Status: []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobRunning},
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner so it doesn't grab any more jobs
+		err := provisionerDaemon.Close()
+		require.NoError(t, err)
+
+		t.Run("List_IncludesWorkerIDAndName", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			// Get provisioner daemon responsible for executing the provisioner jobs
+			provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(provisionerDaemons))
+			if assert.NotEmpty(t, provisionerDaemons) {
+				require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+			}
+
+			// Get provisioner jobs
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(jobs))
+
+			for _, job := range jobs {
+				require.Equal(t, owner.OrganizationID, job.OrganizationID)
+				require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(job.Status))
+
+				// Guarantee that provisioner jobs contain the provisioner daemon ID and name
+				if assert.NotEmpty(t, provisionerDaemons) {
+					require.Equal(t, &provisionerDaemons[0].ID, job.WorkerID)
+					require.Equal(t, provisionerDaemonName, job.WorkerName)
+				}
+			}
 		})
-		require.NoError(t, err)
-		require.Len(t, jobs, 1)
-	})
 
-	t.Run("Tags", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-			Tags: map[string]string{"count": "1"},
+		t.Run("Get_IncludesWorkerIDAndName", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			// Get provisioner daemon responsible for executing the provisioner job
+			provisionerDaemons, err := db.GetProvisionerDaemons(ctx)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(provisionerDaemons))
+			if assert.NotEmpty(t, provisionerDaemons) {
+				require.Equal(t, provisionerDaemonName, provisionerDaemons[0].Name)
+			}
+
+			// Get all provisioner jobs
+			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(jobs))
+
+			// Find workspace_build provisioner job ID
+			var workspaceProvisionerJobID uuid.UUID
+			for _, job := range jobs {
+				if job.Type == codersdk.ProvisionerJobTypeWorkspaceBuild {
+					workspaceProvisionerJobID = job.ID
+				}
+			}
+			require.NotNil(t, workspaceProvisionerJobID)
+
+			// Get workspace_build provisioner job by ID
+			workspaceProvisionerJob, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, workspaceProvisionerJobID)
+			require.NoError(t, err)
+
+			require.Equal(t, owner.OrganizationID, workspaceProvisionerJob.OrganizationID)
+			require.Equal(t, database.ProvisionerJobStatusSucceeded, database.ProvisionerJobStatus(workspaceProvisionerJob.Status))
+
+			// Guarantee that provisioner job contains the provisioner daemon ID and name
+			if assert.NotEmpty(t, provisionerDaemons) {
+				require.Equal(t, &provisionerDaemons[0].ID, workspaceProvisionerJob.WorkerID)
+				require.Equal(t, provisionerDaemonName, workspaceProvisionerJob.WorkerName)
+			}
 		})
-		require.NoError(t, err)
-		require.Len(t, jobs, 1)
-	})
-
-	t.Run("Limit", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-			Limit: 1,
-		})
-		require.NoError(t, err)
-		require.Len(t, jobs, 1)
-	})
-
-	// For now, this is not allowed even though the member has created a
-	// workspace. Once member-level permissions for jobs are supported
-	// by RBAC, this test should be updated.
-	t.Run("MemberDenied", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
-		require.Error(t, err)
-		require.Len(t, jobs, 0)
 	})
 }
 

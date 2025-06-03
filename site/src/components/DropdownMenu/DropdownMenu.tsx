@@ -109,9 +109,15 @@ export const DropdownMenuItem = forwardRef<
 		ref={ref}
 		className={cn(
 			[
-				"relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-2 text-sm text-content-secondary font-medium outline-none transition-colors",
-				"focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-				"[&>svg]:size-4 [&>svg]:shrink-0",
+				`
+				relative flex cursor-default select-none items-center gap-2 rounded-sm
+				px-2 py-1.5 text-sm text-content-secondary font-medium outline-none
+				no-underline
+				focus:bg-surface-secondary focus:text-content-primary
+				data-[disabled]:pointer-events-none data-[disabled]:opacity-50
+				[&_svg]:size-icon-sm [&>svg]:shrink-0
+				[&_img]:size-icon-sm [&>img]:shrink-0
+				`,
 				inset && "pl-8",
 			],
 			className,

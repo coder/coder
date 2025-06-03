@@ -41,7 +41,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>users</code>](./users.md)                   | Manage users                                                                                          |
 | [<code>version</code>](./version.md)               | Show coder version                                                                                    |
 | [<code>autoupdate</code>](./autoupdate.md)         | Toggle auto-update policy for a workspace                                                             |
-| [<code>config-ssh</code>](./config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"                                       |
+| [<code>config-ssh</code>](./config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh workspace.coder"                                       |
 | [<code>create</code>](./create.md)                 | Create a workspace                                                                                    |
 | [<code>delete</code>](./delete.md)                 | Delete a workspace                                                                                    |
 | [<code>favorite</code>](./favorite.md)             | Add a workspace to your favorites                                                                     |
@@ -53,7 +53,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>schedule</code>](./schedule.md)             | Schedule automated start and stop times for workspaces                                                |
 | [<code>show</code>](./show.md)                     | Display details of a workspace's resources and agents                                                 |
 | [<code>speedtest</code>](./speedtest.md)           | Run upload and download tests from your machine to a workspace                                        |
-| [<code>ssh</code>](./ssh.md)                       | Start a shell into a workspace                                                                        |
+| [<code>ssh</code>](./ssh.md)                       | Start a shell into a workspace or run a command                                                       |
 | [<code>start</code>](./start.md)                   | Start a workspace                                                                                     |
 | [<code>stat</code>](./stat.md)                     | Show resource usage for the current workspace.                                                        |
 | [<code>stop</code>](./stop.md)                     | Stop a workspace                                                                                      |

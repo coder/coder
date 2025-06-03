@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 import type { Workspace, WorkspaceQuota } from "api/typesGenerated";
-import { addHours, addMinutes } from "date-fns";
+import dayjs from "dayjs";
 import {
 	MockOrganization,
 	MockTemplate,
@@ -33,7 +33,13 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		workspace: baseWorkspace,
 		template: MockTemplate,
 		latestVersion: MockTemplateVersion,
-		canUpdateWorkspace: true,
+		permissions: {
+			readWorkspace: true,
+			updateWorkspaceVersion: true,
+			updateWorkspace: true,
+			deploymentConfig: true,
+			deleteFailedWorkspace: true,
+		},
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -66,7 +72,7 @@ export const ReadyWithDeadline: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addHours(new Date(), 8).toISOString();
+					return dayjs().add(8, "hour").toISOString();
 				},
 			},
 		},
@@ -83,7 +89,7 @@ export const Connected: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addHours(new Date(), 8).toISOString();
+					return dayjs().add(8, "hour").toISOString();
 				},
 			},
 		},
@@ -117,10 +123,10 @@ export const ConnectedWithMaxDeadline: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addHours(new Date(), 1).toISOString();
+					return dayjs().add(1, "hour").toISOString();
 				},
 				get max_deadline() {
-					return addHours(new Date(), 8).toISOString();
+					return dayjs().add(8, "hour").toISOString();
 				},
 			},
 		},
@@ -154,10 +160,10 @@ export const ConnectedWithMaxDeadlineSoon: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addHours(new Date(), 1).toISOString();
+					return dayjs().add(1, "hour").toISOString();
 				},
 				get max_deadline() {
-					return addHours(new Date(), 1).toISOString();
+					return dayjs().add(1, "hour").toISOString();
 				},
 			},
 		},
@@ -196,7 +202,7 @@ export const WithApproachingDeadline: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addMinutes(new Date(), 30).toISOString();
+					return dayjs().add(30, "minute").toISOString();
 				},
 			},
 		},
@@ -222,7 +228,7 @@ export const WithFarAwayDeadline: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addHours(new Date(), 8).toISOString();
+					return dayjs().add(8, "hour").toISOString();
 				},
 			},
 		},
@@ -248,7 +254,7 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
 			latest_build: {
 				...MockWorkspace.latest_build,
 				get deadline() {
-					return addHours(new Date(), 8).toISOString();
+					return dayjs().add(8, "hour").toISOString();
 				},
 			},
 		},

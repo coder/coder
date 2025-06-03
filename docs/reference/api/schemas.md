@@ -182,6 +182,36 @@
 | `icon`         | string | false    |              |                                                                                                                                                                                                |
 | `id`           | string | false    |              | ID is a unique identifier for the log source. It is scoped to a workspace agent, and can be statically defined inside code to prevent duplicate sources from being created for the same agent. |
 
+## agentsdk.ReinitializationEvent
+
+```json
+{
+  "reason": "prebuild_claimed",
+  "workspaceID": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                               | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspaceID` | string                                                             | false    |              |             |
+
+## agentsdk.ReinitializationReason
+
+```json
+"prebuild_claimed"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value              |
+|--------------------|
+| `prebuild_claimed` |
+
 ## aisdk.Attachment
 
 ```json
@@ -1887,6 +1917,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
+  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1909,6 +1940,7 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
+| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
@@ -2672,6 +2704,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "wildcard_access_url": "string",
     "workspace_hostname_suffix": "string",
     "workspace_prebuilds": {
+      "failure_hard_limit": 0,
       "reconciliation_backoff_interval": 0,
       "reconciliation_backoff_lookback": 0,
       "reconciliation_interval": 0
@@ -3170,6 +3203,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "wildcard_access_url": "string",
   "workspace_hostname_suffix": "string",
   "workspace_prebuilds": {
+    "failure_hard_limit": 0,
     "reconciliation_backoff_interval": 0,
     "reconciliation_backoff_lookback": 0,
     "reconciliation_interval": 0
@@ -3247,6 +3281,35 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
+## codersdk.DiagnosticExtra
+
+```json
+{
+  "code": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `code` | string | false    |              |             |
+
+## codersdk.DiagnosticSeverityString
+
+```json
+"error"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+|-----------|
+| `error`   |
+| `warning` |
+
 ## codersdk.DisplayApp
 
 ```json
@@ -3264,6 +3327,111 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web_terminal`           |
 | `port_forwarding_helper` |
 | `ssh_helper`             |
+
+## codersdk.DynamicParametersRequest
+
+```json
+{
+  "id": 0,
+  "inputs": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                                                  |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
+| `inputs`           | object  | false    |              |                                                                                                              |
+| » `[any property]` | string  | false    |              |                                                                                                              |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
+
+## codersdk.DynamicParametersResponse
+
+```json
+{
+  "diagnostics": [
+    {
+      "detail": "string",
+      "extra": {
+        "code": "string"
+      },
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
+  "id": 0,
+  "parameters": [
+    {
+      "default_value": {
+        "valid": true,
+        "value": "string"
+      },
+      "description": "string",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "extra": {
+            "code": "string"
+          },
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
+      "display_name": "string",
+      "ephemeral": true,
+      "form_type": "",
+      "icon": "string",
+      "mutable": true,
+      "name": "string",
+      "options": [
+        {
+          "description": "string",
+          "icon": "string",
+          "name": "string",
+          "value": {
+            "valid": true,
+            "value": "string"
+          }
+        }
+      ],
+      "order": 0,
+      "required": true,
+      "styling": {
+        "disabled": true,
+        "label": "string",
+        "placeholder": "string"
+      },
+      "type": "string",
+      "validations": [
+        {
+          "validation_error": "string",
+          "validation_max": 0,
+          "validation_min": 0,
+          "validation_monotonic": "string",
+          "validation_regex": "string"
+        }
+      ],
+      "value": {
+        "valid": true,
+        "value": "string"
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
+| `id`          | integer                                                             | false    |              |             |
+| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
 ## codersdk.Entitlement
 
@@ -3345,6 +3513,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `dynamic-parameters`   |
 | `workspace-prebuilds`  |
 | `agentic-chat`         |
+| `ai-tasks`             |
 
 ## codersdk.ExternalAuth
 
@@ -3548,6 +3717,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `enabled`     | boolean                                      | false    |              |             |
 | `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
 | `limit`       | integer                                      | false    |              |             |
+
+## codersdk.FriendlyDiagnostic
+
+```json
+{
+  "detail": "string",
+  "extra": {
+    "code": "string"
+  },
+  "severity": "error",
+  "summary": "string"
+}
+```
+
+### Properties
+
+| Name       | Type                                                                   | Required | Restrictions | Description |
+|------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `detail`   | string                                                                 | false    |              |             |
+| `extra`    | [codersdk.DiagnosticExtra](#codersdkdiagnosticextra)                   | false    |              |             |
+| `severity` | [codersdk.DiagnosticSeverityString](#codersdkdiagnosticseveritystring) | false    |              |             |
+| `summary`  | string                                                                 | false    |              |             |
 
 ## codersdk.GenerateAPIKeyResponse
 
@@ -4513,6 +4704,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |------------|----------------------------|----------|--------------|----------------------------------------------------------------------|
 | `endpoint` | [serpent.URL](#serpenturl) | false    |              | The URL to which the payload will be sent with an HTTP POST request. |
 
+## codersdk.NullHCLString
+
+```json
+{
+  "valid": true,
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+|---------|---------|----------|--------------|-------------|
+| `valid` | boolean | false    |              |             |
+| `value` | string  | false    |              |             |
+
 ## codersdk.OAuth2AppEndpoints
 
 ```json
@@ -4783,6 +4990,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_roles_default`                 | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `username_field`                     | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 
+## codersdk.OptionType
+
+```json
+"string"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `string`       |
+| `number`       |
+| `bool`         |
+| `list(string)` |
+
 ## codersdk.Organization
 
 ```json
@@ -4949,6 +5173,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `count`   | integer                                                                                     | false    |              |             |
 | `members` | array of [codersdk.OrganizationMemberWithUserData](#codersdkorganizationmemberwithuserdata) | false    |              |             |
+
+## codersdk.ParameterFormType
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| ``             |
+| `radio`        |
+| `slider`       |
+| `input`        |
+| `dropdown`     |
+| `checkbox`     |
+| `switch`       |
+| `multi-select` |
+| `tag-select`   |
+| `textarea`     |
+| `error`        |
 
 ## codersdk.PatchGroupIDPSyncConfigRequest
 
@@ -5229,6 +5477,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "failure_hard_limit": 0,
   "reconciliation_backoff_interval": 0,
   "reconciliation_backoff_lookback": 0,
   "reconciliation_interval": 0
@@ -5237,11 +5486,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                     |
-|-----------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                          |
-| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy. |
-| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                   |
+| Name                              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                       |
+|-----------------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `failure_hard_limit`              | integer | false    |              | Failure hard limit defines the maximum number of consecutive failed prebuild attempts allowed before a preset is considered to be in a hard limit state. When a preset hits this limit, no new prebuilds will be created until the limit is reset. FailureHardLimit is disabled when set to zero. |
+| `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                                                                                                                                                            |
+| `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
+| `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
 
 ## codersdk.Preset
 
@@ -5281,6 +5531,150 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------|--------|----------|--------------|-------------|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.PreviewParameter
+
+```json
+{
+  "default_value": {
+    "valid": true,
+    "value": "string"
+  },
+  "description": "string",
+  "diagnostics": [
+    {
+      "detail": "string",
+      "extra": {
+        "code": "string"
+      },
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
+  "display_name": "string",
+  "ephemeral": true,
+  "form_type": "",
+  "icon": "string",
+  "mutable": true,
+  "name": "string",
+  "options": [
+    {
+      "description": "string",
+      "icon": "string",
+      "name": "string",
+      "value": {
+        "valid": true,
+        "value": "string"
+      }
+    }
+  ],
+  "order": 0,
+  "required": true,
+  "styling": {
+    "disabled": true,
+    "label": "string",
+    "placeholder": "string"
+  },
+  "type": "string",
+  "validations": [
+    {
+      "validation_error": "string",
+      "validation_max": 0,
+      "validation_min": 0,
+      "validation_monotonic": "string",
+      "validation_regex": "string"
+    }
+  ],
+  "value": {
+    "valid": true,
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name            | Type                                                                                | Required | Restrictions | Description                             |
+|-----------------|-------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------|
+| `default_value` | [codersdk.NullHCLString](#codersdknullhclstring)                                    | false    |              |                                         |
+| `description`   | string                                                                              | false    |              |                                         |
+| `diagnostics`   | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)                 | false    |              |                                         |
+| `display_name`  | string                                                                              | false    |              |                                         |
+| `ephemeral`     | boolean                                                                             | false    |              |                                         |
+| `form_type`     | [codersdk.ParameterFormType](#codersdkparameterformtype)                            | false    |              |                                         |
+| `icon`          | string                                                                              | false    |              |                                         |
+| `mutable`       | boolean                                                                             | false    |              |                                         |
+| `name`          | string                                                                              | false    |              |                                         |
+| `options`       | array of [codersdk.PreviewParameterOption](#codersdkpreviewparameteroption)         | false    |              |                                         |
+| `order`         | integer                                                                             | false    |              | legacy_variable_name was removed (= 14) |
+| `required`      | boolean                                                                             | false    |              |                                         |
+| `styling`       | [codersdk.PreviewParameterStyling](#codersdkpreviewparameterstyling)                | false    |              |                                         |
+| `type`          | [codersdk.OptionType](#codersdkoptiontype)                                          | false    |              |                                         |
+| `validations`   | array of [codersdk.PreviewParameterValidation](#codersdkpreviewparametervalidation) | false    |              |                                         |
+| `value`         | [codersdk.NullHCLString](#codersdknullhclstring)                                    | false    |              |                                         |
+
+## codersdk.PreviewParameterOption
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string",
+  "value": {
+    "valid": true,
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                             | Required | Restrictions | Description |
+|---------------|--------------------------------------------------|----------|--------------|-------------|
+| `description` | string                                           | false    |              |             |
+| `icon`        | string                                           | false    |              |             |
+| `name`        | string                                           | false    |              |             |
+| `value`       | [codersdk.NullHCLString](#codersdknullhclstring) | false    |              |             |
+
+## codersdk.PreviewParameterStyling
+
+```json
+{
+  "disabled": true,
+  "label": "string",
+  "placeholder": "string"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `disabled`    | boolean | false    |              |             |
+| `label`       | string  | false    |              |             |
+| `placeholder` | string  | false    |              |             |
+
+## codersdk.PreviewParameterValidation
+
+```json
+{
+  "validation_error": "string",
+  "validation_max": 0,
+  "validation_min": 0,
+  "validation_monotonic": "string",
+  "validation_regex": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                             |
+|------------------------|---------|----------|--------------|-----------------------------------------|
+| `validation_error`     | string  | false    |              |                                         |
+| `validation_max`       | integer | false    |              |                                         |
+| `validation_min`       | integer | false    |              |                                         |
+| `validation_monotonic` | string  | false    |              |                                         |
+| `validation_regex`     | string  | false    |              | All validation attributes are optional. |
 
 ## codersdk.PrometheusConfig
 
@@ -5488,7 +5882,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "property2": "string"
   },
   "type": "template_version_import",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+  "worker_name": "string"
 }
 ```
 
@@ -5515,6 +5910,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]`  | string                                                             | false    |              |             |
 | `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)         | false    |              |             |
 | `worker_id`         | string                                                             | false    |              |             |
+| `worker_name`       | string                                                             | false    |              |             |
 
 #### Enumerated Values
 
@@ -5879,7 +6275,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `application_connect` |
 | `assign`              |
 | `create`              |
+| `create_agent`        |
 | `delete`              |
+| `delete_agent`        |
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
@@ -6563,7 +6961,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -6602,6 +7001,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -7069,7 +7469,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -7141,6 +7542,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "description_plaintext": "string",
   "display_name": "string",
   "ephemeral": true,
+  "form_type": "",
   "icon": "string",
   "mutable": true,
   "name": "string",
@@ -7164,29 +7566,41 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                    | Type                                                                                        | Required | Restrictions | Description |
-|-------------------------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `default_value`         | string                                                                                      | false    |              |             |
-| `description`           | string                                                                                      | false    |              |             |
-| `description_plaintext` | string                                                                                      | false    |              |             |
-| `display_name`          | string                                                                                      | false    |              |             |
-| `ephemeral`             | boolean                                                                                     | false    |              |             |
-| `icon`                  | string                                                                                      | false    |              |             |
-| `mutable`               | boolean                                                                                     | false    |              |             |
-| `name`                  | string                                                                                      | false    |              |             |
-| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
-| `required`              | boolean                                                                                     | false    |              |             |
-| `type`                  | string                                                                                      | false    |              |             |
-| `validation_error`      | string                                                                                      | false    |              |             |
-| `validation_max`        | integer                                                                                     | false    |              |             |
-| `validation_min`        | integer                                                                                     | false    |              |             |
-| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
-| `validation_regex`      | string                                                                                      | false    |              |             |
+| Name                    | Type                                                                                        | Required | Restrictions | Description                                                                                        |
+|-------------------------|---------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
+| `default_value`         | string                                                                                      | false    |              |                                                                                                    |
+| `description`           | string                                                                                      | false    |              |                                                                                                    |
+| `description_plaintext` | string                                                                                      | false    |              |                                                                                                    |
+| `display_name`          | string                                                                                      | false    |              |                                                                                                    |
+| `ephemeral`             | boolean                                                                                     | false    |              |                                                                                                    |
+| `form_type`             | string                                                                                      | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag. |
+| `icon`                  | string                                                                                      | false    |              |                                                                                                    |
+| `mutable`               | boolean                                                                                     | false    |              |                                                                                                    |
+| `name`                  | string                                                                                      | false    |              |                                                                                                    |
+| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |                                                                                                    |
+| `required`              | boolean                                                                                     | false    |              |                                                                                                    |
+| `type`                  | string                                                                                      | false    |              |                                                                                                    |
+| `validation_error`      | string                                                                                      | false    |              |                                                                                                    |
+| `validation_max`        | integer                                                                                     | false    |              |                                                                                                    |
+| `validation_min`        | integer                                                                                     | false    |              |                                                                                                    |
+| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |                                                                                                    |
+| `validation_regex`      | string                                                                                      | false    |              |                                                                                                    |
 
 #### Enumerated Values
 
 | Property               | Value          |
 |------------------------|----------------|
+| `form_type`            | ``             |
+| `form_type`            | `radio`        |
+| `form_type`            | `dropdown`     |
+| `form_type`            | `input`        |
+| `form_type`            | `textarea`     |
+| `form_type`            | `slider`       |
+| `form_type`            | `checkbox`     |
+| `form_type`            | `switch`       |
+| `form_type`            | `tag-select`   |
+| `form_type`            | `multi-select` |
+| `form_type`            | `error`        |
 | `type`                 | `string`       |
 | `type`                 | `number`       |
 | `type`                 | `bool`         |
@@ -8209,7 +8623,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "property2": "string"
       },
       "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
     },
     "matched_provisioners": {
       "available": 0,
@@ -8228,6 +8643,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "command": "string",
                 "display_name": "string",
                 "external": true,
+                "group": "string",
                 "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
@@ -8380,6 +8796,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -8408,7 +8825,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `outdated`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_avatar_url`                          | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_id`                                  | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `owner_name`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
+| `owner_name`                                | string                                                     | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                             |
 | `template_active_version_id`                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_allow_user_cancel_workspace_jobs` | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `template_display_name`                     | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
@@ -8416,6 +8833,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
+| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -8436,6 +8854,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "command": "string",
       "display_name": "string",
       "external": true,
+      "group": "string",
       "health": "disabled",
       "healthcheck": {
         "interval": 0,
@@ -8589,6 +9008,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "devcontainer_dirty": true,
+  "devcontainer_status": "running",
   "id": "string",
   "image": "string",
   "labels": {
@@ -8615,19 +9036,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
-|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
-| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
-| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
-| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
-| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
-| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
-| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
-| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
-| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
-| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
-| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| Name                  | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                    |
+|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`          | string                                                                                 | false    |              | Created at is the time the container was created.                                                                                                                                              |
+| `devcontainer_dirty`  | boolean                                                                                | false    |              | Devcontainer dirty is true if the devcontainer configuration has changed since the container was created. This is used to determine if the container needs to be rebuilt.                      |
+| `devcontainer_status` | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Devcontainer status is the status of the devcontainer, if this container is a devcontainer. This is used to determine if the devcontainer is running, stopped, starting, or in an error state. |
+| `id`                  | string                                                                                 | false    |              | ID is the unique identifier of the container.                                                                                                                                                  |
+| `image`               | string                                                                                 | false    |              | Image is the name of the container image.                                                                                                                                                      |
+| `labels`              | object                                                                                 | false    |              | Labels is a map of key-value pairs of container labels.                                                                                                                                        |
+| » `[any property]`    | string                                                                                 | false    |              |                                                                                                                                                                                                |
+| `name`                | string                                                                                 | false    |              | Name is the human-readable name of the container.                                                                                                                                              |
+| `ports`               | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport)  | false    |              | Ports includes ports exposed by the container.                                                                                                                                                 |
+| `running`             | boolean                                                                                | false    |              | Running is true if the container is currently running.                                                                                                                                         |
+| `status`              | string                                                                                 | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string.                                                     |
+| `volumes`             | object                                                                                 | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                                                                     |
+| » `[any property]`    | string                                                                                 | false    |              |                                                                                                                                                                                                |
 
 ## codersdk.WorkspaceAgentContainerPort
 
@@ -8648,6 +9071,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `host_port` | integer | false    |              | Host port is the port number *outside* the container.                                                                      |
 | `network`   | string  | false    |              | Network is the network protocol used by the port (tcp, udp, etc).                                                          |
 | `port`      | integer | false    |              | Port is the port number *inside* the container.                                                                            |
+
+## codersdk.WorkspaceAgentDevcontainerStatus
+
+```json
+"running"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `running`  |
+| `stopped`  |
+| `starting` |
+| `error`    |
 
 ## codersdk.WorkspaceAgentHealth
 
@@ -8694,6 +9134,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
+      "devcontainer_dirty": true,
+      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {
@@ -8968,6 +9410,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "command": "string",
   "display_name": "string",
   "external": true,
+  "group": "string",
   "health": "disabled",
   "healthcheck": {
     "interval": 0,
@@ -9007,6 +9450,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `command`        | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `display_name`   | string                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
 | `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `group`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
 | `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
 | `hidden`         | boolean                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -9170,7 +9614,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "property2": "string"
     },
     "type": "template_version_import",
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+    "worker_name": "string"
   },
   "matched_provisioners": {
     "available": 0,
@@ -9189,6 +9634,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "command": "string",
               "display_name": "string",
               "external": true,
+              "group": "string",
               "health": "disabled",
               "healthcheck": {
                 "interval": 0,
@@ -9330,31 +9776,31 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `build_number`               | integer                                                           | false    |              |             |
-| `created_at`                 | string                                                            | false    |              |             |
-| `daily_cost`                 | integer                                                           | false    |              |             |
-| `deadline`                   | string                                                            | false    |              |             |
-| `id`                         | string                                                            | false    |              |             |
-| `initiator_id`               | string                                                            | false    |              |             |
-| `initiator_name`             | string                                                            | false    |              |             |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |             |
-| `max_deadline`               | string                                                            | false    |              |             |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
-| `template_version_id`        | string                                                            | false    |              |             |
-| `template_version_name`      | string                                                            | false    |              |             |
-| `template_version_preset_id` | string                                                            | false    |              |             |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |             |
-| `updated_at`                 | string                                                            | false    |              |             |
-| `workspace_id`               | string                                                            | false    |              |             |
-| `workspace_name`             | string                                                            | false    |              |             |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |             |
-| `workspace_owner_id`         | string                                                            | false    |              |             |
-| `workspace_owner_name`       | string                                                            | false    |              |             |
+| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
+|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `build_number`               | integer                                                           | false    |              |                                                                     |
+| `created_at`                 | string                                                            | false    |              |                                                                     |
+| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
+| `deadline`                   | string                                                            | false    |              |                                                                     |
+| `id`                         | string                                                            | false    |              |                                                                     |
+| `initiator_id`               | string                                                            | false    |              |                                                                     |
+| `initiator_name`             | string                                                            | false    |              |                                                                     |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
+| `max_deadline`               | string                                                            | false    |              |                                                                     |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
+| `template_version_id`        | string                                                            | false    |              |                                                                     |
+| `template_version_name`      | string                                                            | false    |              |                                                                     |
+| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
+| `updated_at`                 | string                                                            | false    |              |                                                                     |
+| `workspace_id`               | string                                                            | false    |              |                                                                     |
+| `workspace_name`             | string                                                            | false    |              |                                                                     |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
+| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
+| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
 
 #### Enumerated Values
 
@@ -9609,6 +10055,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "command": "string",
           "display_name": "string",
           "external": true,
+          "group": "string",
           "health": "disabled",
           "healthcheck": {
             "interval": 0,
@@ -9893,7 +10340,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "property2": "string"
           },
           "type": "template_version_import",
-          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+          "worker_name": "string"
         },
         "matched_provisioners": {
           "available": 0,
@@ -9912,6 +10360,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "command": "string",
                     "display_name": "string",
                     "external": true,
+                    "group": "string",
                     "health": "disabled",
                     "healthcheck": {},
                     "hidden": true,
@@ -10047,6 +10496,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_require_active_version": true,
+      "template_use_classic_parameter_flow": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }

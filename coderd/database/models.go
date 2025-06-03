@@ -74,6 +74,64 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 	}
 }
 
+type AgentKeyScopeEnum string
+
+const (
+	AgentKeyScopeEnumAll        AgentKeyScopeEnum = "all"
+	AgentKeyScopeEnumNoUserData AgentKeyScopeEnum = "no_user_data"
+)
+
+func (e *AgentKeyScopeEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AgentKeyScopeEnum(s)
+	case string:
+		*e = AgentKeyScopeEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AgentKeyScopeEnum: %T", src)
+	}
+	return nil
+}
+
+type NullAgentKeyScopeEnum struct {
+	AgentKeyScopeEnum AgentKeyScopeEnum `json:"agent_key_scope_enum"`
+	Valid             bool              `json:"valid"` // Valid is true if AgentKeyScopeEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAgentKeyScopeEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.AgentKeyScopeEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AgentKeyScopeEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAgentKeyScopeEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AgentKeyScopeEnum), nil
+}
+
+func (e AgentKeyScopeEnum) Valid() bool {
+	switch e {
+	case AgentKeyScopeEnumAll,
+		AgentKeyScopeEnumNoUserData:
+		return true
+	}
+	return false
+}
+
+func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
+	return []AgentKeyScopeEnum{
+		AgentKeyScopeEnumAll,
+		AgentKeyScopeEnumNoUserData,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -1050,6 +1108,92 @@ func AllParameterDestinationSchemeValues() []ParameterDestinationScheme {
 	}
 }
 
+// Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. Always include the empty string for using the default form type.
+type ParameterFormType string
+
+const (
+	ParameterFormTypeValue0      ParameterFormType = ""
+	ParameterFormTypeError       ParameterFormType = "error"
+	ParameterFormTypeRadio       ParameterFormType = "radio"
+	ParameterFormTypeDropdown    ParameterFormType = "dropdown"
+	ParameterFormTypeInput       ParameterFormType = "input"
+	ParameterFormTypeTextarea    ParameterFormType = "textarea"
+	ParameterFormTypeSlider      ParameterFormType = "slider"
+	ParameterFormTypeCheckbox    ParameterFormType = "checkbox"
+	ParameterFormTypeSwitch      ParameterFormType = "switch"
+	ParameterFormTypeTagSelect   ParameterFormType = "tag-select"
+	ParameterFormTypeMultiSelect ParameterFormType = "multi-select"
+)
+
+func (e *ParameterFormType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParameterFormType(s)
+	case string:
+		*e = ParameterFormType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParameterFormType: %T", src)
+	}
+	return nil
+}
+
+type NullParameterFormType struct {
+	ParameterFormType ParameterFormType `json:"parameter_form_type"`
+	Valid             bool              `json:"valid"` // Valid is true if ParameterFormType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullParameterFormType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ParameterFormType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ParameterFormType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullParameterFormType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ParameterFormType), nil
+}
+
+func (e ParameterFormType) Valid() bool {
+	switch e {
+	case ParameterFormTypeValue0,
+		ParameterFormTypeError,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect:
+		return true
+	}
+	return false
+}
+
+func AllParameterFormTypeValues() []ParameterFormType {
+	return []ParameterFormType{
+		ParameterFormTypeValue0,
+		ParameterFormTypeError,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect,
+	}
+}
+
 type ParameterScope string
 
 const (
@@ -1282,6 +1426,67 @@ func AllPortShareProtocolValues() []PortShareProtocol {
 	return []PortShareProtocol{
 		PortShareProtocolHttp,
 		PortShareProtocolHttps,
+	}
+}
+
+type PrebuildStatus string
+
+const (
+	PrebuildStatusHealthy          PrebuildStatus = "healthy"
+	PrebuildStatusHardLimited      PrebuildStatus = "hard_limited"
+	PrebuildStatusValidationFailed PrebuildStatus = "validation_failed"
+)
+
+func (e *PrebuildStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PrebuildStatus(s)
+	case string:
+		*e = PrebuildStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PrebuildStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPrebuildStatus struct {
+	PrebuildStatus PrebuildStatus `json:"prebuild_status"`
+	Valid          bool           `json:"valid"` // Valid is true if PrebuildStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPrebuildStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PrebuildStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PrebuildStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPrebuildStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PrebuildStatus), nil
+}
+
+func (e PrebuildStatus) Valid() bool {
+	switch e {
+	case PrebuildStatusHealthy,
+		PrebuildStatusHardLimited,
+		PrebuildStatusValidationFailed:
+		return true
+	}
+	return false
+}
+
+func AllPrebuildStatusValues() []PrebuildStatus {
+	return []PrebuildStatus{
+		PrebuildStatusHealthy,
+		PrebuildStatusHardLimited,
+		PrebuildStatusValidationFailed,
 	}
 }
 
@@ -3056,8 +3261,10 @@ type Template struct {
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
@@ -3101,6 +3308,8 @@ type TemplateTable struct {
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
+	UseClassicParameterFlow bool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -3148,6 +3357,7 @@ type TemplateVersion struct {
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -3184,15 +3394,18 @@ type TemplateVersionParameter struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
+	// Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.
+	FormType ParameterFormType `db:"form_type" json:"form_type"`
 }
 
 type TemplateVersionPreset struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	Name                string        `db:"name" json:"name"`
-	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                string         `db:"name" json:"name"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3225,6 +3438,8 @@ type TemplateVersionTerraformValue struct {
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
 	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
 	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
+	// What version of the provisioning engine was used to generate the cached plan and module files.
+	ProvisionerdVersion string `db:"provisionerd_version" json:"provisionerd_version"`
 }
 
 type TemplateVersionVariable struct {
@@ -3318,6 +3533,7 @@ type UserStatusChange struct {
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
+	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
@@ -3350,6 +3566,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OwnerName               string           `db:"owner_name" json:"owner_name"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
@@ -3404,6 +3621,8 @@ type WorkspaceAgent struct {
 	// Specifies the order in which to display agents in user interfaces.
 	DisplayOrder int32         `db:"display_order" json:"display_order"`
 	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
+	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
+	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 }
 
 // Workspace agent devcontainer configuration
@@ -3546,8 +3765,9 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool               `db:"hidden" json:"hidden"`
-	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	Hidden       bool               `db:"hidden" json:"hidden"`
+	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
@@ -3627,6 +3847,7 @@ type WorkspaceBuild struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
 }
 
 type WorkspaceBuildParameter struct {

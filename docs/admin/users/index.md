@@ -206,3 +206,42 @@ The following filters are supported:
 - `created_before` and `created_after` - The time a user was created. Uses the
   RFC3339Nano format.
 - `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
+
+## Retrieve your list of Coder users
+
+<div class="tabs">
+
+You can use the Coder CLI or API to retrieve your list of users.
+
+### CLI
+
+Use `users list` to export the list of users to a CSV file:
+
+```shell
+coder users list > users.csv
+```
+
+Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+
+### API
+
+Use [get users](../../reference/api/users.md#get-users):
+
+```shell
+curl -X GET http://coder-server:8080/api/v2/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+To export the results to a CSV file, you can use [`jq`](https://jqlang.org/) to process the JSON response:
+
+```shell
+curl -X GET http://coder-server:8080/api/v2/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY' | \
+  jq -r '.users | (map(keys) | add | unique) as $cols | $cols, (.[] | [.[$cols[]]] | @csv)' > users.csv
+```
+
+Visit the [get users](../../reference/api/users.md#get-users) documentation for more options.
+
+</div>

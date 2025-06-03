@@ -82,10 +82,10 @@ const WorkspaceSchedulePage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
-const WorkspaceParametersPage = lazy(
+const WorkspaceParametersExperimentRouter = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
+			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
@@ -313,12 +313,20 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
+const ProvisionerKeysPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerKeysPage/OrganizationProvisionerKeysPage"
+		),
+);
 const ProvisionerJobsPage = lazy(
 	() =>
 		import(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
+const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
+const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 
 const RoutesWithSuspense = () => {
 	return (
@@ -430,6 +438,8 @@ export const router = createBrowserRouter(
 						<Route path=":chatID" element={<ChatMessages />} />
 					</Route>
 
+					<Route path="/tasks" element={<TasksPage />} />
+
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
 
@@ -448,6 +458,10 @@ export const router = createBrowserRouter(
 							<Route
 								path="provisioner-jobs"
 								element={<ProvisionerJobsPage />}
+							/>
+							<Route
+								path="provisioner-keys"
+								element={<ProvisionerKeysPage />}
 							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />
@@ -522,17 +536,20 @@ export const router = createBrowserRouter(
 
 					{/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-					<Route
-						path="/:username/:workspace/builds/:buildNumber"
-						element={<WorkspaceBuildPage />}
-					/>
-					<Route
-						path="/:username/:workspace/settings"
-						element={<WorkspaceSettingsLayout />}
-					>
-						<Route index element={<WorkspaceSettingsPage />} />
-						<Route path="parameters" element={<WorkspaceParametersPage />} />
-						<Route path="schedule" element={<WorkspaceSchedulePage />} />
+					<Route path="/:username/:workspace">
+						<Route index element={<WorkspacePage />} />
+						<Route
+							path="builds/:buildNumber"
+							element={<WorkspaceBuildPage />}
+						/>
+						<Route path="settings" element={<WorkspaceSettingsLayout />}>
+							<Route index element={<WorkspaceSettingsPage />} />
+							<Route
+								path="parameters"
+								element={<WorkspaceParametersExperimentRouter />}
+							/>
+							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+						</Route>
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
@@ -561,7 +578,6 @@ export const router = createBrowserRouter(
 				</Route>
 
 				{/* Pages that don't have the dashboard layout */}
-				<Route path="/:username/:workspace" element={<WorkspacePage />} />
 				<Route
 					path="/templates/:template/versions/:version/edit"
 					element={<TemplateVersionEditorPage />}
@@ -576,6 +592,7 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
+				<Route path="/tasks/:username/:workspace" element={<TaskPage />} />
 			</Route>
 		</Route>,
 	),

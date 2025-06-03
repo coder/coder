@@ -4,6 +4,11 @@ import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import {
+	ProxyContext,
+	type ProxyContextValue,
+	getPreferredProxy,
+} from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
@@ -17,6 +22,7 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockOrganizationPermissions,
+	MockProxyLatencies,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -75,6 +81,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	let callEventsDelay: number;
 
 	window.WebSocket = class WebSocket {
+		public readyState = 1;
+
 		addEventListener(type: string, callback: CallbackFn) {
 			listeners.set(type, callback);
 
@@ -92,6 +100,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 				}
 			}, 0);
 		}
+
+		removeEventListener(type: string, callback: CallbackFn) {}
 
 		close() {}
 	} as unknown as typeof window.WebSocket;
@@ -151,3 +161,31 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 		</OrganizationSettingsContext.Provider>
 	);
 };
+
+export const withProxyProvider =
+	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
+		return (
+			<ProxyContext.Provider
+				value={{
+					latenciesLoaded: true,
+					proxyLatencies: MockProxyLatencies,
+					proxy: getPreferredProxy([], undefined),
+					proxies: [],
+					isLoading: false,
+					isFetched: true,
+					setProxy: () => {
+						return;
+					},
+					clearProxy: () => {
+						return;
+					},
+					refetchProxyLatencies: (): Date => {
+						return new Date();
+					},
+					...value,
+				}}
+			>
+				<Story />
+			</ProxyContext.Provider>
+		);
+	};

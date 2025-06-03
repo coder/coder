@@ -26,10 +26,11 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                                   uuid.UUID           `json:"id" format:"uuid"`
-	CreatedAt                            time.Time           `json:"created_at" format:"date-time"`
-	UpdatedAt                            time.Time           `json:"updated_at" format:"date-time"`
-	OwnerID                              uuid.UUID           `json:"owner_id" format:"uuid"`
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
+	// OwnerName is the username of the owner of the workspace.
 	OwnerName                            string              `json:"owner_name"`
 	OwnerAvatarURL                       string              `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid"`
@@ -41,6 +42,7 @@ type Workspace struct {
 	TemplateAllowUserCancelWorkspaceJobs bool                `json:"template_allow_user_cancel_workspace_jobs"`
 	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id" format:"uuid"`
 	TemplateRequireActiveVersion         bool                `json:"template_require_active_version"`
+	TemplateUseClassicParameterFlow      bool                `json:"template_use_classic_parameter_flow"`
 	LatestBuild                          WorkspaceBuild      `json:"latest_build"`
 	LatestAppStatus                      *WorkspaceAppStatus `json:"latest_app_status"`
 	Outdated                             bool                `json:"outdated"`
@@ -48,7 +50,6 @@ type Workspace struct {
 	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
-
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	// and a value has been specified for time_til_dormant_autodelete on its template.
@@ -109,6 +110,10 @@ type CreateWorkspaceBuildRequest struct {
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// EnableDynamicParameters skips some of the static parameter checking.
+	// It will default to whatever the template has marked as the default experience.
+	// Requires the "dynamic-experiment" to be used.
+	EnableDynamicParameters *bool `json:"enable_dynamic_parameters,omitempty"`
 }
 
 type WorkspaceOptions struct {

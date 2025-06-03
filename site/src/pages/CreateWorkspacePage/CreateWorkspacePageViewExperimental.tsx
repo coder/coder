@@ -1,13 +1,14 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { PreviewDiagnostics, PreviewParameter } from "api/typesGenerated";
+import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
-import { Pill } from "components/Pill/Pill";
+import { Link } from "components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -17,10 +18,17 @@ import {
 } from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
+import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
+import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
@@ -36,6 +44,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
@@ -47,12 +56,12 @@ import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-export interface CreateWorkspacePageViewExperimentalProps {
+interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
-	diagnostics: PreviewDiagnostics;
+	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
@@ -70,7 +79,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Record<string, string>) => void;
+	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.User;
 	setOwner: (user: TypesGen.User) => void;
@@ -114,6 +123,27 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
 
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+
+	// Only touched fields are sent to the websocket
+	// Autofilled parameters are marked as touched since they have been modified
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
+
+	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
+	// 1. The form parameter values are initialized from the websocket response when the form is mounted
+	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
+	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -124,6 +154,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					autofillParameters,
 				),
 			},
+			initialTouched,
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
 				rich_parameter_values:
@@ -148,7 +179,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [error]);
 
 	useEffect(() => {
-		if (form.submitCount > 0 && form.errors) {
+		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",
 				block: "center",
@@ -192,6 +223,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
 
+		const currentValues = form.values.rich_parameter_values ?? [];
+
+		const updates: Array<{
+			field: string;
+			fieldValue: TypesGen.WorkspaceBuildParameter;
+			parameter: PreviewParameter;
+			presetValue: string;
+		}> = [];
+
 		for (const presetParameter of selectedPreset.Parameters) {
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
@@ -199,73 +239,105 @@ export const CreateWorkspacePageViewExperimental: FC<
 			if (parameterIndex === -1) continue;
 
 			const parameterField = `rich_parameter_values.${parameterIndex}`;
+			const parameter = parameters[parameterIndex];
+			const currentValue = currentValues.find(
+				(p) => p.name === presetParameter.Name,
+			)?.value;
 
-			form.setFieldValue(parameterField, {
-				name: presetParameter.Name,
-				value: presetParameter.Value,
-			});
+			if (currentValue !== presetParameter.Value) {
+				updates.push({
+					field: parameterField,
+					fieldValue: {
+						name: presetParameter.Name,
+						value: presetParameter.Value,
+					},
+					parameter,
+					presetValue: presetParameter.Value,
+				});
+			}
+		}
+
+		if (updates.length > 0) {
+			for (const update of updates) {
+				form.setFieldValue(update.field, update.fieldValue);
+				form.setFieldTouched(update.parameter.name, true);
+			}
+
+			sendDynamicParamsRequest(
+				updates.map((update) => ({
+					parameter: update.parameter,
+					value: update.presetValue,
+				})),
+			);
 		}
 	}, [
 		presetOptions,
 		selectedPresetIndex,
 		presets,
 		form.setFieldValue,
+		form.setFieldTouched,
 		parameters,
+		form.values.rich_parameter_values,
 	]);
 
-	// send the last user modified parameter and all touched parameters to the websocket
+	// include any modified parameters and all touched parameters to the websocket request
 	const sendDynamicParamsRequest = (
-		parameter: PreviewParameter,
-		value: string,
+		parameters: Array<{ parameter: PreviewParameter; value: string }>,
+		ownerId?: string,
 	) => {
-		const formInputs: { [k: string]: string } = {};
-		formInputs[parameter.name] = value;
-		const parameters = form.values.rich_parameter_values ?? [];
+		const formInputs: Record<string, string> = {};
+		const formParameters = form.values.rich_parameter_values ?? [];
+
+		for (const { parameter, value } of parameters) {
+			formInputs[parameter.name] = value;
+		}
 
 		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (isTouched && fieldName !== parameter.name) {
-				const param = parameters.find((p) => p.name === fieldName);
+			if (
+				isTouched &&
+				!parameters.some((p) => p.parameter.name === fieldName)
+			) {
+				const param = formParameters.find((p) => p.name === fieldName);
 				if (param?.value) {
 					formInputs[fieldName] = param.value;
 				}
 			}
 		}
 
-		sendMessage(formInputs);
+		sendMessage(formInputs, ownerId);
 	};
 
-	const { debounced: handleChangeDebounced } = useDebouncedFunction(
-		async (
-			parameter: PreviewParameter,
-			parameterField: string,
-			value: string,
-		) => {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
-			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
-		},
-		500,
-	);
+	const handleOwnerChange = (user: TypesGen.User) => {
+		setOwner(user);
+		sendDynamicParamsRequest([], user.id);
+	};
 
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
 		value: string,
 	) => {
-		if (parameter.form_type === "input" || parameter.form_type === "textarea") {
-			handleChangeDebounced(parameter, parameterField, value);
-		} else {
-			await form.setFieldValue(parameterField, {
-				name: parameter.name,
-				value,
-			});
+		const currentFormValue = form.values.rich_parameter_values?.find(
+			(p) => p.name === parameter.name,
+		)?.value;
+
+		await form.setFieldValue(parameterField, {
+			name: parameter.name,
+			value,
+		});
+
+		// Only send the request if the value has changed from the form value
+		if (currentFormValue !== value) {
 			form.setFieldTouched(parameter.name, true);
-			sendDynamicParamsRequest(parameter, value);
+			sendDynamicParamsRequest([{ parameter, value }]);
 		}
 	};
+
+	useSyncFormParameters({
+		parameters,
+		formValues: form.values.rich_parameter_values ?? [],
+		setFieldValue: form.setFieldValue,
+	});
 
 	return (
 		<>
@@ -280,33 +352,66 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</button>
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
-				<header className="flex flex-col items-start gap-2 mt-10">
-					<div className="flex items-center gap-2">
-						<Avatar
-							variant="icon"
-							size="md"
-							src={template.icon}
-							fallback={template.name}
-						/>
-						<p className="text-base font-medium m-0">
-							{template.display_name.length > 0
-								? template.display_name
-								: template.name}
-						</p>
+				<header className="flex flex-col items-start gap-3 mt-10">
+					<div className="flex items-center gap-2 justify-between w-full">
+						<span className="flex items-center gap-2">
+							<Avatar
+								variant="icon"
+								size="md"
+								src={template.icon}
+								fallback={template.name}
+							/>
+							<p className="text-base font-medium m-0">
+								{template.display_name.length > 0
+									? template.display_name
+									: template.name}
+							</p>
+							{template.deprecated && (
+								<Badge variant="warning" size="sm">
+									Deprecated
+								</Badge>
+							)}
+						</span>
+						{experimentalFormContext && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={experimentalFormContext.toggleOptedOut}
+							>
+								<Undo2 />
+								Classic workspace creation
+							</Button>
+						)}
 					</div>
-					<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="subtle"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							Go back to the classic workspace creation flow
-						</Button>
-					)}
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
+					<FeatureStageBadge
+						contentType={"early_access"}
+						size="sm"
+						labelText="Dynamic parameters"
+					/>
 				</header>
 
 				<form
@@ -392,7 +497,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<UserAutocomplete
 											value={owner}
 											onChange={(user) => {
-												setOwner(user ?? defaultOwner);
+												handleOwnerChange(user ?? defaultOwner);
 											}}
 											size="medium"
 										/>
@@ -433,6 +538,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</section>
 					)}
 
+					{parameters.length === 0 && diagnostics.length > 0 && (
+						<Diagnostics diagnostics={diagnostics} />
+					)}
+
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-9">
 							<hgroup>
@@ -440,6 +549,13 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<p className="text-sm text-content-secondary m-0">
 									These are the settings used by your template. Immutable
 									parameters cannot be modified once the workspace is created.
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										)}
+									>
+										View docs
+									</Link>
 								</p>
 							</hgroup>
 							{diagnostics.length > 0 && (
@@ -449,7 +565,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="md" />
+										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
@@ -509,6 +625,9 @@ export const CreateWorkspacePageViewExperimental: FC<
 										return null;
 									}
 
+									const formValue =
+										form.values?.rich_parameter_values?.[index]?.value || "";
+
 									return (
 										<DynamicParameter
 											key={parameter.name}
@@ -518,6 +637,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
+											autofill={autofillByName[parameter.name] !== undefined}
+											value={formValue}
 										/>
 									);
 								})}
@@ -528,7 +649,18 @@ export const CreateWorkspacePageViewExperimental: FC<
 					<div className="flex flex-row justify-end">
 						<Button
 							type="submit"
-							disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
+							disabled={
+								creatingWorkspace ||
+								!hasAllRequiredExternalAuth ||
+								diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								) ||
+								parameters.some((parameter) =>
+									parameter.diagnostics.some(
+										(diagnostic) => diagnostic.severity === "error",
+									),
+								)
+							}
 						>
 							<Spinner loading={creatingWorkspace} />
 							Create workspace
@@ -537,46 +669,5 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</form>
 			</div>
 		</>
-	);
-};
-
-interface DiagnosticsProps {
-	diagnostics: PreviewParameter["diagnostics"];
-}
-
-const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
-	return (
-		<div className="flex flex-col gap-4">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs flex flex-col rounded-md border px-4 pb-3 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? " text-content-destructive border-border-destructive"
-														: " text-content-warning border-border-warning"
-												}`}
-				>
-					<div className="flex items-center m-0">
-						{diagnostic.severity === "error" && (
-							<CircleAlert
-								className="me-2 -mt-0.5 inline-flex opacity-80"
-								size={16}
-								aria-hidden="true"
-							/>
-						)}
-						{diagnostic.severity === "warning" && (
-							<TriangleAlert
-								className="me-2 -mt-0.5 inline-flex opacity-80"
-								size={16}
-								aria-hidden="true"
-							/>
-						)}
-						<p className="font-medium">{diagnostic.summary}</p>
-					</div>
-					{diagnostic.detail && <p className="m-0 pb-0">{diagnostic.detail}</p>}
-				</div>
-			))}
-		</div>
 	);
 };

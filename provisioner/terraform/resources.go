@@ -42,6 +42,7 @@ type agentAttributes struct {
 	Directory       string            `mapstructure:"dir"`
 	ID              string            `mapstructure:"id"`
 	Token           string            `mapstructure:"token"`
+	APIKeyScope     string            `mapstructure:"api_key_scope"`
 	Env             map[string]string `mapstructure:"env"`
 	// Deprecated: but remains here for backwards compatibility.
 	StartupScript                string `mapstructure:"startup_script"`
@@ -107,6 +108,7 @@ type agentAppAttributes struct {
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
+	Group       string                     `mapstructure:"group"`
 	Hidden      bool                       `mapstructure:"hidden"`
 	OpenIn      string                     `mapstructure:"open_in"`
 }
@@ -319,12 +321,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				Metadata:                 metadata,
 				DisplayApps:              displayApps,
 				Order:                    attrs.Order,
+				ApiKeyScope:              attrs.APIKeyScope,
 			}
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {
 				agent.Scripts = append(agent.Scripts, &proto.Script{
 					// This is ▶️
-					Icon:             "/emojis/25b6.png",
+					Icon:             "/emojis/25b6-fe0f.png",
 					LogPath:          "coder-startup-script.log",
 					DisplayName:      "Startup Script",
 					Script:           attrs.StartupScript,
@@ -394,7 +397,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 			agents, exists := resourceAgents[agentResource.Label]
 			if !exists {
-				agents = make([]*proto.Agent, 0)
+				agents = make([]*proto.Agent, 0, 1)
 			}
 			agents = append(agents, agent)
 			resourceAgents[agentResource.Label] = agents
@@ -530,6 +533,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
+						Group:        attrs.Group,
 						Hidden:       attrs.Hidden,
 						OpenIn:       openIn,
 					})
@@ -753,10 +757,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if param.Default != nil {
 			defaultVal = *param.Default
 		}
+
+		pft, err := proto.FormType(param.FormType)
+		if err != nil {
+			return nil, xerrors.Errorf("decode form_type for coder_parameter.%s: %w", resource.Name, err)
+		}
+
 		protoParam := &proto.RichParameter{
 			Name:         param.Name,
 			DisplayName:  param.DisplayName,
 			Description:  param.Description,
+			FormType:     pft,
 			Type:         param.Type,
 			Mutable:      param.Mutable,
 			DefaultValue: defaultVal,
@@ -895,14 +906,21 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			)
 		}
 		var prebuildInstances int32
+		var expirationPolicy *proto.ExpirationPolicy
 		if len(preset.Prebuilds) > 0 {
 			prebuildInstances = int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].Instances)))
+			if len(preset.Prebuilds[0].ExpirationPolicy) > 0 {
+				expirationPolicy = &proto.ExpirationPolicy{
+					Ttl: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].ExpirationPolicy[0].TTL))),
+				}
+			}
 		}
 		protoPreset := &proto.Preset{
 			Name:       preset.Name,
 			Parameters: presetParameters,
 			Prebuild: &proto.Prebuild{
-				Instances: prebuildInstances,
+				Instances:        prebuildInstances,
+				ExpirationPolicy: expirationPolicy,
 			},
 		}
 

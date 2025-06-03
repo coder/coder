@@ -33,6 +33,11 @@ coder ssh my-workspace
 
 Or, you can configure plain SSH on your client below.
 
+> [!Note]
+> The `coder ssh` command does not have full parity with the standard
+> SSH command. For users who need the full functionality of SSH, use the
+> configuration method below.
+
 ### Configure SSH
 
 Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for
@@ -63,7 +68,7 @@ successful, you'll see the following message:
    ```console
    You should now be able to ssh into your workspace.
    For example, try running:
-   
+
    $ ssh coder.<workspaceName>
    ```
 
@@ -105,9 +110,9 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains/index.md#jetbrains-fleet)
+- [JetBrains Fleet](./jetbrains/fleet.md)
 
-Read our [docs on JetBrains Gateway](./jetbrains/index.md) for more information
+Read our [docs on JetBrains](./jetbrains/index.md) for more information
 on connecting your JetBrains IDEs.
 
 ## code-server

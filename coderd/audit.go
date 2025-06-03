@@ -462,7 +462,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if getWorkspaceErr != nil {
 			return ""
 		}
-		return fmt.Sprintf("/@%s/%s", workspace.OwnerUsername, workspace.Name)
+		return fmt.Sprintf("/@%s/%s", workspace.OwnerName, workspace.Name)
 
 	case database.ResourceTypeWorkspaceApp:
 		if additionalFields.WorkspaceOwner != "" && additionalFields.WorkspaceName != "" {
@@ -472,7 +472,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if getWorkspaceErr != nil {
 			return ""
 		}
-		return fmt.Sprintf("/@%s/%s", workspace.OwnerUsername, workspace.Name)
+		return fmt.Sprintf("/@%s/%s", workspace.OwnerName, workspace.Name)
 
 	case database.ResourceTypeOauth2ProviderApp:
 		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", alog.AuditLog.ResourceID)

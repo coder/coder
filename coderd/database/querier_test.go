@@ -4,18 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1268,7 +1270,10 @@ func TestQueuePosition(t *testing.T) {
 		Tags: database.StringMap{},
 	})
 
-	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -1296,7 +1301,10 @@ func TestQueuePosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jobs[0].ID, job.ID)
 
-	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -2550,7 +2558,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			}
 
 			// When: we fetch the jobs by their IDs
-			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
+			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+				IDs:             filteredJobIDs,
+				StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+			})
 			require.NoError(t, err)
 			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
 
@@ -2693,7 +2704,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -2788,7 +2802,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -4123,8 +4140,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
-		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		_ = tmpl1V1
+		createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4398,6 +4414,574 @@ func TestGetPresetsBackoff(t *testing.T) {
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
 		require.NoError(t, err)
 		require.Len(t, backoffs, 0)
+	})
+}
+
+func TestGetPresetsAtFailureLimit(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	now := dbtime.Now()
+	hourBefore := now.Add(-time.Hour)
+	orgID := uuid.New()
+	userID := uuid.New()
+
+	findPresetByTmplVersionID := func(hardLimitedPresets []database.GetPresetsAtFailureLimitRow, tmplVersionID uuid.UUID) *database.GetPresetsAtFailureLimitRow {
+		for _, preset := range hardLimitedPresets {
+			if preset.TemplateVersionID == tmplVersionID {
+				return &preset
+			}
+		}
+
+		return nil
+	}
+
+	testCases := []struct {
+		name string
+		// true - build is successful
+		// false - build is unsuccessful
+		buildSuccesses  []bool
+		hardLimit       int64
+		expHitHardLimit bool
+	}{
+		{
+			name:            "failed build",
+			buildSuccesses:  []bool{false},
+			hardLimit:       1,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "2 failed builds",
+			buildSuccesses:  []bool{false, false},
+			hardLimit:       1,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "successful build",
+			buildSuccesses:  []bool{true},
+			hardLimit:       1,
+			expHitHardLimit: false,
+		},
+		{
+			name:            "last build is failed",
+			buildSuccesses:  []bool{true, true, false},
+			hardLimit:       1,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "last build is successful",
+			buildSuccesses:  []bool{false, false, true},
+			hardLimit:       1,
+			expHitHardLimit: false,
+		},
+		{
+			name:            "last 3 builds are failed - hard limit is reached",
+			buildSuccesses:  []bool{true, true, false, false, false},
+			hardLimit:       3,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "1 out of 3 last build is successful - hard limit is NOT reached",
+			buildSuccesses:  []bool{false, false, true, false, false},
+			hardLimit:       3,
+			expHitHardLimit: false,
+		},
+		// hardLimit set to zero, implicitly disables the hard limit.
+		{
+			name:            "despite 5 failed builds, the hard limit is not reached because it's disabled.",
+			buildSuccesses:  []bool{false, false, false, false, false},
+			hardLimit:       0,
+			expHitHardLimit: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dbgen.Organization(t, db, database.Organization{
+				ID: orgID,
+			})
+			dbgen.User(t, db, database.User{
+				ID: userID,
+			})
+
+			tmpl := createTemplate(t, db, orgID, userID)
+			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+			for idx, buildSuccess := range tc.buildSuccesses {
+				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+					failedJob: !buildSuccess,
+					createdAt: hourBefore.Add(time.Duration(idx) * time.Second),
+				})
+			}
+
+			hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, tc.hardLimit)
+			require.NoError(t, err)
+
+			if !tc.expHitHardLimit {
+				require.Len(t, hardLimitedPresets, 0)
+				return
+			}
+
+			require.Len(t, hardLimitedPresets, 1)
+			hardLimitedPreset := hardLimitedPresets[0]
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmplV1.preset.ID)
+		})
+	}
+
+	t.Run("Ignore Inactive Version", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl := createTemplate(t, db, orgID, userID)
+		tmplV1 := createTmplVersionAndPreset(t, db, tmpl, uuid.New(), now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		// Active Version
+		tmplV2 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+		require.NoError(t, err)
+
+		require.Len(t, hardLimitedPresets, 1)
+		hardLimitedPreset := hardLimitedPresets[0]
+		require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl.ActiveVersionID)
+		require.Equal(t, hardLimitedPreset.PresetID, tmplV2.preset.ID)
+	})
+
+	t.Run("Multiple Templates", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl2 := createTemplate(t, db, orgID, userID)
+		tmpl2V1 := createTmplVersionAndPreset(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl2, tmpl2V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+
+		require.NoError(t, err)
+
+		require.Len(t, hardLimitedPresets, 2)
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl1V1.preset.ID)
+		}
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl2V1.preset.ID)
+		}
+	})
+
+	t.Run("Multiple Templates, Versions and Workspace Builds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl2 := createTemplate(t, db, orgID, userID)
+		tmpl2V1 := createTmplVersionAndPreset(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl2, tmpl2V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl2, tmpl2V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl3 := createTemplate(t, db, orgID, userID)
+		tmpl3V1 := createTmplVersionAndPreset(t, db, tmpl3, uuid.New(), now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl3, tmpl3V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		tmpl3V2 := createTmplVersionAndPreset(t, db, tmpl3, tmpl3.ActiveVersionID, now, nil)
+		createPrebuiltWorkspace(ctx, t, db, tmpl3, tmpl3V2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl3, tmpl3V2, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+		})
+
+		hardLimit := int64(2)
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, hardLimit)
+		require.NoError(t, err)
+
+		require.Len(t, hardLimitedPresets, 3)
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl1.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl1V1.preset.ID)
+		}
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl2.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl2V1.preset.ID)
+		}
+		{
+			hardLimitedPreset := findPresetByTmplVersionID(hardLimitedPresets, tmpl3.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.TemplateVersionID, tmpl3.ActiveVersionID)
+			require.Equal(t, hardLimitedPreset.PresetID, tmpl3V2.preset.ID)
+		}
+	})
+
+	t.Run("No Workspace Builds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+		require.NoError(t, err)
+		require.Nil(t, hardLimitedPresets)
+	})
+
+	t.Run("No Failed Workspace Builds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		successfulJobOpts := createPrebuiltWorkspaceOpts{}
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+
+		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
+		require.NoError(t, err)
+		require.Nil(t, hardLimitedPresets)
+	})
+}
+
+func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test makes use of a database trigger not implemented in dbmem")
+	}
+
+	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
+		t.Helper()
+
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			BuildNumber:       1,
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			Name:       agentName,
+		})
+
+		return build, resource, agent
+	}
+
+	t.Run("DuplicateNamesInSameWorkspaceResource", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, _ := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: Another agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "duplicate-agent", // Same name as agent1
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
+	})
+
+	t.Run("DuplicateNamesInSameProvisionerJob", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, agent := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: A child agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent.Name,
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
+	})
+
+	t.Run("DuplicateChildNamesOverMultipleResources", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with two agents
+		_, resource1, agent1 := createWorkspaceWithAgent(t, db, org, "parent-agent-1")
+
+		resource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: resource1.JobID})
+		agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource2.ID,
+			Name:       "parent-agent-2",
+		})
+
+		// Given: One agent has a child agent
+		agent1Child := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{Valid: true, UUID: agent1.ID},
+			Name:       "child-agent",
+			ResourceID: resource1.ID,
+		})
+
+		// When: A child agent is inserted for the other parent.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			ParentID:        uuid.NullUUID{Valid: true, UUID: agent2.ID},
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent1Child.Name,
+			ResourceID:      resource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "child-agent" already exists in this workspace build`)
+	})
+
+	t.Run("SameNamesInDifferentWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		agentName := "same-name-different-workspace"
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Given: A workspace with an agent
+		_, _, agent1 := createWorkspaceWithAgent(t, db, org, agentName)
+		require.Equal(t, agentName, agent1.Name)
+
+		// When: A second workspace is created with an agent having the same name
+		_, _, agent2 := createWorkspaceWithAgent(t, db, org, agentName)
+		require.Equal(t, agentName, agent2.Name)
+
+		// Then: We expect there to be different agents with the same name.
+		require.NotEqual(t, agent1.ID, agent2.ID)
+		require.Equal(t, agent1.Name, agent2.Name)
+	})
+
+	t.Run("NullWorkspaceID", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A resource that does not belong to a workspace build (simulating template import)
+		orphanJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		orphanResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: orphanJob.ID,
+		})
+
+		// And this resource has a workspace agent.
+		agent1, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "orphan-agent",
+			ResourceID:      orphanResource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "orphan-agent", agent1.Name)
+
+		// When: We created another resource that does not belong to a workspace build.
+		orphanJob2 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		orphanResource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: orphanJob2.ID,
+		})
+
+		// Then: We expect to be able to create an agent in this new resource that has the same name.
+		agent2, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "orphan-agent", // Same name as agent1
+			ResourceID:      orphanResource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "orphan-agent", agent2.Name)
+		require.NotEqual(t, agent1.ID, agent2.ID)
+	})
+}
+
+func TestGetWorkspaceAgentsByParentID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace agent
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// When: We attempt to select agents with a null parent id
+		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)
+		require.NoError(t, err)
+
+		// Then: We expect to see no agents.
+		require.Len(t, agents, 0)
 	})
 }
 

@@ -1,4 +1,4 @@
-# Coder Desktop (Early Access)
+# Coder Desktop (Beta)
 
 Use Coder Desktop to work on your workspaces as though they're on your LAN, no
 port-forwarding required.
@@ -22,7 +22,7 @@ You can install Coder Desktop on macOS or Windows.
 
    Alternatively, you can manually install Coder Desktop from the [releases page](https://github.com/coder/coder-desktop-macos/releases).
 
-1. Open **Coder Desktop** from the Applications directory. When macOS asks if you want to open it, select **Open**.
+1. Open **Coder Desktop** from the Applications directory.
 
 1. The application is treated as a system VPN. macOS will prompt you to confirm with:
 
@@ -79,11 +79,11 @@ Before you can use Coder Desktop, you will need to sign in.
 
    ## macOS
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png)
 
    ## Windows
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png)
 
    </div>
 
@@ -97,19 +97,19 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. In your web browser, you may be prompted to sign in to Coder with your credentials:
 
-   <Image height="412px" src="../../images/templates/coder-login-web.png" alt="Sign in to your Coder deployment" align="center" />
+   ![Sign in to your Coder deployment](../../images/templates/coder-login-web.png)
 
 1. Copy the session token to the clipboard:
 
-   <Image height="350px" src="../../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
+   ![Copy session token](../../images/templates/coder-session-token.png)
 
 1. Paste the token in the **Session Token** field of the **Sign In** screen, then select **Sign In**:
 
    ![Paste the session token in to sign in](../../images/user-guides/desktop/coder-desktop-session-token.png)
 
-1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted.
+1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted:
 
-   <Image height="350px" src="../../images/user-guides/desktop/mac-allow-vpn.png" alt="Copy session token" align="center" />
+   ![Copy session token](../../images/user-guides/desktop/mac-allow-vpn.png)
 
 1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the **Coder Connect** toggle to enable the connection.
 
@@ -121,119 +121,6 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. Coder Connect is now running!
 
-## Coder Connect
+## Next Steps
 
-While active, Coder Connect will list the workspaces you own and will configure your system to connect to them over private IPv6 addresses and custom hostnames ending in `.coder`.
-
-![Coder Desktop list of workspaces](../../images/user-guides/desktop/coder-desktop-workspaces.png)
-
-To copy the `.coder` hostname of a workspace agent, you can click the copy icon beside it.
-
-On macOS you can use `ping6` in your terminal to verify the connection to your workspace:
-
-   ```shell
-   ping6 -c 5 your-workspace.coder
-   ```
-
-On Windows, you can use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
-
-   ```shell
-   ping -n 5 your-workspace.coder
-   ```
-
-Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
-
-You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
-
-   ```shell
-   ssh your-workspace.coder
-   ```
-
-> [!NOTE]
-> Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
-
-## Accessing web apps in a secure browser context
-
-Some web applications require a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) to function correctly.
-A browser typically considers an origin secure if the connection is to `localhost`, or over `HTTPS`.
-
-As Coder Connect uses its own hostnames and does not provide TLS to the browser, Google Chrome and Firefox will not allow any web APIs that require a secure context.
-
-> [!NOTE]
-> Despite the browser showing an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
-
-If you require secure context web APIs, you will need to mark the workspace hostnames as secure in your browser settings.
-
-We are planning some changes to Coder Desktop that will make accessing secure context web apps easier. Stay tuned for updates.
-
-<div class="tabs">
-
-### Chrome
-
-1. Open Chrome and visit `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
-
-1. Enter the full workspace hostname, including the `http` scheme and the port (e.g. `http://your-workspace.coder:8080`), into the **Insecure origins treated as secure** text field.
-
-   If you need to enter multiple URLs, use a comma to separate them.
-
-   ![Google Chrome insecure origin settings](../../images/user-guides/desktop/chrome-insecure-origin.png)
-
-1. Ensure that the dropdown to the right of the text field is set to **Enabled**.
-
-1. You will be prompted to relaunch Google Chrome at the bottom of the page. Select **Relaunch** to restart Google Chrome.
-
-1. On relaunch and subsequent launches, Google Chrome will show a banner stating "You are using an unsupported command-line flag". This banner can be safely dismissed.
-
-1. Web apps accessed on the configured hostnames and ports will now function correctly in a secure context.
-
-### Firefox
-
-1. Open Firefox and visit `about:config`.
-
-1. Read the warning and select **Accept the Risk and Continue** to access the Firefox configuration page.
-
-1. Enter `dom.securecontext.allowlist` into the search bar at the top.
-
-1. Select **String** on the entry with the same name at the bottom of the list, then select the plus icon on the right.
-
-1. In the text field, enter the full workspace hostname, without the `http` scheme and port: `your-workspace.coder`. Then select the tick icon.
-
-   If you need to enter multiple URLs, use a comma to separate them.
-
-   ![Firefox insecure origin settings](../../images/user-guides/desktop/firefox-insecure-origin.png)
-
-1. Web apps accessed on the configured hostnames will now function correctly in a secure context without requiring a restart.
-
-</div>
-
-## Troubleshooting
-
-### Mac: Issues updating Coder Desktop
-
-> No workspaces!
-
-And
-
-> Internal Error: The VPN must be started with the app open during first-time setup.
-
-Due to an issue with the way Coder Desktop works with the macOS [interprocess communication mechanism](https://developer.apple.com/documentation/xpc)(XPC) system network extension, core Desktop functionality can break when you upgrade the application.
-
-<div class="tabs">
-
-The resolution depends on which version of macOS you use:
-
-### macOS <=14
-
-1. Delete the application from `/Applications`.
-1. Restart your device.
-
-### macOS 15+
-
-1. Open **System Settings**
-1. Select **General**
-1. Select **Login Items & Extensions**
-1. Scroll down, and select the **ⓘ** for **Network Extensions**
-1. Select the **...** next to Coder Desktop, then **Delete Extension**, and follow the prompts.
-1. Re-open Coder Desktop and follow the prompts to reinstall the network extension.
-
-</div>
+- [Connect to and work on your workspace](./desktop-connect-sync.md)

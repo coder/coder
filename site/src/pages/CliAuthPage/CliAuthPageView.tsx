@@ -1,73 +1,53 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { visuallyHidden } from "@mui/utils";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Loader } from "components/Loader/Loader";
+import { Button } from "components/Button/Button";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Spinner } from "components/Spinner/Spinner";
 import { Welcome } from "components/Welcome/Welcome";
+import { useClipboard } from "hooks";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-export interface CliAuthPageViewProps {
+interface CliAuthPageViewProps {
 	sessionToken?: string;
 }
 
-const VISUALLY_HIDDEN_SPACE = " ";
-
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
-	if (!sessionToken) {
-		return <Loader fullscreen />;
-	}
+	const clipboard = useClipboard({
+		textToCopy: sessionToken ?? "",
+	});
 
 	return (
 		<SignInLayout>
-			<Welcome className="pb-3">Session token</Welcome>
+			<Welcome>Session token</Welcome>
 
-			<p css={styles.instructions}>
-				Copy the session token below and
-				{/*
-				 * This looks silly, but it's a case where you want to hide the space
-				 * visually because it messes up the centering, but you want the space
-				 * to still be available to screen readers
-				 */}
-				<span css={{ ...visuallyHidden }}>{VISUALLY_HIDDEN_SPACE}</span>
-				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+			<p className="m-0 text-center text-sm text-content-secondary leading-normal">
+				Copy the session token below and{" "}
+				<strong className="block">paste it in your terminal.</strong>
 			</p>
 
-			<CodeExample code={sessionToken} secret />
+			<div className="flex flex-col items-center gap-1 w-full mt-4">
+				<Button
+					className="w-full"
+					size="lg"
+					disabled={!sessionToken}
+					onClick={clipboard.copyToClipboard}
+				>
+					{clipboard.showCopiedSuccess ? (
+						<CheckIcon />
+					) : (
+						<Spinner loading={!sessionToken}>
+							<CopyIcon />
+						</Spinner>
+					)}
+					{clipboard.showCopiedSuccess
+						? "Session token copied!"
+						: "Copy session token"}
+				</Button>
 
-			<div css={{ paddingTop: 16 }}>
-				<RouterLink to="/workspaces" css={styles.backLink}>
-					Go to workspaces
-				</RouterLink>
+				<Button className="w-full" variant="subtle" asChild>
+					<RouterLink to="/workspaces">Go to workspaces</RouterLink>
+				</Button>
 			</div>
 		</SignInLayout>
 	);
 };
-
-const styles = {
-	instructions: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		paddingBottom: 8,
-		textAlign: "center",
-		lineHeight: 1.4,
-
-		// Have to undo styling side effects from <Welcome> component
-		marginTop: -24,
-	}),
-
-	backLink: (theme) => ({
-		display: "block",
-		textAlign: "center",
-		color: theme.palette.text.primary,
-		textDecoration: "underline",
-		textUnderlineOffset: 3,
-		textDecorationColor: "hsla(0deg, 0%, 100%, 0.7)",
-		paddingTop: 16,
-		paddingBottom: 16,
-
-		"&:hover": {
-			textDecoration: "none",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectProps } from "@mui/material/Select";
 import Table from "@mui/material/Table";
@@ -29,8 +27,10 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { UserPlusIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
@@ -116,15 +116,15 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					</MenuItem>
 				</Select>
 
-				<LoadingButton
-					loadingPosition="start"
-					disabled={!selectedRole || !selectedOption}
+				<Button
+					disabled={!selectedRole || !selectedOption || isLoading}
 					type="submit"
-					startIcon={<PersonAdd />}
-					loading={isLoading}
 				>
+					<Spinner loading={isLoading}>
+						<UserPlusIcon className="size-icon-sm" />
+					</Spinner>
 					Add member
-				</LoadingButton>
+				</Button>
 			</Stack>
 		</form>
 	);
@@ -158,7 +158,7 @@ const RoleSelect: FC<SelectProps> = (props) => {
 	);
 };
 
-export interface TemplatePermissionsPageViewProps {
+interface TemplatePermissionsPageViewProps {
 	templateACL: TemplateACL | undefined;
 	templateID: string;
 	canUpdatePermissions: boolean;

@@ -35,7 +35,7 @@ const OAuth2ProviderPage: FC = () => {
 					info={`This will invalidate any tokens created by the OAuth2 application "${appToRevoke.name}".`}
 					label="Name of the application to revoke"
 					isOpen
-					confirmLoading={revokeAppMutation.isLoading}
+					confirmLoading={revokeAppMutation.isPending}
 					name={appToRevoke.name}
 					entity="application"
 					onCancel={() => setAppIdToRevoke(undefined)}

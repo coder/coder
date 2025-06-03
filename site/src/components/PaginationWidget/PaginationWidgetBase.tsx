@@ -59,7 +59,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 					}
 				}}
 			>
-				<ChevronLeftIcon className="size-icon-sm" />
+				<ChevronLeftIcon />
 			</PaginationNavButton>
 
 			{isMobile ? (
@@ -86,7 +86,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 					}
 				}}
 			>
-				<ChevronRightIcon className="size-icon-sm" />
+				<ChevronRightIcon />
 			</PaginationNavButton>
 		</div>
 	);

@@ -18,7 +18,7 @@ SUBCOMMANDS:
     completion        Install or update shell completion scripts for the
                       detected or chosen shell.
     config-ssh        Add an SSH Host entry for your workspaces "ssh
-                      coder.workspace"
+                      workspace.coder"
     create            Create a workspace
     delete            Delete a workspace
     dotfiles          Personalize your workspace by applying a canonical
@@ -46,7 +46,7 @@ SUBCOMMANDS:
     show              Display details of a workspace's resources and agents
     speedtest         Run upload and download tests from your machine to a
                       workspace
-    ssh               Start a shell into a workspace
+    ssh               Start a shell into a workspace or run a command
     start             Start a workspace
     stat              Show resource usage for the current workspace.
     state             Manually manage Terraform state to fix broken workspaces

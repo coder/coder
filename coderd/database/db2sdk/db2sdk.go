@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	previewtypes "github.com/coder/preview/types"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of
@@ -90,13 +92,13 @@ func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []coder
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	out := make([]codersdk.TemplateVersionParameter, len(params))
-	var err error
-	for i, p := range params {
-		out[i], err = TemplateVersionParameter(p)
+	out := make([]codersdk.TemplateVersionParameter, 0, len(params))
+	for _, p := range params {
+		np, err := TemplateVersionParameter(p)
 		if err != nil {
 			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
 		}
+		out = append(out, np)
 	}
 
 	return out, nil
@@ -129,6 +131,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
+		FormType:             string(param.FormType),
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
 		Icon:                 param.Icon,
@@ -291,7 +294,8 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	if err != nil {
 		return nil, err
 	}
-	var options []codersdk.TemplateVersionParameterOption
+
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
 	for _, option := range protoOptions {
 		options = append(options, codersdk.TemplateVersionParameterOption{
 			Name:        option.Name,
@@ -523,6 +527,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 			Statuses: WorkspaceAppStatuses(statuses),
@@ -763,4 +768,84 @@ func Chat(chat database.Chat) codersdk.Chat {
 
 func Chats(chats []database.Chat) []codersdk.Chat {
 	return List(chats, Chat)
+}
+
+func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
+	return codersdk.PreviewParameter{
+		PreviewParameterData: codersdk.PreviewParameterData{
+			Name:        param.Name,
+			DisplayName: param.DisplayName,
+			Description: param.Description,
+			Type:        codersdk.OptionType(param.Type),
+			FormType:    codersdk.ParameterFormType(param.FormType),
+			Styling: codersdk.PreviewParameterStyling{
+				Placeholder: param.Styling.Placeholder,
+				Disabled:    param.Styling.Disabled,
+				Label:       param.Styling.Label,
+			},
+			Mutable:      param.Mutable,
+			DefaultValue: PreviewHCLString(param.DefaultValue),
+			Icon:         param.Icon,
+			Options:      List(param.Options, PreviewParameterOption),
+			Validations:  List(param.Validations, PreviewParameterValidation),
+			Required:     param.Required,
+			Order:        param.Order,
+			Ephemeral:    param.Ephemeral,
+		},
+		Value:       PreviewHCLString(param.Value),
+		Diagnostics: PreviewDiagnostics(param.Diagnostics),
+	}
+}
+
+func HCLDiagnostics(d hcl.Diagnostics) []codersdk.FriendlyDiagnostic {
+	return PreviewDiagnostics(previewtypes.Diagnostics(d))
+}
+
+func PreviewDiagnostics(d previewtypes.Diagnostics) []codersdk.FriendlyDiagnostic {
+	f := d.FriendlyDiagnostics()
+	return List(f, func(f previewtypes.FriendlyDiagnostic) codersdk.FriendlyDiagnostic {
+		return codersdk.FriendlyDiagnostic{
+			Severity: codersdk.DiagnosticSeverityString(f.Severity),
+			Summary:  f.Summary,
+			Detail:   f.Detail,
+			Extra: codersdk.DiagnosticExtra{
+				Code: f.Extra.Code,
+			},
+		}
+	})
+}
+
+func PreviewHCLString(h previewtypes.HCLString) codersdk.NullHCLString {
+	n := h.NullHCLString()
+	return codersdk.NullHCLString{
+		Value: n.Value,
+		Valid: n.Valid,
+	}
+}
+
+func PreviewParameterOption(o *previewtypes.ParameterOption) codersdk.PreviewParameterOption {
+	if o == nil {
+		// This should never be sent
+		return codersdk.PreviewParameterOption{}
+	}
+	return codersdk.PreviewParameterOption{
+		Name:        o.Name,
+		Description: o.Description,
+		Value:       PreviewHCLString(o.Value),
+		Icon:        o.Icon,
+	}
+}
+
+func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.PreviewParameterValidation {
+	if v == nil {
+		// This should never be sent
+		return codersdk.PreviewParameterValidation{}
+	}
+	return codersdk.PreviewParameterValidation{
+		Error:     v.Error,
+		Regex:     v.Regex,
+		Min:       v.Min,
+		Max:       v.Max,
+		Monotonic: v.Monotonic,
+	}
 }

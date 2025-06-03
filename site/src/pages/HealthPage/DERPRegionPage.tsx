@@ -1,7 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
@@ -11,6 +8,7 @@ import type {
 	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
@@ -63,8 +61,9 @@ const DERPRegionPage: FC = () => {
 						}}
 						to="/health/derp"
 					>
-						<ArrowBackOutlined
-							css={{ fontSize: 12, verticalAlign: "middle", marginRight: 8 }}
+						<ChevronLeftIcon
+							className="size-icon-xs"
+							css={{ verticalAlign: "middle", marginRight: 8 }}
 						/>
 						Back to DERP
 					</Link>
@@ -91,10 +90,14 @@ const DERPRegionPage: FC = () => {
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 						<Tooltip title="Region ID">
-							<Pill icon={<TagOutlined />}>{region!.RegionID}</Pill>
+							<Pill icon={<HashIcon className="size-icon-sm" />}>
+								{region!.RegionID}
+							</Pill>
 						</Tooltip>
 						<Tooltip title="Region Code">
-							<Pill icon={<CodeOutlined />}>{region!.RegionCode}</Pill>
+							<Pill icon={<CodeIcon className="size-icon-sm" />}>
+								{region!.RegionCode}
+							</Pill>
 						</Tooltip>
 						<BooleanPill value={region!.EmbeddedRelay}>
 							Embedded Relay

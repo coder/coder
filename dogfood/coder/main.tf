@@ -30,6 +30,81 @@ locals {
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
+data "coder_workspace_preset" "cpt" {
+  name = "Cape Town"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "za-cpt"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
+data "coder_workspace_preset" "pittsburgh" {
+  name = "Pittsburgh"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 2
+  }
+}
+
+data "coder_workspace_preset" "falkenstein" {
+  name = "Falkenstein"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "eu-helsinki"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
+data "coder_workspace_preset" "sydney" {
+  name = "Sydney"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "ap-sydney"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
+data "coder_workspace_preset" "saopaulo" {
+  name = "São Paulo"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "sa-saopaulo"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
 data "coder_parameter" "repo_base_dir" {
   type        = "string"
   name        = "Coder Repository Base Directory"
@@ -55,11 +130,29 @@ data "coder_parameter" "image_type" {
   }
 }
 
+locals {
+  default_regions = {
+    // keys should match group names
+    "north-america" : "us-pittsburgh"
+    "europe" : "eu-helsinki"
+    "australia" : "ap-sydney"
+    "south-america" : "sa-saopaulo"
+    "africa" : "za-cpt"
+  }
+
+  user_groups = data.coder_workspace_owner.me.groups
+  user_region = coalescelist([
+    for g in local.user_groups :
+    local.default_regions[g] if contains(keys(local.default_regions), g)
+  ], ["us-pittsburgh"])[0]
+}
+
+
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
   icon    = "/emojis/1f30e.png"
-  default = "us-pittsburgh"
+  default = local.user_region
   option {
     icon  = "/emojis/1f1fa-1f1f8.png"
     name  = "Pittsburgh"
@@ -142,23 +235,23 @@ data "coder_workspace_tags" "tags" {
 
 module "slackme" {
   count            = data.coder_workspace.me.start_count
-  source           = "dev.registry.coder.com/modules/slackme/coder"
-  version          = ">= 1.0.0"
+  source           = "dev.registry.coder.com/coder/slackme/coder"
+  version          = "1.0.2"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/dotfiles/coder"
-  version  = ">= 1.0.0"
+  source   = "dev.registry.coder.com/coder/dotfiles/coder"
+  version  = "1.0.29"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/git-clone/coder"
-  version  = ">= 1.0.0"
+  source   = "dev.registry.coder.com/coder/git-clone/coder"
+  version  = "1.0.18"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -166,15 +259,15 @@ module "git-clone" {
 
 module "personalize" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/personalize/coder"
-  version  = ">= 1.0.0"
+  source   = "dev.registry.coder.com/coder/personalize/coder"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   count                   = data.coder_workspace.me.start_count
-  source                  = "dev.registry.coder.com/modules/code-server/coder"
-  version                 = ">= 1.0.0"
+  source                  = "dev.registry.coder.com/coder/code-server/coder"
+  version                 = "1.2.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -182,8 +275,8 @@ module "code-server" {
 
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
-  source                  = "registry.coder.com/modules/vscode-web/coder"
-  version                 = ">= 1.0.0"
+  source                  = "dev.registry.coder.com/coder/vscode-web/coder"
+  version                 = "1.1.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -192,43 +285,40 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count    = data.coder_workspace.me.start_count
-  source   = "git::https://github.com/coder/modules.git//jetbrains?ref=jetbrains"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
-  options  = ["WS", "GO"]
-  default  = "GO"
-  latest   = true
-  channel  = "eap"
+  count         = data.coder_workspace.me.start_count
+  source        = "git::https://github.com/coder/registry.git//registry/coder/modules/jetbrains?ref=jetbrains"
+  agent_id      = coder_agent.dev.id
+  folder        = local.repo_dir
+  major_version = "latest"
 }
 
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/modules/filebrowser/coder"
-  version    = ">= 1.0.0"
+  source     = "dev.registry.coder.com/coder/filebrowser/coder"
+  version    = "1.0.31"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
 
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/coder-login/coder"
-  version  = ">= 1.0.0"
+  source   = "dev.registry.coder.com/coder/coder-login/coder"
+  version  = "1.0.15"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/cursor/coder"
-  version  = ">= 1.0.0"
+  source   = "dev.registry.coder.com/coder/cursor/coder"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "windsurf" {
   count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/windsurf/coder"
-  version  = ">= 1.0.0"
+  source   = "registry.coder.com/coder/windsurf/coder"
+  version  = "1.0.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -373,6 +463,17 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
+    # Stop all running containers and prune the system to clean up
+    # /var/lib/docker to prevent errors during workspace destroy.
+    #
+    # WARNING! This will remove:
+    # - all containers
+    # - all networks
+    # - all images
+    # - all build cache
+    docker ps -q | xargs docker stop
+    docker system prune -a -f
+
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
   EOT
@@ -427,6 +528,14 @@ resource "docker_image" "dogfood" {
 }
 
 resource "docker_container" "workspace" {
+  lifecycle {
+    // Ignore changes that would invalidate prebuilds
+    ignore_changes = [
+      name,
+      hostname,
+      labels,
+    ]
+  }
   count = data.coder_workspace.me.start_count
   image = docker_image.dogfood.name
   name  = local.container_name

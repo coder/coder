@@ -1,8 +1,5 @@
 # Remote Desktops
 
-Built-in remote desktop is on the roadmap
-([#2106](https://github.com/coder/coder/issues/2106)).
-
 ## VNC Desktop
 
 The common way to use remote desktops with Coder is through VNC.
@@ -49,6 +46,38 @@ Or use your favorite RDP client to connect to `localhost:3399`.
 ![windows-rdp](../../images/ides/windows_rdp_client.png)
 
 The default username is `Administrator` and password is `coderRDP!`.
+
+### Coder Desktop URI Handling (Beta)
+
+[Coder Desktop](../desktop) can use a URI handler to directly launch an RDP session without setting up port-forwarding.
+The URI format is:
+
+```text
+coder://<your Coder server name>/v0/open/ws/<workspace name>/agent/<agent name>/rdp?username=<username>&password=<password>
+```
+
+For example:
+
+```text
+coder://coder.example.com/v0/open/ws/myworkspace/agent/main/rdp?username=Administrator&password=coderRDP!
+```
+
+To include a Coder Desktop button to the workspace dashboard page, add a `coder_app` resource to the template:
+
+```tf
+locals {
+  server_name = regex("https?:\\/\\/([^\\/]+)", data.coder_workspace.me.access_url)[0]
+}
+
+resource "coder_app" "rdp-coder-desktop" {
+  agent_id     = resource.coder_agent.main.id
+  slug         = "rdp-desktop"
+  display_name = "RDP with Coder Desktop"
+  url          = "coder://${local.server_name}/v0/open/ws/${data.coder_workspace.me.name}/agent/main/rdp?username=Administrator&password=coderRDP!"
+  icon         = "/icon/desktop.svg"
+  external     = true
+}
+```
 
 ## RDP Web
 

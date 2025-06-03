@@ -47,7 +47,6 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		scripts       []database.WorkspaceAgentScript
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
-		owner         database.User
 		devcontainers []database.WorkspaceAgentDevcontainer
 	)
 
@@ -76,10 +75,6 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		if err != nil {
 			return xerrors.Errorf("getting workspace by id: %w", err)
 		}
-		owner, err = a.Database.GetUserByID(ctx, workspace.OwnerID)
-		if err != nil {
-			return xerrors.Errorf("getting workspace owner by id: %w", err)
-		}
 		return err
 	})
 	eg.Go(func() (err error) {
@@ -98,7 +93,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
 		WorkspaceName: workspace.Name,
-		Username:      owner.Username,
+		Username:      workspace.OwnerUsername,
 	}
 
 	vscodeProxyURI := vscodeProxyURI(appSlug, a.AccessURL, a.AppHostname)
@@ -115,15 +110,20 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 	}
 
-	apps, err := dbAppsToProto(dbApps, workspaceAgent, owner.Username, workspace)
+	apps, err := dbAppsToProto(dbApps, workspaceAgent, workspace.OwnerUsername, workspace)
 	if err != nil {
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
+	}
+
+	var parentID []byte
+	if workspaceAgent.ParentID.Valid {
+		parentID = workspaceAgent.ParentID.UUID[:]
 	}
 
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
 		AgentName:                workspaceAgent.Name,
-		OwnerUsername:            owner.Username,
+		OwnerUsername:            workspace.OwnerUsername,
 		WorkspaceId:              workspace.ID[:],
 		WorkspaceName:            workspace.Name,
 		GitAuthConfigs:           gitAuthConfigs,
@@ -133,6 +133,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		MotdPath:                 workspaceAgent.MOTDFile,
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
+		ParentId:                 parentID,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
 		Scripts:       dbAgentScriptsToProto(scripts),

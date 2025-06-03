@@ -34,7 +34,7 @@ func (a authSubject) Subjects() []authSubject { return []authSubject{a} }
 // rules. If this is incorrect, that is a mistake.
 func TestBuiltInRoles(t *testing.T) {
 	t.Parallel()
-	for _, r := range rbac.SiteRoles() {
+	for _, r := range rbac.SiteBuiltInRoles() {
 		r := r
 		t.Run(r.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
@@ -224,6 +224,15 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe},
 				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "CreateDeleteWorkspaceAgent",
+			Actions:  []policy.Action{policy.ActionCreateAgent, policy.ActionDeleteAgent},
+			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgMemberMeBanWorkspace},
 			},
 		},
 		{
@@ -462,7 +471,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceDormant",
-			Actions:  append(crud, policy.ActionWorkspaceStop),
+			Actions:  append(crud, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent),
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgMemberMe, orgAdmin, owner},
@@ -580,7 +589,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "ProvisionerJobs",
-			Actions:  []policy.Action{policy.ActionRead},
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 			Resource: rbac.ResourceProvisionerJobs.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgTemplateAdmin, orgAdmin},
@@ -988,7 +997,7 @@ func TestIsOrgRole(t *testing.T) {
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
-	siteRoles := rbac.SiteRoles()
+	siteRoles := rbac.SiteBuiltInRoles()
 	siteRoleNames := make([]string, 0, len(siteRoles))
 	for _, role := range siteRoles {
 		siteRoleNames = append(siteRoleNames, role.Identifier.Name)
