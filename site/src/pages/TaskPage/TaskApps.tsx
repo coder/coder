@@ -7,7 +7,16 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	ArrowRightIcon,
+	ChevronDownIcon,
+	EllipsisVertical,
+	HouseIcon,
+	LayoutGridIcon,
+	RefreshCwIcon,
+	RotateCwIcon,
+} from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
 import type React from "react";
@@ -16,6 +25,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { AI_APP_CHAT_SLUG } from "./constants";
+import { Input } from "components/Input/Input";
 
 type TaskAppsProps = {
 	task: Task;
@@ -57,19 +67,21 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 
 	return (
 		<main className="flex-1 flex flex-col">
-			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{embeddedApps.map((app) => (
-					<TaskAppButton
-						key={app.id}
-						task={task}
-						app={app}
-						active={app.id === activeAppId}
-						onClick={(e) => {
-							e.preventDefault();
-							setActiveAppId(app.id);
-						}}
-					/>
-				))}
+			<div className="w-full flex items-center border-0 border-b border-border border-solid">
+				<div className=" p-2 pb-0 flex gap-2 items-center">
+					{embeddedApps.map((app) => (
+						<TaskAppTab
+							key={app.id}
+							task={task}
+							app={app}
+							active={app.id === activeAppId}
+							onClick={(e) => {
+								e.preventDefault();
+								setActiveAppId(app.id);
+							}}
+						/>
+					))}
+				</div>
 
 				{externalApps.length > 0 && (
 					<div className="ml-auto">
@@ -106,6 +118,37 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 				)}
 			</div>
 
+			<div className="bg-surface-tertiary p-2 py-1 flex items-center gap-1">
+				<div className="flex items-center">
+					<Button size="icon" variant="subtle">
+						<ArrowLeftIcon />
+						<span className="sr-only">Back</span>
+					</Button>
+
+					<Button size="icon" variant="subtle">
+						<ArrowRightIcon />
+						<span className="sr-only">Forward</span>
+					</Button>
+
+					<Button size="icon" variant="subtle">
+						<RotateCwIcon />
+						<span className="sr-only">Refresh</span>
+					</Button>
+
+					<Button size="icon" variant="subtle">
+						<HouseIcon />
+						<span className="sr-only">Home</span>
+					</Button>
+				</div>
+
+				<Input className="w-full rounded-full bg-surface-secondary h-9 md:text-xs" />
+
+				<Button size="icon" variant="subtle">
+					<EllipsisVertical />
+					<span className="sr-only">More options</span>
+				</Button>
+			</div>
+
 			<div className="flex-1">
 				{embeddedApps.map((app) => {
 					return (
@@ -122,19 +165,14 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	);
 };
 
-type TaskAppButtonProps = {
+type TaskAppTabProps = {
 	task: Task;
 	app: WorkspaceApp;
 	active: boolean;
 	onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
-const TaskAppButton: FC<TaskAppButtonProps> = ({
-	task,
-	app,
-	active,
-	onClick,
-}) => {
+const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 	const agent = task.workspace.latest_build.resources
 		.flatMap((r) => r.agents)
 		.filter((a) => !!a)
@@ -156,7 +194,11 @@ const TaskAppButton: FC<TaskAppButtonProps> = ({
 			key={app.id}
 			asChild
 			className={cn([
-				{ "text-content-primary": active },
+				"px-3",
+				{
+					"text-content-primary bg-surface-tertiary rounded-sm rounded-b-none":
+						active,
+				},
 				{ "opacity-75 hover:opacity-100": !active },
 			])}
 		>
