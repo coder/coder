@@ -476,7 +476,7 @@ export interface DataUpload {
    * data_hash is the sha256 of the payload to be uploaded.
    * This is also used to uniquely identify the upload.
    */
-  dataHash: string;
+  dataHash: Uint8Array;
   /** file_size is the total size of the data being uploaded. */
   fileSize: number;
   /** Number of chunks to be uploaded. */
@@ -487,7 +487,11 @@ export interface DataUpload {
 export interface ChunkPiece {
   data: Uint8Array;
   uploadType: string;
-  dataHash: string;
+  /**
+   * full_data_hash should match the hash from the original
+   * DataUpload message
+   */
+  fullDataHash: Uint8Array;
   pieceIndex: number;
 }
 
@@ -1396,8 +1400,8 @@ export const DataUpload = {
     if (message.uploadType !== 0) {
       writer.uint32(8).int32(message.uploadType);
     }
-    if (message.dataHash !== "") {
-      writer.uint32(18).string(message.dataHash);
+    if (message.dataHash.length !== 0) {
+      writer.uint32(18).bytes(message.dataHash);
     }
     if (message.fileSize !== 0) {
       writer.uint32(24).int64(message.fileSize);
@@ -1417,8 +1421,8 @@ export const ChunkPiece = {
     if (message.uploadType !== "") {
       writer.uint32(18).string(message.uploadType);
     }
-    if (message.dataHash !== "") {
-      writer.uint32(26).string(message.dataHash);
+    if (message.fullDataHash.length !== 0) {
+      writer.uint32(26).bytes(message.fullDataHash);
     }
     if (message.pieceIndex !== 0) {
       writer.uint32(32).int32(message.pieceIndex);

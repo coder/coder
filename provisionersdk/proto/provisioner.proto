@@ -450,7 +450,7 @@ message DataUpload {
 		DataUploadType upload_type = 1;
 		// data_hash is the sha256 of the payload to be uploaded.
 		// This is also used to uniquely identify the upload.
-		string data_hash = 2;
+		bytes data_hash = 2;
 		// file_size is the total size of the data being uploaded.
 		int64 file_size = 3;
 		// Number of chunks to be uploaded.
@@ -461,7 +461,9 @@ message DataUpload {
 message ChunkPiece {
 		bytes data = 1;
 		string upload_type = 2;
-		string data_hash = 3;
+		// full_data_hash should match the hash from the original
+		// DataUpload message
+		bytes full_data_hash = 3;
 		int32 piece_index = 4;
 }
 
