@@ -80,6 +80,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		return nil, xerrors.Errorf("insert sub agent: %w", err)
 	}
 
+	appSlugs := make(map[string]struct{})
 	for i, app := range req.Apps {
 		slug := app.Slug
 		if slug == "" {
@@ -94,7 +95,13 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				Detail: fmt.Sprintf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex),
 			}
 		}
-
+		if _, exists := appSlugs[slug]; exists {
+			return nil, codersdk.ValidationError{
+				Field:  fmt.Sprintf("apps[%d].slug", i),
+				Detail: fmt.Sprintf("app slug %q is already in use", slug),
+			}
+		}
+		appSlugs[slug] = struct{}{}
 		health := database.WorkspaceAppHealthDisabled
 		if app.Healthcheck == nil {
 			app.Healthcheck = &agentproto.CreateSubAgentRequest_App_Healthcheck{}

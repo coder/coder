@@ -471,6 +471,48 @@ func TestSubAgentAPI(t *testing.T) {
 					},
 				},
 			},
+			{
+				name: "DuplicateAppSlugs",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("First App"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("Second App"),
+					},
+				},
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[1].slug",
+					Detail: "app slug \"duplicate-app\" is already in use",
+				},
+			},
+			{
+				name: "MultipleDuplicateAppSlugs",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "valid-app",
+						DisplayName: ptr.Ref("Valid App"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("First Duplicate"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("Second Duplicate"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("Third Duplicate"),
+					},
+				},
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[2].slug",
+					Detail: "app slug \"duplicate-app\" is already in use",
+				},
+			},
 		}
 
 		for _, tt := range tests {
