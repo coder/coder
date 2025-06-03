@@ -1097,7 +1097,7 @@
 						},
 						{
 							"title": "config-ssh",
-							"description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+							"description": "Add an SSH Host entry for your workspaces \"ssh workspace.coder\"",
 							"path": "reference/cli/config-ssh.md"
 						},
 						{
