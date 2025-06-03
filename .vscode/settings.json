@@ -60,5 +60,6 @@
 	"typos.config": ".github/workflows/typos.toml",
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
-	}
+	},
+	"window.autoDetectColorScheme": false
 }
