@@ -12,8 +12,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
@@ -24,7 +27,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
-	"github.com/coder/coder/v2/coderd/rbac"
+	cel2 "github.com/coder/coder/v2/coderd/cel"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
@@ -467,33 +470,56 @@ type SessionLifetime struct {
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 
-	// RoleTokenLifetimes is a JSON mapping of role names to maximum token lifetimes.
-	// Overrides the global max_token_lifetime for specified roles.
-	// Site-level roles use direct names (e.g., "admin"). Organization-level roles use the format "OrgName/rolename".
-	// Values should be Go duration strings (e.g., "720h", "168h", "24h").
-	RoleTokenLifetimes serpent.String `json:"role_token_lifetimes,omitempty" typescript:",notnull"`
+	// MaximumTokenDurationExpression is a CEL expression that determines the maximum token lifetime based on user attributes.
+	// The expression has access to 'subject' (cel.Subject), 'globalMaxDuration' (time.Duration), and 'defaultDuration' (time.Duration).
+	// Must return a duration string (e.g., duration("168h")).
+	// See https://github.com/google/cel-spec for CEL expression syntax and examples.
+	MaximumTokenDurationExpression serpent.String `json:"maximum_token_duration_expression,omitempty" typescript:",notnull"`
 
-	// parsedRoleLifetimes stores the processed map:
-	// Keys are "rolename" (site) or "rolename:organization_id_uuid" (org).
-	// Values are time.Duration. Populated by coderd at startup.
-	parsedRoleLifetimes map[string]time.Duration // Internal, not serialized
+	// compiledMaximumTokenDurationProgram stores the compiled CEL program.
+	compiledMaximumTokenDurationProgram     cel.Program // Internal, not serialized
+	onceCompiledMaximumTokenDurationProgram sync.Once   // Internal, not serialized
+	compiledMaximumTokenDurationError       error       // Internal, not serialized
 }
 
-// SetParsedRoleLifetimes allows coderd to inject the fully processed map.
-func (sl *SessionLifetime) SetParsedRoleLifetimes(parsedMap map[string]time.Duration) {
-	sl.parsedRoleLifetimes = parsedMap
-}
+// CompiledMaximumTokenDurationProgram returns the compiled CEL program.
+// This function must be run at coderd startup.
+func (sl *SessionLifetime) CompiledMaximumTokenDurationProgram() (cel.Program, error) {
+	sl.onceCompiledMaximumTokenDurationProgram.Do(func() {
+		expr := strings.TrimSpace(sl.MaximumTokenDurationExpression.Value())
+		if expr == "" {
+			return
+		}
 
-// MaxTokenLifetimeForRole returns the max token lifetime for a role.
-// Falls back to global MaximumTokenDuration if the role is not found or map not initialized.
-func (sl *SessionLifetime) MaxTokenLifetimeForRole(roleName rbac.RoleIdentifier) time.Duration {
-	if sl.parsedRoleLifetimes == nil {
-		return sl.MaximumTokenDuration.Value()
-	}
-	if duration, ok := sl.parsedRoleLifetimes[roleName.String()]; ok {
-		return duration
-	}
-	return sl.MaximumTokenDuration.Value()
+		// Create CEL environment with duration function
+		env, err := cel2.NewTokenLifetimeEnvironment(cel2.EnvironmentOptions{})
+		if err != nil {
+			sl.compiledMaximumTokenDurationError = xerrors.Errorf("failed to create CEL environment: %w", err)
+			return
+		}
+
+		// Compile expression
+		ast, issues := env.Compile(expr)
+		if issues.Err() != nil {
+			sl.compiledMaximumTokenDurationError = xerrors.Errorf("CEL compilation failed: %w", issues.Err())
+			return
+		}
+
+		// Verify the return type is a duration
+		if !ast.OutputType().IsExactType(types.DurationType) {
+			sl.compiledMaximumTokenDurationError = xerrors.Errorf("CEL expression must return a duration, got %s", ast.OutputType())
+			return
+		}
+
+		// Create program
+		sl.compiledMaximumTokenDurationProgram, err = env.Program(ast)
+		if err != nil {
+			sl.compiledMaximumTokenDurationError = xerrors.Errorf("CEL program creation failed: %w", err)
+			return
+		}
+	})
+
+	return sl.compiledMaximumTokenDurationProgram, sl.compiledMaximumTokenDurationError
 }
 
 type DERP struct {
@@ -2367,18 +2393,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
-			Name: "Role Token Lifetimes",
-			Description: "A JSON mapping of role names to maximum token lifetimes (e.g., `{\"owner\": \"720h\", \"MyOrg/admin\": \"168h\"}`). " +
-				"Overrides the global max_token_lifetime for specified roles. " +
-				"Site-level roles are direct names (e.g., 'admin'). " +
-				"Organization-level roles use the format 'OrgName/rolename'. " +
-				"Durations use Go duration format: hours (h), minutes (m), seconds (s). " +
-				"Common conversions: 1 day = 24h, 7 days = 168h, 30 days = 720h.",
-			Flag:    "role-token-lifetimes",
-			Env:     "CODER_ROLE_TOKEN_LIFETIMES",
-			Default: "{}", // Default to an empty JSON object string
-			Value:   &c.Sessions.RoleTokenLifetimes,
-			YAML:    "roleTokenLifetimes",
+			Name: "Max Token Lifetime Expression",
+			Description: "A CEL expression that determines the maximum token lifetime based on user attributes. " +
+				"The expression has access to 'subject' (rbac.Subject), 'globalMaxDuration' (time.Duration), and" +
+				"'defaultDuration' (time.Duration). " +
+				"Must return a duration string (e.g., duration(\"168h\")). " +
+				"Example: 'subject.roles.exists(r, r.name == \"owner\") ? duration(globalMaxDuration) : duration(defaultDuration)'. " +
+				"See https://github.com/google/cel-spec for CEL expression syntax and examples.",
+			Flag:  "max-token-lifetime-expression",
+			Env:   "CODER_MAX_TOKEN_LIFETIME_EXPRESSION",
+			Value: &c.Sessions.MaximumTokenDurationExpression,
+			YAML:  "maxTokenLifetimeExpression",
 		},
 		{
 			Name:        "Default Token Lifetime",
@@ -3146,23 +3171,6 @@ Write out the current server config as YAML to stdout.`,
 	}
 
 	return opts
-}
-
-// Validate checks the deployment values for correctness.
-func (c *DeploymentValues) Validate() error {
-	if val := c.Sessions.RoleTokenLifetimes.Value(); val != "" && val != "{}" {
-		var testMapInterface map[string]interface{} // Use interface{} for flexible value type initially
-		if err := json.Unmarshal([]byte(val), &testMapInterface); err != nil {
-			return xerrors.Errorf("role-token-lifetimes: invalid JSON structure: %w", err)
-		}
-		// Check if values are strings (durations will be parsed later)
-		for key, value := range testMapInterface {
-			if _, ok := value.(string); !ok {
-				return xerrors.Errorf("role-token-lifetimes: value for key %q is not a string duration", key)
-			}
-		}
-	}
-	return nil
 }
 
 type AIProviderConfig struct {

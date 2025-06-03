@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -636,76 +635,53 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 	}
 }
 
-func TestSessionLifetime_SetParsedRoleLifetimes(t *testing.T) {
+func TestCompileTokenLifetimeExpression(t *testing.T) {
 	t.Parallel()
-	sl := &codersdk.SessionLifetime{}
-	expectedMap := map[string]time.Duration{
-		"user-admin": time.Hour * 24,
-		"member":     time.Hour * 8,
-	}
-	sl.SetParsedRoleLifetimes(expectedMap)
-	// We can't directly access parsedRoleLifetimes to assert equality,
-	// but we can verify its behavior through MaxTokenLifetimeForRole.
-	adminRole := rbac.RoleIdentifier{Name: "user-admin"}
-	memberRole := rbac.RoleIdentifier{Name: "member"}
-	assert.Equal(t, time.Hour*24, sl.MaxTokenLifetimeForRole(adminRole), "Admin role lifetime should be set")
-	assert.Equal(t, time.Hour*8, sl.MaxTokenLifetimeForRole(memberRole), "User role lifetime should be set")
-}
-
-func TestSessionLifetime_MaxTokenLifetimeForRole(t *testing.T) {
-	t.Parallel()
-	globalMax := time.Hour * 72
-	roleSpecificMax := time.Hour * 48
-	anotherRoleMax := time.Hour * 24
 
 	tests := []struct {
-		name                string
-		maxTokenDuration    serpent.Duration
-		parsedRoleLifetimes map[string]time.Duration // nil means map not set
-		roleToQuery         string
-		expectedDuration    time.Duration
+		name          string
+		celExpression string
+		expectError   bool
 	}{
 		{
-			name:                "RoleFound_InParsedMap",
-			maxTokenDuration:    serpent.Duration(globalMax),
-			parsedRoleLifetimes: map[string]time.Duration{"template-admin": roleSpecificMax, "member": anotherRoleMax},
-			roleToQuery:         "template-admin",
-			expectedDuration:    roleSpecificMax,
+			name:          "EmptyExpression",
+			celExpression: "",
+			expectError:   false,
 		},
 		{
-			name:                "RoleNotFound_InParsedMap_FallsBackToGlobal",
-			maxTokenDuration:    serpent.Duration(globalMax),
-			parsedRoleLifetimes: map[string]time.Duration{"template-admin": roleSpecificMax},
-			roleToQuery:         "user-admin", // Not in map
-			expectedDuration:    globalMax,
+			name:          "ValidSimpleExpression",
+			celExpression: `duration(globalMaxDuration)`,
+			expectError:   false,
 		},
 		{
-			name:                "ParsedMapIsNil_FallsBackToGlobal",
-			maxTokenDuration:    serpent.Duration(globalMax),
-			parsedRoleLifetimes: nil, // Map is explicitly nil
-			roleToQuery:         "anyrole",
-			expectedDuration:    globalMax,
+			name:          "ValidRoleBasedExpression",
+			celExpression: `subject.roles.exists(r, r.name == "owner") ? duration("168h") : duration("24h")`,
+			expectError:   false,
 		},
 		{
-			name:                "ParsedMapIsEmpty_FallsBackToGlobal",
-			maxTokenDuration:    serpent.Duration(globalMax),
-			parsedRoleLifetimes: map[string]time.Duration{}, // Map is empty
-			roleToQuery:         "anyrole",
-			expectedDuration:    globalMax,
+			name:          "ValidEmailBasedExpression",
+			celExpression: `subject.email.endsWith("@company.com") ? duration("720h") : duration("24h")`,
+			expectError:   false,
 		},
 		{
-			name:                "GlobalMaxIsZero_RoleFound",
-			maxTokenDuration:    serpent.Duration(0), // Global max is 0
-			parsedRoleLifetimes: map[string]time.Duration{"specificrole": time.Hour},
-			roleToQuery:         "specificrole",
-			expectedDuration:    time.Hour,
+			name:          "InvalidCELSyntax",
+			celExpression: `subject.roles.exists(r, r.name == "owner" ? duration("168h")`, // Missing closing parenthesis
+			expectError:   true,
 		},
 		{
-			name:                "GlobalMaxIsZero_RoleNotFound",
-			maxTokenDuration:    serpent.Duration(0), // Global max is 0
-			parsedRoleLifetimes: map[string]time.Duration{"specificrole": time.Hour},
-			roleToQuery:         "unknownrole",
-			expectedDuration:    0, // Fallback to global max (0)
+			name:          "InvalidCELFunction",
+			celExpression: `subject.roles.exists(r, r.name == "owner") ? invalid_function("168h") : duration("24h")`,
+			expectError:   true,
+		},
+		{
+			name:          "ReturnsString",
+			celExpression: `subject.roles.exists(r, r.name == "owner") ? "168h" : "24h"`,
+			expectError:   true,
+		},
+		{
+			name:          "ReturnsNumber",
+			celExpression: `subject.roles.exists(r, r.name == "owner") ? 168 : 24`,
+			expectError:   true,
 		},
 	}
 
@@ -713,20 +689,27 @@ func TestSessionLifetime_MaxTokenLifetimeForRole(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			sl := &codersdk.SessionLifetime{
-				MaximumTokenDuration: tt.maxTokenDuration,
-			}
-			// SetParsedRoleLifetimes should be called only if tt.parsedRoleLifetimes is not nil.
-			// If tt.parsedRoleLifetimes is nil, sl.parsedRoleLifetimes remains nil by default,
-			// which is one of the conditions we want to test.
-			if tt.parsedRoleLifetimes != nil {
-				sl.SetParsedRoleLifetimes(tt.parsedRoleLifetimes)
+
+			// Create deployment values with the test CEL expression
+			sl := codersdk.SessionLifetime{
+				MaximumTokenDurationExpression: serpent.String(tt.celExpression),
 			}
 
-			role, err := rbac.RoleNameFromString(tt.roleToQuery)
+			// Execute
+			program, err := sl.CompiledMaximumTokenDurationProgram()
+
+			// Verify
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
-			actualDuration := sl.MaxTokenLifetimeForRole(role)
-			assert.Equal(t, tt.expectedDuration, actualDuration)
+
+			// Verify that a program was compiled if expression was not empty
+			if tt.celExpression != "" {
+				require.NotNil(t, program, "Expected compiled program to be set")
+			}
 		})
 	}
 }

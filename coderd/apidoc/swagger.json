@@ -2926,6 +2926,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -3030,6 +3031,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -14286,8 +14288,8 @@
 				"max_token_lifetime": {
 					"type": "integer"
 				},
-				"role_token_lifetimes": {
-					"description": "RoleTokenLifetimes is a JSON mapping of role names to maximum token lifetimes.\nOverrides the global max_token_lifetime for specified roles.\nSite-level roles use direct names (e.g., \"admin\"). Organization-level roles use the format \"OrgName/rolename\".\nValues should be Go duration strings (e.g., \"720h\", \"168h\", \"24h\").",
+				"maximum_token_duration_expression": {
+					"description": "MaximumTokenDurationExpression is a CEL expression that determines the maximum token lifetime based on user attributes.\nThe expression has access to 'subject' (cel.Subject), 'globalMaxDuration' (time.Duration), and 'defaultDuration' (time.Duration).\nMust return a duration string (e.g., duration(\"168h\")).\nSee https://github.com/google/cel-spec for CEL expression syntax and examples.",
 					"type": "string"
 				}
 			}

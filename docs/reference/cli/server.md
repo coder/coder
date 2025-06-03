@@ -910,16 +910,15 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 The maximum lifetime duration users can specify when creating an API token.
 
-### --role-token-lifetimes
+### --max-token-lifetime-expression
 
-|             |                                          |
-|-------------|------------------------------------------|
-| Type        | <code>string</code>                      |
-| Environment | <code>$CODER_ROLE_TOKEN_LIFETIMES</code> |
-| YAML        | <code>roleTokenLifetimes</code>          |
-| Default     | <code>{}</code>                          |
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_MAX_TOKEN_LIFETIME_EXPRESSION</code> |
+| YAML        | <code>maxTokenLifetimeExpression</code>           |
 
-A JSON mapping of role names to maximum token lifetimes (e.g., `{"owner": "720h", "MyOrg/admin": "168h"}`). Overrides the global max_token_lifetime for specified roles. Site-level roles are direct names (e.g., 'admin'). Organization-level roles use the format 'OrgName/rolename'. Durations use Go duration format: hours (h), minutes (m), seconds (s). Common conversions: 1 day = 24h, 7 days = 168h, 30 days = 720h.
+A CEL expression that determines the maximum token lifetime based on user attributes. The expression has access to 'subject' (rbac.Subject), 'globalMaxDuration' (time.Duration), and'defaultDuration' (time.Duration). Must return a duration string (e.g., duration("168h")). Example: 'subject.roles.exists(r, r.name == "owner") ? duration(globalMaxDuration) : duration(defaultDuration)'. See https://github.com/google/cel-spec for CEL expression syntax and examples.
 
 ### --default-token-lifetime
 

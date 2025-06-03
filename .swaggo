@@ -6,3 +6,5 @@ replace time.Duration int64
 replace github.com/coder/coder/v2/codersdk.ProvisionerType string
 // Do not render netip.Addr
 replace netip.Addr string
+// Do not render cel.Program
+replace github.com/google/cel-go/cel.Program object

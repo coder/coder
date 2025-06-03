@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/cel-go/common/types"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
+	celtoken "github.com/coder/coder/v2/coderd/cel"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -340,28 +343,14 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	maxLifetime := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+
 	user := httpmw.UserParam(r)
-
-	var roleIdentifiers []rbac.RoleIdentifier
-
-	if user.ID != uuid.Nil {
-		subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
-		switch {
-		case err != nil:
-			api.Logger.Error(ctx, "failed to get user RBAC subject for token config", "user_id", user.ID.String(), "error", err)
-			roleIdentifiers = []rbac.RoleIdentifier{}
-		case userStatus == database.UserStatusSuspended:
-			roleIdentifiers = []rbac.RoleIdentifier{}
-		default:
-			// Extract role names from the RBAC subject and convert to internal format
-			roleIdentifiers = subject.Roles.Names()
-		}
-	} else {
-		api.Logger.Warn(ctx, "user ID is nil in token config request context")
-		roleIdentifiers = []rbac.RoleIdentifier{}
+	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
+	if err == nil {
+		maxLifetime = api.getMaxTokenLifetimeForUser(ctx, subject)
 	}
-
-	maxLifetime := api.getMaxTokenLifetimeForUserRoles(roleIdentifiers)
 
 	httpapi.Write(
 		ctx, rw, http.StatusOK,
@@ -378,20 +367,19 @@ func (api *API) validateAPIKeyLifetime(ctx context.Context, lifetime time.Durati
 
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
 	if err != nil {
-		api.Logger.Error(ctx, "failed to get user RBAC subject during token validation", "user_id", userID.String(), "error", err)
+		api.Logger.Error(ctx, "failed to get user RBAC subject during token validation", slog.F("user_id", userID.String()), slog.Error(err))
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("user %s not found", userID)
 		}
 		return xerrors.Errorf("internal server error validating token lifetime for user %s", userID)
 	}
 
-	if userStatus == database.UserStatusSuspended {
-		return xerrors.Errorf("user %s is suspended and cannot create tokens", userID)
+	if userStatus != database.UserStatusActive {
+		return xerrors.Errorf("user %s is suspended or inactive, and cannot create tokens", userID)
 	}
 
-	// Extract role names from the RBAC subject and convert to internal format
-	roleIdentifiers := subject.Roles.Names()
-	maxAllowedLifetime := api.getMaxTokenLifetimeForUserRoles(roleIdentifiers)
+	// Get the maximum token lifetime for this user based on CEL expression
+	maxAllowedLifetime := api.getMaxTokenLifetimeForUser(ctx, subject)
 
 	if lifetime > maxAllowedLifetime {
 		return xerrors.Errorf(
@@ -403,35 +391,47 @@ func (api *API) validateAPIKeyLifetime(ctx context.Context, lifetime time.Durati
 	return nil
 }
 
-// getMaxTokenLifetimeForUserRoles determines the most generous token lifetime a user is entitled to
-// based on their roles and the CODER_ROLE_TOKEN_LIFETIMES configuration.
-// Roles are expected in the internal format ("rolename" or "rolename:org_id").
-func (api *API) getMaxTokenLifetimeForUserRoles(roles []rbac.RoleIdentifier) time.Duration {
-	globalMaxDefault := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
-
-	// Early return for empty config
-	if api.DeploymentValues.Sessions.RoleTokenLifetimes.Value() == "" ||
-		api.DeploymentValues.Sessions.RoleTokenLifetimes.Value() == "{}" {
-		return globalMaxDefault
+// getMaxTokenLifetimeForUser determines the maximum token lifetime a user is entitled to
+// based on their attributes and the CEL expression configuration.
+func (api *API) getMaxTokenLifetimeForUser(ctx context.Context, subject rbac.Subject) time.Duration {
+	// Compiled at startup no need to recheck here.
+	program, _ := api.DeploymentValues.Sessions.CompiledMaximumTokenDurationProgram()
+	if program == nil {
+		// No expression configured, use global max
+		return api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
 	}
 
-	// Early return for no roles
-	if len(roles) == 0 {
-		return globalMaxDefault
+	globalMax := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+	defaultDuration := api.DeploymentValues.Sessions.DefaultTokenDuration.Value()
+
+	// Convert subject to CEL-friendly format
+	celSubject := celtoken.ConvertSubjectToCEL(subject)
+
+	// Evaluate CEL expression with typed struct
+	// TODO: Consider adding timeout protection in future iterations
+	out, _, err := program.Eval(map[string]interface{}{
+		"subject":           celSubject,
+		"globalMaxDuration": globalMax,
+		"defaultDuration":   defaultDuration,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "the CEL evaluation failed, using default duration", slog.Error(err))
+		return defaultDuration
 	}
 
-	// Find the maximum lifetime among all roles
-	// This includes both role-specific lifetimes and the global default
-	maxLifetime := globalMaxDefault
-
-	for _, role := range roles {
-		roleDuration := api.DeploymentValues.Sessions.MaxTokenLifetimeForRole(role)
-		if roleDuration > maxLifetime {
-			maxLifetime = roleDuration
-		}
+	// Convert result to time.Duration
+	// CEL returns types.Duration, not time.Duration directly
+	switch v := out.Value().(type) {
+	case types.Duration:
+		return v.Duration
+	case time.Duration:
+		return v
+	default:
+		api.Logger.Error(ctx, "the CEL expression did not return a duration, using default duration",
+			slog.F("result_type", fmt.Sprintf("%T", out.Value())),
+			slog.F("result_value", out.Value()))
+		return defaultDuration
 	}
-
-	return maxLifetime
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
