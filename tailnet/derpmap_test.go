@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/tailnet"
@@ -234,5 +235,39 @@ func TestExtractDERPLatency(t *testing.T) {
 		}
 		latencyMs := tailnet.ExtractDERPLatency(node, derpMap)
 		require.Empty(t, latencyMs)
+	})
+}
+
+func TestExtractPreferredDERPName(t *testing.T) {
+	t.Parallel()
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {RegionName: "New York"},
+			2: {RegionName: "London"},
+		},
+	}
+
+	t.Run("UsesPingRegion", func(t *testing.T) {
+		t.Parallel()
+		pingResult := &ipnstate.PingResult{DERPRegionID: 2}
+		node := &tailnet.Node{PreferredDERP: 1}
+		result := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+		require.Equal(t, "London", result)
+	})
+
+	t.Run("UsesNodePreferred", func(t *testing.T) {
+		t.Parallel()
+		pingResult := &ipnstate.PingResult{DERPRegionID: 0}
+		node := &tailnet.Node{PreferredDERP: 1}
+		result := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+		require.Equal(t, "New York", result)
+	})
+
+	t.Run("UnknownRegion", func(t *testing.T) {
+		t.Parallel()
+		pingResult := &ipnstate.PingResult{DERPRegionID: 99}
+		node := &tailnet.Node{PreferredDERP: 1}
+		result := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+		require.Equal(t, "Unnamed 99", result)
 	})
 }

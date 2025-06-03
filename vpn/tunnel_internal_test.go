@@ -461,7 +461,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 	}
 
 	// Latency is gathered in the background, so it'll eventually be sent
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		mClock.AdvanceNext()
 		req = testutil.TryReceive(ctx, t, mgr.requests)
 		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
@@ -474,7 +474,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 			return false
 		}
 		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Upsert a new agent
 	err = tun.Update(tailnet.WorkspaceUpdate{
@@ -538,7 +538,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
 
 	// Eventually the second agent's latency is set
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		mClock.AdvanceNext()
 		req = testutil.TryReceive(ctx, t, mgr.requests)
 		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
@@ -551,7 +551,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 			return false
 		}
 		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
