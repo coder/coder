@@ -1,0 +1,7 @@
+extends: substitution
+message: "Use '%s' instead of '%s'"
+level: warning
+swap:
+  # Basic product name consistency
+  coder: Coder
+  CODER: Coder

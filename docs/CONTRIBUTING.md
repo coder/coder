@@ -301,12 +301,14 @@ make fmt/markdown
 ### Vale Configuration
 
 Vale is configured to:
-- Use Microsoft Writing Style Guide for technical documentation
-- Check for inclusive language with alex
-- Identify common writing issues with write-good
+- Use Microsoft Writing Style Guide for technical documentation (warnings)
+- Use GitLab Documentation Style Guide patterns (warnings)
+- Check for inclusive language with alex and custom rules (errors)
+- Identify common writing issues with write-good (suggestions)
+- Basic Coder product name consistency (warnings)
 - Skip generated documentation (API references, changelogs)
 
-Vale rules can be customized in `.vale.ini`.
+Most Vale issues are warnings that won't block CI, except for inclusive language violations which are errors. Vale rules can be customized in `.vale.ini`.
 
 ### CI Behavior
 
