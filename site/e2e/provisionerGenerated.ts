@@ -467,6 +467,7 @@ export interface Response {
   plan?: PlanComplete | undefined;
   apply?: ApplyComplete | undefined;
   dataUpload?: DataUpload | undefined;
+  chunkPiece?: ChunkPiece | undefined;
 }
 
 export interface DataUpload {
@@ -1382,6 +1383,9 @@ export const Response = {
     }
     if (message.dataUpload !== undefined) {
       DataUpload.encode(message.dataUpload, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.chunkPiece !== undefined) {
+      ChunkPiece.encode(message.chunkPiece, writer.uint32(50).fork()).ldelim();
     }
     return writer;
   },

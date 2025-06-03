@@ -433,7 +433,8 @@ message Response {
         ParseComplete parse = 2;
         PlanComplete plan = 3;
         ApplyComplete apply = 4;
-				DataUpload data_upload = 5;
+        DataUpload data_upload = 5;
+        ChunkPiece chunk_piece = 6;
     }
 }
 
