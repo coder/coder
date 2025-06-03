@@ -602,6 +602,69 @@ func TestSubAgentAPI(t *testing.T) {
 			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID) //nolint:gocritic // this is a test.
 			require.NoError(t, err)
 		})
+
+		t.Run("DeletesWorkspaceApps", func(t *testing.T) {
+			t.Parallel()
+
+			// Skip test on in-memory database since CASCADE DELETE is not implemented
+			if !dbtestutil.WillUsePostgres() {
+				t.Skip("CASCADE DELETE behavior requires PostgreSQL")
+			}
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Given: A sub agent with workspace apps
+			createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+				Name:            "child-agent-with-apps",
+				Directory:       "/workspaces/coder",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+				Apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "code-server",
+						DisplayName: ptr.Ref("VS Code"),
+						Icon:        ptr.Ref("/icon/code.svg"),
+						Url:         ptr.Ref("http://localhost:13337"),
+					},
+					{
+						Slug:        "vim",
+						Command:     ptr.Ref("vim"),
+						DisplayName: ptr.Ref("Vim"),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			subAgentID, err := uuid.FromBytes(createResp.Agent.Id)
+			require.NoError(t, err)
+
+			// Verify that the apps were created
+			apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
+			require.Len(t, apps, 2)
+
+			// When: We delete the sub agent
+			_, err = api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
+				Id: createResp.Agent.Id,
+			})
+			require.NoError(t, err)
+
+			// Then: The agent is deleted
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
+			require.ErrorIs(t, err, sql.ErrNoRows)
+
+			// And: The apps are also deleted (due to CASCADE DELETE)
+			// Use raw database since authorization layer requires agent to exist
+			appsAfterDeletion, err := db.GetWorkspaceAppsByAgentID(ctx, subAgentID)
+			require.NoError(t, err)
+			require.Empty(t, appsAfterDeletion)
+		})
 	})
 
 	t.Run("ListSubAgents", func(t *testing.T) {
