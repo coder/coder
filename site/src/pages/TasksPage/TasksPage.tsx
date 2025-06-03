@@ -1,16 +1,10 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { disabledRefetchOptions } from "api/queries/util";
-import type {
-	Template,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
-} from "api/typesGenerated";
+import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -34,25 +28,22 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
-import { useAppLink } from "modules/apps/useAppLink";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import type { FC, PropsWithChildren, ReactNode } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
-import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { type UserOption, UsersCombobox } from "./UsersCombobox";
+
+type TasksFilter = {
+	user: UserOption | undefined;
+};
 
 const TasksPage: FC = () => {
 	const {
@@ -63,6 +54,14 @@ const TasksPage: FC = () => {
 		queryKey: ["templates", "ai"],
 		queryFn: data.fetchAITemplates,
 		...disabledRefetchOptions,
+	});
+	const { user, permissions } = useAuthenticated();
+	const [filter, setFilter] = useState<TasksFilter>({
+		user: {
+			value: user.username,
+			label: user.name || user.username,
+			avatarUrl: user.avatar_url,
+		},
 	});
 
 	let content: ReactNode = null;
@@ -105,7 +104,10 @@ const TasksPage: FC = () => {
 			) : (
 				<>
 					<TaskForm templates={templates} />
-					<TasksTable templates={templates} />
+					{permissions.viewDeploymentConfig && (
+						<TasksFilter filter={filter} onFilterChange={setFilter} />
+					)}
+					<TasksTable templates={templates} filter={filter} />
 				</>
 			);
 	} else {
@@ -161,12 +163,9 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
 			data.createTask(prompt, user.id, templateId),
-		onSuccess: (newTask) => {
-			// The current data loading is heavy, so we manually update the cache to
-			// avoid re-fetching. Once we improve data loading, we can replace the
-			// manual update with queryClient.invalidateQueries.
-			queryClient.setQueryData<Task[]>(["tasks"], (oldTasks = []) => {
-				return [newTask, ...oldTasks];
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["tasks"],
 			});
 		},
 	});
@@ -200,6 +199,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		<form
 			className="border border-border border-solid rounded-lg p-4"
 			onSubmit={onSubmit}
+			aria-label="Create AI task"
 		>
 			<fieldset disabled={createTaskMutation.isPending}>
 				<label htmlFor="prompt" className="sr-only">
@@ -209,7 +209,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					required
 					id="prompt"
 					name="prompt"
-					placeholder="Write an action for your AI agent to perform..."
+					placeholder="Prompt your AI agent to start a task..."
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
 						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
@@ -243,18 +243,43 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	);
 };
 
-type TasksTableProps = {
-	templates: Template[];
+type TasksFilterProps = {
+	filter: TasksFilter;
+	onFilterChange: (filter: TasksFilter) => void;
 };
 
-const TasksTable: FC<TasksTableProps> = ({ templates }) => {
+const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
+	return (
+		<section className="mt-6" aria-labelledby="filters-title">
+			<h3 id="filters-title" className="sr-only">
+				Filters
+			</h3>
+			<UsersCombobox
+				selectedOption={filter.user}
+				onSelect={(userOption) =>
+					onFilterChange({
+						...filter,
+						user: userOption,
+					})
+				}
+			/>
+		</section>
+	);
+};
+
+type TasksTableProps = {
+	templates: Template[];
+	filter: TasksFilter;
+};
+
+const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 	const {
 		data: tasks,
 		error,
 		refetch,
 	} = useQuery({
-		queryKey: ["tasks"],
-		queryFn: () => data.fetchTasks(templates),
+		queryKey: ["tasks", filter],
+		queryFn: () => data.fetchTasks(templates, filter),
 		refetchInterval: 10_000,
 	});
 
@@ -338,7 +363,10 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 								/>
 							</TableCell>
 							<TableCell>
-								<WorkspaceAppStatus status={workspace.latest_app_status} />
+								<WorkspaceAppStatus
+									disabled={workspace.latest_build.status !== "running"}
+									status={workspace.latest_app_status}
+								/>
 							</TableCell>
 							<TableCell>
 								<AvatarData
@@ -350,11 +378,6 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 									}
 									src={workspace.owner_avatar_url}
 								/>
-							</TableCell>
-							<TableCell className="pl-10">
-								{agent && app && (
-									<IconAppLink app={app} workspace={workspace} agent={agent} />
-								)}
 							</TableCell>
 						</TableRow>
 					);
@@ -387,79 +410,10 @@ const TasksTable: FC<TasksTableProps> = ({ templates }) => {
 					<TableHead>Task</TableHead>
 					<TableHead>Status</TableHead>
 					<TableHead>Created by</TableHead>
-					<TableHead className="w-0" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>{body}</TableBody>
 		</Table>
-	);
-};
-
-type IconAppLinkProps = {
-	app: WorkspaceApp;
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-};
-
-const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
-	const link = useAppLink(app, {
-		workspace,
-		agent,
-	});
-
-	return (
-		<BaseIconLink
-			key={app.id}
-			label={`Open ${link.label}`}
-			href={link.href}
-			onClick={(e) => {
-				link.onClick?.(e);
-				e.stopPropagation();
-			}}
-		>
-			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
-		</BaseIconLink>
-	);
-};
-
-type BaseIconLinkProps = PropsWithChildren<{
-	label: string;
-	href: string;
-	isLoading?: boolean;
-	target?: string;
-	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
-}>;
-
-const BaseIconLink: FC<BaseIconLinkProps> = ({
-	href,
-	isLoading,
-	label,
-	children,
-	target,
-	onClick,
-}) => {
-	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button variant="outline" size="icon-lg" asChild>
-						<a
-							target={target}
-							className={cn(["z-10 relative", { "animate-pulse": isLoading }])}
-							href={href}
-							onClick={(e) => {
-								e.stopPropagation();
-								onClick?.(e);
-							}}
-						>
-							{children}
-							<span className="sr-only">{label}</span>
-						</a>
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
 	);
 };
 
@@ -485,11 +439,16 @@ export const data = {
 	// template individually and its build parameters resulting in excessive API
 	// calls and slow performance. Consider implementing a backend endpoint that
 	// returns all AI-related workspaces in a single request to improve efficiency.
-	async fetchTasks(aiTemplates: Template[]) {
+	async fetchTasks(aiTemplates: Template[], filter: TasksFilter) {
 		const workspaces = await Promise.all(
 			aiTemplates.map((template) => {
+				const queryParts = [`template:${template.name}`];
+				if (filter.user) {
+					queryParts.push(`owner:${filter.user.value}`);
+				}
+
 				return API.getWorkspaces({
-					q: `template:${template.name}`,
+					q: queryParts.join(" "),
 					limit: 100,
 				});
 			}),
@@ -530,7 +489,7 @@ export const data = {
 		templateId: string,
 	): Promise<Task> {
 		const workspace = await API.createWorkspace(userId, {
-			name: `ai-task-${new Date().getTime()}`,
+			name: `task-${new Date().getTime()}`,
 			template_id: templateId,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
