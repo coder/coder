@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -12,6 +13,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 )
@@ -27,6 +29,8 @@ type SubAgentAPI struct {
 	Database database.Store
 }
 
+
+
 func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
@@ -38,10 +42,16 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 	agentName := req.Name
 	if agentName == "" {
-		return nil, xerrors.Errorf("agent name cannot be empty")
+		return nil, codersdk.ValidationError{
+			Field:  "name",
+			Detail: "agent name cannot be empty",
+		}
 	}
 	if !provisioner.AgentNameRegex.MatchString(agentName) {
-		return nil, xerrors.Errorf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex.String())
+		return nil, codersdk.ValidationError{
+			Field:  "name",
+			Detail: fmt.Sprintf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex),
+		}
 	}
 
 	createdAt := a.Clock.Now()
@@ -72,13 +82,19 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		return nil, xerrors.Errorf("insert sub agent: %w", err)
 	}
 
-	for _, app := range req.Apps {
+	for i, app := range req.Apps {
 		slug := app.Slug
 		if slug == "" {
-			return nil, xerrors.Errorf("app must have a slug or name set")
+			return nil, codersdk.ValidationError{
+				Field:  fmt.Sprintf("apps[%d].slug", i),
+				Detail: "app must have a slug or name set",
+			}
 		}
 		if !provisioner.AppSlugRegex.MatchString(slug) {
-			return nil, xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex)
+			return nil, codersdk.ValidationError{
+				Field:  fmt.Sprintf("apps[%d].slug", i),
+				Detail: fmt.Sprintf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex),
+			}
 		}
 
 		health := database.WorkspaceAppHealthDisabled

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -93,12 +94,12 @@ func TestSubAgentAPI(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name      string
-			agentName string
-			agentDir  string
-			agentArch string
-			agentOS   string
-			shouldErr bool
+			name          string
+			agentName     string
+			agentDir      string
+			agentArch     string
+			agentOS       string
+			expectedError *codersdk.ValidationError
 		}{
 			{
 				name:      "Ok",
@@ -113,7 +114,10 @@ func TestSubAgentAPI(t *testing.T) {
 				agentDir:  "/workspaces/wibble",
 				agentArch: "amd64",
 				agentOS:   "linux",
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "name",
+					Detail: "agent name \"some_child_agent\" does not match regex \"(?i)^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name:      "EmptyName",
@@ -121,7 +125,10 @@ func TestSubAgentAPI(t *testing.T) {
 				agentDir:  "/workspaces/wibble",
 				agentArch: "amd64",
 				agentOS:   "linux",
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "name",
+					Detail: "agent name cannot be empty",
+				},
 			},
 		}
 
@@ -143,8 +150,11 @@ func TestSubAgentAPI(t *testing.T) {
 					Architecture:    tt.agentArch,
 					OperatingSystem: tt.agentOS,
 				})
-				if tt.shouldErr {
+				if tt.expectedError != nil {
 					require.Error(t, err)
+					var validationErr codersdk.ValidationError
+					require.ErrorAs(t, err, &validationErr)
+					require.Equal(t, *tt.expectedError, validationErr)
 				} else {
 					require.NoError(t, err)
 
@@ -169,10 +179,10 @@ func TestSubAgentAPI(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name       string
-			apps       []*proto.CreateSubAgentRequest_App
-			expectApps []database.WorkspaceApp
-			shouldErr  bool
+			name          string
+			apps          []*proto.CreateSubAgentRequest_App
+			expectApps    []database.WorkspaceApp
+			expectedError *codersdk.ValidationError
 		}{
 			{
 				name: "OK",
@@ -236,7 +246,10 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app must have a slug or name set",
+				},
 			},
 			{
 				name: "InvalidAppSlugWithUnderscores",
@@ -246,7 +259,10 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app slug \"invalid_slug_with_underscores\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name: "InvalidAppSlugWithUppercase",
@@ -256,7 +272,10 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app slug \"InvalidSlug\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name: "InvalidAppSlugStartsWithHyphen",
@@ -266,7 +285,10 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app slug \"-invalid-app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name: "InvalidAppSlugEndsWithHyphen",
@@ -276,7 +298,10 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app slug \"invalid-app-\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name: "InvalidAppSlugWithDoubleHyphens",
@@ -286,7 +311,10 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app slug \"invalid--app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name: "InvalidAppSlugWithSpaces",
@@ -296,7 +324,27 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[0].slug",
+					Detail: "app slug \"invalid app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
+			},
+			{
+				name: "MultipleAppsWithErrorInSecond",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "valid-app",
+						DisplayName: ptr.Ref("Valid App"),
+					},
+					{
+						Slug:        "Invalid_App",
+						DisplayName: ptr.Ref("Invalid App"),
+					},
+				},
+				expectedError: &codersdk.ValidationError{
+					Field:  "apps[1].slug",
+					Detail: "app slug \"Invalid_App\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name: "AppWithAllSharingLevels",
@@ -444,8 +492,11 @@ func TestSubAgentAPI(t *testing.T) {
 					OperatingSystem: "linux",
 					Apps:            tt.apps,
 				})
-				if tt.shouldErr {
+				if tt.expectedError != nil {
 					require.Error(t, err)
+					var validationErr codersdk.ValidationError
+					require.ErrorAs(t, err, &validationErr)
+					require.Equal(t, *tt.expectedError, validationErr)
 				} else {
 					require.NoError(t, err)
 
