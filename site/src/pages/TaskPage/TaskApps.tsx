@@ -58,24 +58,18 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	return (
 		<main className="flex-1 flex flex-col">
 			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{embeddedApps
-					.filter((app) => !app.external)
-					.map((app) => (
-						<TaskAppButton
-							key={app.id}
-							task={task}
-							app={app}
-							active={app.id === activeAppId}
-							onClick={(e) => {
-								if (app.external) {
-									return;
-								}
-
-								e.preventDefault();
-								setActiveAppId(app.id);
-							}}
-						/>
-					))}
+				{embeddedApps.map((app) => (
+					<TaskAppButton
+						key={app.id}
+						task={task}
+						app={app}
+						active={app.id === activeAppId}
+						onClick={(e) => {
+							e.preventDefault();
+							setActiveAppId(app.id);
+						}}
+					/>
+				))}
 
 				{externalApps.length > 0 && (
 					<div className="ml-auto">
@@ -87,27 +81,25 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent>
-								{externalApps
-									.filter((app) => app.external)
-									.map((app) => {
-										const link = useAppLink(app, {
-											agent,
-											workspace: task.workspace,
-										});
+								{externalApps.map((app) => {
+									const link = useAppLink(app, {
+										agent,
+										workspace: task.workspace,
+									});
 
-										return (
-											<DropdownMenuItem key={app.id} asChild>
-												<RouterLink to={link.href}>
-													{app.icon ? (
-														<ExternalImage src={app.icon} />
-													) : (
-														<LayoutGridIcon />
-													)}
-													{link.label}
-												</RouterLink>
-											</DropdownMenuItem>
-										);
-									})}
+									return (
+										<DropdownMenuItem key={app.id} asChild>
+											<RouterLink to={link.href}>
+												{app.icon ? (
+													<ExternalImage src={app.icon} />
+												) : (
+													<LayoutGridIcon />
+												)}
+												{link.label}
+											</RouterLink>
+										</DropdownMenuItem>
+									);
+								})}
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
