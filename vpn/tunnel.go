@@ -621,10 +621,6 @@ func (u *updater) recordLatency() {
 	}
 	u.mu.Unlock()
 
-	node := u.conn.Node()
-	derpMap := u.conn.DERPMap()
-	derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
-
 	var wg sync.WaitGroup
 	for _, agentID := range agentsIDsToPing {
 		wg.Add(1)
@@ -635,6 +631,9 @@ func (u *updater) recordLatency() {
 				u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
 				return
 			}
+			node := u.conn.Node()
+			derpMap := u.conn.DERPMap()
+			derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
 			preferredDerp := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
 			var preferredDerpLatency *time.Duration
 			if derpLatency, ok := derpLatencies[preferredDerp]; ok {
