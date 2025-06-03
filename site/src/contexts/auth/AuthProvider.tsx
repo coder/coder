@@ -1,4 +1,4 @@
-import { isApiError } from "api/errors";
+import { isApiError, isOIDCSessionExpired } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	hasFirstUser,
@@ -14,9 +14,11 @@ import { type Permissions, permissionChecks } from "modules/permissions";
 import {
 	type FC,
 	type PropsWithChildren,
+	type ReactNode,
 	createContext,
 	useCallback,
 	useContext,
+	useEffect,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
@@ -41,7 +43,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 	undefined,
 );
 
-export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
+export const AuthProvider: FC<PropsWithChildren<{ children: ReactNode }>> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const userMetadataState = metadata.user;
 
@@ -62,7 +64,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const logoutMutation = useMutation(logout(queryClient));
 	const updateProfileMutation = useMutation({
 		...updateProfileOptions("me"),
-		onSuccess: (user) => {
+		onSuccess: (user: User) => {
 			queryClient.setQueryData(meOptions.queryKey, user);
 			displaySuccess("Updated settings.");
 		},
@@ -70,8 +72,9 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	const isSignedOut =
 		userQuery.isError &&
-		isApiError(userQuery.error) &&
-		userQuery.error.response.status === 401;
+		((isApiError(userQuery.error) &&
+			userQuery.error.response.status === 401) ||
+		isOIDCSessionExpired(userQuery.error));
 	const isSigningOut = logoutMutation.isPending;
 	const isLoading =
 		userQuery.isLoading ||
@@ -100,6 +103,18 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 		},
 		[updateProfileMutation],
 	);
+
+	// Add OIDC session expiry handling
+	useEffect(() => {
+		if (isSignedOut && isOIDCSessionExpired(userQuery.error)) {
+			// Redirect to login with a clear message and documentation link
+			const loginPath = "/login";
+			const message = encodeURIComponent(
+				`Your OIDC session has expired. Please sign in again to continue. For more information about OIDC authentication and session management, see our <a href="/docs/admin/auth/oidc" class="link">documentation</a>.`
+			);
+			window.location.href = `${loginPath}?message=${message}&html=true`;
+		}
+	}, [isSignedOut, userQuery.error]);
 
 	return (
 		<AuthContext.Provider

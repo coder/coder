@@ -7,6 +7,7 @@ import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
+import { LoginMessage } from "./LoginMessage";
 
 interface LoginPageViewProps {
 	authMethods: AuthMethods | undefined;
@@ -53,14 +54,17 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 						</Button>
 					</>
 				) : (
-					<SignInForm
-						authMethods={authMethods}
-						redirectTo={redirectTo}
-						isSigningIn={isSigningIn}
-						error={error}
-						message={message}
-						onSubmit={onSignIn}
-					/>
+					<>
+						<LoginMessage />
+						<SignInForm
+							authMethods={authMethods}
+							redirectTo={redirectTo}
+							isSigningIn={isSigningIn}
+							error={error}
+							message={message}
+							onSubmit={onSignIn}
+						/>
+					</>
 				)}
 				<footer css={styles.footer}>
 					<div>

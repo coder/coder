@@ -149,3 +149,20 @@ export class DetailedError extends Error {
 		super(message);
 	}
 }
+
+export const isOIDCSessionExpired = (error: unknown): boolean => {
+	if (!isApiError(error)) {
+		return false;
+	}
+	
+	const message = error.response.data.message?.toLowerCase() ?? "";
+	const detail = error.response.data.detail?.toLowerCase() ?? "";
+	
+	// Check for 401 status and specific OIDC session expiry message patterns
+	return (
+		error.response.status === 401 &&
+		(message.includes("oidc session expired") ||
+		 message.includes("invalid oidc token") ||
+		 detail.includes("oidc session"))
+	);
+};
