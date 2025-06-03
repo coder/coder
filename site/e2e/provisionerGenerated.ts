@@ -70,6 +70,17 @@ export enum TimingState {
   UNRECOGNIZED = -1,
 }
 
+export enum DataUploadType {
+  UPLOAD_TYPE_UNKNOWN = 0,
+  /**
+   * UPLOAD_TYPE_MODULE_FILES - UPLOAD_TYPE_MODULE_FILES is used to stream over terraform module files.
+   * These files are located in `.terraform/modules` and are used for dynamic
+   * parameters.
+   */
+  UPLOAD_TYPE_MODULE_FILES = 1,
+  UNRECOGNIZED = -1,
+}
+
 /** Empty indicates a successful request/response. */
 export interface Empty {
 }
@@ -455,6 +466,28 @@ export interface Response {
   parse?: ParseComplete | undefined;
   plan?: PlanComplete | undefined;
   apply?: ApplyComplete | undefined;
+  dataUpload?: DataUpload | undefined;
+}
+
+export interface DataUpload {
+  uploadType: DataUploadType;
+  /**
+   * data_hash is the sha256 of the payload to be uploaded.
+   * This is also used to uniquely identify the upload.
+   */
+  dataHash: string;
+  /** file_size is the total size of the data being uploaded. */
+  fileSize: number;
+  /** Number of chunks to be uploaded. */
+  chunks: number;
+}
+
+/** ChunkPiece is used to stream over large files (over the 4mb limit). */
+export interface ChunkPiece {
+  data: Uint8Array;
+  uploadType: string;
+  dataHash: string;
+  pieceIndex: number;
 }
 
 export const Empty = {
@@ -1346,6 +1379,45 @@ export const Response = {
     }
     if (message.apply !== undefined) {
       ApplyComplete.encode(message.apply, writer.uint32(34).fork()).ldelim();
+    }
+    if (message.dataUpload !== undefined) {
+      DataUpload.encode(message.dataUpload, writer.uint32(42).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const DataUpload = {
+  encode(message: DataUpload, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.uploadType !== 0) {
+      writer.uint32(8).int32(message.uploadType);
+    }
+    if (message.dataHash !== "") {
+      writer.uint32(18).string(message.dataHash);
+    }
+    if (message.fileSize !== 0) {
+      writer.uint32(24).int64(message.fileSize);
+    }
+    if (message.chunks !== 0) {
+      writer.uint32(32).int32(message.chunks);
+    }
+    return writer;
+  },
+};
+
+export const ChunkPiece = {
+  encode(message: ChunkPiece, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.data.length !== 0) {
+      writer.uint32(10).bytes(message.data);
+    }
+    if (message.uploadType !== "") {
+      writer.uint32(18).string(message.uploadType);
+    }
+    if (message.dataHash !== "") {
+      writer.uint32(26).string(message.dataHash);
+    }
+    if (message.pieceIndex !== 0) {
+      writer.uint32(32).int32(message.pieceIndex);
     }
     return writer;
   },
