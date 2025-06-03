@@ -717,11 +717,13 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		}
 	}()
 
+	var moduleFilesUpload *sdkproto.DataBuilder
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
 			return nil, xerrors.Errorf("recv import provision: %w", err)
 		}
+
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
 			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "template import provision job logged",
@@ -735,6 +737,30 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Output:    msgType.Log.Output,
 				Stage:     stage,
 			})
+		case *sdkproto.Response_DataUpload:
+			c := msgType.DataUpload
+			if c.UploadType != sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES {
+				return nil, xerrors.Errorf("invalid data upload type: %q", c.UploadType)
+			}
+
+			if moduleFilesUpload != nil {
+				return nil, xerrors.New("multiple module data uploads received, only expect 1")
+			}
+
+			moduleFilesUpload, err = sdkproto.NewDataBuilder(c)
+			if err != nil {
+				return nil, xerrors.Errorf("create data builder: %w", err)
+			}
+		case *sdkproto.Response_ChunkPiece:
+			c := msgType.ChunkPiece
+			if moduleFilesUpload == nil {
+				return nil, xerrors.New("received chunk piece before module files data upload")
+			}
+
+			_, err := moduleFilesUpload.Add(c)
+			if err != nil {
+				return nil, xerrors.Errorf("module files, add chunk piece: %w", err)
+			}
 		case *sdkproto.Response_Plan:
 			c := msgType.Plan
 			if c.Error != "" {
@@ -745,10 +771,23 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				return nil, xerrors.New(c.Error)
 			}
 
+			if moduleFilesUpload != nil && len(c.ModuleFiles) > 0 {
+				return nil, xerrors.New("module files were uploaded and module files were returned in the plan response. Only one of these should be set")
+			}
+
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(c.Resources)),
 				slog.F("resources", resourceNames(c.Resources)),
 			)
+
+			moduleFilesData := c.ModuleFiles
+			if moduleFilesUpload != nil {
+				uploadData, err := moduleFilesUpload.Complete()
+				if err != nil {
+					return nil, xerrors.Errorf("module files, complete upload: %w", err)
+				}
+				moduleFilesData = uploadData
+			}
 
 			return &templateImportProvision{
 				Resources:             c.Resources,
@@ -757,7 +796,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Modules:               c.Modules,
 				Presets:               c.Presets,
 				Plan:                  c.Plan,
-				ModuleFiles:           c.ModuleFiles,
+				ModuleFiles:           moduleFilesData,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
