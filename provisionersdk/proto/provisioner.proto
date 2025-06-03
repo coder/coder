@@ -433,7 +433,35 @@ message Response {
         ParseComplete parse = 2;
         PlanComplete plan = 3;
         ApplyComplete apply = 4;
+				DataUpload data_upload = 5;
     }
+}
+
+enum DataUploadType {
+		UPLOAD_TYPE_UNKNOWN = 0;
+		// UPLOAD_TYPE_MODULE_FILES is used to stream over terraform module files.
+	  // These files are located in `.terraform/modules` and are used for dynamic
+		// parameters.
+		UPLOAD_TYPE_MODULE_FILES = 1;
+}
+
+message DataUpload {
+		DataUploadType upload_type = 1;
+		// data_hash is the sha256 of the payload to be uploaded.
+		// This is also used to uniquely identify the upload.
+		string data_hash = 2;
+		// file_size is the total size of the data being uploaded.
+		int64 file_size = 3;
+		// Number of chunks to be uploaded.
+		int32 chunks = 4;
+}
+
+// ChunkPiece is used to stream over large files (over the 4mb limit).
+message ChunkPiece {
+		bytes data = 1;
+		string upload_type = 2;
+		string data_hash = 3;
+		int32 piece_index = 4;
 }
 
 service Provisioner {
