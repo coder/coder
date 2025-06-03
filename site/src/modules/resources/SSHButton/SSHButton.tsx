@@ -73,6 +73,9 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 					>
 						Connect via JetBrains IDEs
 					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/user-guides/desktop")}>
+						Connect via Coder Desktop
+					</HelpTooltipLink>
 					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
 						SSH configuration
 					</HelpTooltipLink>
