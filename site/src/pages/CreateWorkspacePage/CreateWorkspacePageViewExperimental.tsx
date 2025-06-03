@@ -3,12 +3,12 @@ import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
-import { Pill } from "components/Pill/Pill";
 import {
 	Select,
 	SelectContent,
@@ -179,7 +179,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [error]);
 
 	useEffect(() => {
-		if (form.submitCount > 0 && form.errors) {
+		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",
 				block: "center",
@@ -353,21 +353,39 @@ export const CreateWorkspacePageViewExperimental: FC<
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
 				<header className="flex flex-col items-start gap-3 mt-10">
-					<div className="flex items-center gap-2">
-						<Avatar
-							variant="icon"
-							size="md"
-							src={template.icon}
-							fallback={template.name}
-						/>
-						<p className="text-base font-medium m-0">
-							{template.display_name.length > 0
-								? template.display_name
-								: template.name}
-						</p>
+					<div className="flex items-center gap-2 justify-between w-full">
+						<span className="flex items-center gap-2">
+							<Avatar
+								variant="icon"
+								size="md"
+								src={template.icon}
+								fallback={template.name}
+							/>
+							<p className="text-base font-medium m-0">
+								{template.display_name.length > 0
+									? template.display_name
+									: template.name}
+							</p>
+							{template.deprecated && (
+								<Badge variant="warning" size="sm">
+									Deprecated
+								</Badge>
+							)}
+						</span>
+						{experimentalFormContext && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={experimentalFormContext.toggleOptedOut}
+							>
+								<Undo2 />
+								Classic workspace creation
+							</Button>
+						)}
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -389,19 +407,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-
-					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							<Undo2 />
-							Use the classic workspace creation flow
-						</Button>
-					)}
+					<FeatureStageBadge
+						contentType={"early_access"}
+						size="sm"
+						labelText="Dynamic parameters"
+					/>
 				</header>
 
 				<form
@@ -555,7 +565,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="md" />
+										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">

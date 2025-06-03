@@ -235,7 +235,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
-		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+		Short:       "Add an SSH Host entry for your workspaces \"ssh workspace.coder\"",
 		Long: FormatExamples(
 			Example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",

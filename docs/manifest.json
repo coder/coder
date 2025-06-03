@@ -817,6 +817,12 @@
 					"icon_path": "./images/icons/document.svg"
 				},
 				{
+					"title": "Backend",
+					"description": "Our guide for backend development",
+					"path": "./contributing/backend.md",
+					"icon_path": "./images/icons/gear.svg"
+				},
+				{
 					"title": "Frontend",
 					"description": "Our guide for frontend development",
 					"path": "./contributing/frontend.md",
@@ -1091,7 +1097,7 @@
 						},
 						{
 							"title": "config-ssh",
-							"description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+							"description": "Add an SSH Host entry for your workspaces \"ssh workspace.coder\"",
 							"path": "reference/cli/config-ssh.md"
 						},
 						{
