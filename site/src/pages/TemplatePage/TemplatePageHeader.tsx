@@ -1,5 +1,6 @@
 import EditIcon from "@mui/icons-material/EditOutlined";
 import Button from "@mui/material/Button";
+import { API } from "api/api";
 import { workspaces } from "api/queries/workspaces";
 import type {
 	AuthorizationResponse,
@@ -34,7 +35,6 @@ import {
 	TrashIcon,
 } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { API } from "api/api";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
