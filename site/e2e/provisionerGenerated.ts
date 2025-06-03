@@ -486,7 +486,6 @@ export interface DataUpload {
 /** ChunkPiece is used to stream over large files (over the 4mb limit). */
 export interface ChunkPiece {
   data: Uint8Array;
-  uploadType: string;
   /**
    * full_data_hash should match the hash from the original
    * DataUpload message
@@ -1418,14 +1417,11 @@ export const ChunkPiece = {
     if (message.data.length !== 0) {
       writer.uint32(10).bytes(message.data);
     }
-    if (message.uploadType !== "") {
-      writer.uint32(18).string(message.uploadType);
-    }
     if (message.fullDataHash.length !== 0) {
-      writer.uint32(26).bytes(message.fullDataHash);
+      writer.uint32(18).bytes(message.fullDataHash);
     }
     if (message.pieceIndex !== 0) {
-      writer.uint32(32).int32(message.pieceIndex);
+      writer.uint32(24).int32(message.pieceIndex);
     }
     return writer;
   },

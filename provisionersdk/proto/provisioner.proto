@@ -460,11 +460,10 @@ message DataUpload {
 // ChunkPiece is used to stream over large files (over the 4mb limit).
 message ChunkPiece {
 		bytes data = 1;
-		string upload_type = 2;
 		// full_data_hash should match the hash from the original
 		// DataUpload message
-		bytes full_data_hash = 3;
-		int32 piece_index = 4;
+		bytes full_data_hash = 2;
+		int32 piece_index = 3;
 }
 
 service Provisioner {
