@@ -266,3 +266,56 @@ On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause
 use nix
 mkdir -p "$TMPDIR"
 ```
+
+## Documentation Linting
+
+We use multiple tools to ensure documentation quality:
+
+- **[markdownlint](https://github.com/DavidAnson/markdownlint)** for Markdown syntax and formatting
+- **[Vale](https://vale.sh/)** for prose quality and style consistency
+- **[markdown-table-formatter](https://github.com/nvuillam/markdown-table-formatter)** for table formatting
+
+### Running Documentation Linting
+
+```bash
+# Run all documentation linting (markdownlint + Vale)
+make lint/markdown
+
+# Run only Vale for prose quality
+make lint/vale
+
+# Run incremental linting on changed files only
+make lint/markdown-incremental CHANGED_MD_FILES="docs/admin/auth.md docs/tutorials/setup.md"
+
+# Smart linting (automatically chooses incremental vs full)
+make lint/markdown-smart
+```
+
+### Formatting Documentation
+
+```bash
+# Format Markdown files and tables
+make fmt/markdown
+```
+
+### Vale Configuration
+
+Vale is configured to:
+- Use Microsoft Writing Style Guide for technical documentation
+- Check for inclusive language with alex
+- Identify common writing issues with write-good
+- Skip generated documentation (API references, changelogs)
+
+Vale rules can be customized in `.vale.ini`.
+
+### CI Behavior
+
+The documentation quality workflow runs automatically on PRs that change documentation files. It uses smart change detection:
+
+- **Incremental checks**: Run only on changed files for typical content edits
+- **Full checks**: Run on all documentation when:
+  - Headings are changed (may break anchor links)
+  - Files are renamed or deleted (may break relative links)
+  - Navigation structure changes (`docs/manifest.json`)
+  - Shared assets change (`docs/images/**`)
+  - Cross-reference heavy files are modified
