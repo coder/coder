@@ -15,6 +15,7 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import { AI_APP_CHAT_SLUG } from "./constants";
 
 type TaskAppsProps = {
 	task: Task;
@@ -25,7 +26,11 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		.flatMap((r) => r.agents)
 		.filter((a) => !!a);
 
-	const apps = agents.flatMap((a) => a?.apps).filter((a) => !!a);
+	// The Chat UI app will be displayed in the sidebar, so we don't want to show
+	// it here
+	const apps = agents
+		.flatMap((a) => a?.apps)
+		.filter((a) => !!a && a.slug !== AI_APP_CHAT_SLUG);
 
 	const [activeAppId, setActiveAppId] = useState<string>(() => {
 		const appId = task.workspace.latest_app_status?.app_id;
