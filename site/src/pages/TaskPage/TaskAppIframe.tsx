@@ -35,6 +35,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			title={link.label}
 			loading="eager"
 			className={cn([active ? "block" : "hidden", "w-full h-full border-0"])}
+			allow="clipboard-read; clipboard-write"
 		/>
 	);
 };
