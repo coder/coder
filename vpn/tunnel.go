@@ -621,12 +621,14 @@ func (u *updater) recordLatency() {
 	}
 	u.mu.Unlock()
 
+	pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
+	defer cancelFunc()
 	var wg sync.WaitGroup
 	for _, agentID := range agentsIDsToPing {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			pingDur, didP2p, pingResult, err := u.conn.Ping(u.ctx, agentID)
+			pingDur, didP2p, pingResult, err := u.conn.Ping(pingCtx, agentID)
 			if err != nil {
 				u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
 				return
