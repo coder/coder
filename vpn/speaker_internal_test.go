@@ -48,7 +48,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.1\n"
+	expectedHandshake := "codervpn tunnel 1.2\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -157,7 +157,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.1\n"
+	expectedHandshake := "codervpn tunnel 1.2\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -210,7 +210,7 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			_, err = mp.Write([]byte(tc.handshake))
 			require.NoError(t, err)
 
-			expectedHandshake := "codervpn tunnel 1.1\n"
+			expectedHandshake := "codervpn tunnel 1.2\n"
 			b := make([]byte, 256)
 			n, err := mp.Read(b)
 			require.NoError(t, err)
@@ -248,7 +248,7 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.1\n"
+	expectedHandshake := "codervpn tunnel 1.2\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)

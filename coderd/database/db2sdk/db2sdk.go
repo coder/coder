@@ -47,14 +47,6 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 	}
 }
 
-func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
-	into := make(map[K]T)
-	for k, item := range params {
-		into[k] = convert(item)
-	}
-	return into
-}
-
 type ExternalAuthMeta struct {
 	Authenticated bool
 	ValidateError string

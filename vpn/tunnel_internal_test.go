@@ -15,10 +15,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
 	"github.com/coder/quartz"
 
+	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -64,7 +67,34 @@ type fakeConn struct {
 	doClose sync.Once
 }
 
+func (*fakeConn) DERPMap() *tailcfg.DERPMap {
+	return &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			999: {
+				RegionID:   999,
+				RegionCode: "zzz",
+				RegionName: "Coder Region",
+			},
+		},
+	}
+}
+
+func (*fakeConn) Node() *tailnet.Node {
+	return &tailnet.Node{
+		PreferredDERP: 999,
+		DERPLatency: map[string]float64{
+			"999": 0.1,
+		},
+	}
+}
+
 var _ Conn = (*fakeConn)(nil)
+
+func (*fakeConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
+	return time.Millisecond * 100, true, &ipnstate.PingResult{
+		DERPRegionID: 999,
+	}, nil
+}
 
 func (f *fakeConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
 	return f.state, nil
@@ -292,7 +322,7 @@ func TestUpdater_createPeerUpdate(t *testing.T) {
 	updater := updater{
 		ctx:         ctx,
 		netLoopDone: make(chan struct{}),
-		agents:      map[uuid.UUID]tailnet.Agent{},
+		agents:      map[uuid.UUID]agentWithPing{},
 		workspaces:  map[uuid.UUID]tailnet.Workspace{},
 		conn:        newFakeConn(tailnet.WorkspaceUpdate{}, hsTime),
 	}
@@ -430,6 +460,22 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
 	}
 
+	// Latency is gathered in the background, so it'll eventually be sent
+	require.Eventually(t, func() bool {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing == nil {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds() != 100 {
+			return false
+		}
+		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
+	}, testutil.WaitShort, testutil.IntervalFast)
+
 	// Upsert a new agent
 	err = tun.Update(tailnet.WorkspaceUpdate{
 		UpsertedWorkspaces: []*tailnet.Workspace{},
@@ -459,6 +505,10 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 
 	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
+	// The latency of the first agent is still set
+	require.NotNil(t, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing)
+	require.EqualValues(t, 100, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds())
+
 	require.Equal(t, aID2[:], req.msg.GetPeerUpdate().UpsertedAgents[1].Id)
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[1].LastHandshake.AsTime())
 
@@ -486,6 +536,22 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
 	require.Equal(t, aID2[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
+
+	// Eventually the second agent's latency is set
+	require.Eventually(t, func() bool {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing == nil {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds() != 100 {
+			return false
+		}
+		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
@@ -902,11 +968,13 @@ func TestProcessFreshState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
-			maps.Copy(agentsCopy, tt.initialAgents)
-
-			workspaceCopy := make(map[uuid.UUID]tailnet.Workspace)
-			maps.Copy(workspaceCopy, tt.initialWorkspaces)
+			agentsCopy := maputil.Map(tt.initialAgents, func(a tailnet.Agent) agentWithPing {
+				return agentWithPing{
+					Agent:    a.Clone(),
+					lastPing: nil,
+				}
+			})
+			workspaceCopy := maps.Clone(tt.initialWorkspaces)
 
 			processSnapshotUpdate(tt.update, agentsCopy, workspaceCopy)
 
