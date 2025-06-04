@@ -13,7 +13,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -23,6 +22,7 @@ import {
 	TrashIcon,
 } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useDynamicParametersOptOut } from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";

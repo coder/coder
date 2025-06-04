@@ -1,11 +1,11 @@
 import { templateByName } from "api/queries/templates";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	optOutKey,
 	useDynamicParametersOptOut,
-} from "hooks/useDynamicParametersOptOut";
-import { useDashboard } from "modules/dashboard/useDashboard";
+} from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";

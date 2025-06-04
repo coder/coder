@@ -1,10 +1,10 @@
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	optOutKey,
 	useDynamicParametersOptOut,
-} from "hooks/useDynamicParametersOptOut";
-import { useDashboard } from "modules/dashboard/useDashboard";
+} from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import type { FC } from "react";
 import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
