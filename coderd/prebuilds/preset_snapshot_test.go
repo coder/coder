@@ -1073,6 +1073,111 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			at:                          mustParseTime(t, time.RFC1123, "Sun, 08 Jun 2025 14:00:00 UTC"),
 			expectedCalculatedInstances: 1,
 		},
+
+		// Test multiple schedules during the day
+		// - "* 6-10 * * 1-5"
+		// - "* 12-16 * * 1-5"
+		// - "* 18-22 * * 1-5"
+		{
+			name: "Before the first schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 5:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "The middle of the first schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 5:59:00 UTC"),
+			expectedCalculatedInstances: 2,
+		},
+		{
+			name: "Between the first and second schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 11:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "The middle of the second schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "The middle of the third schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 20:00:00 UTC"),
+			expectedCalculatedInstances: 4,
+		},
+		{
+			name: "After the last schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 23:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+
+		// Test multiple schedules during the week
+		// - "* 9-18 * * 1-5"
+		// - "* 9-13 * * 6-7"
+		{
+			name: "First schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 2),
+				mkSchedule("* 9-13 * * 6,0", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 2,
+		},
+		{
+			name: "Second schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 2),
+				mkSchedule("* 9-13 * * 6,0", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 10:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "Outside schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 2),
+				mkSchedule("* 9-13 * * 6,0", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
 	}
 
 	for _, tc := range testCases {
