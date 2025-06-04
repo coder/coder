@@ -18,8 +18,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/retry"
 
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -515,7 +517,59 @@ func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 	return err
 }
 
+func (p *Server) CompleteJobWithModuleFiles(ctx context.Context, in *proto.CompletedJob, moduleFiles []byte) error {
+	return nil
+	// Send the files separately if the message size is too large.
+	//_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
+	//	stream, err := client.CompleteJobWithFiles(ctx)
+	//	if err != nil {
+	//		return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
+	//	}
+	//
+	//	dataUp, chunks := sdkproto.BytesToDataUpload(moduleFiles)
+	//
+	//	err = stream.Send(&proto.CompleteWithFilesRequest{Type: &proto.CompleteWithFilesRequest_DataUpload{DataUpload: &proto.DataUpload{
+	//		UploadType: proto.DataUploadType(dataUp.UploadType),
+	//		DataHash:   dataUp.DataHash,
+	//		FileSize:   dataUp.FileSize,
+	//		Chunks:     dataUp.Chunks,
+	//	}}})
+	//	if err != nil {
+	//		return nil, xerrors.Errorf("send data upload: %w", err)
+	//	}
+	//
+	//	for i, chunk := range chunks {
+	//		err = stream.Send(&proto.CompleteWithFilesRequest{Type: &proto.CompleteWithFilesRequest_ChunkPiece{ChunkPiece: &proto.ChunkPiece{
+	//			Data:         chunk.Data,
+	//			FullDataHash: chunk.FullDataHash,
+	//			PieceIndex:   chunk.PieceIndex,
+	//		}}})
+	//		if err != nil {
+	//			return nil, xerrors.Errorf("send chunk piece %d: %w", i, err)
+	//		}
+	//	}
+	//
+	//	err = stream.Send(&proto.CompleteWithFilesRequest{Type: &proto.CompleteWithFilesRequest_Complete{Complete: in}})
+	//	if err != nil {
+	//		return nil, xerrors.Errorf("send complete job: %w", err)
+	//	}
+	//
+	//	return &proto.Empty{}, nil
+	//})
+	//return err
+}
+
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
+	if ti, ok := in.Type.(*proto.CompletedJob_TemplateImport_); ok {
+		messageSize := protobuf.Size(in)
+		if messageSize > drpcsdk.MaxMessageSize &&
+			messageSize-len(ti.TemplateImport.ModuleFiles) < drpcsdk.MaxMessageSize {
+			moduleFiles := ti.TemplateImport.ModuleFiles
+			ti.TemplateImport.ModuleFiles = nil // Clear the files in the final message
+			return p.CompleteJobWithModuleFiles(ctx, in, moduleFiles)
+		}
+	}
+
 	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
 		return client.CompleteJob(ctx, in)
 	})

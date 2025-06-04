@@ -181,11 +181,10 @@ message CommitQuotaResponse {
 
 message CancelAcquire {}
 
-message CompleteWithFilesRequest {
+message UploadFileRequest {
     oneof type {
-        CompletedJob complete = 1;
-        DataUpload data_upload = 2;
-        ChunkPiece chunk_piece = 3;
+        DataUpload data_upload = 1;
+        ChunkPiece chunk_piece = 2;
     }
 }
 
@@ -216,5 +215,8 @@ service ProvisionerDaemon {
 
     // CompleteJob indicates a job has been completed.
     rpc CompleteJob(CompletedJob) returns (Empty);
-    rpc CompleteJobWithFiles(stream CompleteWithFilesRequest) returns (Empty);
+
+    // UploadFile streams files to be inserted into the database.
+    // The file upload_type should be used to determine how to handle the file.
+    rpc UploadFile(stream UploadFileRequest) returns (Empty);
 }

@@ -1321,6 +1321,39 @@ func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context,
 	return templateAdmins, template, templateVersion, workspaceOwner, nil
 }
 
+func (s *server) CompleteJobWithFiles(stream proto.DRPCProvisionerDaemon_CompleteJobWithFilesStream) error {
+	var file *sdkproto.DataBuilder
+
+	// stream expects files first
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			return xerrors.Errorf("receive complete job with files: %w", err)
+		}
+
+		switch typed := msg.Type.(type) {
+		case *proto.CompleteWithFilesRequest_Complete:
+		case *proto.CompleteWithFilesRequest_ChunkPiece:
+
+		case *proto.CompleteWithFilesRequest_DataUpload:
+			if file != nil {
+				return xerrors.New("unexpected file upload while waiting for file completion")
+			}
+
+			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
+				UploadType: sdkproto.DataUploadType(typed.DataUpload.UploadType),
+				DataHash:   typed.DataUpload.DataHash,
+				FileSize:   typed.DataUpload.FileSize,
+				Chunks:     typed.DataUpload.Chunks,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to create file upload: %w", err)
+			}
+		}
+	}
+
+}
+
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
