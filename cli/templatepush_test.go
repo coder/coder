@@ -602,7 +602,7 @@ func TestTemplatePush(t *testing.T) {
 			templateVersion = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
-			// Push new template version without provisioner tags. CLI should reuse tags from the previous version.
+			// Push new template version with different provisioner tags.
 			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 				Parse:          echo.ParseComplete,
 				ProvisionApply: echo.ApplyComplete,
@@ -637,6 +637,75 @@ func TestTemplatePush(t *testing.T) {
 			templateVersion, err = client.TemplateVersion(context.Background(), template.ActiveVersionID)
 			require.NoError(t, err)
 			require.EqualValues(t, map[string]string{"foobar": "foobaz", "owner": "", "scope": "organization"}, templateVersion.Job.Tags)
+		})
+
+		t.Run("DeleteTags", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Start the first provisioner with no tags.
+			client, provisionerDocker, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				ProvisionerDaemonTags:    map[string]string{},
+			})
+			defer provisionerDocker.Close()
+
+			// Start the second provisioner with a tag set.
+			provisionerFoobar := coderdtest.NewTaggedProvisionerDaemon(t, api, "provisioner-foobar", map[string]string{
+				"foobar": "foobaz",
+			})
+			defer provisionerFoobar.Close()
+
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			// Create the template with initial tagged template version.
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.ProvisionerTags = map[string]string{
+					"foobar": "foobaz",
+				}
+			})
+			templateVersion = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
+
+			// Stop the tagged provisioner daemon.
+			provisionerFoobar.Close()
+
+			// Push new template version with no provisioner tags.
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name, "--provisioner-tag=\"-\"")
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.WithContext(ctx).Run()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+
+			// Verify template version tags
+			template, err := client.Template(ctx, template.ID)
+			require.NoError(t, err)
+
+			templateVersion, err = client.TemplateVersion(ctx, template.ActiveVersionID)
+			require.NoError(t, err)
+			require.EqualValues(t, map[string]string{"owner": "", "scope": "organization"}, templateVersion.Job.Tags)
 		})
 
 		t.Run("DoNotChangeTags", func(t *testing.T) {

@@ -5,7 +5,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { AppStatusIcon } from "modules/apps/AppStatusIcon";
+import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { cn } from "utils/cn";
 
 type WorkspaceAppStatusProps = {
@@ -31,9 +31,10 @@ export const WorkspaceAppStatus = ({
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<div className="flex items-center gap-2">
-							<AppStatusIcon
-								status={status}
+							<AppStatusStateIcon
 								latest
+								disabled={disabled}
+								state={status.state}
 								className={cn({
 									"text-content-disabled": disabled,
 								})}

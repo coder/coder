@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -40,10 +40,10 @@ func TestExtractChat(t *testing.T) {
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, _  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -62,10 +62,10 @@ func TestExtractChat(t *testing.T) {
 	t.Run("InvalidUUID", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, _  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("chat", "not-a-uuid")
 		rtr.Use(
@@ -85,10 +85,10 @@ func TestExtractChat(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, _  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("chat", uuid.NewString())
 		rtr.Use(
@@ -108,7 +108,7 @@ func TestExtractChat(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db      = dbmem.New()
+			db, _   = dbtestutil.NewDB(t)
 			rw      = httptest.NewRecorder()
 			r, user = setupAuthentication(db)
 			rtr     = chi.NewRouter()

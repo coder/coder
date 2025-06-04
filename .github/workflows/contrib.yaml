@@ -42,7 +42,7 @@ jobs:
           # branch should not be protected
           branch: "main"
           # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
-          allowlist: "coryb,aaronlehmann,dependabot*"
+          allowlist: "coryb,aaronlehmann,dependabot*,blink-so*"
 
   release-labels:
     runs-on: ubuntu-latest

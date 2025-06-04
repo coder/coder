@@ -387,11 +387,9 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const parsedValues = parseStringArrayValue(value ?? "");
 
 			if (parsedValues.error) {
-				return (
-					<p className="text-sm text-content-destructive">
-						{parsedValues.error}
-					</p>
-				);
+				// Diagnostics on parameter already handle this case, do not duplicate error message
+				// Reset user's values to an empty array. This would overwrite any default values
+				parsedValues.values = [];
 			}
 
 			// Map parameter options to MultiSelectCombobox options format
@@ -440,11 +438,9 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const parsedValues = parseStringArrayValue(value ?? "");
 
 			if (parsedValues.error) {
-				return (
-					<p className="text-sm text-content-destructive">
-						{parsedValues.error}
-					</p>
-				);
+				// Diagnostics on parameter already handle this case, do not duplicate error message
+				// Reset user's values to an empty array. This would overwrite any default values
+				parsedValues.values = [];
 			}
 
 			return (

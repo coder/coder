@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -20,9 +20,9 @@ func TestUserParam(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) (database.Store, *httptest.ResponseRecorder, *http.Request) {
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 		user := dbgen.User(t, db, database.User{})
 		_, token := dbgen.APIKey(t, db, database.APIKey{

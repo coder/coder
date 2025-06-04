@@ -215,6 +215,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<AgentSSHButton
 							workspaceName={workspace.name}
 							agentName={agent.name}
+							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
 					{proxy.preferredWildcardHostname !== "" &&

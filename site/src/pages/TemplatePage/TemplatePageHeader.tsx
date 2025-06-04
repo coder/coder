@@ -1,5 +1,6 @@
 import EditIcon from "@mui/icons-material/EditOutlined";
 import Button from "@mui/material/Button";
+import { API } from "api/api";
 import { workspaces } from "api/queries/workspaces";
 import type {
 	AuthorizationResponse,
@@ -26,7 +27,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { CopyIcon } from "lucide-react";
+import { CopyIcon, DownloadIcon } from "lucide-react";
 import {
 	EllipsisVertical,
 	PlusIcon,
@@ -46,6 +47,7 @@ type TemplateMenuProps = {
 	templateName: string;
 	templateVersion: string;
 	templateId: string;
+	fileId: string;
 	onDelete: () => void;
 };
 
@@ -54,6 +56,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	templateName,
 	templateVersion,
 	templateId,
+	fileId,
 	onDelete,
 }) => {
 	const dialogState = useDeletionDialogState(templateId, onDelete);
@@ -67,6 +70,24 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	const safeToDeleteTemplate = workspaceCountQuery.data === 0;
 
 	const templateLink = getLink(linkToTemplate(organizationName, templateName));
+
+	const handleExport = async (format?: "zip") => {
+		try {
+			const blob = await API.downloadTemplateVersion(fileId, format);
+			const url = window.URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			const extension = format === "zip" ? "zip" : "tar";
+			link.download = `${templateName}-${templateVersion}.${extension}`;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			window.URL.revokeObjectURL(url);
+		} catch (error) {
+			console.error("Failed to export template:", error);
+			// TODO: Show user-friendly error message
+		}
+	};
 
 	return (
 		<>
@@ -101,6 +122,16 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 					>
 						<CopyIcon className="size-icon-sm" />
 						Duplicate&hellip;
+					</DropdownMenuItem>
+
+					<DropdownMenuItem onClick={() => handleExport()}>
+						<DownloadIcon className="size-icon-sm" />
+						Export as TAR
+					</DropdownMenuItem>
+
+					<DropdownMenuItem onClick={() => handleExport("zip")}>
+						<DownloadIcon className="size-icon-sm" />
+						Export as ZIP
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
@@ -206,6 +237,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 								templateId={template.id}
 								templateName={template.name}
 								templateVersion={activeVersion.name}
+								fileId={activeVersion.job.file_id}
 								onDelete={onDeleteTemplate}
 							/>
 						)}

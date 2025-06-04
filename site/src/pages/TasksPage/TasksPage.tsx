@@ -209,7 +209,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					required
 					id="prompt"
 					name="prompt"
-					placeholder="Write an action for your AI agent to perform..."
+					placeholder="Prompt your AI agent to start a task..."
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
 						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
@@ -363,7 +363,10 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 								/>
 							</TableCell>
 							<TableCell>
-								<WorkspaceAppStatus status={workspace.latest_app_status} />
+								<WorkspaceAppStatus
+									disabled={workspace.latest_build.status !== "running"}
+									status={workspace.latest_app_status}
+								/>
 							</TableCell>
 							<TableCell>
 								<AvatarData
@@ -486,7 +489,7 @@ export const data = {
 		templateId: string,
 	): Promise<Task> {
 		const workspace = await API.createWorkspace(userId, {
-			name: `ai-task-${new Date().getTime()}`,
+			name: `task-${new Date().getTime()}`,
 			template_id: templateId,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
