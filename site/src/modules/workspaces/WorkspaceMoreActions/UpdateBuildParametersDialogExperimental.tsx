@@ -17,6 +17,7 @@ type UpdateBuildParametersDialogExperimentalProps = {
 	missedParameters: TemplateVersionParameter[];
 	workspaceOwnerName: string;
 	workspaceName: string;
+	templateVersionId: string | undefined;
 };
 
 export const UpdateBuildParametersDialogExperimental: FC<
@@ -27,12 +28,15 @@ export const UpdateBuildParametersDialogExperimental: FC<
 	onClose,
 	workspaceOwnerName,
 	workspaceName,
+	templateVersionId,
 }) => {
 	const navigate = useNavigate();
 
 	const handleGoToParameters = () => {
 		onClose();
-		navigate(`/@${workspaceOwnerName}/${workspaceName}/settings/parameters`);
+		navigate(
+			`/@${workspaceOwnerName}/${workspaceName}/settings/parameters?templateVersionId=${templateVersionId}`,
+		);
 	};
 
 	return (

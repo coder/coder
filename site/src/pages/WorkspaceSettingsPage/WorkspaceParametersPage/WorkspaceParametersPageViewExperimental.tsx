@@ -5,7 +5,6 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
@@ -16,7 +15,7 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { type FC, useId } from "react";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
 
@@ -32,6 +31,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => void;
 	sendMessage: (formValues: Record<string, string>) => void;
+	templateVersionId: string | undefined;
 };
 
 export const WorkspaceParametersPageViewExperimental: FC<
@@ -46,8 +46,8 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onSubmit,
 	sendMessage,
 	onCancel,
+	templateVersionId,
 }) => {
-	const id = useId();
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
 	);
@@ -155,16 +155,12 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
-			{workspace.template_active_version_id && (
-				<div className="flex flex-col gap-2 pb-4">
-					<Label className="text-sm" htmlFor={`${id}-version-id`}>
-						Version ID
-					</Label>
-					<Input
-						id={`${id}-version-id`}
-						value={workspace.template_active_version_id}
-						disabled
-					/>
+			{(templateVersionId || workspace.template_active_version_id) && (
+				<div className="flex flex-col gap-2">
+					<Label className="text-sm text-content-secondary">Version ID</Label>
+					<p className="m-0 text-sm font-medium">
+						{templateVersionId ?? workspace.template_active_version_id}
+					</p>
 				</div>
 			)}
 
@@ -252,10 +248,21 @@ export const WorkspaceParametersPageViewExperimental: FC<
 					</Button>
 					<Button
 						type="submit"
-						disabled={isSubmitting || disabled || !form.dirty}
+						disabled={
+							isSubmitting ||
+							disabled ||
+							diagnostics.some(
+								(diagnostic) => diagnostic.severity === "error",
+							) ||
+							parameters.some((parameter) =>
+								parameter.diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								),
+							)
+						}
 					>
 						<Spinner loading={isSubmitting} />
-						Submit and restart
+						Update and restart
 					</Button>
 				</div>
 			</form>

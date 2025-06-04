@@ -158,6 +158,8 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 
 	const missedParameters =
 		error instanceof MissingBuildParameters ? error.parameters : [];
+	const versionId =
+		error instanceof MissingBuildParameters ? error.versionId : undefined;
 	const isOpen = error instanceof MissingBuildParameters;
 
 	return isDynamicParametersEnabled ? (
@@ -167,6 +169,7 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 			onClose={dialogProps.onClose}
 			workspaceOwnerName={workspace.owner_name}
 			workspaceName={workspace.name}
+			templateVersionId={versionId}
 		/>
 	) : (
 		<UpdateBuildParametersDialog

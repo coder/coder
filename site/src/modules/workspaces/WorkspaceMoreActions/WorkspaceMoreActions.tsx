@@ -159,6 +159,11 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 					}}
 					workspaceOwnerName={workspace.owner_name}
 					workspaceName={workspace.name}
+					templateVersionId={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error?.versionId
+							: undefined
+					}
 				/>
 			) : (
 				<UpdateBuildParametersDialog
