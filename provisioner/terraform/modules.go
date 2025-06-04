@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/xio"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -85,7 +86,11 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 
 	empty := true
 	var b bytes.Buffer
-	w := tar.NewWriter(&b)
+
+	// Limit to 20MB for now.
+	// TODO: Determine what a reasonable limit is for modules
+	lw := xio.NewLimitWriter(&b, 20<<20)
+	w := tar.NewWriter(lw)
 
 	for _, it := range m.Modules {
 		// Check to make sure that the module is a remote module fetched by

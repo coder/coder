@@ -9,6 +9,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	ChunkSize = 2 << 20 // 2 MiB
+)
+
 type DataBuilder struct {
 	Type       DataUploadType
 	Hash       []byte
@@ -91,4 +95,38 @@ func (b *DataBuilder) Complete() ([]byte, error) {
 
 func (b *DataBuilder) done() bool {
 	return b.chunkIndex >= b.ChunkCount
+}
+
+func BytesToDataUpload(data []byte) (*DataUpload, []*ChunkPiece) {
+	fullHash := sha256.Sum256(data)
+	size := int64(len(data))
+	// basically ceiling division to get the number of chunks required to
+	// hold the data, each chunk is ChunkSize bytes.
+	chunkCount := int32((size + ChunkSize - 1) / ChunkSize)
+
+	req := &DataUpload{
+		DataHash:   fullHash[:],
+		FileSize:   size,
+		Chunks:     chunkCount,
+		UploadType: DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+	}
+
+	chunks := make([]*ChunkPiece, 0, chunkCount)
+	for i := int32(0); i < chunkCount; i++ {
+		start := int64(i) * ChunkSize
+		end := start + ChunkSize
+		if end > size {
+			end = size
+		}
+		chunkData := data[start:end]
+
+		chunk := &ChunkPiece{
+			PieceIndex:   i,
+			Data:         chunkData,
+			FullDataHash: fullHash[:],
+		}
+		chunks = append(chunks, chunk)
+	}
+
+	return req, chunks
 }
