@@ -345,7 +345,7 @@
 						},
 						{
 							"title": "Headless Authentication",
-							"description": "Create and manage non-interactive user accounts for automated systems and API integrations",
+							"description": "Create and manage headless service accounts for automated systems and API integrations",
 							"path": "./admin/users/headless-auth.md"
 						},
 						{
