@@ -1084,6 +1084,31 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Downloads a template version as a tar or zip archive
+	 * @param fileId The file ID from the template version's job
+	 * @param format Optional format: "zip" for zip archive, empty/undefined for tar
+	 * @returns Promise that resolves to a Blob containing the archive
+	 */
+	downloadTemplateVersion = async (
+		fileId: string,
+		format?: "zip",
+	): Promise<Blob> => {
+		const params = new URLSearchParams();
+		if (format) {
+			params.set("format", format);
+		}
+
+		const response = await this.axios.get(
+			`/api/v2/files/${fileId}?${params.toString()}`,
+			{
+				responseType: "blob",
+			},
+		);
+
+		return response.data;
+	};
+
 	updateTemplateMeta = async (
 		templateId: string,
 		data: TypesGen.UpdateTemplateMeta,

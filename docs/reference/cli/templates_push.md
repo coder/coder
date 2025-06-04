@@ -41,7 +41,7 @@ Alias of --variable.
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-Specify a set of tags to target provisioner daemons.
+Specify a set of tags to target provisioner daemons. If you do not specify any tags, the tags from the active template version will be reused, if available. To remove existing tags, use --provisioner-tag="-".
 
 ### --name
 
