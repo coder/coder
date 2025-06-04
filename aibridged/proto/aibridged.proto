@@ -17,19 +17,3 @@ service AIBridgeDaemon {
 	// AuditPrompt allows aibridged to report back to coderd that a prompt was issued by a user to an AI provider.
 	rpc AuditPrompt(AuditPromptRequest) returns (AuditPromptResponse);
 }
-
-message JSONPayload {
-	string content = 1; // Rather than modelling the full API in proto, let's just accept the JSON payload and naïvely pass it along.
-}
-
-// OpenAIService describes the service exposed by aibridged, which allows coderd to proxy AI requests to it.
-// TODO(dannyk): versioning of both upstream service and this service.
-service OpenAIService {
-	rpc ChatCompletions(JSONPayload) returns (stream JSONPayload);
-}
-
-// AnthropicService describes the service exposed by aibridged, which allows coderd to proxy AI requests to it.
-// TODO(dannyk): versioning of both upstream service and this service.
-service AnthropicService {
-	rpc Messages(JSONPayload) returns (stream JSONPayload);
-}

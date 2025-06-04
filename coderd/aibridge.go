@@ -1,24 +1,17 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
-	"time"
+	"net/http/httputil"
+	"net/url"
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-func (api *API) bridgeOpenAIRequest(rw http.ResponseWriter, r *http.Request) {
-	api.bridgeAIRequest(rw, r, aibridged.AIProviderOpenAI)
-}
-
-func (api *API) bridgeAnthropicRequest(rw http.ResponseWriter, r *http.Request) {
-	api.bridgeAIRequest(rw, r, aibridged.AIProviderAnthropic)
-}
-
-func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request, client any) {
+func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if len(api.AIBridgeDaemons) == 0 {
@@ -26,6 +19,8 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request, client 
 		return
 	}
 
+	// Random loadbalancing.
+	// TODO: introduce better strategy.
 	server, err := slice.PickRandom(api.AIBridgeDaemons)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to pick random AI bridge server", slog.Error(err))
@@ -33,25 +28,12 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request, client 
 		return
 	}
 
-	// TODO: use same context or new?
-	c, err := api.CreateInMemoryOpenAIBridgeClient(ctx, server)
+	u, err := url.Parse(fmt.Sprintf("http://%s", server.BridgeAddr())) // TODO: TLS.
 	if err != nil {
-		api.Logger.Error(ctx, "failed to create OpenAI bridge", slog.Error(err))
-		http.Error(rw, "failed to create OpenAI bridge", http.StatusInternalServerError)
-		return
+		api.Logger.Error(ctx, "failed to parse bridge address", slog.Error(err))
+		http.Error(rw, "failed to parse bridge address", http.StatusInternalServerError)
 	}
 
-	// TODO: don't create a new proxy on each request.
-	proxy, err := aibridged.NewDRPCProxy(aibridged.NewOpenAIAdapter(c), aibridged.ProxyConfig{
-		ReadTimeout: time.Second * 60, // TODO: read timeout.
-
-	})
-
-	if err != nil {
-		api.Logger.Error(ctx, "failed to proxy HTTP request to AI bridge daemon", slog.Error(err))
-		http.Error(rw, "failed to proxy HTTP request to AI bridge", http.StatusInternalServerError)
-		return
-	}
-
-	http.StripPrefix("/api/v2/aibridge", proxy).ServeHTTP(rw, r)
+	rp := httputil.NewSingleHostReverseProxy(u)
+	http.StripPrefix("/api/v2/aibridge", rp).ServeHTTP(rw, r)
 }

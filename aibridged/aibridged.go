@@ -47,21 +47,36 @@ type Server struct {
 	shuttingDownB bool
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
+
+	bridge *Bridge
 }
 
-func New(clientDialer Dialer, logger slog.Logger) (*Server, error) {
-	ctx, ctxCancel := context.WithCancel(context.Background())
+func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
+	if rpcDialer == nil {
+		return nil, xerrors.Errorf("nil rpcDialer given")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	bridge := NewBridge(httpAddr)
 	daemon := &Server{
 		logger:           logger,
-		clientDialer:     clientDialer,
+		clientDialer:     rpcDialer,
 		clientCh:         make(chan proto.DRPCAIBridgeDaemonClient),
 		closeContext:     ctx,
-		closeCancel:      ctxCancel,
+		closeCancel:      cancel,
 		closedCh:         make(chan struct{}),
 		shuttingDownCh:   make(chan struct{}),
 		initConnectionCh: make(chan struct{}),
+
+		bridge: bridge,
 	}
 	go daemon.connect()
+	go func() {
+		err := bridge.Serve()
+		// TODO: better error handling.
+		// TODO: close on shutdown.
+		logger.Error(ctx, "bridge server stopped", slog.Error(err))
+	}()
 
 	return daemon, nil
 } // Connect establishes a connection to coderd.
@@ -148,57 +163,61 @@ func (s *Server) AuditPrompt(ctx context.Context, in *proto.AuditPromptRequest) 
 	return out, nil
 }
 
-func (s *Server) ChatCompletions(payload *proto.JSONPayload, stream proto.DRPCOpenAIService_ChatCompletionsStream) error {
-	// TODO: call OpenAI API.
+//func (s *Server) ChatCompletions(payload *proto.JSONPayload, stream proto.DRPCOpenAIService_ChatCompletionsStream) error {
+//	// TODO: call OpenAI API.
+//
+//	select {
+//	case <-stream.Context().Done():
+//		return nil
+//	default:
+//	}
+//
+//	err := stream.Send(&proto.JSONPayload{
+//		Content: `
+//{
+//  "id": "chatcmpl-B9MBs8CjcvOU2jLn4n570S5qMJKcT",
+//  "object": "chat.completion",
+//  "created": 1741569952,
+//  "model": "gpt-4.1-2025-04-14",
+//  "choices": [
+//    {
+//      "index": 0,
+//      "message": {
+//        "role": "assistant",
+//        "content": "Hello! How can I assist you today?",
+//        "refusal": null,
+//        "annotations": []
+//      },
+//      "logprobs": null,
+//      "finish_reason": "stop"
+//    }
+//  ],
+//  "usage": {
+//    "prompt_tokens": 19,
+//    "completion_tokens": 10,
+//    "total_tokens": 29,
+//    "prompt_tokens_details": {
+//      "cached_tokens": 0,
+//      "audio_tokens": 0
+//    },
+//    "completion_tokens_details": {
+//      "reasoning_tokens": 0,
+//      "audio_tokens": 0,
+//      "accepted_prediction_tokens": 0,
+//      "rejected_prediction_tokens": 0
+//    }
+//  },
+//  "service_tier": "default"
+//}
+//`})
+//	if err != nil {
+//		return xerrors.Errorf("stream chat completion response: %w", err)
+//	}
+//	return nil
+//}
 
-	select {
-	case <-stream.Context().Done():
-		return nil
-	default:
-	}
-
-	err := stream.Send(&proto.JSONPayload{
-		Content: `
-{
-  "id": "chatcmpl-B9MBs8CjcvOU2jLn4n570S5qMJKcT",
-  "object": "chat.completion",
-  "created": 1741569952,
-  "model": "gpt-4.1-2025-04-14",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "Hello! How can I assist you today?",
-        "refusal": null,
-        "annotations": []
-      },
-      "logprobs": null,
-      "finish_reason": "stop"
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 19,
-    "completion_tokens": 10,
-    "total_tokens": 29,
-    "prompt_tokens_details": {
-      "cached_tokens": 0,
-      "audio_tokens": 0
-    },
-    "completion_tokens_details": {
-      "reasoning_tokens": 0,
-      "audio_tokens": 0,
-      "accepted_prediction_tokens": 0,
-      "rejected_prediction_tokens": 0
-    }
-  },
-  "service_tier": "default"
-}
-`})
-	if err != nil {
-		return xerrors.Errorf("stream chat completion response: %w", err)
-	}
-	return nil
+func (s *Server) BridgeAddr() string {
+	return s.bridge.Addr()
 }
 
 // TODO: direct copy/paste from provisionerd, abstract into common util.
