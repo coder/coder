@@ -607,8 +607,8 @@ func (u *updater) netStatusLoop() {
 		case <-u.ctx.Done():
 			return
 		case <-ticker.C:
+			go u.recordLatency()
 			u.sendAgentUpdate()
-			u.recordLatency()
 		}
 	}
 }
