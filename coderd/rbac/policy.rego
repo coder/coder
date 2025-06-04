@@ -89,7 +89,19 @@ site := num if {
 
 default scope_site := 0
 
-scope_site := site_allow([input.subject.scope], default_object_set)
+
+scope_site := num if {
+	not is_prebuild_workspace
+	num := site_allow(input.subject.scope, default_object_set)
+}
+
+scope_site := num if {
+	is_prebuild_workspace
+	num := number([
+		site_allow(input.subject.scope, default_object_set),
+		site_allow(input.subject.scope, [prebuild_workspace_type])
+	])
+}
 
 site_allow(roles, object_set) := num if {
 	# allow is a set of boolean values without duplicates.
@@ -129,7 +141,18 @@ org := num if {
 
 default scope_org := 0
 
-scope_org := org_allow([input.scope], default_object_set)
+scope_org := num if {
+	not is_prebuild_workspace
+	num := org_allow(input.subject.scope, default_object_set)
+}
+
+scope_org := num if {
+	is_prebuild_workspace
+	num := number([
+		org_allow(input.subject.scope, default_object_set),
+		org_allow(input.subject.scope, [prebuild_workspace_type])
+	])
+}
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
@@ -240,7 +263,18 @@ user := num if {
 
 default user_scope := 0
 
-scope_user := user_allow([input.scope], default_object_set)
+scope_user := num if {
+	not is_prebuild_workspace
+	num := user_allow(input.subject.scope, default_object_set)
+}
+
+scope_user := num if {
+	is_prebuild_workspace
+	num := number([
+		user_allow(input.subject.scope, default_object_set),
+		user_allow(input.subject.scope, [prebuild_workspace_type])
+	])
+}
 
 user_allow(roles, object_set) := num if {
 	input.object.owner != ""
