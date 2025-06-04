@@ -163,6 +163,89 @@ func Test_Weekly(t *testing.T) {
 	}
 }
 
+func TestIsWithinRange(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                string
+		spec                string
+		at                  time.Time
+		expectedWithinRange bool
+	}{
+		{
+			name:                "Right before the start of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:58:59 UTC"),
+			expectedWithinRange: false,
+		},
+		{
+			name:                "Start of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:00 UTC"),
+			expectedWithinRange: true,
+		},
+		{
+			name:                "9AM - One minute after the start of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:00:00 UTC"),
+			expectedWithinRange: true,
+		},
+		{
+			name:                "2PM - The middle of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedWithinRange: true,
+		},
+		{
+			name:                "6PM - Around one hour before the end of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:00:00 UTC"),
+			expectedWithinRange: true,
+		},
+		{
+			name:                "End of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:58:59 UTC"),
+			expectedWithinRange: true,
+		},
+		{
+			name:                "Right after the end of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:59:00 UTC"),
+			expectedWithinRange: false,
+		},
+		{
+			name:                "7PM - Around one minute after the end of the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:00:00 UTC"),
+			expectedWithinRange: false,
+		},
+		{
+			name:                "2AM - Significantly outside the time range",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 02:00:00 UTC"),
+			expectedWithinRange: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Weekly(testCase.spec)
+			require.NoError(t, err)
+			withinRange := sched.IsWithinRange(testCase.at)
+			require.Equal(t, testCase.expectedWithinRange, withinRange)
+		})
+	}
+}
+
+func mustParseTime(t *testing.T, layout, value string) time.Time {
+	t.Helper()
+	parsedTime, err := time.Parse(layout, value)
+	require.NoError(t, err)
+	return parsedTime
+}
+
 func mustLocation(t *testing.T, s string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(s)

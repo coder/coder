@@ -50,7 +50,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	if !found {
 		return nil, xerrors.Errorf("no preset found with ID %q", presetID)
 	}
-	
+
 	prebuildSchedules := slice.Filter(s.PrebuildSchedules, func(schedule database.TemplateVersionPresetPrebuildSchedule) bool {
 		return schedule.PresetID == presetID
 	})
