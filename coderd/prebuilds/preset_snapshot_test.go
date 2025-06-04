@@ -84,7 +84,7 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -106,7 +106,7 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -148,7 +148,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -214,7 +214,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -459,7 +459,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -502,7 +502,7 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -683,7 +683,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, running, nil, nil, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil)
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -719,7 +719,7 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -772,7 +772,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, backoffs, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil)
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -865,7 +865,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil)
 
 	// Nothing has to be created for preset 1.
 	{
@@ -903,6 +903,49 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			},
 		}, actions)
 	}
+}
+
+func TestMatchesCron(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name            string
+		spec            string
+		at              time.Time
+		expectedMatches bool
+	}{
+		// A comprehensive test suite for time range evaluation is implemented in TestIsWithinRange.
+		// This test provides only basic coverage.
+		{
+			name:            "Right before the start of the time range",
+			spec:            "* 9-18 * * 1-5",
+			at:              mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:58:59 UTC"),
+			expectedMatches: false,
+		},
+		{
+			name:            "Start of the time range",
+			spec:            "* 9-18 * * 1-5",
+			at:              mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:00 UTC"),
+			expectedMatches: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			matches, err := prebuilds.MatchesCron(testCase.spec, testCase.at)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expectedMatches, matches)
+		})
+	}
+}
+
+func mustParseTime(t *testing.T, layout, value string) time.Time {
+	t.Helper()
+	parsedTime, err := time.Parse(layout, value)
+	require.NoError(t, err)
+	return parsedTime
 }
 
 func preset(active bool, instances int32, opts options, muts ...func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {

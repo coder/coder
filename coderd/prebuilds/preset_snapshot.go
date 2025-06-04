@@ -86,9 +86,9 @@ func (ra *ReconciliationActions) IsNoop() bool {
 	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
-// matchesCron checks if the given time matches the cron expression
+// MatchesCron checks if the given time matches the cron expression
 // Assumes the time is already in the correct timezone
-func matchesCron(cronExpression string, now time.Time) (bool, error) {
+func MatchesCron(cronExpression string, now time.Time) (bool, error) {
 	sched, err := cron.Weekly(cronExpression)
 	if err != nil {
 		return false, xerrors.Errorf("failed to parse cron expression: %w", err)
@@ -111,7 +111,7 @@ func (p PresetSnapshot) calculateDesiredInstances(now time.Time) (int32, error) 
 
 	// Check each schedule
 	for _, schedule := range p.PrebuildSchedules {
-		matches, err := matchesCron(schedule.CronExpression, now)
+		matches, err := MatchesCron(schedule.CronExpression, now)
 		if err != nil {
 			return 0, xerrors.Errorf("failed to match cron expression: %w", err)
 		}
