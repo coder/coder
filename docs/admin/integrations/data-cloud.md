@@ -13,7 +13,7 @@ You can tag your Coder users in DX Data Cloud to filter and analyze user activit
 ## Requirements
 
 - A DX Data Cloud subscription
-- Access to Coder user data through the Coder CLI, Coder API, an IdP, or and existing Coder-DX integration
+- Access to Coder user data through the Coder CLI, Coder API, an IdP, or an existing Coder-DX integration
 - Coordination with your Data Cloud Customer Success Manager
 
 ## Extract Your Coder User List
