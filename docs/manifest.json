@@ -30,42 +30,42 @@
 					]
 				},
 				{
-				"title": "Contributing",
-				"description": "Learn how to contribute to Coder",
-				"path": "./CONTRIBUTING.md",
-				"icon_path": "./images/icons/contributing.svg",
-				"children": [
-					{
-						"title": "Code of Conduct",
-						"description": "See the code of conduct for contributing to Coder",
-						"path": "./CODE_OF_CONDUCT.md",
-						"icon_path": "./images/icons/circle-dot.svg"
-					},
-					{
-						"title": "Documentation",
-						"description": "Our style guide for use when authoring documentation",
-						"path": "./about/contributing/documentation.md",
-						"icon_path": "./images/icons/document.svg"
-					},
-					{
-						"title": "Backend",
-						"description": "Our guide for backend development",
-						"path": "./about/contributing/backend.md",
-						"icon_path": "./images/icons/gear.svg"
-					},
-					{
-						"title": "Frontend",
-						"description": "Our guide for frontend development",
-						"path": "./about/contributing/frontend.md",
-						"icon_path": "./images/icons/frontend.svg"
-					},
-					{
-						"title": "Security",
-						"description": "Our guide for security",
-						"path": "./contributing/SECURITY.md",
-						"icon_path": "./images/icons/lock.svg"
-					}
-				]
+					"title": "Contributing",
+					"description": "Learn how to contribute to Coder",
+					"path": "./CONTRIBUTING.md",
+					"icon_path": "./images/icons/contributing.svg",
+					"children": [
+						{
+							"title": "Code of Conduct",
+							"description": "See the code of conduct for contributing to Coder",
+							"path": "./CODE_OF_CONDUCT.md",
+							"icon_path": "./images/icons/circle-dot.svg"
+						},
+						{
+							"title": "Documentation",
+							"description": "Our style guide for use when authoring documentation",
+							"path": "./about/contributing/documentation.md",
+							"icon_path": "./images/icons/document.svg"
+						},
+						{
+							"title": "Backend",
+							"description": "Our guide for backend development",
+							"path": "./about/contributing/backend.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
+							"title": "Frontend",
+							"description": "Our guide for frontend development",
+							"path": "./about/contributing/frontend.md",
+							"icon_path": "./images/icons/frontend.svg"
+						},
+						{
+							"title": "Security",
+							"description": "Our guide for security",
+							"path": "./contributing/SECURITY.md",
+							"icon_path": "./images/icons/lock.svg"
+						}
+					]
 				}
 			]
 		},
