@@ -155,19 +155,17 @@ locals {
   repo_url                   = data.coder_parameter.repo.value
   # The envbuilder provider requires a key-value map of environment variables.
   envbuilder_env = {
-    # ENVBUILDER_GIT_URL and ENVBUILDER_CACHE_REPO will be overridden by the provider
-    # if the cache repo is enabled.
-    "ENVBUILDER_GIT_URL" : local.repo_url,
-    "ENVBUILDER_CACHE_REPO" : var.cache_repo,
     "CODER_AGENT_TOKEN" : coder_agent.main.token,
     # Use the docker gateway if the access URL is 127.0.0.1
     "CODER_AGENT_URL" : replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    # ENVBUILDER_GIT_URL and ENVBUILDER_CACHE_REPO will be overridden by the provider
+    # if the cache repo is enabled.
+    "ENVBUILDER_GIT_URL" : var.cache_repo == "" ? local.repo_url : "",
     # Use the docker gateway if the access URL is 127.0.0.1
     "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
     "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
     "ENVBUILDER_DOCKER_CONFIG_BASE64" : base64encode(try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")),
-    "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
-    "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
+    "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true"
     # You may need to adjust this if you get an error regarding deleting files when building the workspace.
     # For example, when testing in KinD, it was necessary to set `/product_name` and `/product_uuid` in
     # addition to `/var/run`.
