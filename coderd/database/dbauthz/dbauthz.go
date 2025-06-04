@@ -3860,7 +3860,7 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 		return database.WorkspaceApp{}, err
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionCreateAgent, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
 		return database.WorkspaceApp{}, err
 	}
 
