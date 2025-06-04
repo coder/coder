@@ -484,13 +484,16 @@ require (
 )
 
 require (
+	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
 	github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.31.0
 	github.com/openai/openai-go v0.1.0-beta.10
+	github.com/shopspring/decimal v1.4.0
 	google.golang.org/genai v0.7.0
+	k8s.io/apimachinery v0.33.1
 )
 
 require (
@@ -504,6 +507,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.26.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.50.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.50.0 // indirect
+	github.com/PaesslerAG/gval v1.0.0 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/trivy v0.58.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
@@ -529,5 +533,6 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.34.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
 )
