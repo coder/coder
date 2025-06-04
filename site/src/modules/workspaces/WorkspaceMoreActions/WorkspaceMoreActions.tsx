@@ -62,11 +62,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(
-			workspace,
-			queryClient,
-			Boolean(!optOutQuery.data?.optedOut) ?? false,
-		),
+		changeVersion(workspace, queryClient, optOutQuery.data?.optedOut === false),
 	);
 
 	// Delete

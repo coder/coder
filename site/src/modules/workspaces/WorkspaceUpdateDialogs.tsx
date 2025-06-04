@@ -69,7 +69,7 @@ export const useWorkspaceUpdate = ({
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
 		updateWorkspaceMutation.mutate({
 			buildParameters,
-			isDynamicParametersEnabled: Boolean(!optOutQuery.data?.optedOut) ?? false,
+			isDynamicParametersEnabled: optOutQuery.data?.optedOut === false,
 		});
 		setIsConfirmingUpdate(false);
 	};
